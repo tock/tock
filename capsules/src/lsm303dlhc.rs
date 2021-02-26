@@ -84,7 +84,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -506,16 +506,16 @@ impl Driver for Lsm303dlhcI2C<'_> {
         data1: usize,
         data2: usize,
         _appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             // Check is sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
                     self.is_present();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Accelerometer Power Mode
@@ -523,12 +523,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303AccelDataRate::from_usize(data1) {
                         self.set_power_mode(data_rate, if data2 != 0 { true } else { false });
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Accelerometer Scale And Resolution
@@ -536,12 +536,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(scale) = Lsm303Scale::from_usize(data1) {
                         self.set_scale_and_resolution(scale, if data2 != 0 { true } else { false });
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Magnetometer Temperature Enable and Data Rate
@@ -552,12 +552,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                             if data2 != 0 { true } else { false },
                             data_rate,
                         );
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Magnetometer Range
@@ -565,43 +565,43 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(range) = Lsm303Range::from_usize(data1) {
                         self.set_range(range);
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Acceleration XYZ
             6 => {
                 if self.state.get() == State::Idle {
                     self.read_acceleration_xyz();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Temperature
             7 => {
                 if self.state.get() == State::Idle {
                     self.read_temperature();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Mangetometer XYZ
             8 => {
                 if self.state.get() == State::Idle {
                     self.read_magnetometer_xyz();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

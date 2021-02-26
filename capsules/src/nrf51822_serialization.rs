@@ -26,7 +26,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, ReturnCode,
 };
 
@@ -212,34 +212,34 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Received from the nRF into the allowed buffer.
     /// - `3`: Reset the nRF51822.
-    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_type {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
                 self.apps.enter(appid, |app, _| {
-                    app.tx_buffer.map_or(CommandResult::failure(ErrorCode::FAIL), |slice| {
+                    app.tx_buffer.map_or(CommandReturn::failure(ErrorCode::FAIL), |slice| {
                         let write_len = slice.len();
-                        self.tx_buffer.take().map_or(CommandResult::failure(ErrorCode::FAIL), |buffer| {
+                        self.tx_buffer.take().map_or(CommandReturn::failure(ErrorCode::FAIL), |buffer| {
                             for (i, c) in slice.as_ref().iter().enumerate() {
                                 buffer[i] = *c;
                             }
                             let (_err, _opt) = self.uart.transmit_buffer(buffer, write_len);
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
                     })
-                }).unwrap_or(CommandResult::failure(ErrorCode::FAIL))
+                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
             // Receive from the nRF51822
             2 => {
-                self.rx_buffer.take().map_or(CommandResult::failure(ErrorCode::RESERVE), |buffer| {
+                self.rx_buffer.take().map_or(CommandReturn::failure(ErrorCode::RESERVE), |buffer| {
                     let len = arg1;
                     if len > buffer.len() {
-                        CommandResult::failure(ErrorCode::SIZE)
+                        CommandReturn::failure(ErrorCode::SIZE)
                     } else {
                         self.uart.receive_automatic(buffer, len, 250);
-                        CommandResult::success_u32(len as u32)
+                        CommandReturn::success_u32(len as u32)
                     }
                 })
             }
@@ -247,10 +247,10 @@ impl Driver for Nrf51822Serialization<'_> {
             // Initialize the nRF51822 by resetting it.
             3 => {
                 self.reset();
-                CommandResult::success()
+                CommandReturn::success()
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

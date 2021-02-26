@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -180,17 +180,16 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     // x+1: unlock spi
     //   - does nothing if lock not held
     //
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandReturn {
         match cmd_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
             // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            1 /* read_write_byte */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
             2 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return CommandResult::failure(ErrorCode::BUSY);
+                    return CommandReturn::failure(ErrorCode::BUSY);
                 }
-
-                self.app.map_or(CommandResult::failure(ErrorCode::FAIL), |app| {
+                self.app.map_or(CommandReturn::failure(ErrorCode::FAIL), |app| {
                     // When we do a read/write, the read part is optional.
                     // So there are three cases:
                     // 1) Write and read buffers present: len is min of lengths
@@ -205,52 +204,52 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
                         /* write buffer too small, or zero length write */
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 })
             }
             3 /* set chip select */ => {
                 // XXX: TODO: do nothing, for now, until we fix interface
                 // so virtual instances can use multiple chip selects
-                CommandResult::failure(ErrorCode::NOSUPPORT)
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             4 /* get chip select */ => {
                 // XXX: We don't really know what chip select is being used
                 // since we can't set it. Return error until set chip select
                 // works.
-                CommandResult::failure(ErrorCode::NOSUPPORT)
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             5 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32);
-                CommandResult::success()
+                CommandReturn::success()
             }
             6 /* get baud rate */ => {
-                CommandResult::success_u32(self.spi_master.get_rate() as u32)
+                CommandReturn::success_u32(self.spi_master.get_rate() as u32)
             }
             7 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
-                CommandResult::success()
+                CommandReturn::success()
             }
             8 /* get phase */ => {
-                CommandResult::success_u32(self.spi_master.get_phase() as u32)
+                CommandReturn::success_u32(self.spi_master.get_phase() as u32)
             }
             9 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 };
-                CommandResult::success()
+                CommandReturn::success()
             }
             10 /* get polarity */ => {
-                CommandResult::success_u32(self.spi_master.get_polarity() as u32)
+                CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }

@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -146,17 +146,17 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandReturn {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
-                Cmd::Ping => CommandResult::success(),
+                Cmd::Ping => CommandReturn::success(),
                 Cmd::Write => self
                     .apps
                     .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
                         self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
-                        CommandResult::success()
+                        CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
@@ -165,7 +165,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                         let addr = arg1 as u8;
                         let read_len = arg2;
                         self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
-                        CommandResult::success()
+                        CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::WriteRead => {
@@ -182,13 +182,13 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                                 write_len as u8,
                                 read_len as u8,
                             );
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
                         .unwrap_or_else(|err| err.into())
                 }
             }
         } else {
-            CommandResult::failure(ErrorCode::NOSUPPORT)
+            CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }

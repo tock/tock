@@ -91,78 +91,78 @@ use crate::syscall::GenericSyscallReturnValue;
 /// application (e.g. not
 /// [`SubscribeSuccess`](crate::syscall::GenericSyscallReturnValue::SubscribeSuccess)).
 /// This means that the inner value **must** remain private.
-pub struct CommandResult(GenericSyscallReturnValue);
-impl CommandResult {
+pub struct CommandReturn(GenericSyscallReturnValue);
+impl CommandReturn {
     pub(crate) fn into_inner(self) -> GenericSyscallReturnValue {
         self.0
     }
 
     /// Command error
     pub fn failure(rc: ErrorCode) -> Self {
-        CommandResult(GenericSyscallReturnValue::Failure(rc))
+        CommandReturn(GenericSyscallReturnValue::Failure(rc))
     }
 
     /// Command error with an additional 32-bit data field
     pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::FailureU32(rc, data0))
+        CommandReturn(GenericSyscallReturnValue::FailureU32(rc, data0))
     }
 
     /// Command error with two additional 32-bit data fields
     pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::FailureU32U32(rc, data0, data1))
+        CommandReturn(GenericSyscallReturnValue::FailureU32U32(rc, data0, data1))
     }
 
     /// Command error with an additional 64-bit data field
     pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
-        CommandResult(GenericSyscallReturnValue::FailureU64(rc, data0))
+        CommandReturn(GenericSyscallReturnValue::FailureU64(rc, data0))
     }
 
     /// Successful command
     pub fn success() -> Self {
-        CommandResult(GenericSyscallReturnValue::Success)
+        CommandReturn(GenericSyscallReturnValue::Success)
     }
 
     /// Successful command with an additional 32-bit data field
     pub fn success_u32(data0: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::SuccessU32(data0))
+        CommandReturn(GenericSyscallReturnValue::SuccessU32(data0))
     }
 
     /// Successful command with two additional 32-bit data fields
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::SuccessU32U32(data0, data1))
+        CommandReturn(GenericSyscallReturnValue::SuccessU32U32(data0, data1))
     }
 
     /// Successful command with three additional 32-bit data fields
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::SuccessU32U32U32(
+        CommandReturn(GenericSyscallReturnValue::SuccessU32U32U32(
             data0, data1, data2,
         ))
     }
 
     /// Successful command with an additional 64-bit data field
     pub fn success_u64(data0: u64) -> Self {
-        CommandResult(GenericSyscallReturnValue::SuccessU64(data0))
+        CommandReturn(GenericSyscallReturnValue::SuccessU64(data0))
     }
 
     /// Successful command with an additional 64-bit and 32-bit data field
     pub fn success_u64_u32(data0: u64, data1: u32) -> Self {
-        CommandResult(GenericSyscallReturnValue::SuccessU64U32(data0, data1))
+        CommandReturn(GenericSyscallReturnValue::SuccessU64U32(data0, data1))
     }
 }
 
 use core::convert::TryFrom;
-impl From<ReturnCode> for CommandResult {
+impl From<ReturnCode> for CommandReturn {
     fn from(rc: ReturnCode) -> Self {
         match rc {
-            ReturnCode::SUCCESS => CommandResult::success(),
-            _ => CommandResult::failure(ErrorCode::try_from(rc).unwrap()),
+            ReturnCode::SUCCESS => CommandReturn::success(),
+            _ => CommandReturn::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }
 }
 
-impl From<process::Error> for CommandResult {
+impl From<process::Error> for CommandReturn {
     fn from(perr: process::Error) -> Self {
-        CommandResult::failure(perr.into())
+        CommandReturn::failure(perr.into())
     }
 }
 
@@ -195,8 +195,8 @@ pub trait Driver {
     /// is signaled with an upcall). Command 0 is a reserved command to
     /// detect if a peripheral system call driver is installed and must
     /// always return a CommandReturn::Success.
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
-        CommandResult::failure(ErrorCode::NOSUPPORT)
+    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandReturn {
+        CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
     /// System call for a process to pass a buffer (a ReadWriteAppSlice) to

@@ -27,7 +27,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{AppId, Callback, CommandResult, Driver, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, Callback, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -226,10 +226,10 @@ impl Driver for AppFlash<'_> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             1 /* Write to flash from the allowed buffer */ => {
@@ -238,12 +238,12 @@ impl Driver for AppFlash<'_> {
                 let res = self.enqueue_write(flash_address, appid);
 
                 match res {
-                    Ok(()) => CommandResult::success(),
-                    Err(e) => CommandResult::failure(e),
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
 
-            _ /* Unknown command num */ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

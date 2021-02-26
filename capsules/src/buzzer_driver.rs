@@ -44,7 +44,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -223,12 +223,12 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             0 =>
             /* This driver exists. */
             {
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             1 => {
@@ -244,7 +244,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
                 .into()
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

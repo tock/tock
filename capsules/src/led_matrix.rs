@@ -68,7 +68,7 @@
 //!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
 
 use kernel::hil::gpio;
-use kernel::{AppId, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode};
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
@@ -200,46 +200,46 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
     ///        `EINVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // get number of LEDs
-            0 => CommandResult::success_u32((self.cols.len() * self.rows.len()) as u32),
+            0 => CommandReturn::success_u32((self.cols.len() * self.rows.len()) as u32),
 
             // on
             1 => {
                 if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandResult::failure(ErrorCode::INVAL) /* led out of range */
+                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
                 } else {
                     self.buffer
                         .map(|bits| bits[data / 8] = bits[data / 8] | (1 << (data % 8)));
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
 
             // off
             2 => {
                 if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandResult::failure(ErrorCode::INVAL) /* led out of range */
+                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
                 } else {
                     self.buffer
                         .map(|bits| bits[data / 8] = bits[data / 8] & !(1 << data % 8));
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
 
             // toggle
             3 => {
                 if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandResult::failure(ErrorCode::INVAL) /* led out of range */
+                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
                 } else {
                     self.buffer
                         .map(|bits| bits[data / 8] = bits[data % 8] ^ (1 << (data % 8)));
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -110,13 +110,13 @@ impl<'a> ProximitySensor<'a> {
         arg1: usize,
         arg2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         // Enqueue command by saving command type, args, appid within app struct in grant region
         self.apps
             .enter(appid, |app, _| {
                 // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
-                    return CommandResult::failure(ErrorCode::BUSY);
+                    return CommandReturn::failure(ErrorCode::BUSY);
                 }
 
                 if command == ProximityCommand::ReadProximityOnInterrupt {
@@ -138,7 +138,7 @@ impl<'a> ProximitySensor<'a> {
                     self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                     self.command_running
                         .set(ProximityCommand::ReadProximityOnInterrupt);
-                    return CommandResult::success();
+                    return CommandReturn::success();
                 }
 
                 // If driver is currently processing a ReadProximityOnInterrupt command and current command is a ReadProximity then
@@ -149,7 +149,7 @@ impl<'a> ProximitySensor<'a> {
                 {
                     self.driver.read_proximity();
                     self.command_running.set(ProximityCommand::ReadProximity);
-                    return CommandResult::success();
+                    return CommandReturn::success();
                 }
 
                 // Only run command if it is only one in queue otherwise we wait for callback() for last run command to trigger another command to run
@@ -167,9 +167,9 @@ impl<'a> ProximitySensor<'a> {
                     self.run_next_command();
                 }
 
-                CommandResult::success()
+                CommandReturn::success()
             })
-            .unwrap_or_else(|err| CommandResult::failure(err.into()))
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
     fn run_next_command(&self) -> ReturnCode {
@@ -300,10 +300,10 @@ impl Driver for ProximitySensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // check whether the driver exist!!
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // Instantaneous proximity measurement
             1 => self.enqueue_command(ProximityCommand::ReadProximity, arg1, arg2, appid),
@@ -316,7 +316,7 @@ impl Driver for ProximitySensor<'_> {
                 appid,
             ),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

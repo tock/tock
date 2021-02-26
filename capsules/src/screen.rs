@@ -17,7 +17,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode,
 };
 
 /// Syscall driver number.
@@ -146,7 +146,7 @@ impl<'a> Screen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         let res = self
             .apps
             .enter(appid, |app, _| {
@@ -157,23 +157,23 @@ impl<'a> Screen<'a> {
                     if r != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
-                    CommandResult::from(r)
+                    CommandReturn::from(r)
                 } else {
                     if app.pending_command == true {
-                        CommandResult::failure(ErrorCode::BUSY)
+                        CommandReturn::failure(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
                         app.write_position = 0;
                         app.data1 = data1;
                         app.data2 = data2;
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
                 }
             })
             .map_err(ErrorCode::from);
         match res {
-            Err(e) => CommandResult::failure(e),
+            Err(e) => CommandReturn::failure(e),
             Ok(r) => r,
         }
     }
@@ -529,15 +529,15 @@ impl<'a> Driver for Screen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             0 =>
             // This driver exists.
             {
-                CommandResult::success()
+                CommandReturn::success()
             }
             // Does it have the screen setup
-            1 => CommandResult::success_u32(self.screen_setup.is_some() as u32),
+            1 => CommandReturn::success_u32(self.screen_setup.is_some() as u32),
             // Set Brightness
             3 => self.enqueue_command(ScreenCommand::SetBrightness, data1, 0, appid),
             // Invert On
@@ -577,7 +577,7 @@ impl<'a> Driver for Screen<'a> {
             // Fill
             300 => self.enqueue_command(ScreenCommand::Fill, data1, data2, appid),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

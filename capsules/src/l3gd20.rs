@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -300,25 +300,25 @@ impl Driver for L3gd20Spi<'_> {
         data1: usize,
         data2: usize,
         _appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             // Check is sensor is correctly connected
             1 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.is_present();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Power On
             2 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.power_on();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Scale
@@ -326,9 +326,9 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let scale = data1 as u8;
                     self.set_scale(scale);
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Enable High Pass Filter
@@ -337,9 +337,9 @@ impl Driver for L3gd20Spi<'_> {
                     let mode = data1 as u8;
                     let divider = data2 as u8;
                     self.set_hpf_parameters(mode, divider);
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set High Pass Filter Mode and Divider
@@ -347,31 +347,31 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let enabled = if data1 == 1 { true } else { false };
                     self.enable_hpf(enabled);
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read XYZ
             6 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_xyz();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Temperature
             7 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_temperature();
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

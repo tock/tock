@@ -54,7 +54,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
     ReturnCode,
 };
 
@@ -1225,7 +1225,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
         channel: usize,
         frequency: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
@@ -1255,16 +1255,16 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
         if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
-            return CommandResult::failure(ErrorCode::NOMEM);
+            return CommandReturn::failure(ErrorCode::NOMEM);
         }
         match command_num {
             // check if present
-            0 => CommandResult::success_u32(self.channels.len() as u32),
+            0 => CommandReturn::success_u32(self.channels.len() as u32),
 
             // Single sample on channel
             1 => match self.sample(channel) {
-                ReturnCode::SUCCESS => CommandResult::success(),
-                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                ReturnCode::SUCCESS => CommandReturn::success(),
+                e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
                     panic!("ADC: invalid return code")
@@ -1273,8 +1273,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Repeated single samples on a channel
             2 => match self.sample_continuous(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandResult::success(),
-                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                ReturnCode::SUCCESS => CommandReturn::success(),
+                e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
                     panic!("ADC: invalid return code")
@@ -1283,8 +1283,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Multiple sample on a channel
             3 => match self.sample_buffer(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandResult::success(),
-                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                ReturnCode::SUCCESS => CommandReturn::success(),
+                e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
                     panic!("ADC: invalid return code")
@@ -1293,8 +1293,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Continuous buffered sampling on a channel
             4 => match self.sample_buffer_continuous(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandResult::success(),
-                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                ReturnCode::SUCCESS => CommandReturn::success(),
+                e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
                     panic!("ADC: invalid return code")
@@ -1303,8 +1303,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Stop sampling
             5 => match self.stop_sampling() {
-                ReturnCode::SUCCESS => CommandResult::success(),
-                e => CommandResult::failure(if let Ok(err) = ErrorCode::try_from(e) {
+                ReturnCode::SUCCESS => CommandReturn::success(),
+                e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
                     panic!("ADC: invalid return code")
@@ -1312,18 +1312,18 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
             },
 
             // Get resolution bits
-            101 => CommandResult::success_u32(self.get_resolution_bits() as u32),
+            101 => CommandReturn::success_u32(self.get_resolution_bits() as u32),
             // Get voltage reference mV
             102 => {
                 if let Some(voltage) = self.get_voltage_reference_mv() {
-                    CommandResult::success_u32(voltage as u32)
+                    CommandReturn::success_u32(voltage as u32)
                 } else {
-                    CommandResult::failure(ErrorCode::NOSUPPORT)
+                    CommandReturn::failure(ErrorCode::NOSUPPORT)
                 }
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -1365,19 +1365,19 @@ impl Driver for AdcVirtualized<'_> {
     /// - `channel` - requested channel value
     /// - `_` - value sent by the application, unused
     /// - `appid` - application identifier
-    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // This driver exists and return the number of channels
-            0 => CommandResult::success_u32(self.drivers.len() as u32),
+            0 => CommandReturn::success_u32(self.drivers.len() as u32),
 
             // Single sample.
             1 => {
                 let res = self.enqueue_command(Operation::OneSample, channel, appid);
                 if res == ReturnCode::SUCCESS {
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
                     match ErrorCode::try_from(res) {
-                        Ok(error) => CommandResult::failure(error),
+                        Ok(error) => CommandReturn::failure(error),
                         _ => panic!("ADC Syscall: invalid errior from enqueue_command"),
                     }
                 }
@@ -1386,9 +1386,9 @@ impl Driver for AdcVirtualized<'_> {
             // Get resolution bits
             101 => {
                 if channel < self.drivers.len() {
-                    CommandResult::success_u32(self.drivers[channel].get_resolution_bits() as u32)
+                    CommandReturn::success_u32(self.drivers[channel].get_resolution_bits() as u32)
                 } else {
-                    CommandResult::failure(ErrorCode::NODEVICE)
+                    CommandReturn::failure(ErrorCode::NODEVICE)
                 }
             }
 
@@ -1396,16 +1396,16 @@ impl Driver for AdcVirtualized<'_> {
             102 => {
                 if channel < self.drivers.len() {
                     if let Some(voltage) = self.drivers[channel].get_voltage_reference_mv() {
-                        CommandResult::success_u32(voltage as u32)
+                        CommandReturn::success_u32(voltage as u32)
                     } else {
-                        CommandResult::failure(ErrorCode::NOSUPPORT)
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::NODEVICE)
+                    CommandReturn::failure(ErrorCode::NODEVICE)
                 }
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

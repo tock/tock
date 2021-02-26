@@ -28,7 +28,7 @@ use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
     ReturnCode,
 };
 
@@ -203,11 +203,11 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             0 /* Check if exists */ =>
             {
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             1 /* Ask for a given number of random bytes */ => self
@@ -224,10 +224,10 @@ impl<'a> Driver for RngDriver<'a> {
                         self.rng.get();
                     }
 
-                    CommandResult::success()
+                    CommandReturn::success()
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

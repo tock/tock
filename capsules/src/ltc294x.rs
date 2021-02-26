@@ -50,7 +50,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -504,10 +504,10 @@ impl Driver for LTC294XDriver<'_> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // Check this driver exists.
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // Get status.
             1 => self.ltc294x.read_status().into(),
@@ -561,7 +561,7 @@ impl Driver for LTC294XDriver<'_> {
             10 => self.ltc294x.set_model(data).into(),
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

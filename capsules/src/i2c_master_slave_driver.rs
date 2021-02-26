@@ -15,7 +15,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult};
+use kernel::{AppId, Callback, CommandReturn};
 use kernel::{Driver, ErrorCode, Read, ReadWrite, ReadWriteAppSlice};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
@@ -258,9 +258,9 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
 
             // Do a write to another I2C device
             1 => {
@@ -290,7 +290,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     });
                 });
 
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Do a read to another I2C device
@@ -318,7 +318,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     });
                 });
 
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Listen for messages to this device as a slave.
@@ -336,7 +336,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // Note that we have enabled listening, so that if we switch
                 // to Master mode to send a message we can go back to listening.
                 self.listening.set(true);
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Prepare for a read from another Master by passing what's
@@ -360,7 +360,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     });
                 });
 
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Stop listening for messages as an I2C slave
@@ -370,7 +370,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // We are no longer listening for I2C messages from a different
                 // master device.
                 self.listening.set(false);
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Setup this device's slave address.
@@ -379,10 +379,10 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // We do not count the R/W bit as part of the address, so the
                 // valid range is 0x00-0x7f
                 if address > 0x7f {
-                    return CommandResult::failure(ErrorCode::INVAL);
+                    return CommandReturn::failure(ErrorCode::INVAL);
                 }
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // Perform write-to then read-from a slave device.
@@ -410,11 +410,11 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                         0
                     });
                 });
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }

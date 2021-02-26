@@ -22,7 +22,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -236,16 +236,16 @@ impl Driver for LPS25HB<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
             // Take a pressure measurement
             1 => {
                 self.take_measurement();
-                CommandResult::success()
+                CommandReturn::success()
             }
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

@@ -18,7 +18,7 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -385,12 +385,12 @@ impl<'a> Driver for Touch<'a> {
         _data1: usize,
         _data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             0 =>
             // This driver exists.
             {
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // touch enable
@@ -401,7 +401,7 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.touch_enable();
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // touch disable
@@ -412,7 +412,7 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.touch_enable();
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // multi touch ack
@@ -422,7 +422,7 @@ impl<'a> Driver for Touch<'a> {
                         app.ack = true;
                     })
                     .unwrap_or(());
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // multi touch enable
@@ -433,7 +433,7 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.multi_touch_enable();
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // multi touch disable
@@ -444,7 +444,7 @@ impl<'a> Driver for Touch<'a> {
                     })
                     .unwrap_or(());
                 self.multi_touch_enable();
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             // number of touches
@@ -458,10 +458,10 @@ impl<'a> Driver for Touch<'a> {
                         0
                     }
                 };
-                CommandResult::success_u32(num_touches as u32)
+                CommandReturn::success_u32(num_touches as u32)
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

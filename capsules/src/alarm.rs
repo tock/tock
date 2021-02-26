@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -189,7 +189,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         data: usize,
         data2: usize,
         caller_id: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
         //   - we're disabling the underlying alarm anyway,
@@ -207,31 +207,31 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         dt: dt as u32,
                     };
                     (
-                        CommandResult::success_u32(reference.wrapping_add(dt) as u32),
+                        CommandReturn::success_u32(reference.wrapping_add(dt) as u32),
                         true,
                     )
                 };
                 let now = self.alarm.now();
                 match cmd_type {
-                    0 /* check if present */ => (CommandResult::success(), false),
+                    0 /* check if present */ => (CommandReturn::success(), false),
                     1 /* Get clock frequency */ => {
                         let freq = <A::Frequency>::frequency();
-                        (CommandResult::success_u32(freq), false)
+                        (CommandReturn::success_u32(freq), false)
                     },
                     2 /* capture time */ => {
-                        (CommandResult::success_u32(now.into_u32()), false)
+                        (CommandReturn::success_u32(now.into_u32()), false)
                     },
                     3 /* Stop */ => {
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
-                                (CommandResult::failure(ErrorCode::ALREADY), false)
+                                (CommandReturn::failure(ErrorCode::ALREADY), false)
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
-                                (CommandResult::success(), true)
+                                (CommandReturn::success(), true)
                             }
                         }
                     },
@@ -258,11 +258,11 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let dt = data2;
                         rearm(reference, dt)
                     }
-                    _ => (CommandResult::failure(ErrorCode::NOSUPPORT), false)
+                    _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                 }
             })
             .map_or_else(
-                |err| CommandResult::failure(err.into()),
+                |err| CommandReturn::failure(err.into()),
                 |(result, reset)| {
                     if reset {
                         self.reset_active_alarm();

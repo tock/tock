@@ -3,7 +3,7 @@
 use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::CommandResult;
+use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
 use crate::process;
 
@@ -232,7 +232,7 @@ pub enum SyscallReturnVariant {
 /// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
 /// [`Callback`](crate::Callback)) or wrappers around this struct
-/// ([`CommandResult`](crate::CommandResult)) which limit the
+/// ([`CommandReturn`](crate::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
 pub enum GenericSyscallReturnValue {
@@ -292,13 +292,13 @@ pub enum GenericSyscallReturnValue {
 }
 
 impl GenericSyscallReturnValue {
-    /// Transforms a CommandResult, which is wrapper around a subset of
+    /// Transforms a CommandReturn, which is wrapper around a subset of
     /// GenericSyscallReturnValue, into a GenericSyscallReturnValue.
-    /// This allows CommandResult to include only the variants of
+    /// This allows CommandReturn to include only the variants of
     /// GenericSyscallReturnValue that can be returned from a Command,
     /// while having an inexpensive way to handle it as a
     /// GenericSyscallReturnValue for more generic code paths.
-    pub(crate) fn from_command_result(res: CommandResult) -> Self {
+    pub(crate) fn from_command_result(res: CommandReturn) -> Self {
         res.into_inner()
     }
 

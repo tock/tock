@@ -16,7 +16,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -106,14 +106,14 @@ impl Driver for AmbientLight<'_> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
             1 => {
                 self.enqueue_sensor_reading(appid);
-                CommandResult::success()
+                CommandReturn::success()
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }
