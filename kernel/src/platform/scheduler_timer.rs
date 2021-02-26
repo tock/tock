@@ -49,7 +49,7 @@ use crate::hil::time::{self, Frequency, Ticks};
 /// `SchedulerTimer` is used in the core kernel loop and scheduler, top half
 /// interrupt handlers may not have executed before `SchedulerTimer` functions
 /// are called. In particular, implementations on top of virtualized timers may
-/// receive the interrupt fired callback "late" (i.e. after the kernel calls
+/// receive the interrupt fired upcall "late" (i.e. after the kernel calls
 /// `has_expired()`). Implementations should ensure that they can reliably check
 /// for timeslice expirations.
 pub trait SchedulerTimer {

@@ -188,7 +188,7 @@ pub struct App {
 
     // Scanning meta-data
     scan_buffer: ReadWriteAppSlice,
-    scan_callback: kernel::Callback,
+    scan_callback: kernel::Upcall,
 }
 
 impl Default for App {
@@ -199,7 +199,7 @@ impl Default for App {
             scan_buffer: ReadWriteAppSlice::default(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
-            scan_callback: kernel::Callback::default(),
+            scan_callback: kernel::Upcall::default(),
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
@@ -721,11 +721,11 @@ where
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: kernel::Callback,
+        mut callback: kernel::Upcall,
         app_id: kernel::AppId,
-    ) -> Result<kernel::Callback, (kernel::Callback, ErrorCode)> {
+    ) -> Result<kernel::Upcall, (kernel::Upcall, ErrorCode)> {
         match subscribe_num {
-            // Callback for scanning
+            // Upcall for scanning
             0 => self
                 .app
                 .enter(app_id, |app, _| match app.process_status {

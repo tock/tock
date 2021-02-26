@@ -5,7 +5,7 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{slice_from_raw_parts_mut, write, NonNull};
 
-use crate::callback::AppId;
+use crate::upcall::AppId;
 use crate::process::{Error, ProcessType};
 use crate::sched::Kernel;
 

@@ -15,7 +15,7 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, ReturnCode,
 };
 
@@ -153,8 +153,8 @@ impl KeyDescriptor {
 
 #[derive(Default)]
 pub struct App {
-    rx_callback: Callback,
-    tx_callback: Callback,
+    rx_callback: Upcall,
+    tx_callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     app_cfg: ReadWriteAppSlice,
@@ -563,9 +563,9 @@ impl Driver for RadioDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         self.apps
             .enter(app_id, |app, _| match subscribe_num {
                 0 => {

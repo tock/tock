@@ -10,7 +10,7 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
-use crate::callback::AppId;
+use crate::upcall::AppId;
 use crate::common::cells::OptionalCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::platform::Chip;

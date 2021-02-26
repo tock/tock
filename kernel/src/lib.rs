@@ -98,7 +98,7 @@ pub mod introspection;
 pub mod ipc;
 pub mod syscall;
 
-mod callback;
+mod upcall;
 mod config;
 mod driver;
 mod errorcode;
@@ -110,7 +110,7 @@ mod process;
 mod returncode;
 mod sched;
 
-pub use crate::callback::{AppId, Callback};
+pub use crate::upcall::{AppId, Upcall};
 pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};
