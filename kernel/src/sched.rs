@@ -843,7 +843,7 @@ impl Kernel {
                 // with the old function pointer, we clear
                 // them now.
                 process.remove_pending_callbacks(callback_id);
-
+                
                 let ptr = NonNull::new(callback_ptr);
                 let callback = ptr.map_or(Callback::default(), |ptr| {
                     Callback::new(process.appid(), callback_id, appdata, ptr.cast())
@@ -852,7 +852,10 @@ impl Kernel {
                     Some(d) => {
                         let res = d.subscribe(subdriver_number, callback, process.appid());
                         match res {
-                            Ok(newcb) => newcb.into_subscribe_success(),
+                            // An Ok() returns the previous upcall, while
+                            // Err() returns the one that was just passed
+                            // (because the call was rejected).
+                            Ok(oldcb) => oldcb.into_subscribe_success(),
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
