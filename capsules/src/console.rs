@@ -42,7 +42,7 @@ use core::{cmp, mem};
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, Upcall, ErrorCode, Grant};
+use kernel::{AppId, ErrorCode, Grant, Upcall};
 use kernel::{CommandReturn, Driver, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 

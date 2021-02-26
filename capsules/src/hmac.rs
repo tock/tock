@@ -36,8 +36,8 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
-    ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    Upcall,
 };
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {

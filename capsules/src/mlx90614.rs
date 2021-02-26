@@ -22,7 +22,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;

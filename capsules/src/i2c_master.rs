@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.

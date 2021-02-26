@@ -17,7 +17,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode, Upcall,
 };
 
 /// Syscall driver number.

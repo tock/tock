@@ -8,7 +8,6 @@ use core::fmt::Write;
 use core::ptr::{write_volatile, NonNull};
 use core::{mem, ptr, slice, str};
 
-use crate::upcall::{AppId, UpcallId};
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
@@ -22,6 +21,7 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
+use crate::upcall::{AppId, UpcallId};
 use core::cmp::max;
 
 // The completion code for a process if it faulted.

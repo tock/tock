@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;

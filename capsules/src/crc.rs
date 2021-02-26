@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.

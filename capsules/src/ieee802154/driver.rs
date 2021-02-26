@@ -15,8 +15,8 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 const MAX_NEIGHBORS: usize = 4;

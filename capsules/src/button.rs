@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;

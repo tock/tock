@@ -61,8 +61,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    Upcall,
 };
 
 /// Syscall driver number.

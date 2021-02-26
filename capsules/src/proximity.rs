@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;

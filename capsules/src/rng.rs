@@ -28,8 +28,8 @@ use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
-    ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    Upcall,
 };
 
 /// Syscall driver number.

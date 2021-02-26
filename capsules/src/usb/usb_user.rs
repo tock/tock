@@ -29,7 +29,7 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;

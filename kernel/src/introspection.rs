@@ -12,11 +12,11 @@
 
 use core::cell::Cell;
 
-use crate::upcall::AppId;
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::NumericCellExt;
 use crate::process;
 use crate::sched::Kernel;
+use crate::upcall::AppId;
 
 /// This struct provides the inspection functions.
 pub struct KernelInfo {

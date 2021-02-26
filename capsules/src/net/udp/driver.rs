@@ -24,8 +24,8 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{
-    debug, AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice,
-    ReadWrite, ReadWriteAppSlice, ReturnCode,
+    debug, AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 use crate::driver;

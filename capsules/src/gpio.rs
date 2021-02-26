@@ -54,7 +54,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 use core::mem;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],

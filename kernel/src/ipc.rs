@@ -3,12 +3,12 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
-use crate::upcall::{AppId, Upcall};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
 use crate::mem::Read;
 use crate::process;
 use crate::sched::Kernel;
+use crate::upcall::{AppId, Upcall};
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
@@ -76,10 +76,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                 let mut upcall = match cb_type {
                     IPCUpcallType::Service => mydata.upcall,
                     IPCUpcallType::Client => match called_from.index() {
-                        Some(i) => *mydata
-                            .client_upcalls
-                            .get(i)
-                            .unwrap_or(&Upcall::default()),
+                        Some(i) => *mydata.client_upcalls.get(i).unwrap_or(&Upcall::default()),
                         None => Upcall::default(),
                     },
                 };

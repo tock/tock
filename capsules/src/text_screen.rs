@@ -16,7 +16,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;

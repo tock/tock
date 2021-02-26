@@ -18,7 +18,7 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.

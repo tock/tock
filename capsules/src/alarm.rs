@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;

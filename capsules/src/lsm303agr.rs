@@ -85,7 +85,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 use crate::driver;
 use crate::lsm303xx::{

@@ -9,7 +9,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, Upcall, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.

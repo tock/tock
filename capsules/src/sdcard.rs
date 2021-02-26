@@ -46,7 +46,7 @@ use core::mem;
 
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Upcall, CommandReturn, Driver};
+use kernel::{AppId, CommandReturn, Driver, Upcall};
 use kernel::{ErrorCode, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 

@@ -27,7 +27,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{AppId, Upcall, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;

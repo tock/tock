@@ -27,7 +27,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Upcall, ErrorCode};
+use kernel::{AppId, ErrorCode, Upcall};
 use kernel::{CommandReturn, Driver, ReturnCode};
 
 /// Syscall driver number.

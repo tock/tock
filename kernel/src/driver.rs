@@ -69,12 +69,12 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-use crate::upcall::{AppId, Upcall};
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
+use crate::upcall::{AppId, Upcall};
 
 /// Possible return values of a `command` driver method, as specified
 /// in TRD104.

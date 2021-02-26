@@ -33,7 +33,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    AppId, Upcall, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.

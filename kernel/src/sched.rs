@@ -13,7 +13,6 @@ pub(crate) mod round_robin;
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::upcall::{AppId, Upcall, UpcallId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -31,6 +30,7 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue};
 use crate::syscall::{Syscall, YieldCall};
+use crate::upcall::{AppId, Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
