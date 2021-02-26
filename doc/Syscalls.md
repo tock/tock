@@ -43,7 +43,7 @@ modes](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDI
 
 Second, context switching to the kernel allows it to do other resource handling
 before returning to the application. This could include running other
-applications, servicing queued callbacks, or many other activities. 
+applications, servicing queued upcalls, or many other activities. 
 
 Finally,
 and most importantly, using system calls allows applications to be built
@@ -61,13 +61,13 @@ In Tock, a process can be in one of seven states:
  - **Running**: Normal operation. A Running process is eligible to be scheduled
  for execution, although is subject to being paused by Tock to allow interrupt
  handlers or other processes to run. During normal operation, a process remains
- in the Running state until it explicitly yields. Callbacks from other kernel
- operations are not delivered to Running processes (i.e. callbacks do not
+ in the Running state until it explicitly yields. Upcalls from other kernel
+ operations are not delivered to Running processes (i.e. upcalls do not
  interrupt processes), rather they are enqueued until the process yields.
  - **Yielded**: Suspended operation. A Yielded process will not be scheduled by
  Tock. Processes often yield while they are waiting for I/O or other operations
  to complete and have no immediately useful work to do. Whenever the kernel issues
- a callback to a Yielded process, the process is transitioned to the Running state.
+ a upcall to a Yielded process, the process is transitioned to the Running state.
  - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
  Tock. Processes enter the Fault state by performing an illegal operation, such
  as accessing memory outside of their address space.
@@ -86,7 +86,7 @@ In Tock, a process can be in one of seven states:
 ## Startup
 
 Upon process initialization, a single function call task is added to its
-callback queue. The function is determined by the ENTRY point in the process
+upcall queue. The function is determined by the ENTRY point in the process
 TBF header (typically the `_start` symbol) and is passed the following
 arguments in registers `r0` - `r3`:
 
@@ -146,8 +146,8 @@ call that switched execution to the kernel.
 Syscalls may clobber userspace memory, as the kernel may write to buffers
 previously given to it using Allow. The kernel will not clobber any userspace
 registers except for the return value register (`r0`). However, Yield must be
-treated as clobbering more registers, as it can call a callback in userspace
-before returning. This callback can clobber r0-r3, r12, and lr. See [this
+treated as clobbering more registers, as it can call an upcall in userspace
+before returning. This upcall can clobber r0-r3, r12, and lr. See [this
 comment](https://github.com/tock/libtock-c/blob/f5004277ec88c2afe8f473a06b74aa2faba70d68/libtock/tock.c#L49)
 in the libtock-c syscall code for more information about Yield.
 
@@ -156,46 +156,52 @@ in the libtock-c syscall code for more information about Yield.
 Tock assumes that a RISC-V platform that supports context switching has two
 privilege modes: machine mode and user mode.
 
-The RISC-V architecture provides very lean support for context switching,
-providing significant flexibility in software on how to support context
-switches. The hardware guarantees the following will happen during a context
-switch: when switching from kernel mode to user mode by calling the `mret`
-instruction, the PC is set to the value in the `mepc` CSR, and the privilege
-mode is set to the value in the `MPP` bits of the `mstatus` CSR. When switching
-from user mode to kernel mode using the `ecall` instruction, the PC of the
-`ecall` instruction is saved to the `mepc` CSR, the correct bits are set in the
-`mcause` CSR, and the privilege mode is restored to machine mode. The kernel can
-store 32 bits of state in the `mscratch` CSR.
+The RISC-V architecture provides very lean support for context
+switching, providing significant flexibility in software on how to
+support context switches. The hardware guarantees the following will
+happen during a context switch: when switching from kernel mode to
+user mode by calling the `mret` instruction, the PC is set to the
+value in the `mepc` CSR, and the privilege mode is set to the value in
+the `MPP` bits of the `mstatus` CSR. When switching from user mode to
+kernel mode using the `ecall` instruction, the PC of the `ecall`
+instruction is saved to the `mepc` CSR, the correct bits are set in
+the `mcause` CSR, and the privilege mode is restored to machine
+mode. The kernel can store 32 bits of state in the `mscratch` CSR.
 
-Tock handles context switching using the following process. When switching to
-userland, all register contents are saved to the kernel's stack. Additionally, a
-pointer to a per-process struct of stored process state and the PC of where in
-the kernel to resume executing after the app switches back to kernel mode are
-stored to the kernel's stack. Then, the PC of the app to start executing is put
-into the `mepc` CSR, the kernel stack pointer is saved in `mscratch`, and the
-previous contents of the app's registers from the per-process stored state
-struct are copied back into the registers. Then `mret` is called to switch to
-user mode and begin executing the app.
+Tock handles context switching using the following process. When
+switching to userland, all register contents are saved to the kernel's
+stack. Additionally, a pointer to a per-process struct of stored
+process state and the PC of where in the kernel to resume executing
+after the process switches back to kernel mode are stored to the
+kernel's stack. Then, the PC of the process to start executing is put
+into the `mepc` CSR, the kernel stack pointer is saved in `mscratch`,
+and the previous contents of the app's registers from the per-process
+stored state struct are copied back into the registers. Then `mret` is
+called to switch to user mode and begin executing the app.
 
-When the app calls a syscall, it uses the `ecall` instruction. This causes the
-trap handler to execute. The trap handler checks `mscratch`, and if the value is
-nonzero then it contains the stack pointer of the kernel and this trap must have
-happened while the system was executing an application. Then, the kernel stack
-pointer from `mscratch` is used to find the pointer to the stored state struct,
-and all app registers are saved. The trap handler also saves the app PC from the
-`mepc` CSR and the `mcause` CSR. It then loads the kernel address of where to
-resume the context switching code to `mepc` and calls `mret` to exit the trap
-handler. Back in the context switching code, the kernel restores its registers
-from its stack. Then, using the contents of `mcause` the kernel decides why the
-application stopped executing, and if it was a syscall which syscall the app
-called. Returning the context switch reason ends the context switching process.
+An application calls a system call with the `ecall` instruction. This
+causes the trap handler to execute. The trap handler checks
+`mscratch`, and if the value is nonzero then it contains the stack
+pointer of the kernel and this trap must have happened while the
+system was executing an application. Then, the kernel stack pointer
+from `mscratch` is used to find the pointer to the stored state
+struct, and all process registers are saved. The trap handler also
+saves the process PC from the `mepc` CSR and the `mcause` CSR. It then
+loads the kernel address of where to resume the context switching code
+to `mepc` and calls `mret` to exit the trap handler. Back in the
+context switching code, the kernel restores its registers from its
+stack. Then, using the contents of `mcause` the kernel decides why the
+application stopped executing, and if it was a system call which one it is.
+Returning the context switch reason ends the
+context switching process.
 
-All values for the syscall functions are passed in registers `a0-a4`. No values
-are stored to the application stack. The return value for syscalls is set in a0.
-In most syscalls the kernel will not clobber any userspace registers except for
-this return value register (`a0`). However, the `yield()` syscall results in a
-callback getting run in the app. This can clobber all caller saved registers, as
-well as the return address (`ra`) register.
+All values for the system call functions are passed in registers
+`a0-a4`. No values are stored to the application stack. The return
+value for system call is set in a0.  In most system calls the kernel will not
+clobber any userspace registers except for this return value register
+(`a0`). However, the `yield()` system call results in a upcall executing
+in the process. This can clobber all caller saved registers, as well
+as the return address (`ra`) register.
 
 ## How System Calls Connect to Drivers
 
@@ -203,17 +209,17 @@ After a system call is made, the call is handled and routed by the Tock kernel
 in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
 
 1. For Command, Subscribe, Allow Read-Write and Allow Read-Only system
-call classes, the kernel calls a platform-defined syscall filter
+call classes, the kernel calls a platform-defined system call filter
 function. This function deterimes if the kernel should handle the
-syscall or not. Yield, Exit, and Memop system calls are not
+system call or not. Yield, Exit, and Memop system calls are not
 filtered. This filter function allows the kernel to impose security
 policies that limit which system calls a process might invoke. The
-filter function takes the syscall and which process issued the syscall
-to return a `Result((), ErrorCode)` to signal if the syscall should be
+filter function takes the system call and which process issued the system call
+to return a `Result((), ErrorCode)` to signal if the system call should be
 handled or if an error should be returned to the process. If the
-filter function disallows the syscall it returns `Err(ErrorCode)` and
+filter function disallows the system call it returns `Err(ErrorCode)` and
 the `ErrorCode` is provided to the process as the return code for the
-syscall. Otherwise, the syscall proceeds. _The filter interface is
+system call. Otherwise, the system call proceeds. _The filter interface is
 unstable and may be changed in the future._
 
 2. The kernel scheduler loop handles the Exit and Yield system call classes.
@@ -229,7 +235,7 @@ function that the driver number as an argument and returns either a
 reference to the corresponding driver or `None` if it is not
 installed. The kernel uses the returned reference to call the
 appropriate system call function on that driver with the remaining
-syscall arguments.
+system call arguments.
 
 An example board that implements the `Platform` trait looks something like
 this:
