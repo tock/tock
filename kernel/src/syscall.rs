@@ -7,7 +7,7 @@ use crate::driver::CommandResult;
 use crate::errorcode::ErrorCode;
 use crate::process;
 
-/// Helper function to split a u64 into a higher and lower u32
+/// Helper function to split a u64 into a higher and lower u32.
 ///
 /// Used in encoding 64-bit wide system call return values on 32-bit
 /// platforms.
@@ -22,10 +22,8 @@ fn u64_to_be_u32s(src: u64) -> (u32, u32) {
 
 // ---------- SYSTEMCALL ARGUMENT DECODING ----------
 
-/// Enumeration over the possible system call classes
-///
-/// Each system call class is associated with the respective ID for
-/// encoding a system call in registers.
+/// Enumeration of the system call classes based on the identifiers
+/// specified in the Tock ABI.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallClass {
@@ -38,6 +36,8 @@ pub enum SyscallClass {
     Exit = 6,
 }
 
+/// Enumeration of the yield system calls based on the Yield identifier
+/// values specified in the Tock ABI.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum YieldCall {
@@ -45,6 +45,8 @@ pub enum YieldCall {
     Wait = 1,
 }
 
+/// Enumeration of the exit system calls based on the Exit identifier values
+/// specified in the Tock ABI.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum ExitCall {
@@ -72,18 +74,17 @@ impl TryFrom<u8> for SyscallClass {
     }
 }
 
-/// Decoded system calls
+/// Decoded system calls as defined in TRD 104.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
-    /// Return to the kernel to allow other processes to execute or to wait for
-    /// interrupts and callbacks.
-    ///
-    /// System call class ID 0
+    /// Structure representing an invocation of the Yield system call class.
+    /// `which` is the Yield identifier value and `address` is the no wait field.
     Yield { which: usize, address: *mut u8 },
 
-    /// Pass a callback function to the kernel.
-    ///
-    /// System call class ID 1
+    /// Structure representing an invocation of the Subscribe system call
+    /// class. `driver_number` is the driver identifier, `subdriver_number`
+    /// is the subscribe identifier, `callback_ptr` is callback pointer,
+    /// and `appdata` is the application data.
     Subscribe {
         driver_number: usize,
         subdriver_number: usize,
@@ -91,9 +92,9 @@ pub enum Syscall {
         appdata: usize,
     },
 
-    /// Instruct the kernel or a capsule to perform an operation.
-    ///
-    /// System call class ID 2
+    /// Structure representing an invocation of the Command system call class.
+    /// `driver_number` is the driver identifier and `subdriver_number` is
+    /// the command identifier.
     Command {
         driver_number: usize,
         subdriver_number: usize,
@@ -101,10 +102,10 @@ pub enum Syscall {
         arg1: usize,
     },
 
-    /// Share a memory buffer with the kernel, which the kernel may
-    /// read from and write to.
-    ///
-    /// System call class ID 3
+    /// Structure representing an invocation of the ReadWriteAllow system call
+    /// class. `driver_number` is the driver identifier, `subdriver_number` is
+    /// the buffer identifier, `allow_address` is the address, and `allow_size`
+    /// is the size.
     ReadWriteAllow {
         driver_number: usize,
         subdriver_number: usize,
@@ -112,10 +113,10 @@ pub enum Syscall {
         allow_size: usize,
     },
 
-    /// Share a memory buffer with the kernel, which the kernel may
-    /// only read from and never write to.
-    ///
-    /// System call class ID 4
+    /// Structure representing an invocation of the ReadOnlyAllow system call
+    /// class. `driver_number` is the driver identifier, `subdriver_number` is
+    /// the buffer identifier, `allow_address` is the address, and `allow_size`
+    /// is the size.
     ReadOnlyAllow {
         driver_number: usize,
         subdriver_number: usize,
@@ -123,11 +124,14 @@ pub enum Syscall {
         allow_size: usize,
     },
 
-    /// Various memory operations.
-    ///
-    /// System call class ID 5
+    /// Structure representing an invocation of the Memop system call
+    /// class. `operand` is the operation and `arg0` is the operation
+    /// argument.
     Memop { operand: usize, arg0: usize },
 
+    /// Structure representing an invocation of the Exit system call
+    /// class. `which` is the exit identifier and `completion_code` is
+    /// the completion code passed into the kernel.
     Exit {
         which: usize,
         completion_code: usize,
@@ -136,17 +140,14 @@ pub enum Syscall {
 
 impl Syscall {
     /// Helper function for converting raw values passed back from an application
-    /// into a `Syscall` type in Tock.
+    /// into a `Syscall` type in Tock, representing an typed version of a system
+    /// call invocation. The method returns None if the values do not specify
+    /// a valid system call.
     ///
-    /// Different architectures may have different mechanisms for passing
-    /// information about what syscall an app called, but they will have have to
-    /// convert the series of raw values into a more useful Rust type. While
-    /// implementations are free to do this themselves, this provides a generic
-    /// helper function which should help reduce duplicated code.
-    ///
-    /// The mappings between raw `syscall_number` values and the associated syscall
-    /// type are specified and fixed by Tock. After that, this function only
-    /// converts raw values to more meaningful types based on the syscall.
+    /// Different architectures have different ABIs for a process and the kernel
+    /// to exchange data. The 32-bit ABI for CortexM and RISCV microcontrollers is
+    /// specified in TRD104.
+
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
@@ -288,9 +289,9 @@ impl GenericSyscallReturnValue {
         res.into_inner()
     }
 
-    /// Encode the system call return value into 4 registers
-    ///
-    /// Architectures are free to define their own encoding.
+    /// Encode the system call return value into 4 registers, following
+    /// the encoding specified in TRD104. Architectures which do not follow
+    /// TRD104 are free to define their own encoding.
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
             &GenericSyscallReturnValue::Failure(e) => {
@@ -387,7 +388,8 @@ impl GenericSyscallReturnValue {
 
 // ---------- USERSPACE KERNEL BOUNDARY ----------
 
-/// Why the process stopped executing and execution returned to the kernel.
+/// `ContentSwitchReason` specifies why the process stopped executing and execution
+/// returned to the kernel.
 #[derive(PartialEq, Copy, Clone)]
 pub enum ContextSwitchReason {
     /// Process called a syscall. Also returns the syscall and relevant values.
