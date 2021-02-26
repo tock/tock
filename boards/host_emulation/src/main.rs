@@ -69,7 +69,6 @@ struct HostBoard {
         capsules::virtual_uart::UartDevice<'static>,
     >,
 }
-static mut UART0: uart::UartIO = uart::UartIO::create();
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for HostBoard {

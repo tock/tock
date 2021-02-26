@@ -82,6 +82,9 @@ impl kernel::Chip for HostChip {
         if let Some(callback) = &self.service_interrupts_callback {
             callback.execute();
         }
+        unsafe {
+            super::UART0.handle_pending_requests();
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
