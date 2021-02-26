@@ -276,13 +276,4 @@ impl ProcessCallback {
         }
         res
     }
-
-    // Required for the Tock 2.0 syscall interface
-    // pub(crate) fn function_pointer(&self) -> *const u8 {
-    //     self.fn_ptr.as_ptr() as *const u8
-    // }
-    //
-    // pub(crate) fn appdata(&self) -> u32 {
-    //     self.appdata as u32
-    // }
 }
