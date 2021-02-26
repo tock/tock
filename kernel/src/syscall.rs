@@ -128,7 +128,7 @@ pub enum Syscall {
     /// class. `operand` is the operation and `arg0` is the operation
     /// argument.
     Memop { operand: usize, arg0: usize },
-    
+
     /// Structure representing an invocation of the Exit system call
     /// class. `which` is the exit identifier and `completion_code` is
     /// the completion code passed into the kernel.
@@ -227,7 +227,7 @@ pub enum SyscallReturnVariant {
 /// passed down to the architecture to be encoded into registers,
 /// using the provided
 /// [`encode_syscall_return`](GenericSyscallReturnValue::encode_syscall_return)
-/// method. 
+/// method.
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and

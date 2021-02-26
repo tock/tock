@@ -843,7 +843,7 @@ impl Kernel {
                 // with the old function pointer, we clear
                 // them now.
                 process.remove_pending_callbacks(callback_id);
-                
+
                 let ptr = NonNull::new(callback_ptr);
                 let callback = ptr.map_or(Callback::default(), |ptr| {
                     Callback::new(process.appid(), callback_id, appdata, ptr.cast())
@@ -879,17 +879,12 @@ impl Kernel {
                 arg1,
             } => {
                 let cres = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => d.command(
-                        subdriver_number,
-                        arg0,
-                        arg1,
-                        process.appid(),
-                    ),
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
                     None => CommandResult::failure(ErrorCode::NOSUPPORT),
                 });
-                
+
                 let res = GenericSyscallReturnValue::from_command_result(cres);
-                
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
