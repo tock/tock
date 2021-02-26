@@ -57,7 +57,7 @@ use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -88,7 +88,7 @@ impl<'a> SoundPressureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> CommandResult {
+    fn enqueue_command(&self, appid: AppId) -> CommandReturn {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -96,15 +96,15 @@ impl<'a> SoundPressureSensor<'a> {
                     self.busy.set(true);
                     let res = self.driver.read_sound_pressure();
                     if let Ok(err) = ErrorCode::try_from(res) {
-                        CommandResult::failure(err)
+                        CommandReturn::failure(err)
                     } else {
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             })
-            .unwrap_or_else(|err| CommandResult::failure(err.into()))
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
     fn enable(&self) {
@@ -166,10 +166,10 @@ impl Driver for SoundPressureSensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // read sound_pressure
             1 => self.enqueue_command(appid),
@@ -180,14 +180,14 @@ impl Driver for SoundPressureSensor<'_> {
                     .apps
                     .enter(appid, |app, _| {
                         app.enable = true;
-                        CommandResult::success()
+                        CommandReturn::success()
                     })
                     .map_err(ErrorCode::from);
                 if let Err(e) = res {
-                    CommandResult::failure(e)
+                    CommandReturn::failure(e)
                 } else {
                     self.enable();
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
 
@@ -197,17 +197,17 @@ impl Driver for SoundPressureSensor<'_> {
                     .apps
                     .enter(appid, |app, _| {
                         app.enable = false;
-                        CommandResult::success()
+                        CommandReturn::success()
                     })
                     .map_err(ErrorCode::from);
                 if let Err(e) = res {
-                    CommandResult::failure(e)
+                    CommandReturn::failure(e)
                 } else {
                     self.enable();
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

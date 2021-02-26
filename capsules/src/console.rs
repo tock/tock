@@ -43,7 +43,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, Callback, ErrorCode, Grant};
-use kernel::{CommandResult, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -274,7 +274,7 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         let res = match cmd_num {
             0 => Ok(ReturnCode::SUCCESS),
             1 => {
@@ -302,11 +302,11 @@ impl Driver for Console<'_> {
             Ok(r) => {
                 let res = ErrorCode::try_from(r);
                 match res {
-                    Err(_) => CommandResult::success(),
-                    Ok(e) => CommandResult::failure(e),
+                    Err(_) => CommandReturn::success(),
+                    Ok(e) => CommandReturn::failure(e),
                 }
             }
-            Err(e) => CommandResult::failure(e),
+            Err(e) => CommandReturn::failure(e),
         }
     }
 }

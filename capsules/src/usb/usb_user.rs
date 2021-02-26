@@ -29,7 +29,7 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
@@ -127,10 +127,10 @@ where
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // This driver is present
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // Enable USB controller, attach to bus, and service default control endpoint
             1 => {
@@ -150,13 +150,13 @@ where
                 match result {
                     Ok(()) => {
                         self.serve_waiting_apps();
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
-                    Err(e) => CommandResult::failure(e),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

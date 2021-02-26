@@ -110,7 +110,7 @@ use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
 use kernel::{
-    CommandResult, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
 };
 
 /// Syscall driver number.
@@ -551,7 +551,7 @@ where
         data: usize,
         interval: usize,
         appid: kernel::AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             // Start periodic advertisements
             0 => {
@@ -575,14 +575,14 @@ where
                         }
                     })
                     .map_or_else(
-                        |err| CommandResult::failure(err.into()),
+                        |err| CommandReturn::failure(err.into()),
                         |res| match res {
                             Ok(_) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
-                                CommandResult::success()
+                                CommandReturn::success()
                             }
-                            Err(e) => CommandResult::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e.into()),
                         },
                     )
             }
@@ -593,9 +593,9 @@ where
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
                         app.process_status = Some(BLEState::Initialized);
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
-                    _ => CommandResult::failure(ErrorCode::BUSY),
+                    _ => CommandReturn::failure(ErrorCode::BUSY),
                 })
                 .unwrap_or_else(|err| err.into()),
 
@@ -621,10 +621,10 @@ where
                                     }
                                     status.into()
                                 }
-                                _ => CommandResult::failure(ErrorCode::INVAL),
+                                _ => CommandReturn::failure(ErrorCode::INVAL),
                             }
                         } else {
-                            CommandResult::failure(ErrorCode::BUSY)
+                            CommandReturn::failure(ErrorCode::BUSY)
                         }
                     })
                     .unwrap_or_else(|err| err.into())
@@ -648,14 +648,14 @@ where
                             Ok(_) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
-                                CommandResult::success()
+                                CommandReturn::success()
                             }
-                            Err(e) => CommandResult::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e.into()),
                         },
                     )
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
         .into()
     }

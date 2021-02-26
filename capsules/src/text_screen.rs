@@ -16,7 +16,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -91,7 +91,7 @@ impl<'a> TextScreen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         let res = self
             .apps
             .enter(appid, |app, _| {
@@ -118,9 +118,9 @@ impl<'a> TextScreen<'a> {
             })
             .map_err(ErrorCode::from);
         if let Err(err) = res {
-            CommandResult::failure(err)
+            CommandReturn::failure(err)
         } else {
-            CommandResult::success()
+            CommandReturn::success()
         }
     }
 
@@ -240,10 +240,10 @@ impl<'a> Driver for TextScreen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             // This driver exists.
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             // Get Resolution
             1 => self.enqueue_command(TextScreenCommand::GetResolution, data1, data2, appid),
             // Display
@@ -267,7 +267,7 @@ impl<'a> Driver for TextScreen<'a> {
             //Set Curosr
             11 => self.enqueue_command(TextScreenCommand::SetCursor, data1, data2, appid),
             // NOSUPPORT
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

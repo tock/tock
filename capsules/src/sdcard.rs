@@ -46,7 +46,7 @@ use core::mem;
 
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver};
+use kernel::{AppId, Callback, CommandReturn, Driver};
 use kernel::{ErrorCode, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
@@ -1535,28 +1535,28 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // check if present
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // is_installed
             1 => {
                 let value = self.sdcard.is_installed() as u32;
-                CommandResult::success_u32(value)
+                CommandReturn::success_u32(value)
             }
 
             // initialize
             2 => match self.sdcard.initialize() {
-                Ok(()) => CommandResult::success(),
-                Err(e) => CommandResult::failure(e),
+                Ok(()) => CommandReturn::success(),
+                Err(e) => CommandReturn::failure(e),
             },
 
             // read_block
             3 => self.kernel_buf.take().map_or(
-                CommandResult::failure(ErrorCode::BUSY),
+                CommandReturn::failure(ErrorCode::BUSY),
                 |kernel_buf| {
-                    CommandResult::from(self.sdcard.read_blocks(kernel_buf, data as u32, 1))
+                    CommandReturn::from(self.sdcard.read_blocks(kernel_buf, data as u32, 1))
                 },
             ),
 
@@ -1581,10 +1581,10 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
                             })
                     })
                 });
-                CommandResult::from(result)
+                CommandReturn::from(result)
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

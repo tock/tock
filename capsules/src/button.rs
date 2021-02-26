@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -153,11 +153,11 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandReturn {
         let pins = self.pins;
         match command_num {
             // return button count
-            0 => CommandResult::success_u32(pins.len() as u32),
+            0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button
             1 => {
@@ -168,26 +168,26 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                             pins[data]
                                 .0
                                 .enable_interrupts(gpio::InterruptEdge::EitherEdge);
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
-                        .unwrap_or_else(|err| CommandResult::failure(err.into()))
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
                 } else {
-                    CommandResult::failure(ErrorCode::INVAL) /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 }
             }
 
             // disable interrupts for a button
             2 => {
                 if data >= pins.len() {
-                    CommandResult::failure(ErrorCode::INVAL) /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
                     let res = self
                         .apps
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
-                        .unwrap_or_else(|err| CommandResult::failure(err.into()));
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()));
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
@@ -209,15 +209,15 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             // read input
             3 => {
                 if data >= pins.len() {
-                    CommandResult::failure(ErrorCode::INVAL) /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
                     let button_state = self.get_button_state(data as u32);
-                    CommandResult::success_u32(button_state as u32)
+                    CommandReturn::success_u32(button_state as u32)
                 }
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

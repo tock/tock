@@ -24,7 +24,7 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{
-    debug, AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice,
+    debug, AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice,
     ReadWrite, ReadWriteAppSlice, ReturnCode,
 };
 
@@ -452,9 +452,9 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        This represents the size of the payload buffer in the kernel. Apps can use this
     ///        syscall to ensure they do not attempt to send too-large messages.
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
@@ -462,9 +462,9 @@ impl<'a> Driver for UDPDriver<'a> {
                 self.apps
                     .enter(appid, |app, _| {
                         app.app_cfg
-                            .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                            .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                                 if cfg.len() != arg1 * size_of::<IPAddr>() {
-                                    return CommandResult::failure(ErrorCode::INVAL);
+                                    return CommandReturn::failure(ErrorCode::INVAL);
                                 }
                                 let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
                                 let iface_size = size_of::<IPAddr>();
@@ -473,10 +473,10 @@ impl<'a> Driver for UDPDriver<'a> {
                                         .copy_from_slice(&self.interface_list[i].0);
                                 }
                                 // Returns total number of interfaces
-                                CommandResult::success_u32(self.interface_list.len() as u32)
+                                CommandReturn::success_u32(self.interface_list.len() as u32)
                             })
                     })
-                    .unwrap_or_else(|err| CommandResult::failure(err.into()))
+                    .unwrap_or_else(|err| CommandReturn::failure(err.into()))
             }
 
             // Transmits UDP packet stored in tx_buf
@@ -519,10 +519,10 @@ impl<'a> Driver for UDPDriver<'a> {
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
                     Ok(_) => self.do_next_tx_immediate(appid).map_or_else(
-                        |err| CommandResult::failure(err.into()),
-                        |v| CommandResult::success_u32(v),
+                        |err| CommandReturn::failure(err.into()),
+                        |v| CommandReturn::success_u32(v),
                     ),
-                    Err(e) => CommandResult::failure(e),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
             3 => {
@@ -563,33 +563,33 @@ impl<'a> Driver for UDPDriver<'a> {
                     .unwrap_or_else(|err| Err(err.into()));
                 match err {
                     Ok(requested_addr_opt) => {
-                        requested_addr_opt.map_or(CommandResult::success(), |requested_addr| {
+                        requested_addr_opt.map_or(CommandReturn::success(), |requested_addr| {
                             // Check bound ports in the kernel.
                             match self.port_table.is_bound(requested_addr.port) {
                                 Ok(bound) => {
                                     if bound {
-                                        CommandResult::failure(ErrorCode::BUSY)
+                                        CommandReturn::failure(ErrorCode::BUSY)
                                     } else {
                                         self.apps
                                             .enter(appid, |app, _| {
                                                 // The requested addr is free and valid
                                                 app.bound_port = Some(requested_addr);
-                                                CommandResult::success()
+                                                CommandReturn::success()
                                             })
                                             .unwrap_or_else(|err| {
-                                                CommandResult::failure(err.into())
+                                                CommandReturn::failure(err.into())
                                             })
                                     }
                                 }
-                                Err(_) => CommandResult::failure(ErrorCode::FAIL), //error in port table
+                                Err(_) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
                             }
                         })
                     }
-                    Err(retcode) => CommandResult::failure(retcode.try_into().unwrap()),
+                    Err(retcode) => CommandReturn::failure(retcode.try_into().unwrap()),
                 }
             }
-            4 => CommandResult::success_u32(self.max_tx_pyld_len as u32),
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            4 => CommandReturn::success_u32(self.max_tx_pyld_len as u32),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

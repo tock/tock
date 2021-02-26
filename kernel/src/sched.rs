@@ -19,7 +19,7 @@ use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
-use crate::driver::CommandResult;
+use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
@@ -880,7 +880,7 @@ impl Kernel {
             } => {
                 let cres = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
-                    None => CommandResult::failure(ErrorCode::NOSUPPORT),
+                    None => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 });
 
                 let res = GenericSyscallReturnValue::from_command_result(cres);

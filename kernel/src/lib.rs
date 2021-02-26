@@ -111,7 +111,7 @@ mod returncode;
 mod sched;
 
 pub use crate::callback::{AppId, Callback};
-pub use crate::driver::{CommandResult, Driver};
+pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};

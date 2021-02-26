@@ -28,7 +28,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, Callback, ErrorCode};
-use kernel::{CommandResult, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -139,19 +139,19 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     ///   interrupt, and 2 for a falling edge interrupt.
     /// - `8`: Disable an interrupt on a pin.
     /// - `9`: Disable a GPIO pin.
-    fn command(&self, cmd_num: usize, pin: usize, data: usize, _appid: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, pin: usize, data: usize, _appid: AppId) -> CommandReturn {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
         let ports = self.ports.as_ref();
 
         // On any command other than 0, we check for ports length.
         if cmd_num != 0 && port >= ports.len() {
-            return CommandResult::failure(ErrorCode::INVAL);
+            return CommandReturn::failure(ErrorCode::INVAL);
         }
 
         match cmd_num {
             // How many ports
-            0 => CommandResult::success_u32(ports.len() as u32),
+            0 => CommandReturn::success_u32(ports.len() as u32),
 
             // enable output
             1 => ports[port].make_output(pin).into(),
@@ -181,7 +181,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
             9 => ports[port].disable(pin).into(),
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

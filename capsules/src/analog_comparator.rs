@@ -39,7 +39,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -117,20 +117,20 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 => CommandResult::success_u32(self.channels.len() as u32),
+            0 => CommandReturn::success_u32(self.channels.len() as u32),
 
             1 => match self.comparison(channel) {
-                Ok(b) => CommandResult::success_u32(b as u32),
-                Err(e) => CommandResult::failure(e),
+                Ok(b) => CommandReturn::success_u32(b as u32),
+                Err(e) => CommandReturn::failure(e),
             },
 
             2 => self.start_comparing(channel).into(),
 
             3 => self.stop_comparing(channel).into(),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

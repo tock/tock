@@ -36,7 +36,7 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
     ReturnCode,
 };
 
@@ -397,7 +397,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         data1: usize,
         _data2: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
@@ -429,9 +429,9 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                     // SHA256
                     0 => {
                         // Only Sha256 is supported, we don't need to do anything
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
-                    _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 }
             }
 
@@ -445,9 +445,9 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                         self.hmac.clear_data();
                         self.appid.clear();
                         self.check_queue();
-                        CommandResult::failure(e)
+                        CommandReturn::failure(e)
                     } else {
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
                 } else {
                     // There is an active app, so queue this request (if possible).
@@ -457,11 +457,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this
                                 // request.
-                                CommandResult::failure(ErrorCode::NOMEM)
+                                CommandReturn::failure(ErrorCode::NOMEM)
                             } else {
                                 // We can store this, so lets do it.
                                 app.pending_run_app = Some(appid);
-                                CommandResult::success()
+                                CommandReturn::success()
                             }
                         })
                         .unwrap_or_else(|err| err.into())
@@ -469,7 +469,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             }
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

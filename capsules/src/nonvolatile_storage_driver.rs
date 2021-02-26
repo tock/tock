@@ -61,7 +61,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    AppId, Callback, CommandResult, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    AppId, Callback, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice,
 };
 
@@ -592,15 +592,15 @@ impl Driver for NonvolatileStorage<'_> {
         offset: usize,
         length: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {
-                CommandResult::success()
+                CommandReturn::success()
             }
 
             1 /* How many bytes are accessible from userspace */ => {
                 // TODO: Would break on 64-bit platforms
-                CommandResult::success_u32(self.userspace_length as u32)
+                CommandReturn::success_u32(self.userspace_length as u32)
             },
 
             2 /* Issue a read command */ => {
@@ -613,8 +613,8 @@ impl Driver for NonvolatileStorage<'_> {
                     );
 
                 match res {
-                    Ok(()) => CommandResult::success(),
-                    Err(e) => CommandResult::failure(e),
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
 
@@ -628,12 +628,12 @@ impl Driver for NonvolatileStorage<'_> {
                     );
 
                 match res {
-                    Ok(()) => CommandResult::success(),
-                    Err(e) => CommandResult::failure(e),
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

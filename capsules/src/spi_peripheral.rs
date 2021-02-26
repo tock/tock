@@ -9,7 +9,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -193,14 +193,14 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     /// - x+1: unlock spi
     ///   - does nothing if lock not held
     ///   - not implemented or currently supported
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandReturn {
         match cmd_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
             1 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return CommandResult::failure(ErrorCode::BUSY);
+                    return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.app.map_or(CommandResult::failure(ErrorCode::NOMEM), |app| {
+                self.app.map_or(CommandReturn::failure(ErrorCode::NOMEM), |app| {
                     let mut mlen = app.app_write.map_or(0, |w| w.len());
                     let rlen = app.app_read.map_or(mlen, |r| r.len());
                     mlen = cmp::min(mlen, rlen);
@@ -209,37 +209,37 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
-                        CommandResult::success()
+                        CommandReturn::success()
                     } else {
-                        CommandResult::failure(ErrorCode::INVAL)
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 })
             }
             2 /* get chip select */ => {
                 // Only 0 is supported
-                CommandResult::success_u32(0)
+                CommandReturn::success_u32(0)
             }
             3 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_slave.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_slave.set_phase(ClockPhase::SampleTrailing),
                 };
-                CommandResult::success()
+                CommandReturn::success()
             }
             4 /* get phase */ => {
-                CommandResult::success_u32(self.spi_slave.get_phase() as u32)
+                CommandReturn::success_u32(self.spi_slave.get_phase() as u32)
             }
             5 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_slave.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_slave.set_polarity(ClockPolarity::IdleHigh),
                 };
-                CommandResult::success()
+                CommandReturn::success()
             }
             6 /* get polarity */ => {
-                CommandResult::success_u32(self.spi_slave.get_polarity() as u32)
+                CommandReturn::success_u32(self.spi_slave.get_polarity() as u32)
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }

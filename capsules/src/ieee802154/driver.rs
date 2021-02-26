@@ -15,7 +15,7 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::{
-    AppId, Callback, CommandResult, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, ReturnCode,
 };
 
@@ -630,192 +630,192 @@ impl Driver for RadioDriver<'_> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match cmd_num {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             1 => {
                 if self.mac.is_on() {
-                    CommandResult::success()
+                    CommandReturn::success()
                 } else {
-                    CommandResult::failure(ErrorCode::OFF)
+                    CommandReturn::failure(ErrorCode::OFF)
                 }
             }
             2 => {
                 self.mac.set_address(arg1 as u16);
-                CommandResult::success()
+                CommandReturn::success()
             }
             3 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 8 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             let mut addr_long = [0u8; 8];
                             addr_long.copy_from_slice(cfg);
                             self.mac.set_address_long(addr_long);
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             4 => {
                 self.mac.set_pan(arg1 as u16);
-                CommandResult::success()
+                CommandReturn::success()
             }
             // XXX: Setting channel DEPRECATED by MAC layer channel control
-            5 => CommandResult::failure(ErrorCode::NOSUPPORT),
+            5 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             // XXX: Setting tx power DEPRECATED by MAC layer tx power control
-            6 => CommandResult::failure(ErrorCode::NOSUPPORT),
+            6 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             7 => {
                 self.mac.config_commit();
-                CommandResult::success()
+                CommandReturn::success()
             }
             8 => {
                 // Guarantee that address is positive by adding 1
                 let addr = self.mac.get_address();
-                CommandResult::success_u32(addr as u32 + 1)
+                CommandReturn::success_u32(addr as u32 + 1)
             }
             9 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 8 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             cfg.copy_from_slice(&self.mac.get_address_long());
-                            CommandResult::success()
+                            CommandReturn::success()
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             10 => {
                 // Guarantee that the PAN is positive by adding 1
                 let pan = self.mac.get_pan();
-                CommandResult::success_u32(pan as u32 + 1)
+                CommandReturn::success_u32(pan as u32 + 1)
             }
             // XXX: Getting channel DEPRECATED by MAC layer channel control
-            11 => CommandResult::failure(ErrorCode::NOSUPPORT),
+            11 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             // XXX: Getting tx power DEPRECATED by MAC layer tx power control
-            12 => CommandResult::failure(ErrorCode::NOSUPPORT),
+            12 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             13 => {
                 // Guarantee that it is positive by adding 1
-                CommandResult::success_u32(MAX_NEIGHBORS as u32 + 1)
+                CommandReturn::success_u32(MAX_NEIGHBORS as u32 + 1)
             }
             14 => {
                 // Guarantee that it is positive by adding 1
-                CommandResult::success_u32(self.num_neighbors.get() as u32 + 1)
+                CommandReturn::success_u32(self.num_neighbors.get() as u32 + 1)
             }
             15 => self
                 .get_neighbor(arg1)
-                .map_or(CommandResult::failure(ErrorCode::INVAL), |neighbor| {
-                    CommandResult::success_u32(neighbor.short_addr as u32 + 1)
+                .map_or(CommandReturn::failure(ErrorCode::INVAL), |neighbor| {
+                    CommandReturn::success_u32(neighbor.short_addr as u32 + 1)
                 }),
             16 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 8 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             self.get_neighbor(arg1).map_or(
-                                CommandResult::failure(ErrorCode::INVAL),
+                                CommandReturn::failure(ErrorCode::INVAL),
                                 |neighbor| {
                                     cfg.copy_from_slice(&neighbor.long_addr);
-                                    CommandResult::success()
+                                    CommandReturn::success()
                                 },
                             )
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             17 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 8 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
                             new_neighbor.short_addr = arg1 as u16;
                             new_neighbor.long_addr.copy_from_slice(cfg);
                             self.add_neighbor(new_neighbor)
-                                .map_or(CommandResult::failure(ErrorCode::INVAL), |index| {
-                                    CommandResult::success_u32(index as u32 + 1)
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                    CommandReturn::success_u32(index as u32 + 1)
                                 })
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
             18 => match self.remove_neighbor(arg1) {
-                Ok(_) => CommandResult::success(),
-                Err(e) => CommandResult::failure(e),
+                Ok(_) => CommandReturn::success(),
+                Err(e) => CommandReturn::failure(e),
             },
             19 => {
                 // Guarantee that it is positive by adding 1
-                CommandResult::success_u32(MAX_KEYS as u32 + 1)
+                CommandReturn::success_u32(MAX_KEYS as u32 + 1)
             }
             20 => {
                 // Guarantee that it is positive by adding 1
-                CommandResult::success_u32(self.num_keys.get() as u32 + 1)
+                CommandReturn::success_u32(self.num_keys.get() as u32 + 1)
             }
             21 => self
                 .get_key(arg1)
-                .map_or(CommandResult::failure(ErrorCode::INVAL), |key| {
-                    CommandResult::success_u32(key.level as u32 + 1)
+                .map_or(CommandReturn::failure(ErrorCode::INVAL), |key| {
+                    CommandReturn::success_u32(key.level as u32 + 1)
                 }),
             22 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 10 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             self.get_key(arg1)
                                 .and_then(|key| encode_key_id(&key.key_id, cfg).done())
-                                .map_or(CommandResult::failure(ErrorCode::INVAL), |_| {
-                                    CommandResult::success()
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
+                                    CommandReturn::success()
                                 })
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             23 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 16 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             self.get_key(arg1).map_or(
-                                CommandResult::failure(ErrorCode::INVAL),
+                                CommandReturn::failure(ErrorCode::INVAL),
                                 |key| {
                                     cfg.copy_from_slice(&key.key);
-                                    CommandResult::success()
+                                    CommandReturn::success()
                                 },
                             )
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             24 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandResult::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != 27 {
-                                return CommandResult::failure(ErrorCode::SIZE);
+                                return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             KeyDescriptor::decode(cfg)
                                 .done()
                                 .and_then(|(_, new_key)| self.add_key(new_key))
-                                .map_or(CommandResult::failure(ErrorCode::INVAL), |index| {
-                                    CommandResult::success_u32(index as u32 + 1)
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                    CommandReturn::success_u32(index as u32 + 1)
                                 })
                         })
                 })
-                .unwrap_or_else(|err| CommandResult::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
             25 => self.remove_key(arg1).into(),
             26 => {
@@ -855,14 +855,14 @@ impl Driver for RadioDriver<'_> {
                         Ok(())
                     })
                     .map_or_else(
-                        |err| CommandResult::failure(err.into()),
+                        |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
                             Ok(_) => self.do_next_tx_sync(appid).into(),
-                            Err(e) => CommandResult::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e.into()),
                         },
                     )
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

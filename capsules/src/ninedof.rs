@@ -22,7 +22,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -72,7 +72,7 @@ impl<'a> NineDof<'a> {
     // Check so see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
-    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> CommandResult {
+    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> CommandReturn {
         self.apps
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
@@ -81,21 +81,21 @@ impl<'a> NineDof<'a> {
                     if value != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
-                    CommandResult::from(value)
+                    CommandReturn::from(value)
                 } else {
                     if app.pending_command == true {
-                        CommandResult::failure(ErrorCode::BUSY)
+                        CommandReturn::failure(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
                         app.arg1 = arg1;
-                        CommandResult::success()
+                        CommandReturn::success()
                     }
                 }
             })
             .unwrap_or_else(|err| {
                 let rcode: ReturnCode = err.into();
-                CommandResult::from(rcode)
+                CommandReturn::from(rcode)
             })
     }
 
@@ -211,9 +211,9 @@ impl Driver for NineDof<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             // Single acceleration reading.
             1 => self.enqueue_command(NineDofCommand::ReadAccelerometer, arg1, appid),
 
@@ -223,7 +223,7 @@ impl Driver for NineDof<'_> {
             // Single gyroscope reading.
             200 => self.enqueue_command(NineDofCommand::ReadGyroscope, arg1, appid),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

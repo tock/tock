@@ -9,7 +9,7 @@ use crate::grant::Grant;
 use crate::mem::Read;
 use crate::process;
 use crate::sched::Kernel;
-use crate::{CommandResult, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
@@ -216,16 +216,16 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         target_id: usize,
         _: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_number {
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
             1 =>
             /* Discover */
             {
                 self.data
                     .enter(appid, |data, _| {
                         data.search_slice.map_or(
-                            CommandResult::failure(ErrorCode::INVAL),
+                            CommandReturn::failure(ErrorCode::INVAL),
                             |slice| {
                                 self.data
                                     .kernel
@@ -235,18 +235,18 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                                         if s.len() == slice.len()
                                             && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
                                         {
-                                            Some(CommandResult::success_u32(
+                                            Some(CommandReturn::success_u32(
                                                 p.appid().id() as u32 + 1,
                                             ))
                                         } else {
                                             None
                                         }
                                     })
-                                    .unwrap_or(CommandResult::failure(ErrorCode::NODEVICE))
+                                    .unwrap_or(CommandReturn::failure(ErrorCode::NODEVICE))
                             },
                         )
                     })
-                    .unwrap_or(CommandResult::failure(ErrorCode::NOMEM))
+                    .unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))
             }
             2 =>
             /* Service notify */
@@ -257,15 +257,15 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                 self.data
                     .kernel
                     .lookup_app_by_identifier(app_identifier)
-                    .map_or(CommandResult::failure(ErrorCode::INVAL), |otherapp| {
+                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
                         self.data.kernel.process_map_or(
-                            CommandResult::failure(ErrorCode::INVAL),
+                            CommandReturn::failure(ErrorCode::INVAL),
                             otherapp,
                             |target| {
                                 let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandResult::success(),
-                                    false => CommandResult::failure(ErrorCode::FAIL),
+                                    true => CommandReturn::success(),
+                                    false => CommandReturn::failure(ErrorCode::FAIL),
                                 }
                             },
                         )
@@ -280,21 +280,21 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                 self.data
                     .kernel
                     .lookup_app_by_identifier(app_identifier)
-                    .map_or(CommandResult::failure(ErrorCode::INVAL), |otherapp| {
+                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
                         self.data.kernel.process_map_or(
-                            CommandResult::failure(ErrorCode::INVAL),
+                            CommandReturn::failure(ErrorCode::INVAL),
                             otherapp,
                             |target| {
                                 let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandResult::success(),
-                                    false => CommandResult::failure(ErrorCode::FAIL),
+                                    true => CommandReturn::success(),
+                                    false => CommandReturn::failure(ErrorCode::FAIL),
                                 }
                             },
                         )
                     })
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

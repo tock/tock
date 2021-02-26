@@ -31,7 +31,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -75,10 +75,10 @@ impl<'a> PCA9544A<'a> {
     /// Choose which channel(s) are active. Channels are encoded with a bitwise
     /// mask (0x01 means enable channel 0, 0x0F means enable all channels).
     /// Send 0 to disable all channels.
-    fn select_channels(&self, channel_bitmask: u8) -> CommandResult {
+    fn select_channels(&self, channel_bitmask: u8) -> CommandReturn {
         self.buffer
             .take()
-            .map_or(CommandResult::failure(ErrorCode::NOMEM), |buffer| {
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
                 self.i2c.enable();
 
                 // Always clear the settings so we get to a known state
@@ -97,29 +97,29 @@ impl<'a> PCA9544A<'a> {
                 self.i2c.write(buffer, index as u8);
                 self.state.set(State::Done);
 
-                CommandResult::success()
+                CommandReturn::success()
             })
     }
 
-    fn read_interrupts(&self) -> CommandResult {
+    fn read_interrupts(&self) -> CommandReturn {
         self.read_control(ControlField::InterruptMask)
     }
 
-    fn read_selected_channels(&self) -> CommandResult {
+    fn read_selected_channels(&self) -> CommandReturn {
         self.read_control(ControlField::SelectedChannels)
     }
 
-    fn read_control(&self, field: ControlField) -> CommandResult {
+    fn read_control(&self, field: ControlField) -> CommandReturn {
         self.buffer
             .take()
-            .map_or(CommandResult::failure(ErrorCode::NOMEM), |buffer| {
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
                 self.i2c.enable();
 
                 // Just issuing a read to the selector reads its control register.
                 self.i2c.read(buffer, 1);
                 self.state.set(State::ReadControl(field));
 
-                CommandResult::success()
+                CommandReturn::success()
             })
     }
 }
@@ -188,10 +188,10 @@ impl Driver for PCA9544A<'_> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // Check if present.
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // Select channels.
             1 => self.select_channels(data as u8).into(),
@@ -206,7 +206,7 @@ impl Driver for PCA9544A<'_> {
             4 => self.read_selected_channels().into(),
 
             // default
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

@@ -53,7 +53,7 @@ use core::convert::TryFrom;
 use core::mem;
 
 use kernel::hil;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 
 /// Syscall driver number.
 use crate::driver;
@@ -94,7 +94,7 @@ impl<'a> HumiditySensor<'a> {
         command: HumidityCommand,
         arg1: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
@@ -102,23 +102,23 @@ impl<'a> HumiditySensor<'a> {
                     self.busy.set(true);
                     self.call_driver(command, arg1)
                 } else {
-                    CommandResult::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             })
-            .unwrap_or_else(|err| CommandResult::failure(err.into()))
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
-    fn call_driver(&self, command: HumidityCommand, _: usize) -> CommandResult {
+    fn call_driver(&self, command: HumidityCommand, _: usize) -> CommandReturn {
         match command {
             HumidityCommand::ReadHumidity => {
                 let rcode = self.driver.read_humidity();
                 let eres = ErrorCode::try_from(rcode);
                 match eres {
-                    Ok(ecode) => CommandResult::failure(ecode),
-                    _ => CommandResult::success(),
+                    Ok(ecode) => CommandReturn::failure(ecode),
+                    _ => CommandReturn::success(),
                 }
             }
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -170,15 +170,15 @@ impl Driver for HumiditySensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // check whether the driver exist!!
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // single humidity measurement
             1 => self.enqueue_command(HumidityCommand::ReadHumidity, arg1, appid),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

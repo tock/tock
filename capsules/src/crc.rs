@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, Callback, CommandResult, Driver, ErrorCode, Grant};
+use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
 use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
@@ -300,10 +300,10 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         algorithm: usize,
         _: usize,
         appid: AppId,
-    ) -> CommandResult {
+    ) -> CommandReturn {
         match command_num {
             // This driver is present
-            0 => CommandResult::success(),
+            0 => CommandReturn::success(),
 
             // Request a CRC computation
             2 => {
@@ -324,14 +324,14 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                 };
 
                 if let Err(e) = result {
-                    CommandResult::failure(e)
+                    CommandReturn::failure(e)
                 } else {
                     self.serve_waiting_apps();
-                    CommandResult::success()
+                    CommandReturn::success()
                 }
             }
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

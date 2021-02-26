@@ -16,7 +16,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
 
 use kernel::hil;
-use kernel::{AppId, CommandResult, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode};
 
 pub struct Dac<'a> {
     dac: &'a dyn hil::dac::DacChannel,
@@ -36,17 +36,17 @@ impl Driver for Dac<'_> {
     /// - `0`: Driver check.
     /// - `1`: Initialize and enable the DAC.
     /// - `2`: Set the output to `data1`, a scaled output value.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandResult::success(),
+            0 /* check if present */ => CommandReturn::success(),
 
             // enable the dac
-            1 => CommandResult::from(self.dac.initialize()),
+            1 => CommandReturn::from(self.dac.initialize()),
 
             // set the dac output
-            2 => CommandResult::from(self.dac.set_value(data)),
+            2 => CommandReturn::from(self.dac.set_value(data)),
 
-            _ => CommandResult::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
