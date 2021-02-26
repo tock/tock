@@ -1,4 +1,4 @@
-Porting Tock Capsules to Tock 2.0
+Porting Tock 1.x Capsules to Tock 2.0
 ============
 
 This guide covers how to port Tock capsules from the 1.x system call API
@@ -11,7 +11,6 @@ gives code examples.
 
 - [Overview](#overview)
 - [Tock 2.0 System Call API](#tock-20-system-call-api)
-  * [`LegacyDriver`](#legacydriver)
   * [`Driver`](#driver)
 - [Porting Capsules and Example Code](#porting-capsules-and-example-code)
   * [Examples of command and `CommandResult`](#examples-of-command-and-commandresult)
@@ -36,41 +35,7 @@ Tock 2.0 System Call API
 
 The Tock system call API is implemented in the `Driver` trait. Tock
 2.0 updates this trait to be more precise and correctly support Rust's
-memory semantics. 
-
-### `LegacyDriver`
-
-The old version of the `Driver` trait has been renamed `LegacyDriver.`
-When the scheduler dispatches system calls, it first checks if a given
-capsule has an implementation of `Driver` or `LegacyDriver` and
-dispatches accordingly. This means that all 1.x capsules are
-supported with the old system call API. This document focuses on how
-to update them to use the new `Driver` trait.
-
-Whether a given capsule implements `Driver` or `Legacy` driver is
-determined by the implementation of `with_driver` in a board's
-`main.rs` file. In 1.x, this method returns an `Option` containing a
-reference to `Driver`. It now returns an `Option` containing a
-`Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>`. If the
-method returns `Ok`, there is a reference to a 2.0 driver and the
-scheduler invokes it. If it returns `Err`, there is a reference to a
-1.x driver and the scheduler invokes it. Here is a snippet of an
-implementation of this method on the `imix` board that shows what
-this looks like:
-
-```rust
-impl kernel::Platform for Imix {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<Result<&dyn kernel::Driver, &dyn kernel::LegacyDriver>>) -> R,
-    {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(Ok(self.console))),
-            capsules::gpio::DRIVER_NUM => f(Some(Err(self.gpio)))
-```
-
-You can see that in this code, `self.console` implements the 2.0 `Driver` and
-`self.gpio` implements the 1.x `LegacyDriver`.
+memory semantics.
 
 ### `Driver`
 
@@ -139,7 +104,7 @@ application slice or callback into the capsule. The capsule, in turn,
 moves the previous one out.
 
 The `command` method behaves differently, because commands only
-operate on values, not pointers. Each command has its own arguments
+operate on values, not pointers. Each command has its own arguments and
 number of return types. This is encapsulated within `CommandResult`.
 
 
@@ -161,7 +126,7 @@ example of what commands look like.
         self.leds
             .map(|leds| {
                 match command_num {
-...				
+...
                     // on
                     1 => {
                         if data >= leds.len() {
@@ -222,18 +187,18 @@ This implementation is more complex because it uses a grant region
 that stores per-process state. `Grant::enter` returns a
 `Result<ReturnCode, grant::Error>`. An `Err` return type means the
 grant could not be entered successfully and the closure was not invoked:
-this returns what grant error occured. An `Ok` return type means the
-closure was executed, but it is possible that an error occured during
+this returns what grant error occurred. An `Ok` return type means the
+closure was executed, but it is possible that an error occurred during
 its execution. So there are three cases:
 
   - Ok(ReturnCode::Success) | Ok(ReturnCode::SuccessWithValue)
   - Ok(ReturnCode:: error cases)
   - Err(grant::Error)
-  
+
 The bottom `match` statement separates these two. In the `Ok()` case,
 it checks whether the `ReturnCode` can be turned into an `ErrorCode`.
 If not (`Err`), this means it was a success, and the result was a
-success, so it returns a `CommandResult::Success`. If it can be convered
+success, so it returns a `CommandResult::Success`. If it can be converted
 into an error code, or if the grant produced an error, it returns a
 `CommandResult::Failure`.
 
@@ -242,14 +207,11 @@ One of the requirements of commands in 2.0 is that each individual
 return size. This means that for a given `command_num`, it is not allowed
 for it to sometimes return `CommandResult::Success` and other times return
 `Command::SuccessWithValue`, as these are different sizes. As part of easing
-this transition, Tock 2.0 is deprecating the `SuccessWithValue` variant of
-`ReturnCode`. Fortunately, as of this writing, all uses of `SuccessWithValue`
-outside of implementations of `LegacyDriver::command()` have been removed,
-so you do not have to worry about the possibility of any `ReturnCode`
-being this variant -- `CommandResult::from(ReturnCode)` relies on this assumption.
+this transition, Tock 2.0 removed the `SuccessWithValue` variant of
+`ReturnCode`.
 
 If, while porting, you encounter a construction of `ReturnCode::SuccessWithValue{v}`
-in `LegacyDriver::command()`, replace it with a construction of
+in `command()` for an out-of-tree capsule, replace it with a construction of
 `CommandResult::success_u32(v)`, and make sure that it is impossible for that
 command_num to return `CommandResult::Success` in any other scenario.
 
@@ -260,18 +222,19 @@ successes, it replaces `ReturnCode` with `ErrorCode` to denote which
 error in failure cases. `ErrorCode` is simply `ReturnCode` without any
 success cases, and with names that remove the leading E since it's
 obvious they are an error: `ErrorCode::FAIL` is the equivalent of
-`ReturnCode::EFAIL`.
+`ReturnCode::EFAIL`. `ReturnCode` is still used in the kernel,
+but may be deprecated in time.
 
 ### Examples of `allow_readwrite` and `allow_readonly`
 
 Because `ReadWriteAppSlice` and `ReadOnlyAppSlice` represent access to
 userspace memory, the kernel tightly constrains how these objects
-are constructed and passed. They do not implement `Copy` or `Clone`, 
-so only one instance of these objects exists in the kernel at any 
-time. 
+are constructed and passed. They do not implement `Copy` or `Clone`,
+so only one instance of these objects exists in the kernel at any
+time.
 
 Note that `console` has one `ReadOnlyAppSlice` for printing/`putnstr`
-and and one `ReadWriteAppSlice` for reading/`getnstr`.  Here is a
+and one `ReadWriteAppSlice` for reading/`getnstr`.  Here is a
 sample implementation of `allow_readwrite` for the `console` capsule:
 
 ```rust
@@ -303,7 +266,7 @@ pub struct App {
 ```
 
 
-The implemention is quite simple: if there is a valid grant region, the
+The implementation is quite simple: if there is a valid grant region, the
 method swaps the passed `ReadOnlyAppSlice` and the one in the `App` region,
 returning the one that was in the app region. It then returns `slice`,
 which is either the passed slice or the swapped out one.
@@ -316,7 +279,7 @@ an example from `console`:
 ```rust
     fn subscribe(
         &self,
-        subscribe_num: usize, 
+        subscribe_num: usize,
         mut callback: Callback,
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
@@ -430,7 +393,7 @@ This is a second example, taken from `spi_controller`. Because SPI transfers
 are bidirectional, there is an RX buffer and a TX buffer. However, a client
 can ignore what it receives, and only pass a TX buffer if it wants: the RX
 buffer can be zero length. As with other bus transfers, the SPI driver
-needs to handle the case when its buffers change in length under it. 
+needs to handle the case when its buffers change in length under it.
 For example, a client may make the following calls:
 
   1. `allow_readwrite(rx_buf, 200)`
@@ -505,8 +468,3 @@ safely transmitted: it is the minimum of the low-level transfer end
 the application slice is shorter than the current write position.
 To handle this case, `start` is set to be the minimum of `start` and
 `end`: the transfer will be of length zero.
-
-
-
-
-
