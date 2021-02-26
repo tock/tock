@@ -2462,8 +2462,8 @@ impl<C: 'static + Chip> Process<'_, C> {
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the RAM bounds currently exposed to the processes (i.e.
-    /// ending at `app_break`. If this method returns true, the buffer
+    /// is within the RAM bounds currently exposed to the processes (i.e.
+    /// ending at `app_break`). If this method returns `true`, the buffer
     /// is guaranteed to be accessible to the process and to not overlap with
     /// the grant region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
