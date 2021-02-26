@@ -76,7 +76,8 @@ use crate::process;
 use crate::returncode::ReturnCode;
 use crate::syscall::GenericSyscallReturnValue;
 
-/// Possible return values of a `command` driver method
+/// Possible return values of a `command` driver method, as specified
+/// in TRD104.
 ///
 /// This is just a wrapper around
 /// [`GenericSyscallReturnValue`](GenericSyscallReturnValue) since a
@@ -165,21 +166,43 @@ impl From<process::Error> for CommandResult {
     }
 }
 
+/// Trait for capsules implemeting peripheral driver system calls
+/// specified in TRD104. The kernel translates the values passed from
+/// userspace into Rust types and includes which process is making the
+/// call. All of these system calls perform very little synchronous work;
+/// long running computations or I/O should be split-phase, with an upcall
+/// indicating their completion.
+///
+/// The exact instances of each of these methods (which identifiers are valid
+/// and what they represents) are specific to the peripheral system call
+/// driver.
 #[allow(unused_variables)]
 pub trait Driver {
+    /// System call for a process to provide an upcall function pointer to
+    /// the kernel. Peripheral system call driver capsules invoke
+    /// upcalls in response to commands.
     fn subscribe(
         &self,
-        which: usize,
+        subscribe_identifier: usize,
         callback: Callback,
         app_id: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         Err((callback, ErrorCode::NOSUPPORT))
     }
 
+    /// System call for a process to perform a short synchronous operation
+    /// or start a long-running split-phase operation (whose completion
+    /// is signaled with an upcall). Command 0 is a reserved command to
+    /// detect if a peripheral system call driver is installed and must
+    /// always return a CommandReturn::Success.
     fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
         CommandResult::failure(ErrorCode::NOSUPPORT)
     }
 
+    /// System call for a process to pass a buffer (a ReadWriteAppSlice) to
+    /// the kernel that the kernel can either read or write. The kernel calls
+    /// this method only after it checks that  that the entire buffer is
+    /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
         app: AppId,
@@ -189,6 +212,12 @@ pub trait Driver {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 
+    /// System call for a process to pass a read-only buffer (a
+    /// ReadOnlyAppSlice) to the kernel that the kernel can read.
+    /// The kernel calls this method only after it
+    /// checks that that the entire buffer is within memory the
+    /// process can read. This system call allows a process to pass
+    /// read-only data (e.g., in flash) to the kernel.
     fn allow_readonly(
         &self,
         app: AppId,
