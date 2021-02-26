@@ -1422,7 +1422,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as long as
             // we make sure that we're pointing towards userspace
             // memory (verified using `in_app_owned_memory` or
-            // `in_app_ro_memory`) and respect alignment and other
+            // `in_app_flash_memory`) and respect alignment and other
             // constraints of the Rust references created by
             // ReadWriteAppSlice.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
@@ -2462,8 +2462,8 @@ impl<C: 'static + Chip> Process<'_, C> {
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the RAM bounds currently exposed to the processes (i.e.
-    /// ending at `app_break`. If this method returns true, the buffer
+    /// is within the RAM bounds currently exposed to the processes (i.e.
+    /// ending at `app_break`). If this method returns `true`, the buffer
     /// is guaranteed to be accessible to the process and to not overlap with
     /// the grant region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
