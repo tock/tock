@@ -1414,7 +1414,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // in a safe manner.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) }
         } else if self.in_app_owned_memory(buf_start_addr, size)
-            || self.in_app_ro_memory(buf_start_addr, size)
+            || self.in_app_flash_memory(buf_start_addr, size)
         {
             // TODO: Check for buffer aliasing here
 
@@ -2492,7 +2492,7 @@ impl<C: 'static + Chip> Process<'_, C> {
     /// are within the readable region of an application's flash
     /// memory.  If this method returns true, the buffer
     /// is guaranteed to be readable to the process.
-    fn in_app_ro_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+    fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
