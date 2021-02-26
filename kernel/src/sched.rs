@@ -1,7 +1,9 @@
-//! Tock's central kernel logic and scheduler trait.
+//! Tock's main kernel loop, scheduler loop, and Scheduler trait.
 //!
-//! Also defines several utility functions to reduce duplicated code between
-//! different scheduler implementations.
+//! This module also includes utility functions that are commonly used
+//! by scheduler policy implementations.  Scheduling policy (round
+//! robin, priority, etc.) is defined in the `sched` subcrate and
+//! selected by a board.
 
 pub(crate) mod cooperative;
 pub(crate) mod mlfq;
@@ -149,7 +151,7 @@ pub struct Kernel {
 /// `do_process()` returned).
 #[derive(PartialEq, Eq)]
 pub enum StoppedExecutingReason {
-    /// The process returned because it is no longer ready to run.
+    /// The process eturned because it is no longer ready to run.
     NoWorkLeft,
 
     /// The process faulted, and the board restart policy was configured such
@@ -628,7 +630,7 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            self.handle_syscall_fired(platform, process, syscall);
+                            self.handle_syscall(platform, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -683,6 +685,7 @@ impl Kernel {
                                     |ipc| {
                                         // TODO(alevy): this could error for a variety of reasons.
                                         // Should we communicate the error somehow?
+                                        // https://github.com/tock/tock/issues/1993
                                         let _ = ipc.schedule_callback(
                                             process.appid(),
                                             otherapp,
@@ -733,13 +736,19 @@ impl Kernel {
         (return_reason, time_executed_us)
     }
 
+    /// Method to invoke a system call on a particular process.
+    /// Applies the kernel system call filtering policy (if any).
+    /// Handles `Yield` and `Exit`, dispatches `Memop` to `memop::memop`,
+    /// and dispatches peripheral driver system calls to peripheral
+    /// driver capsules through the platforms `with_driver` method.
     #[inline]
-    unsafe fn handle_syscall_fired<P: Platform>(
+    unsafe fn handle_syscall<P: Platform>(
         &self,
         platform: &P,
         process: &dyn process::ProcessType,
         syscall: Syscall,
     ) {
+        // Hook for process debugging.
         process.debug_syscall_called(syscall);
         // Enforce platform-specific syscall filtering here.
         //
@@ -790,7 +799,10 @@ impl Kernel {
                     debug!("[{:?}] yield. which: {}", process.appid(), which);
                 }
                 if which > (YieldCall::Wait as usize) {
-                    // Only 0 and 1 are valid
+                    // Only 0 and 1 are valid, so this is not a valid
+                    // yield system call, Yield does not have a return
+                    // value because it can push a function call onto
+                    // the stack; just return control to the process.
                     return;
                 }
                 let wait = which == (YieldCall::Wait as usize);
@@ -866,17 +878,12 @@ impl Kernel {
                 arg0,
                 arg1,
             } => {
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => GenericSyscallReturnValue::from_command_result(d.command(
-                        subdriver_number,
-                        arg0,
-                        arg1,
-                        process.appid(),
-                    )),
-                    None => GenericSyscallReturnValue::from_command_result(CommandResult::failure(
-                        ErrorCode::NOSUPPORT,
-                    )),
+                let cres = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
+                    None => CommandResult::failure(ErrorCode::NOSUPPORT),
                 });
+
+                let res = GenericSyscallReturnValue::from_command_result(cres);
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -956,8 +963,12 @@ impl Kernel {
                 which,
                 completion_code,
             } => match which {
+                // The process called the `exit-terminate` system call.
                 0 => process.terminate(completion_code as u32),
+                // The process called the `exit-restart` system call.
                 1 => process.try_restart(completion_code as u32),
+                // The process called an invalid variant of the Exit
+                // system call class.
                 _ => process.set_syscall_return_value(GenericSyscallReturnValue::Failure(
                     ErrorCode::NOSUPPORT,
                 )),

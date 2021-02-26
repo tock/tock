@@ -199,7 +199,8 @@ impl Syscall {
 
 // ---------- SYSCALL RETURN VALUE ENCODING ----------
 
-/// Enumeration over the possible system call return type variants.
+/// Enumeration of the system call return type variant identifiers described
+/// in TRD104.
 ///
 /// Each variant is associated with the respective variant identifier
 /// that would be passed along with the return value to userspace.
@@ -218,17 +219,17 @@ pub enum SyscallReturnVariant {
     SuccessU64U32 = 133,
 }
 
-/// Possible system call return variants, generic over the system call
-/// type
+/// Enumeration of the possible system call return variants specified
+/// in TRD104.
 ///
 /// This struct operates over primitive types such as integers of
 /// fixed length and pointers. It is constructed by the scheduler and
 /// passed down to the architecture to be encoded into registers,
-/// possibly using the provided
+/// using the provided
 /// [`encode_syscall_return`](GenericSyscallReturnValue::encode_syscall_return)
 /// method.
 ///
-/// Capsules use higher level Rust types
+/// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
 /// [`Callback`](crate::Callback)) or wrappers around this struct
 /// ([`CommandResult`](crate::CommandResult)) which limit the
@@ -268,23 +269,35 @@ pub enum GenericSyscallReturnValue {
     // values (pointers out of valid memory), the kernel cannot
     // construct an AppSlice or Callback type but needs to be able to
     // return a failure. -pal 11/24/20
-    /// Read/Write allow success case
+    /// Read/Write allow success case, returns the previous allowed
+    /// buffer and size to the process.
     AllowReadWriteSuccess(*mut u8, usize),
-    /// Read/Write allow failure case
+    /// Read/Write allow failure case, returns the passed allowed
+    /// buffer and size to the process.
     AllowReadWriteFailure(ErrorCode, *mut u8, usize),
 
-    /// Read only allow success case
+    /// Read only allow success case, returns the previous allowed
+    /// buffer and size to the process.
     AllowReadOnlySuccess(*const u8, usize),
-    /// Read only allow failure case
+    /// Read only allow failure case, returns the passed allowed
+    /// buffer and size to the process.
     AllowReadOnlyFailure(ErrorCode, *const u8, usize),
 
-    /// Subscribe success case
+    /// Subscribe success case, returns the previous upcall function
+    /// pointer and application data.
     SubscribeSuccess(*const u8, usize),
-    /// Subscribe failure case
+    /// Subscribe failure case, returns the passed upcall function
+    /// pointer and application data.
     SubscribeFailure(ErrorCode, *const u8, usize),
 }
 
 impl GenericSyscallReturnValue {
+    /// Transforms a CommandResult, which is wrapper around a subset of
+    /// GenericSyscallReturnValue, into a GenericSyscallReturnValue.
+    /// This allows CommandResult to include only the variants of
+    /// GenericSyscallReturnValue that can be returned from a Command,
+    /// while having an inexpensive way to handle it as a
+    /// GenericSyscallReturnValue for more generic code paths.
     pub(crate) fn from_command_result(res: CommandResult) -> Self {
         res.into_inner()
     }
@@ -388,8 +401,8 @@ impl GenericSyscallReturnValue {
 
 // ---------- USERSPACE KERNEL BOUNDARY ----------
 
-/// `ContentSwitchReason` specifies why the process stopped executing and execution
-/// returned to the kernel.
+/// `ContentSwitchReason` specifies why the process stopped executing and
+/// execution returned to the kernel.
 #[derive(PartialEq, Copy, Clone)]
 pub enum ContextSwitchReason {
     /// Process called a syscall. Also returns the syscall and relevant values.
@@ -400,16 +413,19 @@ pub enum ContextSwitchReason {
     Interrupted,
 }
 
-/// This trait must be implemented by the architecture of the chip Tock is
-/// running on. It allows the kernel to manage switching to and from processes
-/// in an architecture-agnostic manner.
+/// The `UserspaceKernelBoundary` trait is implemented by the
+/// architectural component of the chip implementation of Tock. This
+/// trait allows the kernel to switch to and from processes
+/// in an architecture-independent manner.
 ///
-/// Since exactly how callbacks and return values are passed between kernelspace
-/// and userspace is implementation specific, and may use process memory to
-/// store state when switching, functions in this trait are passed the bounds of
-/// process-accessible memory so that the implementation can verify it is
-/// reading and writing memory that the process has valid access to. These
-/// bounds are passed through `accessible_memory_start` and `app_brk` pointers.
+/// Exactly how callbacks and return values are passed between
+/// kernelspace and userspace is architecture specific. The
+/// architecture may use process memory to store state when
+/// switching. Therefore, functions in this trait are passed the
+/// bounds of process-accessible memory so that the architecture
+/// implementation can verify it is reading and writing memory that
+/// the process has valid access to. These bounds are passed through
+/// `accessible_memory_start` and `app_brk` pointers.
 pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
