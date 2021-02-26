@@ -178,7 +178,6 @@ impl From<process::Error> for CommandReturn {
 /// driver.
 #[allow(unused_variables)]
 pub trait Driver {
-
     /// System call for a process to provide an upcall function pointer to
     /// the kernel. Peripheral system call driver capsules invoke
     /// upcalls in response to commands.
@@ -212,7 +211,7 @@ pub trait Driver {
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
-    
+
     /// System call for a process to pass a read-only buffer (a
     /// ReadOnlyAppSlice) to the kernel that the kernel can read.
     /// The kernel calls this method only after it
