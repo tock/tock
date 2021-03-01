@@ -151,7 +151,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         let ports = self.ports.as_ref();
 
         // On any command other than 0, we check for ports length.
-        if cmd_num != 0 && port >= ports.len() {
+        if command_number != 0 && port >= ports.len() {
             return CommandReturn::failure(ErrorCode::INVAL);
         }
 
