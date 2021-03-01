@@ -1105,7 +1105,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     /// After `restart()` runs the process will either be queued to run its
     /// `_start` function, or it will be terminated and unrunnable.
     fn try_restart(&self, completion_code: u32) {
-        debug!("Trying to restart process {}", self.get_process_name());
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
