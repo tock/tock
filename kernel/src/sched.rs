@@ -768,15 +768,15 @@ impl Kernel {
             Syscall::Yield {
                 which: _,
                 address: _,
-            } => {}, // Yield is not filterable
+            } => {} // Yield is not filterable
             Syscall::Exit {
                 which: _,
                 completion_code: _,
-            } => {}, // Exit is not filterable
+            } => {} // Exit is not filterable
             Syscall::Memop {
                 operand: _,
                 arg0: _,
-            } => {}, // Memop is not filterable
+            } => {} // Memop is not filterable
             _ => {
                 // Check all other syscalls for filtering
                 if let Err(response) = platform.filter_syscall(process, &syscall) {
