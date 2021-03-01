@@ -3,6 +3,7 @@ Tock courses
 
 ---
 **NOTE**
+
 These courses all use Tock version 1 (e.g., 1.2, 1.3). 
 Tock development is currently on version 2. 
 The major difference between the two versions is the
