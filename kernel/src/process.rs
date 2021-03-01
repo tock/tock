@@ -1125,7 +1125,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
     fn terminate(&self, _completion_code: u32) {
-        debug!("Terminating process {}", self.get_process_name());
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
