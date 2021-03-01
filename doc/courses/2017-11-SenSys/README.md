@@ -10,8 +10,8 @@ date: November 5, 2017
 
 This course was primarily designed in November of 2017, but has been updated
 through May 2018. It is a useful introduction to Tock but is no longer updated
-as Tock evolves in preparation for new courses that will be used in November
-2018. For example, this course uses Tock version 1.2, and current Tock
+as Tock evolves in preparation for new courses that will be used. 
+For example, this course uses Tock version 1.2, and current Tock
 development is on version 2.x. To follow this course, please checkout
 the commit below to use Tock at a point where the tutorial is known to
 be working.
@@ -37,4 +37,3 @@ small kernel extension written in Rust. The course assumes experience
 programming embedded devices and fluency in C. It assumes no knowledge of Rust,
 although knowing Rust will allow you to be more creative in the Rust programming
 part of the course.
-
