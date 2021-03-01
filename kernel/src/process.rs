@@ -1118,7 +1118,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // want to reclaim the process resources.
     }
 
-    /// Stop and clear a process's state, putting it into the .
+    /// Stop and clear a process's state, putting it into the `Terminated` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
