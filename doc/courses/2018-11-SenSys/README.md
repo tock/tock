@@ -3,13 +3,14 @@ location: Shenzhen, China
 date: November 4, 2018
 ---
 
-**Tock is an active project and details may have changes since this tutorial was authored.
-If you are interested in doing this tutorial yourself, please
-`git checkout courses/2018-sensys` in both this repository and the libtock repository.**
+# Tock OS Training @ SenSys 2018
 
 ---
-
-# Tock OS Training @ SenSys 2018
+**NOTE**
+This course was primarily designed in October of 2018. It is a useful 
+introduction to Tock but is no longer updated. For example, this course 
+uses Tock version 1.2, and current Tock development is on version 2.x.
+---
 
 This course introduces you to Tock, a secure embedded operating system for
 sensor networks and the Internet of Things. Tock is the first operating system
