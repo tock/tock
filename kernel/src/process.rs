@@ -2319,7 +2319,6 @@ impl<C: 'static + Chip> Process<'_, C> {
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
-        debug!("Restarting process {}", self.get_process_name());
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `AppId`s that point to the old version of the
