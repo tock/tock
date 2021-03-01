@@ -91,7 +91,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Encode the system call return value into registers,
         // available for when the process resumes
 
-        // We need to use a buch of split_at_mut's to have multiple
+        // We need to use a bunch of split_at_mut's to have multiple
         // mutable borrows into the same slice at the same time.
         //
         // Since the compiler knows the size of this slice, and these
