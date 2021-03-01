@@ -7,9 +7,11 @@ date: November 4, 2018
 
 ---
 **NOTE**
+
 This course was primarily designed in October of 2018. It is a useful 
 introduction to Tock but is no longer updated. For example, this course 
 uses Tock version 1.2, and current Tock development is on version 2.x.
+
 ---
 
 This course introduces you to Tock, a secure embedded operating system for
