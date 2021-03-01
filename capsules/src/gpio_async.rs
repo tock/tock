@@ -155,7 +155,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
             return CommandReturn::failure(ErrorCode::INVAL);
         }
 
-        match cmd_num {
+        match command_number {
             // How many ports
             0 => CommandReturn::success_u32(ports.len() as u32),
 
