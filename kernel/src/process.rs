@@ -2314,9 +2314,10 @@ impl<C: 'static + Chip> Process<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Restart the process, resetting all of its state re-initializing
-    /// it to start running.  Assumes the process is not running and
-    /// cleaned up. This implements the mechanism of restart.
+    /// Restart the process, resetting all of its state and re-initializing
+    /// it to start running.  Assumes the process is not running but is still in flash
+    /// and still has its memory region allocated to it. This implements
+    /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
         debug!("Restarting process {}", self.get_process_name());
         // We need a new process identifier for this process since the restarted
