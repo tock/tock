@@ -6,7 +6,7 @@ date: November 5, 2017
 # Tock OS Training @ SenSys 2017
 
 ---
-*** NOTE **
+** NOTE **
 This course was primarily designed in November of 2017, but has been updated
 through May 2018. It is a useful introduction to Tock but is no longer updated
 as Tock evolves in preparation for new courses that will be used in November

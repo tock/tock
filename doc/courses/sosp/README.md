@@ -7,10 +7,12 @@ date: October 28th
 
 ---
 **NOTE**
+
 This course was primarily designed in the summer of 2017. It focuses on
 presenting Tock to an operating systems research audience. It is no longer 
 updated. For example, this course  uses Tock version 1.2, and current Tock 
 development is on version 2.x.
+
 ---
 
 
