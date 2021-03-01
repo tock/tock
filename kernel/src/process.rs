@@ -676,6 +676,7 @@ impl From<Error> for ErrorCode {
         }
     }
 }
+
 /// Various states a process can be in.
 ///
 /// This is made public in case external implementations of `ProcessType` want
