@@ -676,6 +676,7 @@ impl From<Error> for ErrorCode {
         }
     }
 }
+
 /// Various states a process can be in.
 ///
 /// This is made public in case external implementations of `ProcessType` want
@@ -1105,7 +1106,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     /// After `restart()` runs the process will either be queued to run its
     /// `_start` function, or it will be terminated and unrunnable.
     fn try_restart(&self, completion_code: u32) {
-        debug!("Trying to restart process {}", self.get_process_name());
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -1118,14 +1118,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // want to reclaim the process resources.
     }
 
-    /// Stop and clear a process's state, putting it into the .
+    /// Stop and clear a process's state, putting it into the `Terminated` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
     fn terminate(&self, _completion_code: u32) {
-        debug!("Terminating process {}", self.get_process_name());
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -2315,11 +2314,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Restart the process, resetting all of its state re-initializing
-    /// it to start running.  Assumes the process is not running and
-    /// cleaned up. This implements the mechanism of restart.
+    /// Restart the process, resetting all of its state and re-initializing
+    /// it to start running.  Assumes the process is not running but is still in flash
+    /// and still has its memory region allocated to it. This implements
+    /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
-        debug!("Restarting process {}", self.get_process_name());
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `AppId`s that point to the old version of the

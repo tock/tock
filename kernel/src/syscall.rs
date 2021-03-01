@@ -147,7 +147,6 @@ impl Syscall {
     /// Different architectures have different ABIs for a process and the kernel
     /// to exchange data. The 32-bit ABI for CortexM and RISCV microcontrollers is
     /// specified in TRD104.
-
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
