@@ -12,7 +12,9 @@ The differences between version 1 and version 2 are most significant if you
 want to write system call drivers for kernel services.
 
 We hope to write a course for version 2 soon. Until then, the 
-[Tock book](https://book.tockos.org/) is a good place to start.
+[Tock book](https://book.tockos.org/) is a good place to start. It has 
+been updated to Tock v2.
+
 ---
 
 
