@@ -554,7 +554,7 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    unsafe fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
+    fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
@@ -602,7 +602,8 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            if !scheduler.continue_process(process.appid(), chip) {
+            let continue_process = unsafe { scheduler.continue_process(process.appid(), chip) };
+            if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }
@@ -686,11 +687,13 @@ impl Kernel {
                                         // TODO(alevy): this could error for a variety of reasons.
                                         // Should we communicate the error somehow?
                                         // https://github.com/tock/tock/issues/1993
-                                        let _ = ipc.schedule_callback(
-                                            process.appid(),
-                                            otherapp,
-                                            ipc_type,
-                                        );
+                                        unsafe {
+                                            let _ = ipc.schedule_callback(
+                                                process.appid(),
+                                                otherapp,
+                                                ipc_type,
+                                            );
+                                        }
                                     },
                                 );
                             }
@@ -742,7 +745,7 @@ impl Kernel {
     /// and dispatches peripheral driver system calls to peripheral
     /// driver capsules through the platforms `with_driver` method.
     #[inline]
-    unsafe fn handle_syscall<P: Platform>(
+    fn handle_syscall<P: Platform>(
         &self,
         platform: &P,
         process: &dyn process::ProcessType,
@@ -750,6 +753,7 @@ impl Kernel {
     ) {
         // Hook for process debugging.
         process.debug_syscall_called(syscall);
+
         // Enforce platform-specific syscall filtering here.
         //
         // Before continuing to handle non-yield syscalls
