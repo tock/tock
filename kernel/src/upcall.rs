@@ -167,7 +167,6 @@ pub struct UpcallId {
 /// Type for calling an upcall in a process.
 ///
 /// This is essentially a wrapper around a function pointer.
-#[derive(Clone, Copy)]
 struct ProcessUpcall {
     app_id: AppId,
     upcall_id: UpcallId,
@@ -175,9 +174,19 @@ struct ProcessUpcall {
     fn_ptr: NonNull<()>,
 }
 
-#[derive(Clone, Copy, Default)]
 pub struct Upcall {
     cb: Option<ProcessUpcall>,
+}
+
+impl Default for Upcall {
+    /// Construct a new default [`Upcall`]
+    ///
+    /// A default [`Upcall`] instance will not point to any actual
+    /// userspace process. Therefore, no actual upcalls will be
+    /// scheduled by this instance.
+    fn default() -> Upcall {
+        Upcall::const_default()
+    }
 }
 
 impl Upcall {
@@ -192,11 +201,20 @@ impl Upcall {
         }
     }
 
+    /// Construct a new default [`Upcall`]
+    ///
+    /// A default [`Upcall`] instance will not point to any actual
+    /// userspace process. Therefore, no actual upcalls will be
+    /// scheduled by this instance.
+    pub const fn const_default() -> Upcall {
+        Upcall { cb: None }
+    }
+
     /// Tell the scheduler to run this upcall for the process.
     ///
     /// The three arguments are passed to the upcall in userspace.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
+        self.cb.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
     }
 
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
@@ -223,15 +241,9 @@ impl ProcessUpcall {
         app_id: AppId,
         upcall_id: UpcallId,
         appdata: usize,
-<<<<<<< HEAD:kernel/src/upcall.rs
-        fn_ptr: NonNull<*mut ()>,
+        fn_ptr: NonNull<()>,
     ) -> ProcessUpcall {
         ProcessUpcall {
-=======
-        fn_ptr: NonNull<()>,
-    ) -> ProcessCallback {
-        ProcessCallback {
->>>>>>> a281bc7ec (Callback: remove double (indirect) pointer):kernel/src/callback.rs
             app_id,
             upcall_id,
             appdata,

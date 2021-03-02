@@ -41,10 +41,11 @@ struct IPCData<const NUM_PROCS: usize> {
 impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     fn default() -> IPCData<NUM_PROCS> {
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
+        const DEFAULT_CALLBACK: Callback = Callback::const_default();
         IPCData {
             shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
             search_slice: ReadOnlyAppSlice::default(),
-            client_upcalls: [Upcall::default(); NUM_PROCS],
+            client_upcalls: [DEFAULT_UPCALL; NUM_PROCS],
             upcall: Upcall::default(),
         }
     }
@@ -73,13 +74,19 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     ) -> Result<(), process::Error> {
         self.data
             .enter(schedule_on, |mydata, _| {
-                let mut upcall = match cb_type {
-                    IPCUpcallType::Service => mydata.upcall,
-                    IPCUpcallType::Client => match called_from.index() {
-                        Some(i) => *mydata.client_upcalls.get(i).unwrap_or(&Upcall::default()),
-                        None => Upcall::default(),
-                    },
+                let mut with_upcall = |f: &dyn Fn(&mut Upcall)| {
+                    match cb_type {
+                        IPCUpcallType::Service => f(&mut mydata.upcall),
+                        IPCUpcallType::Client => match called_from.index() {
+                            Some(i) => f(mydata
+                                .client_upcalls
+                                .get_mut(i)
+                                .unwrap_or(&mut Upcall::default())),
+                            None => f(&mut Upcall::default()),
+                        },
+                    };
                 };
+
                 self.data.enter(called_from, |called_from_data, _| {
                     // If the other app shared a buffer with us, make
                     // sure we have access to that slice and then call
@@ -102,14 +109,19 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                                                 slice.len(),
                                             )
                                         });
-                                    upcall.schedule(
-                                        called_from.id() + 1,
-                                        crate::mem::Read::len(slice),
-                                        crate::mem::Read::ptr(slice) as usize,
-                                    );
+
+                                    with_upcall(&|cb: &mut Upcall| {
+                                        cb.schedule(
+                                            called_from.id() + 1,
+                                            crate::mem::Read::len(slice),
+                                            crate::mem::Read::ptr(slice) as usize,
+                                        );
+                                    });
                                 }
                                 None => {
-                                    upcall.schedule(called_from.id() + 1, 0, 0);
+                                    with_upcall(&|cb: &mut Upcall| {
+                                        cb.schedule(called_from.id() + 1, 0, 0);
+                                    });
                                 }
                             }
                         }
@@ -139,13 +151,19 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             // application name stored in the TBF header of the application.
             // The upcall that is passed to subscribe is called when another
             // process notifies the server process.
-            0 => self
-                .data
-                .enter(app_id, |data, _| {
-                    core::mem::swap(&mut data.upcall, &mut upcall);
-                    upcall
-                })
-                .map_err(|e| (upcall, e.into())),
+            0 => {
+                let res = self
+                    .data
+                    .enter(app_id, |data, _| {
+                        core::mem::swap(&mut data.upcall, &mut upcall);
+                    })
+                    .map_err(Into::into);
+
+                match res {
+                    Ok(()) => Ok(upcall),
+                    Err(e) => Err((upcall, e)),
+                }
+            }
 
             // subscribe(>=1)
             //
@@ -163,7 +181,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                 let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
                 // This type annotation is here for documentation, it's not actually necessary
-                let result: Result<Result<Upcall, ErrorCode>, process::Error> =
+                let result: Result<Result<(), ErrorCode>, process::Error> =
                     self.data.enter(app_id, |data, _| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
@@ -171,17 +189,18 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                                     Err(ErrorCode::INVAL)
                                 } else {
                                     core::mem::swap(&mut data.client_upcalls[i], &mut upcall);
-                                    Ok(upcall)
+                                    Ok(())
                                 }
                             }
                             None => Err(ErrorCode::INVAL),
                         }
                     });
-                // OK, some type sorcery to transform result into what we want
-                result
-                    .map_err(|e| e.into()) // transform the outer Result's process::Error into an ErrorCode
-                    .and_then(|x| x) // Flatten the Result<Result<T,E>, E> into a Result<T,E>
-                    .map_err(|e| (upcall, e)) // Add `upcall` to the Error case
+
+                match result {
+                    Ok(Ok(())) => Ok(upcall),
+                    Ok(Err(err)) => Err((upcall, err)),
+                    Err(process_error) => Err((upcall, process_error.into())),
+                }
             }
         }
     }
