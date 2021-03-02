@@ -66,6 +66,7 @@ impl<A: 'static + adc::Adc> AdcMuxComponent<A> {
 
 pub struct AdcVirtualComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
 }
 
 impl<A: 'static + adc::Adc> Component for AdcMuxComponent<A> {
@@ -108,9 +109,10 @@ impl<A: 'static + adc::Adc> Component for AdcComponent<A> {
 }
 
 impl AdcVirtualComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> AdcVirtualComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: u32) -> AdcVirtualComponent {
         AdcVirtualComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
         }
     }
 }
@@ -124,7 +126,7 @@ impl Component for AdcVirtualComponent {
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_adc = self.board_kernel.create_grant(&grant_cap);
+        let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let adc = static_init_half!(
             static_buffer.0,

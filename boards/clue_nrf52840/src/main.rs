@@ -206,6 +206,7 @@ pub unsafe fn reset_handler() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
@@ -239,6 +240,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -276,8 +278,12 @@ pub unsafe fn reset_handler() {
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -309,7 +315,10 @@ pub unsafe fn reset_handler() {
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(&memory_allocation_capability)
+            board_kernel.create_grant(
+                capsules::buzzer_driver::DRIVER_NUM as u32,
+                &memory_allocation_capability
+            )
         )
     );
     virtual_alarm_buzzer.set_alarm_client(buzzer);
@@ -356,7 +365,12 @@ pub unsafe fn reset_handler() {
         .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -364,7 +378,12 @@ pub unsafe fn reset_handler() {
     // RANDOM NUMBERS
     //--------------------------------------------------------------------------
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM as u32,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -400,7 +419,10 @@ pub unsafe fn reset_handler() {
 
     let proximity = static_init!(
         capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(apds9960, board_kernel.create_grant(&grant_cap))
+        capsules::proximity::ProximitySensor::new(
+            apds9960,
+            board_kernel.create_grant(capsules::proximity::DRIVER_NUM as u32, &grant_cap)
+        )
     );
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
@@ -409,10 +431,19 @@ pub unsafe fn reset_handler() {
         components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
     );
 
-    let temperature =
-        components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM as u32,
+        sht3x,
+    )
+    .finalize(());
 
-    let humidity = components::humidity::HumidityComponent::new(board_kernel, sht3x).finalize(());
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM as u32,
+        sht3x,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // TFT
@@ -462,16 +493,25 @@ pub unsafe fn reset_handler() {
 
     tft.init();
 
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(57600));
+    let screen = components::screen::ScreenComponent::new(
+        board_kernel,
+        capsules::screen::DRIVER_NUM as u32,
+        tft,
+        Some(tft),
+    )
+    .finalize(components::screen_buffer_size!(57600));
 
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -490,6 +530,7 @@ pub unsafe fn reset_handler() {
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
+        capsules::ieee802154::DRIVER_NUM as u32,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -521,7 +562,11 @@ pub unsafe fn reset_handler() {
         rng: rng,
         buzzer: buzzer,
         alarm: alarm,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
         temperature: temperature,
         humidity: humidity,
     };

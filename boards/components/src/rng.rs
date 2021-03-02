@@ -22,16 +22,19 @@ use kernel::static_init;
 
 pub struct RngComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     trng: &'static dyn Entropy32<'static>,
 }
 
 impl RngComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         trng: &'static dyn Entropy32<'static>,
     ) -> RngComponent {
         RngComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             trng: trng,
         }
     }
@@ -52,7 +55,7 @@ impl Component for RngComponent {
             rng::RngDriver<'static>,
             rng::RngDriver::new(
                 entropy_to_random,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
         self.trng.set_client(entropy_to_random);

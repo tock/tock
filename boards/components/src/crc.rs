@@ -35,13 +35,19 @@ macro_rules! crc_component_helper {
 
 pub struct CrcComponent<C: 'static + hil::crc::CRC<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     crc: &'static C,
 }
 
 impl<C: 'static + hil::crc::CRC<'static>> CrcComponent<C> {
-    pub fn new(board_kernel: &'static kernel::Kernel, crc: &'static C) -> CrcComponent<C> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
+        crc: &'static C,
+    ) -> CrcComponent<C> {
         CrcComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             crc: crc,
         }
     }
@@ -57,7 +63,10 @@ impl<C: 'static + hil::crc::CRC<'static>> Component for CrcComponent<C> {
         let crc = static_init_half!(
             static_buffer,
             crc::Crc<'static, C>,
-            crc::Crc::new(self.crc, self.board_kernel.create_grant(&grant_cap))
+            crc::Crc::new(
+                self.crc,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         self.crc.set_client(crc);

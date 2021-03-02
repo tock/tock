@@ -81,16 +81,19 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
 
 pub struct AlarmDriverComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
 impl<A: 'static + time::Alarm<'static>> AlarmDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         mux: &'static MuxAlarm<'static, A>,
     ) -> AlarmDriverComponent<A> {
         AlarmDriverComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             alarm_mux: mux,
         }
     }
@@ -114,7 +117,10 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
         let alarm = static_init_half!(
             static_buffer.1,
             AlarmDriver<'static, VirtualMuxAlarm<'static, A>>,
-            AlarmDriver::new(virtual_alarm1, self.board_kernel.create_grant(&grant_cap))
+            AlarmDriver::new(
+                virtual_alarm1,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         virtual_alarm1.set_alarm_client(alarm);

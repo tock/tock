@@ -37,6 +37,7 @@ use kernel::static_init;
 
 pub struct TouchComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     touch: &'static dyn kernel::hil::touch::Touch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
@@ -45,12 +46,14 @@ pub struct TouchComponent {
 impl TouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         touch: &'static dyn kernel::hil::touch::Touch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
     ) -> TouchComponent {
         TouchComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             touch: touch,
             gesture: gesture,
             screen: screen,
@@ -64,7 +67,7 @@ impl Component for TouchComponent {
 
     unsafe fn finalize(self, _static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_touch = self.board_kernel.create_grant(&grant_cap);
+        let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let touch = static_init!(
             capsules::touch::Touch,
@@ -82,6 +85,7 @@ impl Component for TouchComponent {
 
 pub struct MultiTouchComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
@@ -90,12 +94,14 @@ pub struct MultiTouchComponent {
 impl MultiTouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
     ) -> MultiTouchComponent {
         MultiTouchComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             multi_touch: multi_touch,
             gesture: gesture,
             screen: screen,
@@ -109,7 +115,7 @@ impl Component for MultiTouchComponent {
 
     unsafe fn finalize(self, _static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_touch = self.board_kernel.create_grant(&grant_cap);
+        let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let touch = static_init!(
             capsules::touch::Touch,

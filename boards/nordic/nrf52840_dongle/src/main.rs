@@ -142,6 +142,7 @@ pub unsafe fn reset_handler() {
     // GPIOs
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             // left side of the USB plug
@@ -177,6 +178,7 @@ pub unsafe fn reset_handler() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -233,8 +235,12 @@ pub unsafe fn reset_handler() {
     rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
     let channel = nrf52_components::UartChannelComponent::new(
         uart_channel,
@@ -261,13 +267,22 @@ pub unsafe fn reset_handler() {
             .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -282,6 +297,7 @@ pub unsafe fn reset_handler() {
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
+        capsules::ieee802154::DRIVER_NUM as u32,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -293,11 +309,19 @@ pub unsafe fn reset_handler() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let temp =
-        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
-            .finalize(());
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM as u32,
+        &base_peripherals.temp,
+    )
+    .finalize(());
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM as u32,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
@@ -326,7 +350,11 @@ pub unsafe fn reset_handler() {
         temp,
         alarm,
         analog_comparator,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
     };
 
     platform.pconsole.start();

@@ -61,6 +61,7 @@ macro_rules! udp_driver_component_helper {
 
 pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     udp_send_mux:
         &'static MuxUdpSender<'static, IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>>,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
@@ -71,6 +72,7 @@ pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
 impl<A: Alarm<'static>> UDPDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>,
@@ -81,6 +83,7 @@ impl<A: Alarm<'static>> UDPDriverComponent<A> {
     ) -> Self {
         Self {
             board_kernel,
+            driver_num,
             udp_send_mux,
             udp_recv_mux,
             port_table,
@@ -132,7 +135,7 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
             capsules::net::udp::UDPDriver<'static>,
             capsules::net::udp::UDPDriver::new(
                 udp_send,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 self.interface_list,
                 MAX_PAYLOAD_LEN,
                 self.port_table,

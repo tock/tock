@@ -45,6 +45,7 @@ pub struct NonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     flash: &'static F,
     userspace_start: usize,
     userspace_length: usize,
@@ -60,6 +61,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         flash: &'static F,
         userspace_start: usize,
         userspace_length: usize,
@@ -68,6 +70,7 @@ impl<
     ) -> Self {
         Self {
             board_kernel,
+            driver_num,
             flash,
             userspace_start,
             userspace_length,
@@ -109,7 +112,7 @@ impl<
             NonvolatileStorage<'static>,
             NonvolatileStorage::new(
                 nv_to_page,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 self.userspace_start, // Start address for userspace accessible region
                 self.userspace_length, // Length of userspace accessible region
                 self.kernel_start,    // Start address of kernel region

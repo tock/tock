@@ -24,23 +24,26 @@ pub struct Nrf51822Component<
     U: 'static + hil::uart::UartAdvanced<'static>,
     G: 'static + hil::gpio::Pin,
 > {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     uart: &'static U,
     reset_pin: &'static G,
-    board_kernel: &'static kernel::Kernel,
 }
 
 impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     Nrf51822Component<U, G>
 {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         uart: &'static U,
         reset_pin: &'static G,
-        board_kernel: &'static kernel::Kernel,
     ) -> Nrf51822Component<U, G> {
         Nrf51822Component {
+            board_kernel: board_kernel,
+            driver_num: driver_num,
             uart: uart,
             reset_pin: reset_pin,
-            board_kernel: board_kernel,
         }
     }
 }
@@ -58,7 +61,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
             nrf51822_serialization::Nrf51822Serialization<'static>,
             nrf51822_serialization::Nrf51822Serialization::new(
                 self.uart,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 self.reset_pin,
                 &mut nrf51822_serialization::WRITE_BUF,
                 &mut nrf51822_serialization::READ_BUF

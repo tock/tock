@@ -288,7 +288,12 @@ pub unsafe fn reset_handler() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -330,6 +335,7 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             stm32f429zi::gpio::Pin,
             (
@@ -348,12 +354,17 @@ pub unsafe fn reset_handler() {
         components::alarm_mux_component_helper!(stm32f429zi::tim2::Tim2),
     );
 
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f429zi::tim2::Tim2));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(stm32f429zi::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             stm32f429zi::gpio::Pin,
             // Arduino like RX/TX
@@ -466,7 +477,8 @@ pub unsafe fn reset_handler() {
             adc_mux
         ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_temperature =
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM as u32, &grant_cap);
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
@@ -498,20 +510,24 @@ pub unsafe fn reset_handler() {
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel8)
             .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            adc_channel_0,
-            adc_channel_1,
-            adc_channel_2,
-            adc_channel_3,
-            adc_channel_4,
-            adc_channel_5
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+            .finalize(components::adc_syscall_component_helper!(
+                adc_channel_0,
+                adc_channel_1,
+                adc_channel_2,
+                adc_channel_3,
+                adc_channel_4,
+                adc_channel_5
+            ));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
         adc: adc_syscall,
         led: led,
         temperature: temp,
