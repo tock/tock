@@ -142,7 +142,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
 // when that app first uses the debug driver.
 const QUEUE_SIZE: usize = 4;
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct AppData {
     queue: [Option<DebugEntry>; QUEUE_SIZE],
 }

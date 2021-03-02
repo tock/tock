@@ -34,6 +34,7 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
     }
 }
 
+#[derive(GrantDefault)]
 pub struct App {
     touch_callback: Callback,
     gesture_callback: Callback,

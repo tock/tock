@@ -79,7 +79,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 
 /// An opaque value maintaining state for one application's request
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     buffer: ReadOnlyAppSlice,

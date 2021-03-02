@@ -378,7 +378,7 @@ impl Driver for L3gd20Spi<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        callback: Callback,
         _appid: AppId,
     ) -> Result<Callback, (Callback, ErrorCode)> {
         match subscribe_num {

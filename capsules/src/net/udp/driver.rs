@@ -66,7 +66,7 @@ impl UDPEndpoint {
     }
 }
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     rx_callback: Callback,
     tx_callback: Callback,

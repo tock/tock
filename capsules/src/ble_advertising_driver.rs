@@ -110,7 +110,8 @@ use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
 use kernel::{
-    CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    AppId, CommandReturn, ErrorCode, GrantDefault, ProcessCallbackFactory, Read, ReadOnlyAppSlice,
+    ReadWrite, ReadWriteAppSlice, ReturnCode,
 };
 
 /// Syscall driver number.
@@ -191,8 +192,8 @@ pub struct App {
     scan_callback: kernel::Callback,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
             alarm_data: AlarmData::new(),
             adv_data: ReadOnlyAppSlice::default(),

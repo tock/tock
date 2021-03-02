@@ -61,7 +61,7 @@ pub enum BuzzerCommand {
     },
 }
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.

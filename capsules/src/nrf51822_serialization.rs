@@ -34,7 +34,7 @@ use kernel::{
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     tx_buffer: ReadOnlyAppSlice,

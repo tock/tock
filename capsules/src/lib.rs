@@ -2,6 +2,9 @@
 #![forbid(unsafe_code)]
 #![no_std]
 
+#[macro_use]
+extern crate tock_proc_macros;
+
 pub mod test;
 
 #[macro_use]

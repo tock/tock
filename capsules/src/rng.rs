@@ -36,7 +36,7 @@ use kernel::{
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     buffer: ReadWriteAppSlice,

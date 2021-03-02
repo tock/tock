@@ -11,7 +11,7 @@ use kernel::{
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     slice: ReadWriteAppSlice,

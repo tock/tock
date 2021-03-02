@@ -22,7 +22,9 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessCallbackFactory,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -43,8 +45,8 @@ pub struct App {
     arg1: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
             callback: Callback::default(),
             pending_command: false,

@@ -23,7 +23,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 
 /// Per-process metadata
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     pending: bool,

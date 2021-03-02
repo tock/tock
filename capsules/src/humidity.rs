@@ -64,7 +64,7 @@ pub enum HumidityCommand {
     ReadHumidity,
 }
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     callback: Callback,
     subscribed: bool,

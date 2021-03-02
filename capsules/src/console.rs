@@ -50,7 +50,7 @@ use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
-#[derive(Default)]
+#[derive(GrantDefault)]
 pub struct App {
     write_callback: Callback,
     write_buffer: ReadOnlyAppSlice,

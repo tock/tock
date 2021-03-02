@@ -54,17 +54,27 @@ pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 use core::mem;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessCallbackFactory,
+};
+
+// TODO: implement #[derive(GrantDefault)]
+pub struct GPIOCallback(Callback);
+impl GrantDefault for GPIOCallback {
+    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> Self {
+        GPIOCallback(Callback::default())
+    }
+}
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-    apps: Grant<Callback>,
+    apps: Grant<GPIOCallback>,
 }
 
 impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-        grant: Grant<Callback>,
+        grant: Grant<GPIOCallback>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
             if let Some(pin) = maybe_pin {
@@ -138,7 +148,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
 
             // schedule callback with the pin number and value
             self.apps.each(|callback| {
-                callback.schedule(pin_num as usize, pin_state as usize, 0);
+                callback.0.schedule(pin_num as usize, pin_state as usize, 0);
             });
         }
     }
@@ -163,7 +173,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    mem::swap(&mut **app, &mut callback);
+                    mem::swap(&mut app.0, &mut callback);
                 })
                 .map_err(ErrorCode::from),
             // default

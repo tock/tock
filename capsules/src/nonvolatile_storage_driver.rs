@@ -61,8 +61,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, Grant, GrantDefault, ProcessCallbackFactory, Read,
+    ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -96,8 +96,8 @@ pub struct App {
     buffer_write: ReadOnlyAppSlice,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
             callback_read: Callback::default(),
             callback_write: Callback::default(),
