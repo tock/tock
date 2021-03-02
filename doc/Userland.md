@@ -11,7 +11,7 @@ of how applications function.
 
 - [Overview of Processes in Tock](#overview-of-processes-in-tock)
 - [System Calls](#system-calls)
-- [Callbacks](#callbacks)
+- [Upcalls and Termination](#upcalls-and-termination)
 - [Inter-Process Communication](#inter-process-communication)
   * [Services](#services)
   * [Clients](#clients)
