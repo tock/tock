@@ -471,6 +471,13 @@ pub trait UserspaceKernelBoundary {
     /// This function may be called multiple times on the same process. For
     /// example, if a process crashes and is to be restarted, this must be
     /// called. Or if the process is moved this may need to be called.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
         accessible_memory_start: *const u8,
@@ -486,6 +493,13 @@ pub trait UserspaceKernelBoundary {
     /// value. The `return_value` is the value that should be passed to the
     /// process so that when it resumes executing it knows the return value of
     /// the syscall it called.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
         accessible_memory_start: *const u8,
@@ -521,6 +535,13 @@ pub trait UserspaceKernelBoundary {
     /// Returns `Ok(())` if the function was successfully enqueued for the
     /// process. Returns `Err(())` if the function was not, likely because there
     /// is insufficient memory available to do so.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
         accessible_memory_start: *const u8,
@@ -539,6 +560,13 @@ pub trait UserspaceKernelBoundary {
     ///    optional because it is only for debugging in process.rs. By sharing
     ///    the process's stack pointer with process.rs users can inspect the
     ///    state and see the stack depth, which might be useful for debugging.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
         accessible_memory_start: *const u8,
@@ -548,6 +576,13 @@ pub trait UserspaceKernelBoundary {
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn print_context(
         &self,
         accessible_memory_start: *const u8,
