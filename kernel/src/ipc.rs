@@ -46,15 +46,15 @@ impl<const NUM_PROCS: usize> GrantDefault for IPCData<NUM_PROCS> {
         // TODO: This breaks with the Callback swapping prevention mechanisms
         unimplemented!();
 
-        const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
-        const DEFAULT_CALLBACK: Callback = Callback::const_default();
+        // const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
+        // const DEFAULT_CALLBACK: Callback = Callback::const_default();
 
-        IPCData {
-            shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
-            search_slice: ReadOnlyAppSlice::default(),
-            client_callbacks: [DEFAULT_CALLBACK; NUM_PROCS],
-            callback: Callback::default(),
-        }
+        // IPCData {
+        //     shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
+        //     search_slice: ReadOnlyAppSlice::default(),
+        //     client_callbacks: [DEFAULT_CALLBACK; NUM_PROCS],
+        //     callback: Callback::default(),
+        // }
     }
 }
 
@@ -83,64 +83,66 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
         called_from: AppId,
         cb_type: IPCCallbackType,
     ) -> Result<(), process::Error> {
-        self.data
-            .enter(schedule_on, |mydata, _| {
-                let mut with_callback = |f: &dyn Fn(&mut Callback)| {
-                    match cb_type {
-                        IPCCallbackType::Service => f(&mut mydata.callback),
-                        IPCCallbackType::Client => match called_from.index() {
-                            Some(i) => f(mydata
-                                .client_callbacks
-                                .get_mut(i)
-                                .unwrap_or(&mut Callback::default())),
-                            None => f(&mut Callback::default()),
-                        },
-                    };
-                };
+        unimplemented!()
 
-                self.data.enter(called_from, |called_from_data, _| {
-                    // If the other app shared a buffer with us, make
-                    // sure we have access to that slice and then call
-                    // the callback. If no slice was shared then just
-                    // call the callback.
-                    match schedule_on.index() {
-                        Some(i) => {
-                            if i >= called_from_data.shared_memory.len() {
-                                return;
-                            }
+        // self.data
+        //     .enter(schedule_on, |mydata, _| {
+        //         let mut with_callback = |f: &dyn Fn(&mut Callback)| {
+        //             match cb_type {
+        //                 IPCCallbackType::Service => f(&mut mydata.callback),
+        //                 IPCCallbackType::Client => match called_from.index() {
+        //                     Some(i) => f(mydata
+        //                         .client_callbacks
+        //                         .get_mut(i)
+        //                         .unwrap_or(&mut Callback::default())),
+        //                     None => f(&mut Callback::default()),
+        //                 },
+        //             };
+        //         };
 
-                            match called_from_data.shared_memory.get(i) {
-                                Some(slice) => {
-                                    self.data
-                                        .kernel
-                                        .process_map_or(None, schedule_on, |process| {
-                                            process.add_mpu_region(
-                                                slice.ptr(),
-                                                slice.len(),
-                                                slice.len(),
-                                            )
-                                        });
+        //         self.data.enter(called_from, |called_from_data, _| {
+        //             // If the other app shared a buffer with us, make
+        //             // sure we have access to that slice and then call
+        //             // the callback. If no slice was shared then just
+        //             // call the callback.
+        //             match schedule_on.index() {
+        //                 Some(i) => {
+        //                     if i >= called_from_data.shared_memory.len() {
+        //                         return;
+        //                     }
 
-                                    with_callback(&|cb: &mut Callback| {
-                                        cb.schedule(
-                                            called_from.id() + 1,
-                                            crate::mem::Read::len(slice),
-                                            crate::mem::Read::ptr(slice) as usize,
-                                        );
-                                    });
-                                }
-                                None => {
-                                    with_callback(&|cb: &mut Callback| {
-                                        cb.schedule(called_from.id() + 1, 0, 0);
-                                    });
-                                }
-                            }
-                        }
-                        None => {}
-                    }
-                })
-            })
-            .and_then(|x| x)
+        //                     match called_from_data.shared_memory.get(i) {
+        //                         Some(slice) => {
+        //                             self.data
+        //                                 .kernel
+        //                                 .process_map_or(None, schedule_on, |process| {
+        //                                     process.add_mpu_region(
+        //                                         slice.ptr(),
+        //                                         slice.len(),
+        //                                         slice.len(),
+        //                                     )
+        //                                 });
+
+        //                             with_callback(&|cb: &mut Callback| {
+        //                                 cb.schedule(
+        //                                     called_from.id() + 1,
+        //                                     crate::mem::Read::len(slice),
+        //                                     crate::mem::Read::ptr(slice) as usize,
+        //                                 );
+        //                             });
+        //                         }
+        //                         None => {
+        //                             with_callback(&|cb: &mut Callback| {
+        //                                 cb.schedule(called_from.id() + 1, 0, 0);
+        //                             });
+        //                         }
+        //                     }
+        //                 }
+        //                 None => {}
+        //             }
+        //         })
+        //     })
+        //     .and_then(|x| x)
     }
 }
 
