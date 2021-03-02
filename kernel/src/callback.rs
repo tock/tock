@@ -167,7 +167,6 @@ pub struct CallbackId {
 /// Type for calling a callback in a process.
 ///
 /// This is essentially a wrapper around a function pointer.
-#[derive(Clone, Copy)]
 struct ProcessCallback {
     app_id: AppId,
     callback_id: CallbackId,
@@ -175,9 +174,19 @@ struct ProcessCallback {
     fn_ptr: NonNull<()>,
 }
 
-#[derive(Clone, Copy, Default)]
 pub struct Callback {
     cb: Option<ProcessCallback>,
+}
+
+impl Default for Callback {
+    /// Construct a new default [`Callback`]
+    ///
+    /// A default [`Callback`] instance will not point to any actual
+    /// userspace process. Therefore, no actual callbacks will be
+    /// scheduled by this instance.
+    fn default() -> Callback {
+        Callback::const_default()
+    }
 }
 
 impl Callback {
@@ -192,11 +201,20 @@ impl Callback {
         }
     }
 
+    /// Construct a new default [`Callback`]
+    ///
+    /// A default [`Callback`] instance will not point to any actual
+    /// userspace process. Therefore, no actual callbacks will be
+    /// scheduled by this instance.
+    pub const fn const_default() -> Callback {
+        Callback { cb: None }
+    }
+
     /// Tell the scheduler to run this callback for the process.
     ///
     /// The three arguments are passed to the callback in userspace.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
+        self.cb.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
     }
 
     pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
