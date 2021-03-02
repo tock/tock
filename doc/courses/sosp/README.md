@@ -5,6 +5,17 @@ date: October 28th
 
 # Tock OS Training @ SOSP 2017
 
+---
+**NOTE**
+
+This course was primarily designed in the summer of 2017. It focuses on
+presenting Tock to an operating systems research audience. It is no longer 
+updated. For example, this course  uses Tock version 1.2, and current Tock 
+development is on version 2.x.
+
+---
+
+
 This course introduces you to Tock, a secure embedded operating system for sensor
 networks and the Internet of Things. Tock is the first operating system to
 allow multiple untrusted applications to run concurrently on a microcontroller-based
