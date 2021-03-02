@@ -57,6 +57,7 @@ members = [
     "libraries/enum_primitive",
     "libraries/riscv-csr",
     "libraries/tock-cells",
+    "libraries/tock-proc-macros",
     "libraries/tock-register-interface",
     "libraries/tock-rt0",
     "libraries/tickv",
