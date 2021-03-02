@@ -125,7 +125,12 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -136,9 +141,14 @@ pub unsafe fn reset_handler() {
     hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
 
     // Alarm
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
-        components::alarm_component_helper!(rv32i::machine_timer::MachineTimer),
-    );
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(
+        rv32i::machine_timer::MachineTimer
+    ));
 
     // TEST for timer
     //
@@ -166,6 +176,7 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             (
@@ -182,6 +193,7 @@ pub unsafe fn reset_handler() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             0 => &peripherals.gpio_port[7],

@@ -24,15 +24,21 @@ use sam4l::adc::Channel;
 
 pub struct AdcComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     adc: &'static sam4l::adc::Adc,
 }
 
 impl AdcComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         adc: &'static sam4l::adc::Adc,
     ) -> AdcComponent {
-        AdcComponent { board_kernel, adc }
+        AdcComponent {
+            board_kernel,
+            driver_num,
+            adc,
+        }
     }
 }
 
@@ -70,7 +76,7 @@ impl Component for AdcComponent {
             adc::AdcDedicated<'static, sam4l::adc::Adc>,
             adc::AdcDedicated::new(
                 &self.adc,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 ref_channels,
                 &mut adc::ADC_BUFFER1,
                 &mut adc::ADC_BUFFER2,

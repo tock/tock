@@ -46,6 +46,7 @@ pub struct AppFlashComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     storage: &'static F,
 }
 
@@ -55,9 +56,14 @@ impl<
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     > AppFlashComponent<F>
 {
-    pub fn new(board_kernel: &'static kernel::Kernel, storage: &'static F) -> AppFlashComponent<F> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
+        storage: &'static F,
+    ) -> AppFlashComponent<F> {
         AppFlashComponent {
             board_kernel,
+            driver_num,
             storage,
         }
     }
@@ -98,7 +104,7 @@ impl<
             capsules::app_flash_driver::AppFlash<'static>,
             capsules::app_flash_driver::AppFlash::new(
                 nv_to_page,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 static_buffer.0
             )
         );

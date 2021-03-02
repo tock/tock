@@ -40,12 +40,14 @@ macro_rules! ninedof_component_helper {
 
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
 }
 
 impl NineDofComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> NineDofComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: u32) -> NineDofComponent {
         NineDofComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
         }
     }
 }
@@ -59,7 +61,7 @@ impl Component for NineDofComponent {
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_ninedof = self.board_kernel.create_grant(&grant_cap);
+        let grant_ninedof = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let ninedof = static_init_half!(
             static_buffer.0,

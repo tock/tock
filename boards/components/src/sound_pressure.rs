@@ -15,16 +15,19 @@ use kernel::static_init;
 
 pub struct SoundPressureComponent<S: 'static + hil::sensors::SoundPressure<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     sound_sensor: &'static S,
 }
 
 impl<S: 'static + hil::sensors::SoundPressure<'static>> SoundPressureComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         sound_sensor: &'static S,
     ) -> SoundPressureComponent<S> {
         SoundPressureComponent {
             board_kernel,
+            driver_num,
             sound_sensor,
         }
     }
@@ -41,7 +44,7 @@ impl<S: 'static + hil::sensors::SoundPressure<'static>> Component for SoundPress
             capsules::sound_pressure::SoundPressureSensor<'static>,
             capsules::sound_pressure::SoundPressureSensor::new(
                 self.sound_sensor,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
 

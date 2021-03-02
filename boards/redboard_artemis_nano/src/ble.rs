@@ -18,6 +18,7 @@ use kernel::{create_capability, static_init};
 /// BLE component for Apollo3 BLE
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     radio: &'static apollo3::ble::Ble<'static>,
     mux_alarm:
         &'static capsules::virtual_alarm::MuxAlarm<'static, apollo3::stimer::STimer<'static>>,
@@ -28,11 +29,13 @@ impl BLEComponent {
     /// New instance
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         radio: &'static apollo3::ble::Ble,
         mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, apollo3::stimer::STimer>,
     ) -> BLEComponent {
         BLEComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             radio: radio,
             mux_alarm: mux_alarm,
         }
@@ -63,7 +66,7 @@ impl Component for BLEComponent {
             >,
             capsules::ble_advertising_driver::BLE::new(
                 self.radio,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 &mut capsules::ble_advertising_driver::BUF,
                 ble_radio_virtual_alarm
             )

@@ -195,6 +195,7 @@ pub unsafe fn reset_handler() {
     // Setup buttons
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             msp432::gpio::IntPin,
             (
@@ -231,6 +232,7 @@ pub unsafe fn reset_handler() {
     // Setup user-GPIOs
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             msp432::gpio::IntPin<'static>,
             // Left outer connector, top to bottom
@@ -299,7 +301,12 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -308,8 +315,12 @@ pub unsafe fn reset_handler() {
     let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
         components::alarm_mux_component_helper!(msp432::timer::TimerA),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
 
     // Setup ADC
 
@@ -346,7 +357,7 @@ pub unsafe fn reset_handler() {
     );
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_adc = board_kernel.create_grant(&grant_cap);
+    let grant_adc = board_kernel.create_grant(capsules::adc::DRIVER_NUM as u32, &grant_cap);
     let adc = static_init!(
         capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
         capsules::adc::AdcDedicated::new(
@@ -374,7 +385,11 @@ pub unsafe fn reset_handler() {
         button: button,
         gpio: gpio,
         alarm: alarm,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
         adc: adc,
     };
 

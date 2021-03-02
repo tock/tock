@@ -184,6 +184,7 @@ pub unsafe fn reset_handler() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             nrf52833::gpio::GPIOPin,
             // Used as ADC, comment them out in the ADC section to use them as GPIO
@@ -202,6 +203,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             nrf52833::gpio::GPIOPin,
             (
@@ -244,8 +246,12 @@ pub unsafe fn reset_handler() {
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -279,7 +285,10 @@ pub unsafe fn reset_handler() {
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(&memory_allocation_capability)
+            board_kernel.create_grant(
+                capsules::buzzer_driver::DRIVER_NUM as u32,
+                &memory_allocation_capability
+            )
         )
     );
     virtual_alarm_buzzer.set_alarm_client(buzzer);
@@ -304,7 +313,12 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -312,7 +326,12 @@ pub unsafe fn reset_handler() {
     // RANDOM NUMBERS
     //--------------------------------------------------------------------------
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM as u32,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -345,14 +364,20 @@ pub unsafe fn reset_handler() {
         capsules::lsm303xx::Lsm303Range::Range1_9G,
     );
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
-        .finalize(components::ninedof_component_helper!(lsm303agr));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules::ninedof::DRIVER_NUM as u32,
+    )
+    .finalize(components::ninedof_component_helper!(lsm303agr));
 
     // Temperature
 
-    let temperature =
-        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
-            .finalize(());
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM as u32,
+        &base_peripherals.temp,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -363,28 +388,28 @@ pub unsafe fn reset_handler() {
         .finalize(components::adc_mux_component_helper!(nrf52833::adc::Adc));
 
     // Comment out the following to use P0, P1 and P2 as GPIO
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            // ADC Ring 0 (P0)
-            components::adc::AdcComponent::new(
-                &adc_mux,
-                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
-            )
-            .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
-            // ADC Ring 1 (P1)
-            components::adc::AdcComponent::new(
-                &adc_mux,
-                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
-            )
-            .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
-            // ADC Ring 2 (P2)
-            components::adc::AdcComponent::new(
-                &adc_mux,
-                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
-            )
-            .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+            .finalize(components::adc_syscall_component_helper!(
+                // ADC Ring 0 (P0)
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
+                )
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                // ADC Ring 1 (P1)
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
+                )
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                // ADC Ring 2 (P2)
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
+                )
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
+            ));
 
     // Microphone
 
@@ -413,9 +438,12 @@ pub unsafe fn reset_handler() {
 
     &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
-    let sound_pressure =
-        components::sound_pressure::SoundPressureComponent::new(board_kernel, adc_microphone)
-            .finalize(());
+    let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
+        board_kernel,
+        capsules::sound_pressure::DRIVER_NUM as u32,
+        adc_microphone,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // STORAGE
@@ -423,20 +451,27 @@ pub unsafe fn reset_handler() {
 
     // App Flash
 
-    let app_flash =
-        components::app_flash_driver::AppFlashComponent::new(board_kernel, &base_peripherals.nvmc)
-            .finalize(components::app_flash_component_helper!(
-                nrf52833::nvmc::Nvmc,
-                512
-            ));
+    let app_flash = components::app_flash_driver::AppFlashComponent::new(
+        board_kernel,
+        capsules::app_flash_driver::DRIVER_NUM as u32,
+        &base_peripherals.nvmc,
+    )
+    .finalize(components::app_flash_component_helper!(
+        nrf52833::nvmc::Nvmc,
+        512
+    ));
 
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // LED Matrix
@@ -501,7 +536,11 @@ pub unsafe fn reset_handler() {
         adc: adc_syscall,
         alarm: alarm,
         app_flash: app_flash,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
     };
 
     let chip = static_init!(

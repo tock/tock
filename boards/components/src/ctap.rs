@@ -51,31 +51,34 @@ macro_rules! usb_ctap_component_helper {
 }
 
 pub struct CtapComponent<U: 'static + hil::usb::UsbController<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     usb: &'static U,
     vendor_id: u16,
     product_id: u16,
     strings: &'static [&'static str; 3],
-    board_kernel: &'static kernel::Kernel,
     send_buffer: &'static mut [u8; 64],
     recv_buffer: &'static mut [u8; 64],
 }
 
 impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         usb: &'static U,
         vendor_id: u16,
         product_id: u16,
         strings: &'static [&'static str; 3],
-        board_kernel: &'static kernel::Kernel,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
     ) -> CtapComponent<U> {
         CtapComponent {
+            board_kernel,
+            driver_num,
             usb,
             vendor_id,
             product_id,
             strings,
-            board_kernel,
             send_buffer,
             recv_buffer,
         }
@@ -116,7 +119,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
                 Some(ctap),
                 self.send_buffer,
                 self.recv_buffer,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
             )
         );
 

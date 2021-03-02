@@ -33,16 +33,19 @@ macro_rules! text_screen_buffer_size {
 
 pub struct TextScreenComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
 }
 
 impl TextScreenComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
     ) -> TextScreenComponent {
         TextScreenComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             text_screen: text_screen,
         }
     }
@@ -54,7 +57,7 @@ impl Component for TextScreenComponent {
 
     unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_text_screen = self.board_kernel.create_grant(&grant_cap);
+        let grant_text_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let text_screen = static_init!(
             capsules::text_screen::TextScreen,

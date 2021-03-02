@@ -92,16 +92,19 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
 
 pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
 impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
     ) -> HumidityComponent<A> {
         HumidityComponent {
             board_kernel,
+            driver_num,
             si7021: si,
         }
     }
@@ -116,7 +119,10 @@ impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
 
         let hum = static_init!(
             HumiditySensor<'static>,
-            HumiditySensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
+            HumiditySensor::new(
+                self.si7021,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         hil::sensors::HumidityDriver::set_client(self.si7021, hum);

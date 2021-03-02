@@ -137,7 +137,12 @@ pub unsafe fn reset_handler() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Setup the console
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
 
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
@@ -152,8 +157,12 @@ pub unsafe fn reset_handler() {
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -163,7 +172,11 @@ pub unsafe fn reset_handler() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
-    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+    let ipc = kernel::ipc::IPC::new(
+        board_kernel,
+        kernel::ipc::DRIVER_NUM as u32,
+        &memory_allocation_capability,
+    );
 
     //
     // Platform

@@ -40,6 +40,7 @@ macro_rules! screen_buffer_size {
 
 pub struct ScreenComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     screen: &'static dyn kernel::hil::screen::Screen,
     screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
 }
@@ -47,11 +48,13 @@ pub struct ScreenComponent {
 impl ScreenComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         screen: &'static dyn kernel::hil::screen::Screen,
         screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
     ) -> ScreenComponent {
         ScreenComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             screen: screen,
             screen_setup: screen_setup,
         }
@@ -64,7 +67,7 @@ impl Component for ScreenComponent {
 
     unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_screen = self.board_kernel.create_grant(&grant_cap);
+        let grant_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let screen = static_init!(
             capsules::screen::Screen,

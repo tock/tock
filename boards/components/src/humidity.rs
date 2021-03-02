@@ -15,16 +15,19 @@ use kernel::static_init;
 
 pub struct HumidityComponent<T: 'static + hil::sensors::HumidityDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     temp_sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::HumidityDriver<'static>> HumidityComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         temp_sensor: &'static T,
     ) -> HumidityComponent<T> {
         HumidityComponent {
             board_kernel,
+            driver_num,
             temp_sensor,
         }
     }
@@ -39,7 +42,10 @@ impl<T: 'static + hil::sensors::HumidityDriver<'static>> Component for HumidityC
 
         let humidity = static_init!(
             HumiditySensor<'static>,
-            HumiditySensor::new(self.temp_sensor, self.board_kernel.create_grant(&grant_cap))
+            HumiditySensor::new(
+                self.temp_sensor,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         hil::sensors::HumidityDriver::set_client(self.temp_sensor, humidity);

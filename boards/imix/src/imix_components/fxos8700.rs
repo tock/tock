@@ -67,6 +67,7 @@ impl Component for Fxos8700Component {
 
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     i2c_mux: &'static MuxI2C<'static>,
     gpio: &'static sam4l::gpio::GPIOPin<'static>,
 }
@@ -74,11 +75,13 @@ pub struct NineDofComponent {
 impl NineDofComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         i2c: &'static MuxI2C<'static>,
         gpio: &'static sam4l::gpio::GPIOPin,
     ) -> NineDofComponent {
         NineDofComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             i2c_mux: i2c,
             gpio: gpio,
         }
@@ -98,8 +101,9 @@ impl Component for NineDofComponent {
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
 
-        let ninedof = components::ninedof::NineDofComponent::new(self.board_kernel)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+        let ninedof =
+            components::ninedof::NineDofComponent::new(self.board_kernel, self.driver_num)
+                .finalize(components::ninedof_component_helper!(fxos8700));
 
         ninedof
     }

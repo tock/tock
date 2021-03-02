@@ -95,6 +95,7 @@ macro_rules! hmac_component_helper {
 
 pub struct HmacComponent<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     mux_hmac: &'static MuxHmac<'static, A, T>,
     data_buffer: &'static mut [u8],
     dest_buffer: &'static mut T,
@@ -104,12 +105,14 @@ pub struct HmacComponent<A: 'static + digest::Digest<'static, T>, T: 'static + d
 impl<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> HmacComponent<A, T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         mux_hmac: &'static MuxHmac<'static, A, T>,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut T,
     ) -> HmacComponent<A, T> {
         HmacComponent {
             board_kernel,
+            driver_num,
             mux_hmac,
             data_buffer,
             dest_buffer,
@@ -146,7 +149,7 @@ impl<
                 virtual_hmac_user,
                 self.data_buffer,
                 self.dest_buffer,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
             )
         );
 

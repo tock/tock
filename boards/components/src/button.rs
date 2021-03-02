@@ -66,6 +66,7 @@ macro_rules! button_component_buf {
 
 pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     button_pins: &'static [(
         &'static gpio::InterruptValueWrapper<'static, IP>,
         gpio::ActivationMode,
@@ -76,6 +77,7 @@ pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
 impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         button_pins: &'static [(
             &'static gpio::InterruptValueWrapper<'static, IP>,
             gpio::ActivationMode,
@@ -84,6 +86,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
     ) -> Self {
         Self {
             board_kernel: board_kernel,
+            driver_num,
             button_pins,
         }
     }
@@ -100,7 +103,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
             capsules::button::Button<'static, IP>,
             capsules::button::Button::new(
                 self.button_pins,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
         for (pin, _, _) in self.button_pins.iter() {

@@ -363,7 +363,12 @@ pub unsafe fn reset_handler() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -449,6 +454,7 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM as u32,
         components::button_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             (
@@ -472,13 +478,18 @@ pub unsafe fn reset_handler() {
         components::alarm_mux_component_helper!(stm32f303xc::tim2::Tim2),
     );
 
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
 
     let gpio_ports = &peripherals.gpio_ports;
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             // Left outer connector
@@ -596,7 +607,8 @@ pub unsafe fn reset_handler() {
     l3gd20.power_on();
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_temperature =
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM as u32, &grant_cap);
 
     // Comment this if you want to use the ADC MCU temp sensor
     let temp = static_init!(
@@ -624,8 +636,11 @@ pub unsafe fn reset_handler() {
         lsm303xx::Lsm303Range::Range1_9G,
     );
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
-        .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules::ninedof::DRIVER_NUM as u32,
+    )
+    .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
         .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
@@ -673,16 +688,16 @@ pub unsafe fn reset_handler() {
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
             .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            adc_channel_0,
-            adc_channel_1,
-            adc_channel_2,
-            adc_channel_3,
-            adc_channel_4,
-            adc_channel_5
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+            .finalize(components::adc_syscall_component_helper!(
+                adc_channel_0,
+                adc_channel_1,
+                adc_channel_2,
+                adc_channel_3,
+                adc_channel_4,
+                adc_channel_5
+            ));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -694,6 +709,7 @@ pub unsafe fn reset_handler() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM as u32,
         &peripherals.flash,
         0x08038000, // Start address for userspace accesible region
         0x8000,     // Length of userspace accesible region (16 pages)
@@ -706,7 +722,11 @@ pub unsafe fn reset_handler() {
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
         gpio: gpio,
         led: led,
         button: button,

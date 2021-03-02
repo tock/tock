@@ -24,16 +24,19 @@ use kernel::static_init;
 
 pub struct LowLevelDebugComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl LowLevelDebugComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         uart_mux: &'static MuxUart,
     ) -> LowLevelDebugComponent {
         LowLevelDebugComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             uart_mux: uart_mux,
         }
     }
@@ -57,7 +60,7 @@ impl Component for LowLevelDebugComponent {
             low_level_debug::LowLevelDebug::new(
                 &mut MYBUF,
                 lldb_uart,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
         hil::uart::Transmit::set_transmit_client(lldb_uart, lldb);

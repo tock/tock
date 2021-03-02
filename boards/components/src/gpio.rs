@@ -101,16 +101,19 @@ macro_rules! gpio_component_buf {
 
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: u32,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
 }
 
 impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: u32,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {
             board_kernel: board_kernel,
+            driver_num,
             gpio_pins,
         }
     }
@@ -125,7 +128,10 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> 
         let gpio = static_init_half!(
             static_buffer,
             GPIO<'static, IP>,
-            GPIO::new(self.gpio_pins, self.board_kernel.create_grant(&grant_cap))
+            GPIO::new(
+                self.gpio_pins,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
         for maybe_pin in self.gpio_pins.iter() {
             if let Some(pin) = maybe_pin {

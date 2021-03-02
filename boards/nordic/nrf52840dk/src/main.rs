@@ -234,6 +234,7 @@ pub unsafe fn reset_handler() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM as u32,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
@@ -258,6 +259,7 @@ pub unsafe fn reset_handler() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -327,8 +329,12 @@ pub unsafe fn reset_handler() {
     rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM as u32,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
 
     let channel = nrf52_components::UartChannelComponent::new(
         uart_channel,
@@ -355,13 +361,22 @@ pub unsafe fn reset_handler() {
             .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM as u32,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -379,6 +394,7 @@ pub unsafe fn reset_handler() {
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
+        capsules::ieee802154::DRIVER_NUM as u32,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -421,6 +437,7 @@ pub unsafe fn reset_handler() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
+        capsules::net::udp::driver::DRIVER_NUM as u32,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -428,11 +445,19 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
 
-    let temp =
-        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
-            .finalize(());
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM as u32,
+        &base_peripherals.temp,
+    )
+    .finalize(());
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM as u32,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     // SPI
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
@@ -459,6 +484,7 @@ pub unsafe fn reset_handler() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM as u32,
         mx25r6435f,
         0x60000, // Start address for userspace accessible region
         0x20000, // Length of userspace accessible region
@@ -540,7 +566,11 @@ pub unsafe fn reset_handler() {
         analog_comparator,
         nonvolatile_storage,
         udp_driver,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM as u32,
+            &memory_allocation_capability,
+        ),
     };
 
     platform.pconsole.start();
