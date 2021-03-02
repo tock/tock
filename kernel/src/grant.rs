@@ -7,7 +7,20 @@ use core::ptr::{slice_from_raw_parts_mut, write, NonNull};
 
 use crate::process::{Error, ProcessType};
 use crate::sched::Kernel;
-use crate::upcall::AppId;
+use crate::upcall::{AppId, ProcessUpcallFactory};
+
+/// Default trait for Grant contents
+///
+/// Compared to the Rust [`Default`] trait, this provides additional
+/// information about the process the Grant is created over, as well
+/// as factories for creating structures relating to a process.
+pub trait GrantDefault {
+    fn grant_default(
+        process_id: AppId,
+        upcall_factory: &mut ProcessUpcallFactory,
+        //appslice_factory: ProcessAppSliceFactory,
+    ) -> Self;
+}
 
 /// Type that indicates a grant region has been entered and borrowed.
 /// This is passed to capsules when they try to enter a grant region.
@@ -49,7 +62,7 @@ pub struct AppliedGrant<'a, T: 'a> {
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T: Default> AppliedGrant<'a, T> {
+impl<'a, T: GrantDefault> AppliedGrant<'a, T> {
     fn get_or_allocate(grant: &Grant<T>, process: &'a dyn ProcessType) -> Result<Self, Error> {
         // Here is an example of how the grants are laid out in a
         // process's memory:
@@ -89,6 +102,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         // anything about the datatype of the grant, and the grant
         // memory may not yet be allocated, it can only return a `*mut
         // u8` here. We will eventually convert this to a `*mut T`.
+        let driver_num = grant.driver_num;
         let grant_num = grant.grant_num;
         let appid = process.appid();
         if let Some(untyped_grant_ptr) = process.get_grant_ptr(grant_num) {
@@ -121,9 +135,20 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
                                 )
                             })?;
 
+                    // We may only ever have at most one Upcall per
+                    // (driver_num, callback_num, process_id) tuple in
+                    // the kernel. To uphold this guarantee we only
+                    // allow creating Upcalls in the Grant
+                    // initialization and assume that any driver has
+                    // only a single Grant region associated with it.
+                    let mut upcall_factory = ProcessUpcallFactory::new(process.appid(), driver_num);
+
                     // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                     // case `T` implements the `Drop` trait.
-                    write(new_region.as_ptr(), T::default());
+                    write(
+                        new_region.as_ptr(),
+                        T::grant_default(process.appid(), &mut upcall_factory),
+                    );
 
                     // Update the grant pointer in the process. Again,
                     // since the process struct does not know about the
@@ -352,16 +377,18 @@ impl Allocator {
 }
 
 /// Region of process memory reserved for the kernel.
-pub struct Grant<T: Default> {
+pub struct Grant<T: GrantDefault> {
     pub(crate) kernel: &'static Kernel,
+    driver_num: u32,
     grant_num: usize,
     ptr: PhantomData<T>,
 }
 
-impl<T: Default> Grant<T> {
-    pub(crate) fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
+impl<T: GrantDefault> Grant<T> {
+    pub(crate) fn new(kernel: &'static Kernel, driver_num: u32, grant_index: usize) -> Grant<T> {
         Grant {
             kernel: kernel,
+            driver_num: driver_num,
             grant_num: grant_index,
             ptr: PhantomData,
         }
@@ -415,7 +442,7 @@ impl<T: Default> Grant<T> {
     }
 }
 
-pub struct Iter<'a, T: 'a + Default> {
+pub struct Iter<'a, T: 'a + GrantDefault> {
     grant: &'a Grant<T>,
     subiter: core::iter::FilterMap<
         core::slice::Iter<'a, Option<&'static dyn ProcessType>>,
@@ -431,7 +458,7 @@ pub struct Iter<'a, T: 'a + Default> {
     skip_entered_grants: bool,
 }
 
-impl<'a, T: Default> Iterator for Iter<'a, T> {
+impl<'a, T: GrantDefault> Iterator for Iter<'a, T> {
     type Item = AppliedGrant<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
