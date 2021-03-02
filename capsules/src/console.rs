@@ -44,13 +44,14 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, ErrorCode, Grant, Upcall};
 use kernel::{CommandReturn, Driver, ReturnCode};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    GrantDefault, ProcessUpcallFactory, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
-#[derive(Default)]
 pub struct App {
     write_callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
@@ -61,6 +62,21 @@ pub struct App {
     read_callback: Upcall,
     read_buffer: ReadWriteAppSlice,
     read_len: usize,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            write_callback: Upcall::default(),
+            write_buffer: ReadOnlyAppSlice::default(),
+            write_len: 0,
+            write_remaining: 0,
+            pending_write: false,
+            read_callback: Upcall::default(),
+            read_buffer: ReadWriteAppSlice::default(),
+            read_len: 0,
+        }
+    }
 }
 
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];

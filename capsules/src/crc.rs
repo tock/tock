@@ -71,7 +71,9 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+};
 use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
@@ -79,7 +81,6 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 
 /// An opaque value maintaining state for one application's request
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     buffer: ReadOnlyAppSlice,
@@ -87,6 +88,16 @@ pub struct App {
     // if Some, the application is awaiting the result of a CRC
     //   using the given algorithm
     waiting: Option<hil::crc::CrcAlg>,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            callback: Upcall::default(),
+            buffer: ReadOnlyAppSlice::default(),
+            waiting: None,
+        }
+    }
 }
 
 /// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by

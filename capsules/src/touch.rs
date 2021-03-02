@@ -18,7 +18,8 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, ReadWrite,
+    ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -46,6 +47,24 @@ pub struct App {
     status: usize,
     touch_enable: bool,
     multi_touch_enable: bool,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            touch_callback: Upcall::default(),
+            gesture_callback: Upcall::default(),
+            multi_touch_callback: Upcall::default(),
+            events_buffer: ReadWriteAppSlice::default(),
+            ack: false,
+            dropped_events: 0,
+            x: 0,
+            y: 0,
+            status: 0,
+            touch_enable: false,
+            multi_touch_enable: false,
+        }
+    }
 }
 
 impl Default for App {

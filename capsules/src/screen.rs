@@ -17,7 +17,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode, Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    ReadOnlyAppSlice, ReturnCode, Upcall,
 };
 
 /// Syscall driver number.
@@ -90,8 +91,8 @@ pub struct App {
     data2: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> App {
         App {
             callback: Upcall::default(),
             pending_command: false,

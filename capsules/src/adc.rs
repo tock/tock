@@ -54,23 +54,14 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, ReturnCode,
-    Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    ReadWrite, ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 /// Syscall driver number.
 use crate::driver;
 use crate::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
-
-/// Multiplexed ADC syscall driver, used by applications and capsules.
-/// Virtualized, and can be use by multiple applications at the same time;
-/// requests are queued. Does not support continuous or high-speed sampling.
-pub struct AdcVirtualized<'a> {
-    drivers: &'a [&'a dyn hil::adc::AdcChannel],
-    apps: Grant<AppSys>,
-    current_app: OptionalCell<AppId>,
-}
 
 /// ADC syscall driver, used by applications to interact with ADC.
 /// Not currently virtualized: does not share the ADC with other capsules
@@ -107,15 +98,7 @@ pub(crate) enum AdcMode {
     ContinuousBuffer = 3,
 }
 
-// Datas passed by the application to us
-pub struct AppSys {
-    callback: Upcall,
-    pending_command: bool,
-    command: OptionalCell<Operation>,
-    channel: usize,
-}
-
-/// Holds buffers that the application has passed us
+/// Process-specific state for the dedicated ADC driver
 pub struct App {
     app_buf1: ReadWriteAppSlice,
     app_buf2: ReadWriteAppSlice,
@@ -127,8 +110,8 @@ pub struct App {
     using_app_buf1: Cell<bool>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> App {
         App {
             app_buf1: ReadWriteAppSlice::default(),
             app_buf2: ReadWriteAppSlice::default(),
@@ -142,16 +125,6 @@ impl Default for App {
     }
 }
 
-impl Default for AppSys {
-    fn default() -> AppSys {
-        AppSys {
-            callback: Upcall::default(),
-            pending_command: false,
-            command: OptionalCell::empty(),
-            channel: 0,
-        }
-    }
-}
 /// Buffers to use for DMA transfers
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
@@ -627,6 +600,34 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         self.adc.get_voltage_reference_mv()
     }
+}
+
+/// Process-specific state for the virtualized ADC driver
+pub struct AppSys {
+    callback: Upcall,
+    pending_command: bool,
+    command: OptionalCell<Operation>,
+    channel: usize,
+}
+
+impl GrantDefault for AppSys {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        AppSys {
+            callback: Upcall::default(),
+            pending_command: false,
+            command: OptionalCell::empty(),
+            channel: 0,
+        }
+    }
+}
+
+/// Multiplexed ADC syscall driver, used by applications and capsules.
+/// Virtualized, and can be use by multiple applications at the same time;
+/// requests are queued. Does not support continuous or high-speed sampling.
+pub struct AdcVirtualized<'a> {
+    drivers: &'a [&'a dyn hil::adc::AdcChannel],
+    apps: Grant<AppSys>,
+    current_app: OptionalCell<AppId>,
 }
 
 /// Functions to create, initialize, and interact with the virtualized ADC

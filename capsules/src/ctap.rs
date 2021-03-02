@@ -33,7 +33,8 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -47,8 +48,8 @@ pub struct App {
     can_receive: Cell<bool>,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> App {
         App {
             callback: Upcall::default(),
             recv_buf: ReadWriteAppSlice::default(),

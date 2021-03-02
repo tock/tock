@@ -4,17 +4,26 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     slice: ReadWriteAppSlice,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            callback: Upcall::default(),
+            slice: ReadWriteAppSlice::default(),
+        }
+    }
 }
 
 pub static mut BUF: [u8; 64] = [0; 64];

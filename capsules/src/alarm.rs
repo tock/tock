@@ -4,7 +4,9 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -21,8 +23,8 @@ pub struct AlarmData {
     callback: Upcall,
 }
 
-impl Default for AlarmData {
-    fn default() -> AlarmData {
+impl GrantDefault for AlarmData {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
             callback: Upcall::default(),

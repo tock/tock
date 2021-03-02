@@ -52,19 +52,32 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Proximity as usize;
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     subscribed: bool,
     enqueued_command_type: ProximityCommand,
     lower_proximity: u8,
     upper_proximity: u8,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            callback: Upcall::default(),
+            subscribed: false,
+            enqueued_command_type: ProximityCommand::default(),
+            lower_proximity: 0,
+            upper_proximity: 0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]

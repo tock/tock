@@ -5,7 +5,9 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, CommandReturn, ErrorCode, Grant, ReturnCode};
+use kernel::{
+    AppId, CommandReturn, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, ReturnCode,
+};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -142,9 +144,16 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
 // when that app first uses the debug driver.
 const QUEUE_SIZE: usize = 4;
 
-#[derive(Default)]
 pub struct AppData {
     queue: [Option<DebugEntry>; QUEUE_SIZE],
+}
+
+impl GrantDefault for AppData {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        AppData {
+            queue: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

@@ -15,8 +15,8 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode, Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 const MAX_NEIGHBORS: usize = 4;
@@ -151,7 +151,6 @@ impl KeyDescriptor {
     }
 }
 
-#[derive(Default)]
 pub struct App {
     rx_callback: Upcall,
     tx_callback: Upcall,
@@ -159,6 +158,19 @@ pub struct App {
     app_write: ReadOnlyAppSlice,
     app_cfg: ReadWriteAppSlice,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+        App {
+            rx_callback: Upcall::default(),
+            tx_callback: Upcall::default(),
+            app_read: ReadWriteAppSlice::default(),
+            app_write: ReadOnlyAppSlice::default(),
+            app_cfg: ReadWriteAppSlice::default(),
+            pending_tx: None,
+        }
+    }
 }
 
 pub struct RadioDriver<'a> {
