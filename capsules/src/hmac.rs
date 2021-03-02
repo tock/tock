@@ -476,6 +476,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     pending_run_app: Option<AppId>,
     key: ReadWriteAppSlice,

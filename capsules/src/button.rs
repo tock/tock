@@ -67,6 +67,7 @@ pub type SubscribeMap = u32;
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     subscribe_map: SubscribeMap,
 }

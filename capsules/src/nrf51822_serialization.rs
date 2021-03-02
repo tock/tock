@@ -36,6 +36,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     tx_buffer: ReadOnlyAppSlice,
     rx_buffer: ReadWriteAppSlice,

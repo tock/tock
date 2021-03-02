@@ -193,14 +193,14 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
             alarm_data: AlarmData::new(),
             adv_data: ReadOnlyAppSlice::default(),
             scan_buffer: ReadWriteAppSlice::default(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
-            scan_callback: kernel::Callback::default(),
+            scan_callback: cb_factory.build_callback(0).unwrap(),
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,

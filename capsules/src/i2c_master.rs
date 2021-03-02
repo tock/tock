@@ -13,6 +13,7 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 1]
     callback: Callback,
     slice: ReadWriteAppSlice,
 }

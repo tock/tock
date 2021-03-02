@@ -81,6 +81,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 /// An opaque value maintaining state for one application's request
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     buffer: ReadOnlyAppSlice,
 

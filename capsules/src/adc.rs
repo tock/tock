@@ -111,11 +111,11 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
             app_buf1: ReadWriteAppSlice::default(),
             app_buf2: ReadWriteAppSlice::default(),
-            callback: Callback::default(),
+            callback: cb_factory.build_callback(0).unwrap(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -610,9 +610,9 @@ pub struct AppSys {
 }
 
 impl GrantDefault for AppSys {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> Self {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> Self {
         AppSys {
-            callback: Callback::default(),
+            callback: cb_factory.build_callback(0).unwrap(),
             pending_command: false,
             command: OptionalCell::empty(),
             channel: 0,

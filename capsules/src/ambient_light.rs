@@ -25,6 +25,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 /// Per-process metadata
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     pending: bool,
 }

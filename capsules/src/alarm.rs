@@ -24,10 +24,10 @@ pub struct AlarmData {
 }
 
 impl GrantDefault for AlarmData {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> AlarmData {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
-            callback: Callback::default(),
+            callback: cb_factory.build_callback(0).unwrap(),
         }
     }
 }

@@ -52,12 +52,14 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 1]
     write_callback: Callback,
     write_buffer: ReadOnlyAppSlice,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
+    #[subscribe_num = 2]
     read_callback: Callback,
     read_buffer: ReadWriteAppSlice,
     read_len: usize,

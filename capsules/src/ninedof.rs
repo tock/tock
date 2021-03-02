@@ -46,9 +46,9 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
-            callback: Callback::default(),
+            callback: cb_factory.build_callback(0).unwrap(),
             pending_command: false,
             command: NineDofCommand::Exists,
             arg1: 0,

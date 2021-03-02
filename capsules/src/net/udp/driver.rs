@@ -68,7 +68,9 @@ impl UDPEndpoint {
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     rx_callback: Callback,
+    #[subscribe_num = 1]
     tx_callback: Callback,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,

@@ -97,10 +97,10 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> App {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
-            callback_read: Callback::default(),
-            callback_write: Callback::default(),
+            callback_read: cb_factory.build_callback(0).unwrap(),
+            callback_write: cb_factory.build_callback(1).unwrap(),
             pending_command: false,
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,

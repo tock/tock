@@ -38,6 +38,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(GrantDefault)]
 pub struct App {
+    #[subscribe_num = 0]
     callback: Callback,
     buffer: ReadWriteAppSlice,
     remaining: usize,

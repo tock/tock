@@ -61,8 +61,8 @@ use kernel::{
 // TODO: implement #[derive(GrantDefault)]
 pub struct GPIOCallback(Callback);
 impl GrantDefault for GPIOCallback {
-    fn grant_default(_process_id: AppId, _cb_factory: &mut ProcessCallbackFactory) -> Self {
-        GPIOCallback(Callback::default())
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> Self {
+        GPIOCallback(cb_factory.build_callback(0).unwrap())
     }
 }
 

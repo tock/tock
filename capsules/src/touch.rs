@@ -18,7 +18,8 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
 use kernel::ReturnCode;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
+    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessCallbackFactory,
+    ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -34,7 +35,6 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
     }
 }
 
-#[derive(GrantDefault)]
 pub struct App {
     touch_callback: Callback,
     gesture_callback: Callback,
@@ -49,12 +49,12 @@ pub struct App {
     multi_touch_enable: bool,
 }
 
-impl Default for App {
-    fn default() -> App {
+impl GrantDefault for App {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> App {
         App {
-            touch_callback: Callback::default(),
-            gesture_callback: Callback::default(),
-            multi_touch_callback: Callback::default(),
+            touch_callback: cb_factory.build_callback(0).unwrap(),
+            gesture_callback: cb_factory.build_callback(1).unwrap(),
+            multi_touch_callback: cb_factory.build_callback(2).unwrap(),
             events_buffer: ReadWriteAppSlice::default(),
             ack: true,
             dropped_events: 0,
