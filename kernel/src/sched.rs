@@ -21,7 +21,7 @@ use crate::config;
 use crate::debug;
 use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
-use crate::grant::Grant;
+use crate::grant::{Grant, GrantDefault};
 use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
@@ -383,8 +383,9 @@ impl Kernel {
     /// Calling this function is restricted to only certain users, and to
     /// enforce this calling this function requires the
     /// `MemoryAllocationCapability` capability.
-    pub fn create_grant<T: Default>(
+    pub fn create_grant<T: GrantDefault>(
         &'static self,
+        driver_num: u32,
         _capability: &dyn capabilities::MemoryAllocationCapability,
     ) -> Grant<T> {
         if self.grants_finalized.get() {
@@ -394,7 +395,7 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
-        Grant::new(self, grant_index)
+        Grant::new(self, driver_num, grant_index)
     }
 
     /// Returns the number of grants that have been setup in the system and
