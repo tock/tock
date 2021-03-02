@@ -5,6 +5,22 @@ date: November 5, 2017
 
 # Tock OS Training @ SenSys 2017
 
+---
+**NOTE**
+
+This course was primarily designed in November of 2017, but has been updated
+through May 2018. It is a useful introduction to Tock but is no longer updated
+as Tock evolves in preparation for new courses that will be used. 
+For example, this course uses Tock version 1.2, and current Tock
+development is on version 2.x. To follow this course, please checkout
+the commit below to use Tock at a point where the tutorial is known to
+be working.
+
+```bash
+$ git checkout 1203437bff05667bb0636dc9ab69e1daca13c2a2
+```
+---
+
 This course introduces you to Tock, a secure embedded operating system for
 sensor networks and the Internet of Things. Tock is the first operating system
 to allow multiple untrusted applications to run concurrently on a
@@ -21,13 +37,3 @@ small kernel extension written in Rust. The course assumes experience
 programming embedded devices and fluency in C. It assumes no knowledge of Rust,
 although knowing Rust will allow you to be more creative in the Rust programming
 part of the course.
-
-This course was primarily designed in November of 2017, but has been updated
-through May 2018. It is a useful introduction to Tock but is no longer updated
-as Tock evolves in preparation for new courses that will be used in November
-2018. To follow this course, please checkout the commit below to use Tock at a
-point where the tutorial is known to be working.
-
-```bash
-$ git checkout 1203437bff05667bb0636dc9ab69e1daca13c2a2
-```
