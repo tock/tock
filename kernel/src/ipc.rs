@@ -39,20 +39,27 @@ struct IPCData<const NUM_PROCS: usize> {
 }
 
 impl<const NUM_PROCS: usize> GrantDefault for IPCData<NUM_PROCS> {
-    fn grant_default(
-        _process_id: AppId,
-        _upcall_factory: &mut ProcessUpcallFactory,
-    ) -> IPCData<NUM_PROCS> {
-        // TODO: This breaks with the Callback swapping prevention mechanisms
-        unimplemented!();
-
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
-        const DEFAULT_UPCALL: Upcall = Upcall::const_default();
-        IPCData {
-            shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
-            search_slice: ReadOnlyAppSlice::default(),
-            client_upcalls: [DEFAULT_UPCALL; NUM_PROCS],
-            upcall: Upcall::default(),
+        unsafe {
+            use core::mem::MaybeUninit;
+            // need this unless we use a macro to initialize the variable length
+            // array because each initial value is different.
+            let mut array_hack: MaybeUninit<[Upcall; NUM_PROCS]> = MaybeUninit::uninit();
+
+            let service_cb = cb_factory.build_upcall(0).unwrap();
+            let mut ptr_i = array_hack.as_mut_ptr() as *mut Upcall;
+            for i in 0..NUM_PROCS {
+                ptr_i.write(cb_factory.build_upcall(i as u32 + 1).unwrap());
+                ptr_i = ptr_i.add(1);
+            }
+
+            Self {
+                shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
+                search_slice: ReadOnlyAppSlice::default(),
+                client_upcalls: array_hack.assume_init(),
+                upcall: service_cb,
+            }
         }
     }
 }
@@ -88,11 +95,8 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                     match cb_type {
                         IPCUpcallType::Service => f(&mut mydata.upcall),
                         IPCUpcallType::Client => match called_from.index() {
-                            Some(i) => f(mydata
-                                .client_upcalls
-                                .get_mut(i)
-                                .unwrap_or(&mut Upcall::default())),
-                            None => f(&mut Upcall::default()),
+                            Some(i) => f(mydata.client_upcalls.get_mut(i).unwrap()),
+                            None => panic!("Invalid app issued IPC request"), //TODO: return Error instead
                         },
                     };
                 };
