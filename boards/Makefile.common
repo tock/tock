@@ -115,7 +115,7 @@ export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null 
 
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
-RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
+RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
 ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
