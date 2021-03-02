@@ -50,29 +50,11 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> App {
         App {
-            touch_callback: Upcall::default(),
-            gesture_callback: Upcall::default(),
-            multi_touch_callback: Upcall::default(),
-            events_buffer: ReadWriteAppSlice::default(),
-            ack: false,
-            dropped_events: 0,
-            x: 0,
-            y: 0,
-            status: 0,
-            touch_enable: false,
-            multi_touch_enable: false,
-        }
-    }
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            touch_callback: Upcall::default(),
-            gesture_callback: Upcall::default(),
-            multi_touch_callback: Upcall::default(),
+            touch_callback: cb_factory.build_upcall(0).unwrap(),
+            gesture_callback: cb_factory.build_upcall(1).unwrap(),
+            multi_touch_callback: cb_factory.build_upcall(2).unwrap(),
             events_buffer: ReadWriteAppSlice::default(),
             ack: true,
             dropped_events: 0,
@@ -278,7 +260,6 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             if num < len { len - num } else { 0 },
                         );
                     }
-
                 // app.ack == false;
                 } else {
                     app.dropped_events = app.dropped_events + 1;

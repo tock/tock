@@ -59,9 +59,10 @@ use kernel::{
 };
 
 pub struct GPIOUpcall(Upcall);
+
 impl GrantDefault for GPIOUpcall {
-    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
-        GPIOUpcall(Upcall::default())
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        GPIOUpcall(cb_factory.build_upcall(0).unwrap())
     }
 }
 

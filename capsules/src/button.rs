@@ -68,14 +68,14 @@ pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 pub type SubscribeMap = u32;
 
 pub struct App {
-    upcall: Upcall,
+    callback: Upcall,
     subscribe_map: SubscribeMap,
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, _upcall_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         App {
-            upcall: Upcall::default(),
+            callback: cb_factory.build_upcall(0).unwrap(),
             subscribe_map: SubscribeMap::default(),
         }
     }
@@ -132,14 +132,14 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut upcall: Upcall,
+        mut callback: Upcall,
         app_id: AppId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
                 .enter(app_id, |cntr, _| {
-                    core::mem::swap(&mut cntr.upcall, &mut upcall);
+                    core::mem::swap(&mut cntr.callback, &mut callback);
                 })
                 .map_err(|err| err.into()),
 
@@ -148,8 +148,8 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
         };
 
         match res {
-            Ok(()) => Ok(upcall),
-            Err(e) => Err((upcall, e)),
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -248,7 +248,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         self.apps.each(|cntr| {
             if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
-                cntr.upcall
+                cntr.callback
                     .schedule(pin_num as usize, button_state as usize, 0);
             }
         });
