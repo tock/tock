@@ -4,11 +4,11 @@
 //! share memory.
 
 use crate::capabilities::MemoryAllocationCapability;
-use crate::grant::Grant;
+use crate::grant::{Grant, GrantDefault};
 use crate::mem::Read;
 use crate::process;
 use crate::sched::Kernel;
-use crate::upcall::{AppId, Upcall};
+use crate::upcall::{AppId, ProcessUpcallFactory, Upcall};
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
@@ -38,8 +38,14 @@ struct IPCData<const NUM_PROCS: usize> {
     upcall: Upcall,
 }
 
-impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
-    fn default() -> IPCData<NUM_PROCS> {
+impl<const NUM_PROCS: usize> GrantDefault for IPCData<NUM_PROCS> {
+    fn grant_default(
+        _process_id: AppId,
+        _upcall_factory: &mut ProcessUpcallFactory,
+    ) -> IPCData<NUM_PROCS> {
+        // TODO: This breaks with the Callback swapping prevention mechanisms
+        unimplemented!();
+
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
         const DEFAULT_UPCALL: Upcall = Upcall::const_default();
         IPCData {
@@ -58,9 +64,13 @@ pub struct IPC<const NUM_PROCS: usize> {
 }
 
 impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
-    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> Self {
+    pub fn new(
+        kernel: &'static Kernel,
+        driver_num: u32,
+        capability: &dyn MemoryAllocationCapability,
+    ) -> Self {
         Self {
-            data: kernel.create_grant(capability),
+            data: kernel.create_grant(driver_num, capability),
         }
     }
 
