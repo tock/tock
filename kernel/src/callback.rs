@@ -160,8 +160,8 @@ impl AppId {
 /// This contains the driver number and the subscribe number within the driver.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct CallbackId {
-    pub driver_num: usize,
-    pub subscribe_num: usize,
+    pub driver_num: u32,
+    pub subscribe_num: u32,
 }
 
 /// Type for calling a callback in a process.
