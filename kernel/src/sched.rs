@@ -854,9 +854,8 @@ impl Kernel {
                 process.remove_pending_callbacks(callback_id);
 
                 let ptr = NonNull::new(callback_ptr);
-                let callback = ptr.map_or(Callback::default(), |ptr| {
-                    Callback::new(process.appid(), callback_id, appdata, ptr)
-                });
+                let callback = Callback::new(process.appid(), callback_id, appdata, ptr);
+
                 let rval = platform.with_driver(driver_number as usize, |driver| match driver {
                     Some(d) => {
                         // TODO: Change subscribe to take a u32 as the subdriver_num

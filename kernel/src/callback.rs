@@ -166,27 +166,13 @@ pub struct CallbackId {
 
 /// Type for calling a callback in a process.
 ///
-/// This is essentially a wrapper around a function pointer.
-struct ProcessCallback {
+/// This is essentially a wrapper around a function pointer with
+/// associated process data.
+pub struct Callback {
     app_id: AppId,
     callback_id: CallbackId,
     appdata: usize,
-    fn_ptr: NonNull<()>,
-}
-
-pub struct Callback {
-    cb: Option<ProcessCallback>,
-}
-
-impl Default for Callback {
-    /// Construct a new default [`Callback`]
-    ///
-    /// A default [`Callback`] instance will not point to any actual
-    /// userspace process. Therefore, no actual callbacks will be
-    /// scheduled by this instance.
-    fn default() -> Callback {
-        Callback::const_default()
-    }
+    fn_ptr: Option<NonNull<()>>,
 }
 
 impl Callback {
@@ -194,97 +180,47 @@ impl Callback {
         app_id: AppId,
         callback_id: CallbackId,
         appdata: usize,
-        fn_ptr: NonNull<()>,
+        fn_ptr: Option<NonNull<()>>,
     ) -> Callback {
         Callback {
-            cb: Some(ProcessCallback::new(app_id, callback_id, appdata, fn_ptr)),
-        }
-    }
-
-    /// Construct a new default [`Callback`]
-    ///
-    /// A default [`Callback`] instance will not point to any actual
-    /// userspace process. Therefore, no actual callbacks will be
-    /// scheduled by this instance.
-    pub const fn const_default() -> Callback {
-        Callback { cb: None }
-    }
-
-    /// Tell the scheduler to run this callback for the process.
-    ///
-    /// The three arguments are passed to the callback in userspace.
-    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.cb.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
-    }
-
-    pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
-        match self.cb {
-            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, 0),
-            Some(cb) => GenericSyscallReturnValue::SubscribeSuccess(
-                cb.fn_ptr.as_ptr() as *const u8,
-                cb.appdata,
-            ),
-        }
-    }
-
-    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
-        match self.cb {
-            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, 0),
-            Some(cb) => GenericSyscallReturnValue::SubscribeFailure(
-                err,
-                cb.fn_ptr.as_ptr() as *const u8,
-                cb.appdata,
-            ),
-        }
-    }
-}
-
-impl ProcessCallback {
-    fn new(
-        app_id: AppId,
-        callback_id: CallbackId,
-        appdata: usize,
-        fn_ptr: NonNull<()>,
-    ) -> ProcessCallback {
-        ProcessCallback {
             app_id,
             callback_id,
             appdata,
             fn_ptr,
         }
     }
-}
 
-impl ProcessCallback {
-    /// Actually trigger the callback.
+    /// Schedule the callback
     ///
     /// This will queue the `Callback` for the associated process. It returns
     /// `false` if the queue for the process is full and the callback could not
-    /// be scheduled.
+    /// be scheduled or this is a null callback.
     ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
-    fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        let res = self
-            .app_id
-            .kernel
-            .process_map_or(false, self.app_id, |process| {
-                process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                    source: process::FunctionCallSource::Driver(self.callback_id),
-                    argument0: r0,
-                    argument1: r1,
-                    argument2: r2,
-                    argument3: self.appdata,
-                    pc: self.fn_ptr.as_ptr() as usize,
-                }))
-            });
+    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
+        let res = self.fn_ptr.map_or(false, |fp| {
+            self.app_id
+                .kernel
+                .process_map_or(false, self.app_id, |process| {
+                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                        source: process::FunctionCallSource::Driver(self.callback_id),
+                        argument0: r0,
+                        argument1: r1,
+                        argument2: r2,
+                        argument3: self.appdata,
+                        pc: fp.as_ptr() as usize,
+                    }))
+                })
+        });
+
         if config::CONFIG.trace_syscalls {
             debug!(
                 "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {}",
                 self.app_id,
                 self.callback_id.driver_num,
                 self.callback_id.subscribe_num,
-                self.fn_ptr.as_ptr() as usize,
+                self.fn_ptr.map_or(0x0 as *mut (), |fp| fp.as_ptr()) as usize,
                 r0,
                 r1,
                 r2,
@@ -293,6 +229,26 @@ impl ProcessCallback {
             );
         }
         res
+    }
+
+    pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
+        match self.fn_ptr {
+            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, self.appdata),
+            Some(fp) => {
+                GenericSyscallReturnValue::SubscribeSuccess(fp.as_ptr() as *const u8, self.appdata)
+            }
+        }
+    }
+
+    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
+        match self.fn_ptr {
+            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, self.appdata),
+            Some(fp) => GenericSyscallReturnValue::SubscribeFailure(
+                err,
+                fp.as_ptr() as *const u8,
+                self.appdata,
+            ),
+        }
     }
 }
 
@@ -333,17 +289,12 @@ impl ProcessCallbackFactory {
                 subscribe_num,
             };
 
-            // TODO: We can't currently create a callback which is
-            // bound to a subdriver_num AND has as null pointer.  This
-            // gets introduced in a later commit.
-            //
-            // Some(Callback::new(
-            //     self.process,
-            //     callback_id,
-            //     0,    // Default appdata value
-            //     None, // No fnptr, this is a null-callback
-            // ))
-            Some(Callback::default())
+            Some(Callback::new(
+                self.process,
+                callback_id,
+                0,    // Default appdata value
+                None, // No fnptr, this is a null-callback
+            ))
         } else {
             None
         }
