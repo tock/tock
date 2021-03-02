@@ -451,7 +451,7 @@ pub trait ProcessType {
     /// `addr` to `value`. Return true if `addr` is within the RAM
     /// bounds currently exposed to the process (thereby writable
     /// by the process itself) and the value was set, false otherwise.
-    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+    fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -525,27 +525,27 @@ pub trait ProcessType {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn);
+    fn set_syscall_return_value(&self, return_value: SyscallReturn);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    unsafe fn set_process_function(&self, callback: FunctionCall);
+    fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
     ///
     /// This will return `None` if the process is inactive and cannot be
     /// switched to.
-    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
+    fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Print out the memory map (Grant region, heap, stack, program
     /// memory, BSS, and data sections) of this process.
-    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+    fn print_memory_map(&self, writer: &mut dyn Write);
 
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
-    unsafe fn print_full_process(&self, writer: &mut dyn Write);
+    fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
 
@@ -1448,9 +1448,16 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
+    // This function verifies that the dereference is valid and safe.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
-            *addr = value;
+            // This is safe because we have verified that the address we are
+            // writing to is in fact within the process's process-accessible
+            // memory.
+            unsafe {
+                *addr = value;
+            }
             true
         } else {
             false
@@ -1545,8 +1552,8 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.process_name
     }
 
-    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn) {
-        match self.stored_state.map(|stored_state| {
+    fn set_syscall_return_value(&self, return_value: SyscallReturn) {
+        match self.stored_state.map(|stored_state| unsafe {
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
@@ -1575,7 +1582,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn set_process_function(&self, callback: FunctionCall) {
+    fn set_process_function(&self, callback: FunctionCall) {
         // See if we can actually enqueue this function for this process.
         // Architecture-specific code handles actually doing this since the
         // exact method is both architecture- and implementation-specific.
@@ -1583,12 +1590,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // This can fail, for example if the process does not have enough memory
         // remaining.
         match self.stored_state.map(|stored_state| {
-            self.chip.userspace_kernel_boundary().set_process_function(
-                self.memory.as_ptr(),
-                self.app_break.get(),
-                stored_state,
-                callback,
-            )
+            // Let the UKB implementation handle setting the process's PC so
+            // that the process executes the upcall function. We encapsulate
+            // unsafe here because we are guaranteeing that the memory bounds
+            // passed to `set_process_function` are correct.
+            unsafe {
+                self.chip.userspace_kernel_boundary().set_process_function(
+                    self.memory.as_ptr(),
+                    self.app_break.get(),
+                    stored_state,
+                    callback,
+                )
+            }
         }) {
             Some(Ok(())) => {
                 // If we got an `Ok` we are all set and should mark that this
@@ -1616,7 +1629,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+    fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_active() {
             return None;
@@ -1624,11 +1637,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
-                let (switch_reason, optional_stack_pointer) = self
-                    .chip
-                    .userspace_kernel_boundary()
-                    .switch_to_process(self.memory.as_ptr(), self.app_break.get(), stored_state);
-                (Some(switch_reason), optional_stack_pointer)
+                // Switch to the process. We guarantee that the memory pointers
+                // we pass are valid, ensuring this context switch is safe.
+                // Therefore we encapsulate the `unsafe`.
+                unsafe {
+                    let (switch_reason, optional_stack_pointer) =
+                        self.chip.userspace_kernel_boundary().switch_to_process(
+                            self.memory.as_ptr(),
+                            self.app_break.get(),
+                            stored_state,
+                        );
+                    (Some(switch_reason), optional_stack_pointer)
+                }
             });
 
         // If the UKB implementation passed us a stack pointer, update our
@@ -1675,16 +1695,16 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         });
     }
 
-    unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
+    fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
-        let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
+        let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
 
         // SRAM addresses
-        let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
+        let sram_end = self.memory.as_ptr().wrapping_add(self.memory.len()) as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
@@ -1834,16 +1854,20 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         ));
     }
 
-    unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+    fn print_full_process(&self, writer: &mut dyn Write) {
         self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
-            self.chip.userspace_kernel_boundary().print_context(
-                self.memory.as_ptr(),
-                self.app_break.get(),
-                stored_state,
-                writer,
-            );
+            // We guarantee the memory bounds pointers provided to the UKB are
+            // correct.
+            unsafe {
+                self.chip.userspace_kernel_boundary().print_context(
+                    self.memory.as_ptr(),
+                    self.app_break.get(),
+                    stored_state,
+                    writer,
+                );
+            }
         });
 
         // Display the current state of the MPU for this process.
