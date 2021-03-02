@@ -872,9 +872,10 @@ impl Kernel {
                 let upcall = ptr.map_or(Upcall::default(), |ptr| {
                     Upcall::new(process.appid(), upcall_id, appdata, ptr)
                 });
-                let rval = platform.with_driver(driver_number, |driver| match driver {
+                let rval = platform.with_driver(driver_number as usize, |driver| match driver {
                     Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.appid());
+                        // TODO: Change subscribe to take a u32 as the subdriver_num
+                        let res = d.subscribe(subdriver_number as usize, upcall, process.appid());
                         match res {
                             // An Ok() returns the previous upcall, while
                             // Err() returns the one that was just passed

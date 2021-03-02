@@ -79,8 +79,8 @@ pub enum Syscall {
     /// is the subscribe identifier, `upcall_ptr` is upcall pointer,
     /// and `appdata` is the application data.
     Subscribe {
-        driver_number: usize,
-        subdriver_number: usize,
+        driver_number: u32,
+        subdriver_number: u32,
         upcall_ptr: *mut (),
         appdata: usize,
     },
@@ -153,8 +153,8 @@ impl Syscall {
                 address: r1 as *mut u8,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
-                driver_number: r0,
-                subdriver_number: r1,
+                driver_number: r0 as u32,
+                subdriver_number: r1 as u32,
                 upcall_ptr: r2 as *mut (),
                 appdata: r3,
             }),
