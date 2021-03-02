@@ -166,27 +166,13 @@ pub struct UpcallId {
 
 /// Type for calling an upcall in a process.
 ///
-/// This is essentially a wrapper around a function pointer.
-struct ProcessUpcall {
+/// This is essentially a wrapper around a function pointer with
+/// associated process data.
+pub struct Upcall {
     app_id: AppId,
     upcall_id: UpcallId,
     appdata: usize,
-    fn_ptr: NonNull<()>,
-}
-
-pub struct Upcall {
-    cb: Option<ProcessUpcall>,
-}
-
-impl Default for Upcall {
-    /// Construct a new default [`Upcall`]
-    ///
-    /// A default [`Upcall`] instance will not point to any actual
-    /// userspace process. Therefore, no actual upcalls will be
-    /// scheduled by this instance.
-    fn default() -> Upcall {
-        Upcall::const_default()
-    }
+    fn_ptr: Option<NonNull<()>>,
 }
 
 impl Upcall {
@@ -194,94 +180,47 @@ impl Upcall {
         app_id: AppId,
         upcall_id: UpcallId,
         appdata: usize,
-        fn_ptr: NonNull<()>,
+        fn_ptr: Option<NonNull<()>>,
     ) -> Upcall {
         Upcall {
-            cb: Some(ProcessUpcall::new(app_id, upcall_id, appdata, fn_ptr)),
-        }
-    }
-
-    /// Construct a new default [`Upcall`]
-    ///
-    /// A default [`Upcall`] instance will not point to any actual
-    /// userspace process. Therefore, no actual upcalls will be
-    /// scheduled by this instance.
-    pub const fn const_default() -> Upcall {
-        Upcall { cb: None }
-    }
-
-    /// Tell the scheduler to run this upcall for the process.
-    ///
-    /// The three arguments are passed to the upcall in userspace.
-    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.cb.as_mut().map_or(true, |cb| cb.schedule(r0, r1, r2))
-    }
-
-    pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
-        match self.cb {
-            None => SyscallReturn::SubscribeSuccess(0 as *mut u8, 0),
-            Some(cb) => {
-                SyscallReturn::SubscribeSuccess(cb.fn_ptr.as_ptr() as *const u8, cb.appdata)
-            }
-        }
-    }
-
-    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
-        match self.cb {
-            None => SyscallReturn::SubscribeFailure(err, 0 as *mut u8, 0),
-            Some(cb) => {
-                SyscallReturn::SubscribeFailure(err, cb.fn_ptr.as_ptr() as *const u8, cb.appdata)
-            }
-        }
-    }
-}
-
-impl ProcessUpcall {
-    fn new(
-        app_id: AppId,
-        upcall_id: UpcallId,
-        appdata: usize,
-        fn_ptr: NonNull<()>,
-    ) -> ProcessUpcall {
-        ProcessUpcall {
             app_id,
             upcall_id,
             appdata,
             fn_ptr,
         }
     }
-}
 
-impl ProcessUpcall {
-    /// Actually trigger the upcall.
+    /// Schedule the upcall
     ///
-    /// This will queue the `Upcall` for the associated process. It returns
-    /// `false` if the queue for the process is full and the upcall could not
-    /// be scheduled.
+    /// This will queue the [`Upcall`] for the associated process. It
+    /// returns `false` if the queue for the process is full and the
+    /// upcall could not be scheduled or this is a null upcall.
     ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
-    fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        let res = self
-            .app_id
-            .kernel
-            .process_map_or(false, self.app_id, |process| {
-                process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                    source: process::FunctionCallSource::Driver(self.upcall_id),
-                    argument0: r0,
-                    argument1: r1,
-                    argument2: r2,
-                    argument3: self.appdata,
-                    pc: self.fn_ptr.as_ptr() as usize,
-                }))
-            });
+    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
+        let res = self.fn_ptr.map_or(false, |fp| {
+            self.app_id
+                .kernel
+                .process_map_or(false, self.app_id, |process| {
+                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                        source: process::FunctionCallSource::Driver(self.upcall_id),
+                        argument0: r0,
+                        argument1: r1,
+                        argument2: r2,
+                        argument3: self.appdata,
+                        pc: fp.as_ptr() as usize,
+                    }))
+                })
+        });
+
         if config::CONFIG.trace_syscalls {
             debug!(
                 "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {}",
                 self.app_id,
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,
-                self.fn_ptr.as_ptr() as usize,
+                self.fn_ptr.map_or(0x0 as *mut (), |fp| fp.as_ptr()) as usize,
                 r0,
                 r1,
                 r2,
@@ -290,6 +229,22 @@ impl ProcessUpcall {
             );
         }
         res
+    }
+
+    pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
+        match self.fn_ptr {
+            None => SyscallReturn::SubscribeSuccess(0 as *mut u8, self.appdata),
+            Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr() as *const u8, self.appdata),
+        }
+    }
+
+    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
+        match self.fn_ptr {
+            None => SyscallReturn::SubscribeFailure(err, 0 as *mut u8, self.appdata),
+            Some(fp) => {
+                SyscallReturn::SubscribeFailure(err, fp.as_ptr() as *const u8, self.appdata)
+            }
+        }
     }
 }
 
@@ -321,7 +276,7 @@ impl ProcessUpcallFactory {
         }
     }
 
-    pub fn build_callback(&mut self, subscribe_num: u32) -> Option<Upcall> {
+    pub fn build_upcall(&mut self, subscribe_num: u32) -> Option<Upcall> {
         if subscribe_num >= self.next_subscribe_num {
             self.next_subscribe_num = subscribe_num + 1;
 
@@ -330,17 +285,12 @@ impl ProcessUpcallFactory {
                 subscribe_num,
             };
 
-            // TODO: We can't currently create a callback which is
-            // bound to a subdriver_num AND has as null pointer.  This
-            // gets introduced in a later commit.
-            //
-            // Some(Upcall::new(
-            //     self.process,
-            //     upcall_id,
-            //     0,    // Default appdata value
-            //     None, // No fnptr, this is a null-callback
-            // ))
-            Some(Upcall::default())
+            Some(Upcall::new(
+                self.process,
+                upcall_id,
+                0,    // Default appdata value
+                None, // No fnptr, this is a null-callback
+            ))
         } else {
             None
         }
