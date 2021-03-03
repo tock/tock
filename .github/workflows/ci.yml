@@ -17,7 +17,7 @@ jobs:
   ci-format:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
 
@@ -27,13 +27,27 @@ jobs:
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
       - uses: actions/setup-node@v1
         with:
-          components: rustfmt, clippy
+          components: rustfmt
       - name: ci-job-format
         run:  make ci-job-format
-      - name: ci-job-clippy
-        run:  make ci-job-clippy
       - name: ci-markdown-toc
         run: make ci-job-markdown-toc
+
+  ci-clippy:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    # The type of runner that the job will run on
+    runs-on: ${{ matrix.os }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
+        with:
+          components: clippy
+      - name: ci-job-clippy
+        run:  make ci-job-clippy
 
   ci-build:
     strategy:
