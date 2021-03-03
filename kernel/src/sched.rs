@@ -15,6 +15,7 @@ use core::ptr::NonNull;
 
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
+use crate::common::cells::TakeCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
@@ -145,6 +146,8 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    grant_num_mapping: [Option<u32>; config::CONFIG.max_drivers],
 }
 
 /// Enum used to inform scheduler why a process stopped executing (aka why
@@ -180,6 +183,7 @@ impl Kernel {
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            grant_num_mapping: [None; config::CONFIG.max_drivers],
         }
     }
 
@@ -395,6 +399,18 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
+        if self.grant_num_mapping[grant_index].is_none() {
+            if self
+                .grant_num_mapping
+                .iter()
+                .find(|&&val| val == Some(driver_num))
+                .is_some()
+            {
+                panic!("One driver cannot have two grants");
+            }
+        } else {
+            panic!("This grant has already been assigned.");
+        }
         Grant::new(self, driver_num, grant_index)
     }
 
