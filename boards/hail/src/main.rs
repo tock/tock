@@ -69,6 +69,7 @@ struct Hail {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
+    callback_swap_test: &'static capsules::callback_swap_test::CallbackSwapTest,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -96,6 +97,7 @@ impl Platform for Hail {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
 
             capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules::callback_swap_test::DRIVER_NUM => f(Some(self.callback_swap_test)),
 
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -450,6 +452,14 @@ pub unsafe fn reset_handler() {
     );
     let fault_response = kernel::procs::FaultResponse::Restart(restart_policy);
 
+    let callback_swap_test = static_init!(
+        capsules::callback_swap_test::CallbackSwapTest,
+        capsules::callback_swap_test::CallbackSwapTest::new(board_kernel.create_grant(
+            capsules::callback_swap_test::DRIVER_NUM as u32,
+            &memory_allocation_capability
+        ))
+    );
+
     let hail = Hail {
         console,
         gpio,
@@ -470,6 +480,7 @@ pub unsafe fn reset_handler() {
         ),
         crc,
         dac,
+        callback_swap_test,
     };
 
     // Setup the UART bus for nRF51 serialization..

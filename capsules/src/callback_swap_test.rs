@@ -25,17 +25,16 @@ pub struct App {
 }
 impl GrantDefault for App {
     fn grant_default(_process_id: AppId, cb_factory: &mut ProcessCallbackFactory) -> Self {
-	App {
-	    callback_0: cb_factory.build_callback(0).unwrap(),
-	    callback_1: Some(cb_factory.build_callback(1).unwrap()),
-	    callback_2: cb_factory.build_callback(2).unwrap(),
-	    callback_3: cb_factory.build_callback(4).unwrap(),
-	}
+        App {
+            callback_0: cb_factory.build_callback(0).unwrap(),
+            callback_1: Some(cb_factory.build_callback(1).unwrap()),
+            callback_2: cb_factory.build_callback(2).unwrap(),
+            callback_3: cb_factory.build_callback(4).unwrap(),
+        }
     }
 }
 
-
-struct CallbackSwapTest(Grant<App>);
+pub struct CallbackSwapTest(Grant<App>);
 
 impl CallbackSwapTest {
     pub fn new(grant: Grant<App>) -> Self {
@@ -58,9 +57,9 @@ impl Driver for CallbackSwapTest {
                     Ok(())
                 }
                 1 => {
-		    let mut callback_1 = app.callback_1.take().unwrap();
+                    let mut callback_1 = app.callback_1.take().unwrap();
                     mem::swap(&mut callback_1, &mut callback);
-		    app.callback_1.replace(callback_1);
+                    app.callback_1.replace(callback_1);
                     Ok(())
                 }
                 2 => {
@@ -69,16 +68,16 @@ impl Driver for CallbackSwapTest {
                 }
                 3 => {
                     mem::swap(&mut app.callback_3, &mut callback);
-		    Ok(())
-                },
-		_ => Err(ErrorCode::NOSUPPORT),
+                    Ok(())
+                }
+                _ => Err(ErrorCode::NOSUPPORT),
             })
             .unwrap_or_else(|err| Err(err.into()));
 
-	match res {
-	    Ok(()) => Ok(callback),
-	    Err(e) => Err((callback, e)),
-	}
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
+        }
     }
 
     fn command(&self, command_num: usize, _: usize, _: usize, app_id: AppId) -> CommandReturn {
