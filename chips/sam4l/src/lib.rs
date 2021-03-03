@@ -35,22 +35,14 @@ pub mod usbc;
 pub mod wdt;
 
 use cortexm4::{
-    generic_isr, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt,
+    generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,
+    unhandled_interrupt,
 };
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-
-    // Defined by platform
-    fn reset_handler();
-
-    static mut _szero: usize;
-    static mut _ezero: usize;
-    static mut _etext: usize;
-    static mut _srelocate: usize;
-    static mut _erelocate: usize;
 }
 
 #[cfg_attr(
@@ -61,7 +53,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    reset_handler,
+    initialize_ram_jump_to_main,
     unhandled_interrupt, // NMI
     hard_fault_handler,  // Hard Fault
     unhandled_interrupt, // MemManage
@@ -87,9 +79,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 pub unsafe fn init() {
-    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
-
     cortexm4::nvic::disable_all();
     cortexm4::nvic::clear_all_pending();
     cortexm4::nvic::enable_all();
