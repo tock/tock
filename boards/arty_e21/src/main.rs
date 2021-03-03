@@ -79,15 +79,12 @@ impl Platform for ArtyE21 {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// and RAM setup.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
-
+pub unsafe fn main() {
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
 
     let chip = static_init!(
