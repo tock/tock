@@ -46,6 +46,8 @@ impl<const NUM_PROCS: usize> GrantDefault for IPCData<NUM_PROCS> {
             // need this unless we use a macro to initialize the variable length
             // array because each initial value is different.
             let mut array_hack: MaybeUninit<[Callback; NUM_PROCS]> = MaybeUninit::uninit();
+
+            let service_cb = cb_factory.build_callback(0).unwrap();
             let mut ptr_i = array_hack.as_mut_ptr() as *mut Callback;
             for i in 0..NUM_PROCS {
                 ptr_i.write(cb_factory.build_callback(i as u32 + 1).unwrap());
@@ -56,7 +58,7 @@ impl<const NUM_PROCS: usize> GrantDefault for IPCData<NUM_PROCS> {
                 shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
                 search_slice: ReadOnlyAppSlice::default(),
                 client_callbacks: array_hack.assume_init(),
-                callback: cb_factory.build_callback(0).unwrap(),
+                callback: service_cb,
             }
         }
     }
