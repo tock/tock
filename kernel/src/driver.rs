@@ -201,7 +201,7 @@ pub trait Driver {
 
     /// System call for a process to pass a buffer (a ReadWriteAppSlice) to
     /// the kernel that the kernel can either read or write. The kernel calls
-    /// this method only after it checks that  that the entire buffer is
+    /// this method only after it checks that the entire buffer is
     /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
