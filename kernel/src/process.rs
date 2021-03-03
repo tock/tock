@@ -1387,7 +1387,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     || returned_callback.fn_ptr != fn_ptr
                 {
                     // The capsule did not return the Callback passed in
-		    //
+                    //
                     // TODO: How to handle this?
                     panic!(
                         "Driver {}, subscribe num {}: Callback swapped in error case",
@@ -1396,15 +1396,15 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 } else {
                     // Capsule returned the correct Callback
 
-		    // TODO: The capsule might have already scheduled
-		    // callbacks on the new instance, and we must not
-		    // clear callbacks on the previous instance in
-		    // this branch (capsule refused the subscribe
-		    // operation). However, if the two callbacks are
-		    // identical, we can't distinguish the two and
-		    // will cancel callbacks on _both_ the previous
-		    // and the new instance.
-		    self.remove_pending_callbacks(returned_callback.callback_id);
+                    // TODO: The capsule might have already scheduled
+                    // callbacks on the new instance, and we must not
+                    // clear callbacks on the previous instance in
+                    // this branch (capsule refused the subscribe
+                    // operation). However, if the two callbacks are
+                    // identical, we can't distinguish the two and
+                    // will cancel callbacks on _both_ the previous
+                    // and the new instance.
+                    self.remove_pending_callbacks(returned_callback.callback_id);
 
                     GenericSyscallReturnValue::SubscribeFailure(err, callback_ptr, appdata)
                 }
@@ -1412,15 +1412,15 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             Ok(returned_callback) => {
                 // The capsule indicated that the subscribe operation
                 // succeeded and returned some other callback
-		//
-		// Ensure that it belongs to the same process, driver
-		// and subdriver number
+                //
+                // Ensure that it belongs to the same process, driver
+                // and subdriver number
                 if returned_callback.app_id != self.appid()
                     || returned_callback.callback_id != callback_id
                 {
                     // The capsule returned some other Callback
-		    //
-		    // TODO: how to handle this?
+                    //
+                    // TODO: how to handle this?
                     panic!(
                         "Driver {}, subscribe num {}: unknown Callback returned",
                         driver_num, subscribe_num

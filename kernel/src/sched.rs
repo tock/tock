@@ -863,20 +863,20 @@ impl Kernel {
                 appdata,
             } => {
                 let res = platform.with_driver(driver_number as usize, |driver| match driver {
-                    Some(d) => {
-                        process.subscribe(
-                            driver_number,
-                            subdriver_number,
-                            callback_ptr,
-                            appdata,
-                            &|callback| d.subscribe(subdriver_number as usize, callback, process.appid()),
-                        )
-                    }
+                    Some(d) => process.subscribe(
+                        driver_number,
+                        subdriver_number,
+                        callback_ptr,
+                        appdata,
+                        &|callback| {
+                            d.subscribe(subdriver_number as usize, callback, process.appid())
+                        },
+                    ),
                     None => GenericSyscallReturnValue::SubscribeFailure(
-			ErrorCode::NOSUPPORT,
-			callback_ptr,
-			appdata
-		    ),
+                        ErrorCode::NOSUPPORT,
+                        callback_ptr,
+                        appdata,
+                    ),
                 });
 
                 if config::CONFIG.trace_syscalls {
