@@ -1315,9 +1315,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let new_slice = if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
-            // deferencing the pointer here, we pass it along to an
+            // dereferencing the pointer here, we pass it along to an
             // unsafe function, which is as dangerous (as it is likely
-            // to be deferenced down the line).
+            // to be dereferenced down the line).
             //
             // Relevant discussion:
             // https://github.com/rust-lang/rust-clippy/issues/3045
