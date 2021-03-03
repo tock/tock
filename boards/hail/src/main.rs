@@ -61,10 +61,6 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi_controller::Spi<
-        'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
@@ -86,7 +82,6 @@ impl Platform for Hail {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
@@ -325,14 +320,6 @@ pub unsafe fn reset_handler() {
     )
     .finalize(components::ninedof_component_helper!(fxos8700));
 
-    // SPI
-    // Set up a SPI MUX, so there can be multiple clients.
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
-        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
-    // Create the SPI system call capsule.
-    let spi_syscalls = components::spi::SpiSyscallComponent::new(mux_spi, 0)
-        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
-
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         LedLow<'static, sam4l::gpio::GPIOPin>,
@@ -471,7 +458,6 @@ pub unsafe fn reset_handler() {
         temp,
         humidity,
         ninedof,
-        spi: spi_syscalls,
         nrf51822: nrf_serialization,
         adc,
         led,
