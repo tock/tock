@@ -107,6 +107,9 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+const NUM_DRIVERS: usize = 3; // the number of members in the below struct
+static mut GRANT_NUM_TO_DRIVER_NUM: [Option<u32>; NUM_DRIVERS] = [None; NUM_DRIVERS];
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXSim {
@@ -160,7 +163,10 @@ pub unsafe fn reset_handler() {
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new(&PROCESSES, &mut GRANT_NUM_TO_DRIVER_NUM)
+    );
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());

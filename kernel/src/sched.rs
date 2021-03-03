@@ -16,6 +16,7 @@ use core::ptr::NonNull;
 use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
+use crate::common::cells::TakeCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
@@ -145,6 +146,8 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    grant_num_mapping: TakeCell<'static, [Option<u32>]>,
 }
 
 /// Enum used to inform scheduler why a process stopped executing (aka why
@@ -173,13 +176,17 @@ pub enum StoppedExecutingReason {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
+    pub fn new(
+        processes: &'static [Option<&'static dyn process::ProcessType>],
+        grant_num_mapping: &'static mut [Option<u32>],
+    ) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            grant_num_mapping: TakeCell::new(grant_num_mapping),
         }
     }
 
@@ -395,6 +402,22 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
+        self.grant_num_mapping.map_or_else(
+            || panic!("please set the grant num map"),
+            |grant_num_map| {
+                if grant_num_map[grant_index].is_none() {
+                    if grant_num_map
+                        .iter()
+                        .find(|&&val| val == Some(driver_num))
+                        .is_some()
+                    {
+                        panic!("One driver cannot have two grants");
+                    }
+                } else {
+                    panic!("This grant has already been assigned.");
+                }
+            },
+        );
         Grant::new(self, driver_num, grant_index)
     }
 
