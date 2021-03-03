@@ -22,6 +22,7 @@ pub mod ble_advertising_driver;
 pub mod bus;
 pub mod button;
 pub mod buzzer_driver;
+pub mod callback_swap_test;
 pub mod console;
 pub mod crc;
 pub mod ctap;
