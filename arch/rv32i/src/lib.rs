@@ -40,9 +40,14 @@ extern "C" {
 
 /// Entry point of all programs (`_start`).
 ///
-/// It initializes the stack pointer, the frame pointer (needed for closures to
-/// work in start_rust) and the global pointer. Then it calls `reset_handler()`,
-/// the main entry point for Tock boards.
+/// This assembly does three functions:
+///
+/// 1. It initializes the stack pointer, the frame pointer (needed for closures
+///    to work in start_rust) and the global pointer.
+/// 2. It initializes the .bss and .data RAM segments. This must be done before
+///    any Rust code runs. See https://github.com/tock/tock/issues/2222 for more
+///    information.
+/// 3. Finally it calls `main()`, the main entry point for Tock boards.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
@@ -60,13 +65,13 @@ pub extern "C" fn _start() {
             // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
             // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
             //
-            lui  gp, %hi({0}$)     // Set the global pointer.
-            addi gp, gp, %lo({0}$) // Value set in linker script.
+            lui  gp, %hi({gp}$)     // Set the global pointer.
+            addi gp, gp, %lo({gp}$) // Value set in linker script.
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
-            lui  sp, %hi({1})     // Set the initial stack pointer.
-            addi sp, sp, %lo({1}) // Value from the linker script.
+            lui  sp, %hi({estack})     // Set the initial stack pointer.
+            addi sp, sp, %lo({estack}) // Value from the linker script.
 
             // Set s0 (the frame pointer) to the start of the stack.
             add  s0, sp, zero
@@ -75,20 +80,54 @@ pub extern "C" fn _start() {
             // in the kernel. This is used for the check in the trap handler.
             csrw 0x340, zero  // CSR=0x340=mscratch
 
+            // INITIALIZE MEMORY
+
+            // Start by initializing .bss memory. The Tock linker script defines
+            // `_szero` and `_ezero` to mark the .bss segment.
+            la a0, {sbss}               // a0 = first address of .bss
+            la a1, {ebss}               // a1 = first address after .bss
+
+          bss_init_loop:
+            beq  a0, a1, bss_init_done  // If a0 == a1, we are done.
+            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
+            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
+            j bss_init_loop             // Continue the loop.
+
+          bss_init_done:
+
+
+            // Now initialize .data memory. This involves coping the values right at the
+            // end of the .text section (in flash) into the .data section (in RAM).
+            la a0, {sdata}              // a0 = first address of data section in RAM
+            la a1, {edata}              // a1 = first address after data section in RAM
+            la a2, {etext}              // a2 = address of stored data initial values
+
+          data_init_loop:
+            beq  a0, a1, data_init_done // If we have reached the end of the .data
+                                        // section then we are done.
+            lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
+            sw   a3, 0(a0)              // *a0 = a3. Store initial value into
+                                        // next place in .data.
+            addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
+            addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
+            j data_init_loop            // Continue the loop.
+
+          data_init_done:
+
             // With that initial setup out of the way, we now branch to the main
             // code, likely defined in a board's main.rs.
-            j    reset_handler
-        ", sym __global_pointer, sym _estack, options(noreturn)
+            j main
+        ",
+        gp = sym __global_pointer,
+        estack = sym _estack,
+        sbss = sym _szero,
+        ebss = sym _ezero,
+        sdata = sym _srelocate,
+        edata = sym _erelocate,
+        etext = sym _etext,
+        options(noreturn)
         );
     }
-}
-
-/// Setup memory for the kernel.
-///
-/// This moves the data segment from flash to RAM and zeros out the BSS section.
-pub unsafe fn init_memory() {
-    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 }
 
 /// The various privilege levels in RISC-V.
