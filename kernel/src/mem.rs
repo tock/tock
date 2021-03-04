@@ -103,10 +103,6 @@ pub trait ReadWrite: Read {
 pub struct ReadWriteAppSlice {
     ptr: *mut u8,
     len: usize,
-
-    // TODO: For improved efficiency this should use a dummy instance
-    // of an AppId when constructed with Default::default(), as the
-    // Option will allocate another full word.
     process_id: Option<AppId>,
 }
 
@@ -217,10 +213,6 @@ impl Read for ReadWriteAppSlice {
 pub struct ReadOnlyAppSlice {
     ptr: *const u8,
     len: usize,
-
-    // TODO: For improved efficiency this should use a dummy instance
-    // of an AppId when constructed with Default::default(), as the
-    // Option will allocate another full word.
     process_id: Option<AppId>,
 }
 
