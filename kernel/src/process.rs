@@ -22,7 +22,6 @@ use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
-use core::cmp::max;
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -1332,7 +1331,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // Valid slice, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
             // Clippy complains that we're deferencing a pointer in a
@@ -1420,7 +1419,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // Valid slice, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
             // Clippy complains that we're deferencing a pointer in a
