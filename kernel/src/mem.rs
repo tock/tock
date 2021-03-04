@@ -13,6 +13,7 @@
 //! [`Read`] and [`ReadWrite`] traits, implemented on the
 //! AppSlice-structs.
 
+use core::ptr::NonNull;
 use core::slice;
 
 use crate::capabilities;
@@ -174,7 +175,24 @@ impl ReadWrite for ReadWriteAppSlice {
                 // memory that the process has `allow`ed to the kernel, and will not permit
                 // the process to free any memory after it has been `allow`ed. This guarantees
                 // that the buffer is safe to convert into a slice here.
-                let slice = unsafe { slice::from_raw_parts_mut(self.ptr, self.len) };
+                //
+                // However, Rust has very strict requirements on pointer validity[1] which
+                // also in part apply to accesses of length 0. We allow an application to
+                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
+                // for Rust slices. For instance, a null pointer is _never_ valid, not even
+                // for accesses of size zero.
+                //
+                // To get a pointer which does not point to valid (allocated) memory, but
+                // is safe to construct for accesses of size zero, we must call
+                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
+                // and uphold the guarantees required for accesses of size zero.
+                //
+                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+                let slice = if self.len == 0 {
+                    unsafe { slice::from_raw_parts_mut(NonNull::<u8>::dangling().as_ptr(), 0) }
+                } else {
+                    unsafe { slice::from_raw_parts_mut(self.ptr, self.len) }
+                };
                 fun(slice)
             }),
         }
@@ -202,7 +220,29 @@ impl Read for ReadWriteAppSlice {
         match self.process_id {
             None => default,
             Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
-                let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
+                // Safety: `kernel.process_map_or()` validates that the process still exists
+                // and its memory is still valid. `Process` tracks the "high water mark" of
+                // memory that the process has `allow`ed to the kernel, and will not permit
+                // the process to free any memory after it has been `allow`ed. This guarantees
+                // that the buffer is safe to convert into a slice here.
+                //
+                // However, Rust has very strict requirements on pointer validity[1] which
+                // also in part apply to accesses of length 0. We allow an application to
+                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
+                // for Rust slices. For instance, a null pointer is _never_ valid, not even
+                // for accesses of size zero.
+                //
+                // To get a pointer which does not point to valid (allocated) memory, but
+                // is safe to construct for accesses of size zero, we must call
+                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
+                // and uphold the guarantees required for accesses of size zero.
+                //
+                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+                let slice = if self.len == 0 {
+                    unsafe { slice::from_raw_parts(NonNull::<u8>::dangling().as_ptr(), 0) }
+                } else {
+                    unsafe { slice::from_raw_parts(self.ptr, self.len) }
+                };
                 fun(slice)
             }),
         }
@@ -270,7 +310,29 @@ impl Read for ReadOnlyAppSlice {
         match self.process_id {
             None => default,
             Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
-                let slice = unsafe { slice::from_raw_parts(self.ptr, self.len) };
+                // Safety: `kernel.process_map_or()` validates that the process still exists
+                // and its memory is still valid. `Process` tracks the "high water mark" of
+                // memory that the process has `allow`ed to the kernel, and will not permit
+                // the process to free any memory after it has been `allow`ed. This guarantees
+                // that the buffer is safe to convert into a slice here.
+                //
+                // However, Rust has very strict requirements on pointer validity[1] which
+                // also in part apply to accesses of length 0. We allow an application to
+                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
+                // for Rust slices. For instance, a null pointer is _never_ valid, not even
+                // for accesses of size zero.
+                //
+                // To get a pointer which does not point to valid (allocated) memory, but
+                // is safe to construct for accesses of size zero, we must call
+                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
+                // and uphold the guarantees required for accesses of size zero.
+                //
+                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+                let slice = if self.len == 0 {
+                    unsafe { slice::from_raw_parts(NonNull::<u8>::dangling().as_ptr(), 0) }
+                } else {
+                    unsafe { slice::from_raw_parts(self.ptr, self.len) }
+                };
                 fun(slice)
             }),
         }
