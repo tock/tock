@@ -180,7 +180,11 @@ impl From<process::Error> for CommandReturn {
 pub trait Driver {
     /// System call for a process to provide an upcall function pointer to
     /// the kernel. Peripheral system call driver capsules invoke
-    /// upcalls in response to commands.
+    /// upcalls to indicate events have occurred. These events are typically triggered
+    /// in response to `command` calls. For example, a command that sets a timer to
+    /// fire in the future will cause an upcall to invoke after the command returns, when
+    /// the timer expires, while a command to sample a sensor will cause an upcall to
+    /// invoke when the sensor value is ready.
     fn subscribe(
         &self,
         subscribe_identifier: usize,
