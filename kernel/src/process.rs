@@ -19,7 +19,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, SerializedStoredState, Syscall, UserspaceKernelBoundary};
 use crate::tbfheader;
 use core::cmp::max;
 
@@ -232,6 +232,36 @@ pub fn load_processes<C: Chip>(
     Ok(())
 }
 
+#[derive(Copy, Clone)]
+pub struct ProcessState {
+    pub flash_end: usize,
+    pub flash_start: usize,
+    pub flash_protected_size: usize,
+    pub flash_app_start: usize,
+    pub flash_app_size: usize,
+
+    // SRAM addresses
+    pub sram_end: usize,
+    pub sram_grant_start: usize,
+    pub sram_heap_end: usize,
+    pub sram_heap_start: Option<usize>,
+    pub sram_stack_start: Option<usize>,
+    pub sram_stack_bottom: usize,
+    pub sram_start: usize,
+
+    // SRAM sizes
+    pub sram_grant_size: usize,
+    pub sram_grant_allocated: usize,
+
+    // application statistics
+    pub events_queued: usize,
+    pub syscall_count: usize,
+    pub last_syscall: Option<Syscall>,
+    pub dropped_callback_count: usize,
+    pub restart_count: usize,
+    pub state: State,
+}
+
 /// This trait is implemented by process structs.
 pub trait ProcessType {
     /// Returns the process's identifier
@@ -441,6 +471,10 @@ pub trait ProcessType {
     /// switched to.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
+    /// Get the memory map (Grant region, heap, stack, program memory, BSS, and
+    /// data sections) of this process.
+    unsafe fn get_memory_map(&self) -> ProcessState;
+
     /// Print out the memory map (Grant region, heap, stack, program
     /// memory, BSS, and data sections) of this process.
     unsafe fn print_memory_map(&self, writer: &mut dyn Write);
@@ -466,6 +500,10 @@ pub trait ProcessType {
     /// Increment the number of times the process called a syscall and record
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
+
+    /// Export stored state as a binary blob. Returns the number of bytes
+    /// written on success.
+    unsafe fn get_stored_state(&self) -> Result<SerializedStoredState, ReturnCode>;
 }
 
 /// Generic trait for implementing process restart policies.
@@ -1497,6 +1535,53 @@ impl<C: Chip> ProcessType for Process<'_, C> {
              \r\nin the app's folder and open the .lst file.\r\n\r\n",
             sram_start, flash_init_fn
         ));
+    }
+
+    unsafe fn get_memory_map(&self) -> ProcessState {
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
+        let flash_protected_size = self.header.get_protected_size() as usize;
+        let sram_grant_start = self.kernel_memory_break.get() as usize;
+        let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
+
+        ProcessState {
+            flash_end,
+            flash_start: flash_start,
+            flash_protected_size: flash_protected_size,
+            flash_app_start: flash_start + flash_protected_size,
+            flash_app_size: flash_end - (flash_start + flash_protected_size),
+            sram_end,
+            sram_grant_start,
+            sram_heap_end: self.app_break.get() as usize,
+            sram_heap_start: self.debug.map_or(None, |debug| {
+                debug.app_heap_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_start: self.debug.map_or(None, |debug| {
+                debug.app_stack_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_bottom: self
+                .debug
+                .map_or(ptr::null(), |debug| debug.min_stack_pointer)
+                as usize,
+            sram_start: self.memory.as_ptr() as usize,
+            sram_grant_size: sram_end - sram_grant_start,
+            sram_grant_allocated: sram_end - sram_grant_start,
+            events_queued: self.tasks.map_or(0, |tasks| tasks.len()),
+            syscall_count: self.debug.map_or(0, |debug| debug.syscall_count),
+            last_syscall: self.debug.map(|debug| debug.last_syscall).unwrap(),
+            dropped_callback_count: self.debug.map_or(0, |debug| debug.dropped_callback_count),
+            restart_count: self.restart_count.get(),
+            state: self.state.get(),
+        }
+    }
+
+    unsafe fn get_stored_state(&self) -> Result<SerializedStoredState, ReturnCode> {
+        self.stored_state
+            .map(|stored_state| {
+                self.chip
+                    .userspace_kernel_boundary()
+                    .store_context(self.sp(), stored_state)
+            }).ok_or(ReturnCode::FAIL)
     }
 }
 

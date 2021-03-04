@@ -57,7 +57,7 @@ pub use crate::sched::Kernel;
 pub mod procs {
     pub use crate::process::{
         load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, FunctionCallSource,
-        Process, ProcessLoadError, ProcessRestartPolicy, ProcessType, State, Task,
+        Process, ProcessLoadError, ProcessRestartPolicy, ProcessState, ProcessType, State, Task,
         ThresholdRestart, ThresholdRestartThenPanic,
     };
 }

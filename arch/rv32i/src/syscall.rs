@@ -1,10 +1,12 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
+use core::convert::TryInto;
 use core::fmt::Write;
+use core::mem::size_of;
 
 use crate::csr::mcause;
 use kernel;
-use kernel::syscall::ContextSwitchReason;
+use kernel::syscall::{ContextSwitchReason, SerializedStoredState};
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -39,6 +41,27 @@ const R_A1: usize = 10;
 const R_A2: usize = 11;
 const R_A3: usize = 12;
 const R_A4: usize = 13;
+
+const MAJOR_VER: usize = 1;
+// +1 for sp
+const MINOR_VER: usize = size_of::<RiscvimacStoredState>() + size_of::<usize>();
+
+impl core::convert::TryFrom<&SerializedStoredState> for RiscvimacStoredState {
+    type Error = ();
+    fn try_from(ss: &SerializedStoredState) -> Result<RiscvimacStoredState, Self::Error> {
+        if ss.major == MAJOR_VER && ss.minor == MINOR_VER {
+            let res = RiscvimacStoredState {
+                regs: ss.data[1..32].try_into().unwrap(),
+                pc: ss.data[32],
+                mcause: ss.data[33],
+                mtval: ss.data[34],
+            };
+            Ok(res)
+        } else {
+            Err(())
+        }
+    }
+}
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall(());
@@ -453,5 +476,25 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n\r\n",
             state.mtval,
         ));
+    }
+
+    unsafe fn store_context(
+        &self,
+        stack_pointer: *const usize,
+        state: &RiscvimacStoredState,
+    ) -> SerializedStoredState {
+        // MINOR_VER is size_of RiscvimacStoredState + size_of usize. +2 more
+        // usize for version.
+        let mut ss = SerializedStoredState {
+            major: MAJOR_VER,
+            minor: MINOR_VER,
+            data: [0usize; 64],
+        };
+        ss.data[0] = stack_pointer as usize;
+        ss.data[1..32].copy_from_slice(&state.regs[0..31]);
+        ss.data[32] = state.pc;
+        ss.data[33] = state.mcause;
+        ss.data[34] = state.mtval;
+        ss
     }
 }

@@ -1,6 +1,9 @@
 //! Tock syscall number definitions and arch-agnostic interface trait.
 
+use core::convert::TryInto;
 use core::fmt::Write;
+use core::mem::size_of;
+use core::slice::from_raw_parts;
 
 use crate::process;
 
@@ -160,6 +163,14 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
+
+    /// Store architecture specific (e.g. CPU registers or status flags) data
+    /// for a process identified by its stack pointer.
+    unsafe fn store_context(
+        &self,
+        stack_pointer: *const usize,
+        state: &Self::StoredState,
+    ) -> SerializedStoredState;
 }
 
 /// Helper function for converting raw values passed back from an application
@@ -206,5 +217,35 @@ pub fn arguments_to_syscall(
             arg0: r1,
         }),
         _ => None,
+    }
+}
+
+#[repr(C)]
+pub struct SerializedStoredState {
+    pub major: usize,
+    pub minor: usize,
+    pub data: [usize; 64],
+}
+
+impl SerializedStoredState {
+    pub fn as_bytes(&self) -> &[u8] {
+        // Safe because Self is transmuted with size_of::<Self>, preventing mismatch.
+        unsafe { core::mem::transmute::<&Self, &[u8; size_of::<Self>()]>(self) }
+    }
+
+    pub fn from_bytes(buf: &[u8]) -> Result<Self, ()> {
+        if buf.len() == size_of::<Self>() {
+            // Safe because size as already been verified to be expected size.
+            let buf_as_usize = unsafe {
+                from_raw_parts(buf.as_ptr() as *const usize, buf.len() / size_of::<usize>())
+            };
+            Ok(Self {
+                major: buf_as_usize[0],
+                minor: buf_as_usize[1],
+                data: buf_as_usize[2..].try_into().unwrap(),
+            })
+        } else {
+            Err(())
+        }
     }
 }
