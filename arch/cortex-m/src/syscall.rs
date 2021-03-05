@@ -96,7 +96,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::GenericSyscallReturnValue,
+        return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
         // For the Cortex-M arch, write the return values in the same
         // place that they were originally passed in (i.e. at the

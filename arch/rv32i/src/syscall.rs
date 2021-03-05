@@ -86,7 +86,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::GenericSyscallReturnValue,
+        return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
         // Encode the system call return value into registers,
         // available for when the process resumes
