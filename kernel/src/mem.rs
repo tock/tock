@@ -33,16 +33,16 @@ pub trait Read {
     /// A default instance of an AppSlice must return 0.
     fn len(&self) -> usize;
 
-    /// Pointer to the userspace memory region.
+    /// Pointer to the first byte of the userspace memory region.
     ///
     /// If the length of the initially shared memory region
     /// (irrespective of the return value of [`len`](Read::len)) is 0,
-    /// this function must return a pointer to address `0x0`. This is
-    /// because processes allow buffers with length 0 to reclaim
-    /// shared memory with the kernel and are allowed to specify _any_
-    /// address, even if it is not contained within their address
-    /// space. These _dummy addresses_ should not be leaked to outside
-    /// code.
+    /// this function returns a pointer to address `0x0`. This is
+    /// because processes may allow buffers with length 0 to share no
+    /// no memory with the kernel. Because these buffers have zero
+    /// length, they may have any pointer value. However, these
+    /// _dummy addresses_ should not be leaked, so this method returns
+    /// 0 for zero-length slices.
     ///
     /// # Default AppSlice
     ///
@@ -124,6 +124,13 @@ impl ReadWriteAppSlice {
         Self::new(ptr, len, process_id)
     }
 
+    /// Consumes the ReadWriteAppSlice, returning its constituent
+    /// pointer and size. This ensures that there cannot simultaneously
+    /// be both a `ReadWriteAppSlice` and a pointer to its internal data.
+    ///
+    /// `consume` can be used when the kernel needs to pass the underlying
+    /// values across the kernel-to-user boundary (e.g., in return values to
+    /// system calls).
     pub(crate) fn consume(self) -> (*mut u8, usize) {
         (self.ptr, self.len)
     }
@@ -234,6 +241,13 @@ impl ReadOnlyAppSlice {
         Self::new(ptr, len, process_id)
     }
 
+    /// Consumes the ReadOnlyAppSlice, returning its constituent
+    /// pointer and size. This ensures that there cannot simultaneously
+    /// be both a `ReadOnlyAppSlice` and a pointer to its internal data.
+    ///
+    /// `consume` can be used when the kernel needs to pass the underlying
+    /// values across the kernel-to-user boundary (e.g., in return values to
+    /// system calls).
     pub(crate) fn consume(self) -> (*const u8, usize) {
         (self.ptr, self.len)
     }
