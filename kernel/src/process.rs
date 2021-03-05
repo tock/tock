@@ -1434,7 +1434,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         let _ = writer.write_fmt(format_args!(
             "\
-             App: {}   -   [{:?}]\
+             𝐀𝐩𝐩: {}   -   [{:?}]\
              \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
              \r\n Restart Count: {}\r\n",
             self.process_name,
@@ -1568,6 +1568,40 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 writer,
             );
         });
+
+        // Display grant information.
+        let number_grants = self.kernel.get_grant_count_and_finalize();
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n Total number of grant regions defined: {}\r\n",
+            self.kernel.get_grant_count_and_finalize()
+        ));
+        let rows = (number_grants + 2) / 3;
+        // Iterate each grant and show its address.
+        for i in 0..rows {
+            for j in 0..3 {
+                let index = i + (rows * j);
+                if index >= number_grants {
+                    break;
+                }
+
+                match self.get_grant_ptr(index) {
+                    Some(ptr) => {
+                        if ptr.is_null() {
+                            let _ =
+                                writer.write_fmt(format_args!("  Grant {:>2}: --        ", index));
+                        } else {
+                            let _ =
+                                writer.write_fmt(format_args!("  Grant {:>2}: {:p}", index, ptr));
+                        }
+                    }
+                    None => {
+                        // Don't display if the grant ptr is completely invalid.
+                    }
+                }
+            }
+            let _ = writer.write_fmt(format_args!("\r\n"));
+        }
 
         // Display the current state of the MPU for this process.
         self.mpu_config.map(|config| {
