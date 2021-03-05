@@ -8,7 +8,7 @@ use crate::config;
 use crate::debug;
 use crate::process;
 use crate::sched::Kernel;
-use crate::syscall::GenericSyscallReturnValue;
+use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 
 /// Userspace app identifier.
@@ -199,24 +199,21 @@ impl Upcall {
         self.cb.map_or(true, |mut cb| cb.schedule(r0, r1, r2))
     }
 
-    pub(crate) fn into_subscribe_success(self) -> GenericSyscallReturnValue {
+    pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
         match self.cb {
-            None => GenericSyscallReturnValue::SubscribeSuccess(0 as *mut u8, 0),
-            Some(cb) => GenericSyscallReturnValue::SubscribeSuccess(
-                cb.fn_ptr.as_ptr() as *const u8,
-                cb.appdata,
-            ),
+            None => SyscallReturn::SubscribeSuccess(0 as *mut u8, 0),
+            Some(cb) => {
+                SyscallReturn::SubscribeSuccess(cb.fn_ptr.as_ptr() as *const u8, cb.appdata)
+            }
         }
     }
 
-    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> GenericSyscallReturnValue {
+    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
         match self.cb {
-            None => GenericSyscallReturnValue::SubscribeFailure(err, 0 as *mut u8, 0),
-            Some(cb) => GenericSyscallReturnValue::SubscribeFailure(
-                err,
-                cb.fn_ptr.as_ptr() as *const u8,
-                cb.appdata,
-            ),
+            None => SyscallReturn::SubscribeFailure(err, 0 as *mut u8, 0),
+            Some(cb) => {
+                SyscallReturn::SubscribeFailure(err, cb.fn_ptr.as_ptr() as *const u8, cb.appdata)
+            }
         }
     }
 }

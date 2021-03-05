@@ -86,12 +86,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::GenericSyscallReturnValue,
+        return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
         // Encode the system call return value into registers,
         // available for when the process resumes
 
-        // We need to use a buch of split_at_mut's to have multiple
+        // We need to use a bunch of split_at_mut's to have multiple
         // mutable borrows into the same slice at the same time.
         //
         // Since the compiler knows the size of this slice, and these

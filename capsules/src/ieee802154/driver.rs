@@ -630,8 +630,8 @@ impl Driver for RadioDriver<'_> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
-        match cmd_num {
+    fn command(&self, command_number: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+        match command_number {
             0 => CommandReturn::success(),
             1 => {
                 if self.mac.is_on() {

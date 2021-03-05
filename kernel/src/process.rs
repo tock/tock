@@ -20,9 +20,8 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::{AppId, UpcallId};
-use core::cmp::max;
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -415,7 +414,7 @@ pub trait ProcessType {
             ReadWriteAppSlice,
         )
             -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue;
+    ) -> SyscallReturn;
 
     /// Creates a `ReadOnlyAppSlice` from the given offset and size
     /// in process memory and invokes `allow_readonly` on a `Driver`
@@ -446,7 +445,7 @@ pub trait ProcessType {
             ReadOnlyAppSlice,
         )
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue;
+    ) -> SyscallReturn;
 
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is within the RAM
@@ -526,7 +525,7 @@ pub trait ProcessType {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue);
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
@@ -676,6 +675,7 @@ impl From<Error> for ErrorCode {
         }
     }
 }
+
 /// Various states a process can be in.
 ///
 /// This is made public in case external implementations of `ProcessType` want
@@ -1105,7 +1105,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     /// After `restart()` runs the process will either be queued to run its
     /// `_start` function, or it will be terminated and unrunnable.
     fn try_restart(&self, completion_code: u32) {
-        debug!("Trying to restart process {}", self.get_process_name());
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -1118,14 +1117,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // want to reclaim the process resources.
     }
 
-    /// Stop and clear a process's state, putting it into the .
+    /// Stop and clear a process's state, putting it into the `Terminated` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
     fn terminate(&self, _completion_code: u32) {
-        debug!("Terminating process {}", self.get_process_name());
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -1300,14 +1298,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             ReadWriteAppSlice,
         )
             -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue {
+    ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return GenericSyscallReturnValue::AllowReadWriteFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1316,9 +1310,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let new_slice = if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
-            // deferencing the pointer here, we pass it along to an
+            // dereferencing the pointer here, we pass it along to an
             // unsafe function, which is as dangerous (as it is likely
-            // to be deferenced down the line).
+            // to be dereferenced down the line).
             //
             // Relevant discussion:
             // https://github.com/rust-lang/rust-clippy/issues/3045
@@ -1333,7 +1327,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // Valid slice, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
             // Clippy complains that we're deferencing a pointer in a
@@ -1352,11 +1346,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // references created by ReadWriteAppSlice.
             unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return GenericSyscallReturnValue::AllowReadWriteFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);
@@ -1368,11 +1358,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         match allow_result {
             Ok(old_slice) => {
                 let (ptr, len) = old_slice.consume();
-                GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len)
+                SyscallReturn::AllowReadWriteSuccess(ptr, len)
             }
             Err((new_slice, err)) => {
                 let (ptr, len) = new_slice.consume();
-                GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len)
+                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
             }
         }
     }
@@ -1386,14 +1376,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             ReadOnlyAppSlice,
         )
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue {
+    ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return GenericSyscallReturnValue::AllowReadOnlyFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1421,7 +1407,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // Valid slice, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
 
             // Clippy complains that we're deferencing a pointer in a
@@ -1441,11 +1427,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // ReadWriteAppSlice.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return GenericSyscallReturnValue::AllowReadOnlyFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);
@@ -1457,11 +1439,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         match allow_result {
             Ok(old_slice) => {
                 let (ptr, len) = old_slice.consume();
-                GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len)
+                SyscallReturn::AllowReadOnlySuccess(ptr, len)
             }
             Err((new_slice, err)) => {
                 let (ptr, len) = new_slice.consume();
-                GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len)
+                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
             }
         }
     }
@@ -1563,7 +1545,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.process_name
     }
 
-    unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue) {
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| {
             self.chip
                 .userspace_kernel_boundary()
@@ -2315,11 +2297,11 @@ impl<C: 'static + Chip> Process<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Restart the process, resetting all of its state re-initializing
-    /// it to start running.  Assumes the process is not running and
-    /// cleaned up. This implements the mechanism of restart.
+    /// Restart the process, resetting all of its state and re-initializing
+    /// it to start running.  Assumes the process is not running but is still in flash
+    /// and still has its memory region allocated to it. This implements
+    /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
-        debug!("Restarting process {}", self.get_process_name());
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `AppId`s that point to the old version of the
