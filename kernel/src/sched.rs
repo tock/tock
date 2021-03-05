@@ -29,7 +29,7 @@ use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
-use crate::syscall::{ContextSwitchReason, GenericSyscallReturnValue};
+use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
@@ -780,7 +780,7 @@ impl Kernel {
             _ => {
                 // Check all other syscalls for filtering
                 if let Err(response) = platform.filter_syscall(process, &syscall) {
-                    process.set_syscall_return_value(GenericSyscallReturnValue::Failure(response));
+                    process.set_syscall_return_value(SyscallReturn::Failure(response));
 
                     return;
                 }
@@ -894,7 +894,7 @@ impl Kernel {
                     None => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 });
 
-                let res = GenericSyscallReturnValue::from_command_result(cres);
+                let res = SyscallReturn::from_command_result(cres);
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -919,7 +919,7 @@ impl Kernel {
                     Some(d) => process.allow_readwrite(allow_address, allow_size, &|appslice| {
                         d.allow_readwrite(process.appid(), subdriver_number, appslice)
                     }),
-                    None => GenericSyscallReturnValue::AllowReadWriteFailure(
+                    None => SyscallReturn::AllowReadWriteFailure(
                         ErrorCode::NOSUPPORT,
                         allow_address,
                         allow_size,
@@ -949,7 +949,7 @@ impl Kernel {
                     Some(d) => process.allow_readonly(allow_address, allow_size, &|appslice| {
                         d.allow_readonly(process.appid(), subdriver_number, appslice)
                     }),
-                    None => GenericSyscallReturnValue::AllowReadOnlyFailure(
+                    None => SyscallReturn::AllowReadOnlyFailure(
                         ErrorCode::NOSUPPORT,
                         allow_address,
                         allow_size,
@@ -980,9 +980,7 @@ impl Kernel {
                 1 => process.try_restart(completion_code as u32),
                 // The process called an invalid variant of the Exit
                 // system call class.
-                _ => process.set_syscall_return_value(GenericSyscallReturnValue::Failure(
-                    ErrorCode::NOSUPPORT,
-                )),
+                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
             },
         }
     }

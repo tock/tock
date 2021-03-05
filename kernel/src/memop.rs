@@ -1,7 +1,7 @@
 //! Implementation of the MEMOP family of syscalls.
 
 use crate::process::ProcessType;
-use crate::syscall::GenericSyscallReturnValue;
+use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 
 /// Handle the `memop` syscall.
@@ -9,7 +9,7 @@ use crate::ErrorCode;
 /// ### `memop_num`
 ///
 /// - `0`: BRK. Change the location of the program break and return a
-///   GenericSyscallReturnValue.
+///   SyscallReturn.
 /// - `1`: SBRK. Change the location of the program break and return the
 ///   previous break address.
 /// - `2`: Get the address of the start of the application's RAM allocation.
@@ -37,52 +37,48 @@ use crate::ErrorCode;
 ///   where the app has put the start of its heap. This is not strictly
 ///   necessary for correct operation, but allows for better debugging if the
 ///   app crashes.
-pub(crate) fn memop(
-    process: &dyn ProcessType,
-    op_type: usize,
-    r1: usize,
-) -> GenericSyscallReturnValue {
+pub(crate) fn memop(process: &dyn ProcessType, op_type: usize, r1: usize) -> SyscallReturn {
     match op_type {
         // Op Type 0: BRK
         0 /* BRK */ => {
             process.brk(r1 as *const u8)
-                .map(|_| GenericSyscallReturnValue::Success)
-                .unwrap_or(GenericSyscallReturnValue::Failure(ErrorCode::NOMEM))
+                .map(|_| SyscallReturn::Success)
+                .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
         },
 
         // Op Type 1: SBRK
         1 /* SBRK */ => {
             process.sbrk(r1 as isize)
-                .map(|addr| GenericSyscallReturnValue::SuccessU32(addr as u32))
-                .unwrap_or(GenericSyscallReturnValue::Failure(ErrorCode::NOMEM))
+                .map(|addr| SyscallReturn::SuccessU32(addr as u32))
+                .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
         },
 
         // Op Type 2: Process memory start
-        2 => GenericSyscallReturnValue::SuccessU32(process.mem_start() as u32),
+        2 => SyscallReturn::SuccessU32(process.mem_start() as u32),
 
         // Op Type 3: Process memory end
-        3 => GenericSyscallReturnValue::SuccessU32(process.mem_end() as u32),
+        3 => SyscallReturn::SuccessU32(process.mem_end() as u32),
 
         // Op Type 4: Process flash start
-        4 => GenericSyscallReturnValue::SuccessU32(process.flash_start() as u32),
+        4 => SyscallReturn::SuccessU32(process.flash_start() as u32),
 
         // Op Type 5: Process flash end
-        5 => GenericSyscallReturnValue::SuccessU32(process.flash_end() as u32),
+        5 => SyscallReturn::SuccessU32(process.flash_end() as u32),
 
         // Op Type 6: Grant region begin
-        6 => GenericSyscallReturnValue::SuccessU32(process.kernel_memory_break() as u32),
+        6 => SyscallReturn::SuccessU32(process.kernel_memory_break() as u32),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
-        7 => GenericSyscallReturnValue::SuccessU32(process.number_writeable_flash_regions() as u32),
+        7 => SyscallReturn::SuccessU32(process.number_writeable_flash_regions() as u32),
 
         // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
             let flash_start = process.flash_start() as u32;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
-                GenericSyscallReturnValue::Failure(ErrorCode::FAIL)
+                SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                GenericSyscallReturnValue::SuccessU32(flash_start + offset)
+                SyscallReturn::SuccessU32(flash_start + offset)
             }
         }
 
@@ -93,24 +89,24 @@ pub(crate) fn memop(
             let flash_start = process.flash_start() as u32;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
-                GenericSyscallReturnValue::Failure(ErrorCode::FAIL)
+                SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                GenericSyscallReturnValue::SuccessU32(flash_start + offset + size)
+                SyscallReturn::SuccessU32(flash_start + offset + size)
             }
         }
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
             process.update_stack_start_pointer(r1 as *const u8);
-            GenericSyscallReturnValue::Success
+            SyscallReturn::Success
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
             process.update_heap_start_pointer(r1 as *const u8);
-            GenericSyscallReturnValue::Success
+            SyscallReturn::Success
         }
 
-        _ => GenericSyscallReturnValue::Failure(ErrorCode::NOSUPPORT),
+        _ => SyscallReturn::Failure(ErrorCode::NOSUPPORT),
     }
 }

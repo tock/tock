@@ -21,7 +21,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, GenericSyscallReturnValue, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -414,7 +414,7 @@ pub trait ProcessType {
             ReadWriteAppSlice,
         )
             -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue;
+    ) -> SyscallReturn;
 
     /// Creates a `ReadOnlyAppSlice` from the given offset and size
     /// in process memory and invokes `allow_readonly` on a `Driver`
@@ -445,7 +445,7 @@ pub trait ProcessType {
             ReadOnlyAppSlice,
         )
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue;
+    ) -> SyscallReturn;
 
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is within the RAM
@@ -525,7 +525,7 @@ pub trait ProcessType {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue);
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
@@ -1298,14 +1298,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             ReadWriteAppSlice,
         )
             -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue {
+    ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return GenericSyscallReturnValue::AllowReadWriteFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1350,11 +1346,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // references created by ReadWriteAppSlice.
             unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return GenericSyscallReturnValue::AllowReadWriteFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);
@@ -1366,11 +1358,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         match allow_result {
             Ok(old_slice) => {
                 let (ptr, len) = old_slice.consume();
-                GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len)
+                SyscallReturn::AllowReadWriteSuccess(ptr, len)
             }
             Err((new_slice, err)) => {
                 let (ptr, len) = new_slice.consume();
-                GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len)
+                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
             }
         }
     }
@@ -1384,14 +1376,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             ReadOnlyAppSlice,
         )
             -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> GenericSyscallReturnValue {
+    ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return GenericSyscallReturnValue::AllowReadOnlyFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1439,11 +1427,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // ReadWriteAppSlice.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return GenericSyscallReturnValue::AllowReadOnlyFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);
@@ -1455,11 +1439,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         match allow_result {
             Ok(old_slice) => {
                 let (ptr, len) = old_slice.consume();
-                GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len)
+                SyscallReturn::AllowReadOnlySuccess(ptr, len)
             }
             Err((new_slice, err)) => {
                 let (ptr, len) = new_slice.consume();
-                GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len)
+                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
             }
         }
     }
@@ -1561,7 +1545,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.process_name
     }
 
-    unsafe fn set_syscall_return_value(&self, return_value: GenericSyscallReturnValue) {
+    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| {
             self.chip
                 .userspace_kernel_boundary()
