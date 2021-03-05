@@ -15,10 +15,10 @@ use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
-use kernel::hil;
 use kernel::Platform;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -129,10 +129,10 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     peripherals.pa[14].configure(None); //... BLUE_LED
     peripherals.pa[15].configure(None); //... GREEN_LED
     peripherals.pa[16].configure(None); //... BUTTON - User Button
-          peripherals.pa[17].configure(None); //... !NRF_RESET - Reset line for nRF51822
+    peripherals.pa[17].configure(None); //... !NRF_RESET - Reset line for nRF51822
     peripherals.pa[18].configure(None); //... ACC_INT2 - FXOS8700CQ Interrupt 2
-    peripherals.pa[19].configure(None   ); //... unused
-    peripherals.pa[20].configure(  None); //... !LIGHT_INT - ISL29035 Light Sensor Interrupt
+    peripherals.pa[19].configure(None); //... unused
+    peripherals.pa[20].configure(None); //... !LIGHT_INT - ISL29035 Light Sensor Interrupt
                                         // SPI Mode
     peripherals.pa[21].configure(Some(A)); // D3 - SPI MISO
     peripherals.pa[22].configure(Some(A)); // D2 - SPI MOSI
