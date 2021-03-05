@@ -131,7 +131,7 @@ impl ReadWriteAppSlice {
     /// `consume` can be used when the kernel needs to pass the underlying
     /// values across the kernel-to-user boundary (e.g., in return values to
     /// system calls).
-    
+
     pub(crate) fn consume(self) -> (*mut u8, usize) {
         (self.ptr, self.len)
     }
@@ -241,7 +241,7 @@ impl ReadOnlyAppSlice {
     ) -> Self {
         Self::new(ptr, len, process_id)
     }
-    
+
     /// Consumes the ReadOnlyAppSlice, returning its constituent
     /// pointer and size. This ensures that there cannot simultaneously
     /// be both a `ReadOnlyAppSlice` and a pointer to its internal data.
