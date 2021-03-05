@@ -103,10 +103,6 @@ pub trait ReadWrite: Read {
 pub struct ReadWriteAppSlice {
     ptr: *mut u8,
     len: usize,
-
-    // TODO: For improved efficiency this should use a dummy instance
-    // of an AppId when constructed with Default::default(), as the
-    // Option will allocate another full word.
     process_id: Option<AppId>,
 }
 
@@ -173,6 +169,11 @@ impl ReadWrite for ReadWriteAppSlice {
         match self.process_id {
             None => default,
             Some(pid) => pid.kernel.process_map_or(default, pid, |_| {
+                // Safety: `kernel.process_map_or()` validates that the process still exists
+                // and its memory is still valid. `Process` tracks the "high water mark" of
+                // memory that the process has `allow`ed to the kernel, and will not permit
+                // the process to free any memory after it has been `allow`ed. This guarantees
+                // that the buffer is safe to convert into a slice here.
                 let slice = unsafe { slice::from_raw_parts_mut(self.ptr, self.len) };
                 fun(slice)
             }),
@@ -212,10 +213,6 @@ impl Read for ReadWriteAppSlice {
 pub struct ReadOnlyAppSlice {
     ptr: *const u8,
     len: usize,
-
-    // TODO: For improved efficiency this should use a dummy instance
-    // of an AppId when constructed with Default::default(), as the
-    // Option will allocate another full word.
     process_id: Option<AppId>,
 }
 

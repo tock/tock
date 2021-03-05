@@ -49,7 +49,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use core::mem;
 
 use kernel::hil;
@@ -110,14 +109,7 @@ impl<'a> HumiditySensor<'a> {
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> CommandReturn {
         match command {
-            HumidityCommand::ReadHumidity => {
-                let rcode = self.driver.read_humidity();
-                let eres = ErrorCode::try_from(rcode);
-                match eres {
-                    Ok(ecode) => CommandReturn::failure(ecode),
-                    _ => CommandReturn::success(),
-                }
-            }
+            HumidityCommand::ReadHumidity => self.driver.read_humidity().into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
