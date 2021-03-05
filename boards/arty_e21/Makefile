@@ -10,6 +10,10 @@ KERNEL_ADDRESS=0x400000
 
 TOCKLOADER_OPENOCD_FLAGS = --openocd --board arty
 
+# Default target for installing the kernel.
+.PHONY: install
+install: flash
+
 .PHONY: flash-tockloader
 flash-tockloader: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_OPENOCD_FLAGS) $<
