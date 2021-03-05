@@ -21,7 +21,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
-use crate::syscall::{self, SyscallReturn, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -1301,11 +1301,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadWriteFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1350,11 +1346,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // references created by ReadWriteAppSlice.
             unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return SyscallReturn::AllowReadWriteFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);
@@ -1387,11 +1379,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     ) -> SyscallReturn {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadOnlyFailure(
-                ErrorCode::FAIL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::FAIL, buf_start_addr, size);
         }
 
         // A process is allowed to pass any pointer if the slice
@@ -1439,11 +1427,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // ReadWriteAppSlice.
             unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
         } else {
-            return SyscallReturn::AllowReadOnlyFailure(
-                ErrorCode::INVAL,
-                buf_start_addr,
-                size,
-            );
+            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, buf_start_addr, size);
         };
 
         let allow_result = driver_invoc_closure(new_slice);

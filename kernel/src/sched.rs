@@ -980,9 +980,7 @@ impl Kernel {
                 1 => process.try_restart(completion_code as u32),
                 // The process called an invalid variant of the Exit
                 // system call class.
-                _ => process.set_syscall_return_value(SyscallReturn::Failure(
-                    ErrorCode::NOSUPPORT,
-                )),
+                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
             },
         }
     }

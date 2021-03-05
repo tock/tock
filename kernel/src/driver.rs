@@ -134,9 +134,7 @@ impl CommandReturn {
 
     /// Successful command with three additional 32-bit data fields
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
-        CommandReturn(SyscallReturn::SuccessU32U32U32(
-            data0, data1, data2,
-        ))
+        CommandReturn(SyscallReturn::SuccessU32U32U32(data0, data1, data2))
     }
 
     /// Successful command with an additional 64-bit data field
