@@ -538,7 +538,7 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     let vecttbl = (hfsr & 0x02) == 0x02;
     let forced = (hfsr & 0x40000000) == 0x40000000;
 
-    let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
+    let _ = writer.write_fmt(format_args!("\r\n---| Cortex-M Fault Status |---\r\n"));
 
     if iaccviol {
         let _ = writer.write_fmt(format_args!(
@@ -671,7 +671,7 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     }
 
     if cfsr == 0 && hfsr == 0 {
-        let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
+        let _ = writer.write_fmt(format_args!("No Cortex-M faults detected.\r\n"));
     } else {
         let _ = writer.write_fmt(format_args!(
             "Fault Status Register (CFSR):       {:#010X}\r\n",
