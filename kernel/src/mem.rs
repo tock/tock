@@ -13,11 +13,73 @@
 //! [`Read`] and [`ReadWrite`] traits, implemented on the
 //! AppSlice-structs.
 
-use core::ptr::NonNull;
-use core::slice;
-
 use crate::capabilities;
 use crate::AppId;
+
+/// Convert an AppSlice's internal representation to a Rust slice.
+///
+/// This function will automatically convert zero-length AppSlices
+/// into valid zero-sized Rust slices regardless of the value of
+/// `ptr`.
+///
+/// # Safety requirements
+///
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
+/// within a single process' address space, and `ptr` must be
+/// nonzero. This memory region must be mapped as _readable_, and
+/// optionally _writable_ and _executable_. It must be allocated
+/// within a single process' address space for the entire lifetime
+/// `'a`. No mutable slice pointing to an overlapping memory region
+/// may exist over the entire lifetime `'a`.
+unsafe fn raw_appslice_to_slice<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
+    use core::ptr::NonNull;
+    use core::slice::from_raw_parts;
+
+    // Rust has very strict requirements on pointer validity[1] which
+    // also in part apply to accesses of length 0. We allow an
+    // application to supply arbitrary pointers if the buffer length is
+    // 0, but this is not allowed for Rust slices. For instance, a null
+    // pointer is _never_ valid, not even for accesses of size zero.
+    //
+    // To get a pointer which does not point to valid (allocated) memory, but
+    // is safe to construct for accesses of size zero, we must call
+    // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
+    // and uphold the guarantees required for accesses of size zero.
+    //
+    // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+    match len {
+        0 => from_raw_parts(NonNull::<u8>::dangling().as_ptr(), 0),
+        _ => from_raw_parts(ptr, len),
+    }
+}
+
+/// Convert an AppSlice's internal representation to a mutable Rust
+/// slice.
+///
+/// This function will automatically convert zero-length appslices
+/// into valid zero-sized Rust slices regardless of the value of
+/// `ptr`.
+///
+/// # Safety requirements
+///
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
+/// within a single process' address space, and `ptr` must be
+/// nonzero. This memory region must be mapped as _readable_ and
+/// _writable_, and optionally _executable_. It must be allocated
+/// within a single process' address space for the entire lifetime
+/// `'a`. No other mutable or immutable slice pointing to an
+/// overlapping memory region may exist over the entire lifetime `'a`.
+unsafe fn raw_appslice_to_slice_mut<'a>(ptr: *mut u8, len: usize) -> &'a mut [u8] {
+    use core::ptr::NonNull;
+    use core::slice::from_raw_parts_mut;
+
+    // See documentation on [`raw_appslice_to_slice`] for Rust slice &
+    // pointer validity requirements
+    match len {
+        0 => from_raw_parts_mut(NonNull::<u8>::dangling().as_ptr(), 0),
+        _ => from_raw_parts_mut(ptr, len),
+    }
+}
 
 /// A readable region of userspace memory.
 ///
@@ -175,25 +237,7 @@ impl ReadWrite for ReadWriteAppSlice {
                 // memory that the process has `allow`ed to the kernel, and will not permit
                 // the process to free any memory after it has been `allow`ed. This guarantees
                 // that the buffer is safe to convert into a slice here.
-                //
-                // However, Rust has very strict requirements on pointer validity[1] which
-                // also in part apply to accesses of length 0. We allow an application to
-                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
-                // for Rust slices. For instance, a null pointer is _never_ valid, not even
-                // for accesses of size zero.
-                //
-                // To get a pointer which does not point to valid (allocated) memory, but
-                // is safe to construct for accesses of size zero, we must call
-                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
-                // and uphold the guarantees required for accesses of size zero.
-                //
-                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-                let slice = if self.len == 0 {
-                    unsafe { slice::from_raw_parts_mut(NonNull::<u8>::dangling().as_ptr(), 0) }
-                } else {
-                    unsafe { slice::from_raw_parts_mut(self.ptr, self.len) }
-                };
-                fun(slice)
+                fun(unsafe { raw_appslice_to_slice_mut(self.ptr, self.len) })
             }),
         }
     }
@@ -225,25 +269,7 @@ impl Read for ReadWriteAppSlice {
                 // memory that the process has `allow`ed to the kernel, and will not permit
                 // the process to free any memory after it has been `allow`ed. This guarantees
                 // that the buffer is safe to convert into a slice here.
-                //
-                // However, Rust has very strict requirements on pointer validity[1] which
-                // also in part apply to accesses of length 0. We allow an application to
-                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
-                // for Rust slices. For instance, a null pointer is _never_ valid, not even
-                // for accesses of size zero.
-                //
-                // To get a pointer which does not point to valid (allocated) memory, but
-                // is safe to construct for accesses of size zero, we must call
-                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
-                // and uphold the guarantees required for accesses of size zero.
-                //
-                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-                let slice = if self.len == 0 {
-                    unsafe { slice::from_raw_parts(NonNull::<u8>::dangling().as_ptr(), 0) }
-                } else {
-                    unsafe { slice::from_raw_parts(self.ptr, self.len) }
-                };
-                fun(slice)
+                fun(unsafe { raw_appslice_to_slice(self.ptr, self.len) })
             }),
         }
     }
@@ -315,25 +341,7 @@ impl Read for ReadOnlyAppSlice {
                 // memory that the process has `allow`ed to the kernel, and will not permit
                 // the process to free any memory after it has been `allow`ed. This guarantees
                 // that the buffer is safe to convert into a slice here.
-                //
-                // However, Rust has very strict requirements on pointer validity[1] which
-                // also in part apply to accesses of length 0. We allow an application to
-                // supply arbitrary pointers if the buffer length is 0, but this is not allowed
-                // for Rust slices. For instance, a null pointer is _never_ valid, not even
-                // for accesses of size zero.
-                //
-                // To get a pointer which does not point to valid (allocated) memory, but
-                // is safe to construct for accesses of size zero, we must call
-                // NonNull::dangling(). The resulting pointer is guaranteed to be well-aligned
-                // and uphold the guarantees required for accesses of size zero.
-                //
-                // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-                let slice = if self.len == 0 {
-                    unsafe { slice::from_raw_parts(NonNull::<u8>::dangling().as_ptr(), 0) }
-                } else {
-                    unsafe { slice::from_raw_parts(self.ptr, self.len) }
-                };
-                fun(slice)
+                fun(unsafe { raw_appslice_to_slice(self.ptr, self.len) })
             }),
         }
     }
