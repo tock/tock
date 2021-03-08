@@ -79,14 +79,14 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
 
         for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             // Read the current value
-            let pmpcfg_og = csr::CSR.pmpcfg[i / 4].get();
+            let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
 
             // Flip R, W, X bits
             let pmpcfg_new = pmpcfg_og ^ (3 << ((i % 4) * 8));
-            csr::CSR.pmpcfg[i / 4].set(pmpcfg_new);
+            csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
 
             // Check if the bits are set
-            let pmpcfg_check = csr::CSR.pmpcfg[i / 4].get();
+            let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
 
             // Check if the changes stuck
             if pmpcfg_check == pmpcfg_og {
@@ -109,7 +109,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
             }
 
             // Reset back to how we found it
-            csr::CSR.pmpcfg[i / 4].set(pmpcfg_og);
+            csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
         }
 
         Self {
@@ -272,7 +272,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
         for x in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             match x % 4 {
                 0 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r0::CLEAR
                             + csr::pmpconfig::pmpcfg::w0::CLEAR
                             + csr::pmpconfig::pmpcfg::x0::CLEAR
@@ -281,7 +282,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                     );
                 }
                 1 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r1::CLEAR
                             + csr::pmpconfig::pmpcfg::w1::CLEAR
                             + csr::pmpconfig::pmpcfg::x1::CLEAR
@@ -290,7 +292,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                     );
                 }
                 2 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r2::CLEAR
                             + csr::pmpconfig::pmpcfg::w2::CLEAR
                             + csr::pmpconfig::pmpcfg::x2::CLEAR
@@ -299,7 +302,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                     );
                 }
                 3 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r3::CLEAR
                             + csr::pmpconfig::pmpcfg::w3::CLEAR
                             + csr::pmpconfig::pmpcfg::x3::CLEAR
@@ -309,16 +313,16 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                 }
                 _ => unreachable!(),
             }
-            csr::CSR.pmpaddr[x].set(0x0);
+            csr::CSR.pmpconfig_set(x, 0x0);
         }
 
         //set first PMP to have permissions to entire space
-        csr::CSR.pmpaddr[0].set(0xFFFF_FFFF);
+        csr::CSR.pmpaddr0.set(0xFFFF_FFFF);
         //enable R W X fields
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::r0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::w0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::x0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::a0::TOR);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::r0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::w0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::x0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::a0::TOR);
         // PMP is not configured for any process now
         self.last_configured_for.take();
     }
@@ -507,33 +511,39 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                         match x % 2 {
                             0 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
                                     csr::pmpconfig::pmpcfg::r0::CLEAR
                                         + csr::pmpconfig::pmpcfg::w0::CLEAR
                                         + csr::pmpconfig::pmpcfg::x0::CLEAR
                                         + csr::pmpconfig::pmpcfg::a0::OFF,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
+                                csr::CSR.pmpconfig_set(
+                                    x / 2,
+                                    cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2),
+                                );
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
                                     csr::pmpconfig::pmpcfg::r2::CLEAR
                                         + csr::pmpconfig::pmpcfg::w2::CLEAR
                                         + csr::pmpconfig::pmpcfg::x2::CLEAR
                                         + csr::pmpconfig::pmpcfg::a2::OFF,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
+                                csr::CSR.pmpconfig_set(
+                                    x / 2,
+                                    cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
+                                );
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             _ => break,
                         }
