@@ -1,10 +1,6 @@
 //! Types for RISC-V CSRs.
 
-use core::marker::PhantomData;
-
-use tock_registers::registers::{
-    Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue,
-};
+use tock_registers::registers::{Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
@@ -101,6 +97,50 @@ pub const PMPADDR61: usize = 0x3ED;
 pub const PMPADDR62: usize = 0x3EE;
 pub const PMPADDR63: usize = 0x3EF;
 
+pub trait RISCVCSRReadWrite<T: IntLike, R: RegisterLongName = ()> {
+    fn get(&self) -> usize;
+    fn set(&self, val_to_set: usize);
+
+    #[inline]
+    fn read(&self, field: Field<usize, R>) -> usize {
+        field.read(self.get())
+    }
+
+    #[inline]
+    fn extract(&self) -> LocalRegisterCopy<usize, R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
+    fn write(&self, field: FieldValue<usize, R>) {
+        self.set(field.value);
+    }
+
+    #[inline]
+    fn modify(&self, field: FieldValue<usize, R>) {
+        self.set(field.modify(self.get()));
+    }
+
+    #[inline]
+    fn modify_no_read(&self, original: LocalRegisterCopy<usize, R>, field: FieldValue<usize, R>) {
+        self.set(field.modify(original.get()));
+    }
+    #[inline]
+    fn is_set(&self, field: Field<usize, R>) -> bool {
+        field.is_set(self.get())
+    }
+
+    #[inline]
+    fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
+        field.matches_any(self.get())
+    }
+
+    #[inline]
+    fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
+        field.matches_all(self.get())
+    }
+}
+
 #[macro_export]
 macro_rules! riscv_csr {
     ( $a:tt, $name:ident ) => {
@@ -111,23 +151,23 @@ macro_rules! riscv_csr {
             }
 
             impl<R: RegisterLongName> $name<usize, R> {
-                const VALUE: usize = $a;
-
                 const fn new() -> Self {
                     $name {
                         associated_register: PhantomData,
                         associated_length: PhantomData,
                     }
                 }
+            }
 
+            impl<R: RegisterLongName> RISCVCSRReadWrite<usize, R> for $name<usize, R> {
                 #[cfg(all(
                     any(target_arch = "riscv32", target_arch = "riscv64"),
                     target_os = "none"
                 ))]
                 #[inline]
-                pub fn get(&self) -> usize {
+                fn get(&self) -> usize {
                     let r: usize;
-                    unsafe { asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const Self::VALUE); }
+                    unsafe { asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const $a); }
                     r
                 }
 
@@ -136,672 +176,20 @@ macro_rules! riscv_csr {
                     target_os = "none"
                 ))]
                 #[inline]
-                pub fn set(&self, val_to_set: usize) {
-                    unsafe { asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const Self::VALUE); }
+                fn set(&self, val_to_set: usize) {
+                    unsafe { asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const $a); }
                 }
 
                 // Mock implementations for tests on Travis-CI.
                 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-                pub fn get(&self) -> usize {
-                    unimplemented!("reading RISC-V CSR {}", Self::VALUE)
+                fn get(&self) -> usize {
+                    unimplemented!("reading RISC-V CSR {}", $a)
                 }
 
                 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-                pub fn set(&self, _val_to_set: usize) {
-                    unimplemented!("writing RISC-V CSR {}", Self::VALUE)
-                }
-
-                #[inline]
-                pub fn read(&self, field: Field<usize, R>) -> usize {
-                    field.read(self.get())
-                }
-
-                #[inline]
-                pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
-                    &self,
-                    field: Field<usize, R>,
-                ) -> Option<E> {
-                    field.read_as_enum(self.get())
-                }
-
-                #[inline]
-                pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
-                    LocalRegisterCopy::new(self.get())
-                }
-
-                #[inline]
-                pub fn write(&self, field: FieldValue<usize, R>) {
-                    self.set(field.value);
-                }
-
-                #[inline]
-                pub fn modify(&self, field: FieldValue<usize, R>) {
-                    self.set(field.modify(self.get()));
-                }
-
-                #[inline]
-                pub fn modify_no_read(
-                    &self,
-                    original: LocalRegisterCopy<usize, R>,
-                    field: FieldValue<usize, R>,
-                ) {
-                    self.set(field.modify(original.get()));
-                }
-                #[inline]
-                pub fn is_set(&self, field: Field<usize, R>) -> bool {
-                    field.is_set(self.get())
-                }
-
-                #[inline]
-                pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
-                    field.matches_any(self.get())
-                }
-
-                #[inline]
-                pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
-                    field.matches_all(self.get())
+                fn set(&self, _val_to_set: usize) {
+                    unimplemented!("writing RISC-V CSR {}", $a)
                 }
             }
     };
-}
-
-/// Read/Write registers.
-#[derive(Copy, Clone)]
-pub struct ReadWriteRiscvPmpCsr<T: IntLike, R: RegisterLongName = ()> {
-    value: usize,
-    associated_register: PhantomData<R>,
-    associated_length: PhantomData<T>,
-}
-
-impl<R: RegisterLongName> ReadWriteRiscvPmpCsr<usize, R> {
-    pub const fn new(value: usize) -> Self {
-        ReadWriteRiscvPmpCsr {
-            value: value,
-            associated_register: PhantomData,
-            associated_length: PhantomData,
-        }
-    }
-
-    #[cfg(all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    ))]
-    #[inline]
-    pub fn get(&self) -> usize {
-        let r: usize;
-
-        match self.value {
-            PMPCFG0 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG1 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG1);
-            },
-            PMPCFG2 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG2);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG3 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG3);
-            },
-            PMPCFG4 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG4);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG5 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG5);
-            },
-            PMPCFG6 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG6);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG7 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG7);
-            },
-            PMPCFG8 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG8);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG9 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG9);
-            },
-            PMPCFG10 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG10);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG11 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG11);
-            },
-            PMPCFG12 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG12);
-            },
-            #[cfg(not(feature = "riscv64"))]
-            PMPCFG13 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG13);
-            },
-            PMPCFG14 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG14);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG15 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG15);
-            },
-            PMPADDR0 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR0);
-            },
-            PMPADDR1 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR1);
-            },
-            PMPADDR2 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR2);
-            },
-            PMPADDR3 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR3);
-            },
-            PMPADDR4 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR4);
-            },
-            PMPADDR5 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR5);
-            },
-            PMPADDR6 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR6);
-            },
-            PMPADDR7 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR7);
-            },
-            PMPADDR8 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR8);
-            },
-            PMPADDR9 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR9);
-            },
-            PMPADDR10 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR10);
-            },
-            PMPADDR11 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR11);
-            },
-            PMPADDR12 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR12);
-            },
-            PMPADDR13 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR13);
-            },
-            PMPADDR14 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR14);
-            },
-            PMPADDR15 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR15);
-            },
-            PMPADDR16 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR16);
-            },
-            PMPADDR17 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR17);
-            },
-            PMPADDR18 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR18);
-            },
-            PMPADDR19 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR19);
-            },
-            PMPADDR20 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR20);
-            },
-            PMPADDR21 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR21);
-            },
-            PMPADDR22 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR22);
-            },
-            PMPADDR23 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR23);
-            },
-            PMPADDR24 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR24);
-            },
-            PMPADDR25 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR25);
-            },
-            PMPADDR26 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR26);
-            },
-            PMPADDR27 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR27);
-            },
-            PMPADDR28 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR28);
-            },
-            PMPADDR29 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR29);
-            },
-            PMPADDR30 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR30);
-            },
-            PMPADDR31 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR31);
-            },
-            PMPADDR32 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR32);
-            },
-            PMPADDR33 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR33);
-            },
-            PMPADDR34 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR34);
-            },
-            PMPADDR35 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR35);
-            },
-            PMPADDR36 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR36);
-            },
-            PMPADDR37 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR37);
-            },
-            PMPADDR38 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR38);
-            },
-            PMPADDR39 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR39);
-            },
-            PMPADDR40 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR40);
-            },
-            PMPADDR41 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR41);
-            },
-            PMPADDR42 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR42);
-            },
-            PMPADDR43 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR43);
-            },
-            PMPADDR44 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR44);
-            },
-            PMPADDR45 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR45);
-            },
-            PMPADDR46 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR46);
-            },
-            PMPADDR47 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR47);
-            },
-            PMPADDR48 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR48);
-            },
-            PMPADDR49 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR49);
-            },
-            PMPADDR50 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR50);
-            },
-            PMPADDR51 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR51);
-            },
-            PMPADDR52 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR52);
-            },
-            PMPADDR53 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR53);
-            },
-            PMPADDR54 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR54);
-            },
-            PMPADDR55 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR55);
-            },
-            PMPADDR56 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR56);
-            },
-            PMPADDR57 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR57);
-            },
-            PMPADDR58 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR58);
-            },
-            PMPADDR59 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR59);
-            },
-            PMPADDR60 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR60);
-            },
-            PMPADDR61 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR61);
-            },
-            PMPADDR62 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR62);
-            },
-            PMPADDR63 => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPADDR63);
-            },
-            _ => panic!("Unsupported CSR read"),
-        }
-        r
-    }
-
-    #[cfg(all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    ))]
-    #[inline]
-    pub fn set(&self, val_to_set: usize) {
-        match self.value {
-            PMPCFG0 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG1 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG1);
-            },
-            PMPCFG2 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG2);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG3 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG3);
-            },
-            PMPCFG4 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG4);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG5 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG5);
-            },
-            PMPCFG6 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG6);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG7 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG7);
-            },
-            PMPCFG8 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG8);
-            },
-            #[cfg(not(feature = "riscv64"))]
-            PMPCFG9 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG9);
-            },
-            PMPCFG10 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG10);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG11 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG11);
-            },
-            PMPCFG12 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG12);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG13 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG13);
-            },
-            PMPCFG14 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG14);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            PMPCFG15 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG15);
-            },
-            PMPADDR0 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR0);
-            },
-            PMPADDR1 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR1);
-            },
-            PMPADDR2 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR2);
-            },
-            PMPADDR3 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR3);
-            },
-            PMPADDR4 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR4);
-            },
-            PMPADDR5 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR5);
-            },
-            PMPADDR6 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR6);
-            },
-            PMPADDR7 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR7);
-            },
-            PMPADDR8 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR8);
-            },
-            PMPADDR9 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR9);
-            },
-            PMPADDR10 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR10);
-            },
-            PMPADDR11 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR11);
-            },
-            PMPADDR12 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR12);
-            },
-            PMPADDR13 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR13);
-            },
-            PMPADDR14 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR14);
-            },
-            PMPADDR15 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR15);
-            },
-            PMPADDR16 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR16);
-            },
-            PMPADDR17 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR17);
-            },
-            PMPADDR18 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR18);
-            },
-            PMPADDR19 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR19);
-            },
-            PMPADDR20 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR20);
-            },
-            PMPADDR21 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR21);
-            },
-            PMPADDR22 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR22);
-            },
-            PMPADDR23 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR23);
-            },
-            PMPADDR24 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR24);
-            },
-            PMPADDR25 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR25);
-            },
-            PMPADDR26 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR26);
-            },
-            PMPADDR27 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR27);
-            },
-            PMPADDR28 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR28);
-            },
-            PMPADDR29 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR29);
-            },
-            PMPADDR30 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR30);
-            },
-            PMPADDR31 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR31);
-            },
-            PMPADDR32 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR32);
-            },
-            PMPADDR33 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR33);
-            },
-            PMPADDR34 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR34);
-            },
-            PMPADDR35 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR35);
-            },
-            PMPADDR36 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR36);
-            },
-            PMPADDR37 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR37);
-            },
-            PMPADDR38 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR38);
-            },
-            PMPADDR39 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR39);
-            },
-            PMPADDR40 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR40);
-            },
-            PMPADDR41 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR41);
-            },
-            PMPADDR42 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR42);
-            },
-            PMPADDR43 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR43);
-            },
-            PMPADDR44 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR44);
-            },
-            PMPADDR45 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR45);
-            },
-            PMPADDR46 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR46);
-            },
-            PMPADDR47 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR47);
-            },
-            PMPADDR48 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR48);
-            },
-            PMPADDR49 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR49);
-            },
-            PMPADDR50 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR50);
-            },
-            PMPADDR51 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR51);
-            },
-            PMPADDR52 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR52);
-            },
-            PMPADDR53 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR53);
-            },
-            PMPADDR54 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR54);
-            },
-            PMPADDR55 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR55);
-            },
-            PMPADDR56 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR56);
-            },
-            PMPADDR57 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR57);
-            },
-            PMPADDR58 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR58);
-            },
-            PMPADDR59 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR59);
-            },
-            PMPADDR60 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR60);
-            },
-            PMPADDR61 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR61);
-            },
-            PMPADDR62 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR62);
-            },
-            PMPADDR63 => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPADDR63);
-            },
-            _ => panic!("Unsupported CSR write"),
-        }
-    }
-
-    // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn get(&self) -> usize {
-        unimplemented!("reading RISC-V CSR {}", self.value)
-    }
-
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn set(&self, _val_to_set: usize) {
-        unimplemented!("writing RISC-V CSR {}", self.value)
-    }
-
-    #[inline]
-    pub fn read(&self, field: Field<usize, R>) -> usize {
-        field.read(self.get())
-    }
-
-    #[inline]
-    pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
-        &self,
-        field: Field<usize, R>,
-    ) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    pub fn write(&self, field: FieldValue<usize, R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    pub fn modify(&self, field: FieldValue<usize, R>) {
-        self.set(field.modify(self.get()));
-    }
-
-    #[inline]
-    pub fn modify_no_read(
-        &self,
-        original: LocalRegisterCopy<usize, R>,
-        field: FieldValue<usize, R>,
-    ) {
-        self.set(field.modify(original.get()));
-    }
-    #[inline]
-    pub fn is_set(&self, field: Field<usize, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_all(self.get())
-    }
 }
