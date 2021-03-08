@@ -13,7 +13,7 @@ extern "C" {
 }
 
 pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
-    pmp: PMP<4, 2>,
+    pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
     machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
@@ -142,7 +142,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
 }
 
 impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
-    type MPU = PMP<4, 2>;
+    type MPU = PMP<2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();
