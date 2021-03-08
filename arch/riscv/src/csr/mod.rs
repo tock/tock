@@ -35,111 +35,6 @@ pub mod pmpconfig;
 pub mod stvec;
 pub mod utvec;
 
-riscv_csr!(MINSTRETH, ReadWriteRiscvCsrMinstreth);
-riscv_csr!(MINSTRET, ReadWriteRiscvCsrMinstret);
-riscv_csr!(MCYCLEH, ReadWriteRiscvCsrMcycleh);
-riscv_csr!(MCYCLE, ReadWriteRiscvCsrMcycle);
-riscv_csr!(MIE, ReadWriteRiscvCsrMie);
-riscv_csr!(MTVEC, ReadWriteRiscvCsrMtvec);
-riscv_csr!(MSCRATCH, ReadWriteRiscvCsrMscratch);
-riscv_csr!(MEPC, ReadWriteRiscvCsrMepc);
-riscv_csr!(MCAUSE, ReadWriteRiscvCsrMcause);
-riscv_csr!(MTVAL, ReadWriteRiscvCsrMtval);
-riscv_csr!(MIP, ReadWriteRiscvCsrMip);
-riscv_csr!(MSTATUS, ReadWriteRiscvCsrMstatus);
-riscv_csr!(STVEC, ReadWriteRiscvCsrStvec);
-riscv_csr!(UTVEC, ReadWriteRiscvCsrUtvec);
-
-riscv_csr!(PMPCFG0, ReadWriteRiscvCsrPmpcfg0);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG1, ReadWriteRiscvCsrPmpcfg1);
-riscv_csr!(PMPCFG2, ReadWriteRiscvCsrPmpcfg2);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG3, ReadWriteRiscvCsrPmpcfg3);
-riscv_csr!(PMPCFG4, ReadWriteRiscvCsrPmpcfg4);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG5, ReadWriteRiscvCsrPmpcfg5);
-riscv_csr!(PMPCFG6, ReadWriteRiscvCsrPmpcfg6);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG7, ReadWriteRiscvCsrPmpcfg7);
-riscv_csr!(PMPCFG8, ReadWriteRiscvCsrPmpcfg8);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG9, ReadWriteRiscvCsrPmpcfg9);
-riscv_csr!(PMPCFG10, ReadWriteRiscvCsrPmpcfg10);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG11, ReadWriteRiscvCsrPmpcfg11);
-riscv_csr!(PMPCFG12, ReadWriteRiscvCsrPmpcfg12);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG13, ReadWriteRiscvCsrPmpcfg13);
-riscv_csr!(PMPCFG14, ReadWriteRiscvCsrPmpcfg14);
-#[cfg(not(target_arch = "riscv64"))]
-riscv_csr!(PMPCFG15, ReadWriteRiscvCsrPmpcfg15);
-
-riscv_csr!(PMPADDR0, ReadWriteRiscvCsrPmpaddr0);
-riscv_csr!(PMPADDR1, ReadWriteRiscvCsrPmpaddr1);
-riscv_csr!(PMPADDR2, ReadWriteRiscvCsrPmpaddr2);
-riscv_csr!(PMPADDR3, ReadWriteRiscvCsrPmpaddr3);
-riscv_csr!(PMPADDR4, ReadWriteRiscvCsrPmpaddr4);
-riscv_csr!(PMPADDR5, ReadWriteRiscvCsrPmpaddr5);
-riscv_csr!(PMPADDR6, ReadWriteRiscvCsrPmpaddr6);
-riscv_csr!(PMPADDR7, ReadWriteRiscvCsrPmpaddr7);
-riscv_csr!(PMPADDR8, ReadWriteRiscvCsrPmpaddr8);
-riscv_csr!(PMPADDR9, ReadWriteRiscvCsrPmpaddr9);
-riscv_csr!(PMPADDR10, ReadWriteRiscvCsrPmpaddr10);
-riscv_csr!(PMPADDR11, ReadWriteRiscvCsrPmpaddr11);
-riscv_csr!(PMPADDR12, ReadWriteRiscvCsrPmpaddr12);
-riscv_csr!(PMPADDR13, ReadWriteRiscvCsrPmpaddr13);
-riscv_csr!(PMPADDR14, ReadWriteRiscvCsrPmpaddr14);
-riscv_csr!(PMPADDR15, ReadWriteRiscvCsrPmpaddr15);
-riscv_csr!(PMPADDR16, ReadWriteRiscvCsrPmpaddr16);
-riscv_csr!(PMPADDR17, ReadWriteRiscvCsrPmpaddr17);
-riscv_csr!(PMPADDR18, ReadWriteRiscvCsrPmpaddr18);
-riscv_csr!(PMPADDR19, ReadWriteRiscvCsrPmpaddr19);
-riscv_csr!(PMPADDR20, ReadWriteRiscvCsrPmpaddr20);
-riscv_csr!(PMPADDR21, ReadWriteRiscvCsrPmpaddr21);
-riscv_csr!(PMPADDR22, ReadWriteRiscvCsrPmpaddr22);
-riscv_csr!(PMPADDR23, ReadWriteRiscvCsrPmpaddr23);
-riscv_csr!(PMPADDR24, ReadWriteRiscvCsrPmpaddr24);
-riscv_csr!(PMPADDR25, ReadWriteRiscvCsrPmpaddr25);
-riscv_csr!(PMPADDR26, ReadWriteRiscvCsrPmpaddr26);
-riscv_csr!(PMPADDR27, ReadWriteRiscvCsrPmpaddr27);
-riscv_csr!(PMPADDR28, ReadWriteRiscvCsrPmpaddr28);
-riscv_csr!(PMPADDR29, ReadWriteRiscvCsrPmpaddr29);
-riscv_csr!(PMPADDR30, ReadWriteRiscvCsrPmpaddr30);
-riscv_csr!(PMPADDR31, ReadWriteRiscvCsrPmpaddr31);
-riscv_csr!(PMPADDR32, ReadWriteRiscvCsrPmpaddr32);
-riscv_csr!(PMPADDR33, ReadWriteRiscvCsrPmpaddr33);
-riscv_csr!(PMPADDR34, ReadWriteRiscvCsrPmpaddr34);
-riscv_csr!(PMPADDR35, ReadWriteRiscvCsrPmpaddr35);
-riscv_csr!(PMPADDR36, ReadWriteRiscvCsrPmpaddr36);
-riscv_csr!(PMPADDR37, ReadWriteRiscvCsrPmpaddr37);
-riscv_csr!(PMPADDR38, ReadWriteRiscvCsrPmpaddr38);
-riscv_csr!(PMPADDR39, ReadWriteRiscvCsrPmpaddr39);
-riscv_csr!(PMPADDR40, ReadWriteRiscvCsrPmpaddr40);
-riscv_csr!(PMPADDR41, ReadWriteRiscvCsrPmpaddr41);
-riscv_csr!(PMPADDR42, ReadWriteRiscvCsrPmpaddr42);
-riscv_csr!(PMPADDR43, ReadWriteRiscvCsrPmpaddr43);
-riscv_csr!(PMPADDR44, ReadWriteRiscvCsrPmpaddr44);
-riscv_csr!(PMPADDR45, ReadWriteRiscvCsrPmpaddr45);
-riscv_csr!(PMPADDR46, ReadWriteRiscvCsrPmpaddr46);
-riscv_csr!(PMPADDR47, ReadWriteRiscvCsrPmpaddr47);
-riscv_csr!(PMPADDR48, ReadWriteRiscvCsrPmpaddr48);
-riscv_csr!(PMPADDR49, ReadWriteRiscvCsrPmpaddr49);
-riscv_csr!(PMPADDR50, ReadWriteRiscvCsrPmpaddr50);
-riscv_csr!(PMPADDR51, ReadWriteRiscvCsrPmpaddr51);
-riscv_csr!(PMPADDR52, ReadWriteRiscvCsrPmpaddr52);
-riscv_csr!(PMPADDR53, ReadWriteRiscvCsrPmpaddr53);
-riscv_csr!(PMPADDR54, ReadWriteRiscvCsrPmpaddr54);
-riscv_csr!(PMPADDR55, ReadWriteRiscvCsrPmpaddr55);
-riscv_csr!(PMPADDR56, ReadWriteRiscvCsrPmpaddr56);
-riscv_csr!(PMPADDR57, ReadWriteRiscvCsrPmpaddr57);
-riscv_csr!(PMPADDR58, ReadWriteRiscvCsrPmpaddr58);
-riscv_csr!(PMPADDR59, ReadWriteRiscvCsrPmpaddr59);
-riscv_csr!(PMPADDR60, ReadWriteRiscvCsrPmpaddr60);
-riscv_csr!(PMPADDR61, ReadWriteRiscvCsrPmpaddr61);
-riscv_csr!(PMPADDR62, ReadWriteRiscvCsrPmpaddr62);
-riscv_csr!(PMPADDR63, ReadWriteRiscvCsrPmpaddr63);
-
 // NOTE! We default to 32 bit if this is being compiled for debug/testing. We do
 // this by using `cfg` that check for either the architecture is `riscv32` (true
 // if we are compiling for a rv32i target), OR if the target OS is set to
@@ -178,118 +73,118 @@ pub struct CSR<'a> {
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    minstreth: &ReadWriteRiscvCsrMinstreth::new(),
-    minstret: &ReadWriteRiscvCsrMinstret::new(),
+    minstreth: riscv_csr!(MINSTRETH, ReadWriteRiscvCsrMinstreth),
+    minstret: riscv_csr!(MINSTRET, ReadWriteRiscvCsrMinstret),
 
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    mcycleh: &ReadWriteRiscvCsrMcycleh::new(),
-    mcycle: &ReadWriteRiscvCsrMcycle::new(),
+    mcycleh: riscv_csr!(MCYCLEH, ReadWriteRiscvCsrMcycleh),
+    mcycle: riscv_csr!(MCYCLE, ReadWriteRiscvCsrMcycle),
 
     pmpcfg: [
-        &ReadWriteRiscvCsrPmpcfg0::new(),
+        riscv_csr!(PMPCFG0, ReadWriteRiscvCsrPmpcfg0),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg1::new(),
-        &ReadWriteRiscvCsrPmpcfg2::new(),
+        riscv_csr!(PMPCFG1, ReadWriteRiscvCsrPmpcfg1),
+        riscv_csr!(PMPCFG2, ReadWriteRiscvCsrPmpcfg2),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg3::new(),
-        &ReadWriteRiscvCsrPmpcfg4::new(),
+        riscv_csr!(PMPCFG3, ReadWriteRiscvCsrPmpcfg3),
+        riscv_csr!(PMPCFG4, ReadWriteRiscvCsrPmpcfg4),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg5::new(),
-        &ReadWriteRiscvCsrPmpcfg6::new(),
+        riscv_csr!(PMPCFG5, ReadWriteRiscvCsrPmpcfg5),
+        riscv_csr!(PMPCFG6, ReadWriteRiscvCsrPmpcfg6),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg7::new(),
-        &ReadWriteRiscvCsrPmpcfg8::new(),
+        riscv_csr!(PMPCFG7, ReadWriteRiscvCsrPmpcfg7),
+        riscv_csr!(PMPCFG8, ReadWriteRiscvCsrPmpcfg8),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg9::new(),
-        &ReadWriteRiscvCsrPmpcfg10::new(),
+        riscv_csr!(PMPCFG9, ReadWriteRiscvCsrPmpcfg9),
+        riscv_csr!(PMPCFG10, ReadWriteRiscvCsrPmpcfg10),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg11::new(),
-        &ReadWriteRiscvCsrPmpcfg12::new(),
+        riscv_csr!(PMPCFG11, ReadWriteRiscvCsrPmpcfg11),
+        riscv_csr!(PMPCFG12, ReadWriteRiscvCsrPmpcfg12),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg13::new(),
-        &ReadWriteRiscvCsrPmpcfg14::new(),
+        riscv_csr!(PMPCFG13, ReadWriteRiscvCsrPmpcfg13),
+        riscv_csr!(PMPCFG14, ReadWriteRiscvCsrPmpcfg14),
         #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-        &ReadWriteRiscvCsrPmpcfg15::new(),
+        riscv_csr!(PMPCFG15, ReadWriteRiscvCsrPmpcfg15),
     ],
 
     pmpaddr: [
-        &ReadWriteRiscvCsrPmpaddr0::new(),
-        &ReadWriteRiscvCsrPmpaddr1::new(),
-        &ReadWriteRiscvCsrPmpaddr2::new(),
-        &ReadWriteRiscvCsrPmpaddr3::new(),
-        &ReadWriteRiscvCsrPmpaddr4::new(),
-        &ReadWriteRiscvCsrPmpaddr5::new(),
-        &ReadWriteRiscvCsrPmpaddr6::new(),
-        &ReadWriteRiscvCsrPmpaddr7::new(),
-        &ReadWriteRiscvCsrPmpaddr8::new(),
-        &ReadWriteRiscvCsrPmpaddr9::new(),
-        &ReadWriteRiscvCsrPmpaddr10::new(),
-        &ReadWriteRiscvCsrPmpaddr11::new(),
-        &ReadWriteRiscvCsrPmpaddr12::new(),
-        &ReadWriteRiscvCsrPmpaddr13::new(),
-        &ReadWriteRiscvCsrPmpaddr14::new(),
-        &ReadWriteRiscvCsrPmpaddr15::new(),
-        &ReadWriteRiscvCsrPmpaddr16::new(),
-        &ReadWriteRiscvCsrPmpaddr17::new(),
-        &ReadWriteRiscvCsrPmpaddr18::new(),
-        &ReadWriteRiscvCsrPmpaddr19::new(),
-        &ReadWriteRiscvCsrPmpaddr20::new(),
-        &ReadWriteRiscvCsrPmpaddr21::new(),
-        &ReadWriteRiscvCsrPmpaddr22::new(),
-        &ReadWriteRiscvCsrPmpaddr23::new(),
-        &ReadWriteRiscvCsrPmpaddr24::new(),
-        &ReadWriteRiscvCsrPmpaddr25::new(),
-        &ReadWriteRiscvCsrPmpaddr26::new(),
-        &ReadWriteRiscvCsrPmpaddr27::new(),
-        &ReadWriteRiscvCsrPmpaddr28::new(),
-        &ReadWriteRiscvCsrPmpaddr29::new(),
-        &ReadWriteRiscvCsrPmpaddr30::new(),
-        &ReadWriteRiscvCsrPmpaddr31::new(),
-        &ReadWriteRiscvCsrPmpaddr32::new(),
-        &ReadWriteRiscvCsrPmpaddr33::new(),
-        &ReadWriteRiscvCsrPmpaddr34::new(),
-        &ReadWriteRiscvCsrPmpaddr35::new(),
-        &ReadWriteRiscvCsrPmpaddr36::new(),
-        &ReadWriteRiscvCsrPmpaddr37::new(),
-        &ReadWriteRiscvCsrPmpaddr38::new(),
-        &ReadWriteRiscvCsrPmpaddr39::new(),
-        &ReadWriteRiscvCsrPmpaddr40::new(),
-        &ReadWriteRiscvCsrPmpaddr41::new(),
-        &ReadWriteRiscvCsrPmpaddr42::new(),
-        &ReadWriteRiscvCsrPmpaddr43::new(),
-        &ReadWriteRiscvCsrPmpaddr44::new(),
-        &ReadWriteRiscvCsrPmpaddr45::new(),
-        &ReadWriteRiscvCsrPmpaddr46::new(),
-        &ReadWriteRiscvCsrPmpaddr47::new(),
-        &ReadWriteRiscvCsrPmpaddr48::new(),
-        &ReadWriteRiscvCsrPmpaddr49::new(),
-        &ReadWriteRiscvCsrPmpaddr50::new(),
-        &ReadWriteRiscvCsrPmpaddr51::new(),
-        &ReadWriteRiscvCsrPmpaddr52::new(),
-        &ReadWriteRiscvCsrPmpaddr53::new(),
-        &ReadWriteRiscvCsrPmpaddr54::new(),
-        &ReadWriteRiscvCsrPmpaddr55::new(),
-        &ReadWriteRiscvCsrPmpaddr56::new(),
-        &ReadWriteRiscvCsrPmpaddr57::new(),
-        &ReadWriteRiscvCsrPmpaddr58::new(),
-        &ReadWriteRiscvCsrPmpaddr59::new(),
-        &ReadWriteRiscvCsrPmpaddr60::new(),
-        &ReadWriteRiscvCsrPmpaddr61::new(),
-        &ReadWriteRiscvCsrPmpaddr62::new(),
-        &ReadWriteRiscvCsrPmpaddr63::new(),
+        riscv_csr!(PMPADDR0, ReadWriteRiscvCsrPmpaddr0),
+        riscv_csr!(PMPADDR1, ReadWriteRiscvCsrPmpaddr1),
+        riscv_csr!(PMPADDR2, ReadWriteRiscvCsrPmpaddr2),
+        riscv_csr!(PMPADDR3, ReadWriteRiscvCsrPmpaddr3),
+        riscv_csr!(PMPADDR4, ReadWriteRiscvCsrPmpaddr4),
+        riscv_csr!(PMPADDR5, ReadWriteRiscvCsrPmpaddr5),
+        riscv_csr!(PMPADDR6, ReadWriteRiscvCsrPmpaddr6),
+        riscv_csr!(PMPADDR7, ReadWriteRiscvCsrPmpaddr7),
+        riscv_csr!(PMPADDR8, ReadWriteRiscvCsrPmpaddr8),
+        riscv_csr!(PMPADDR9, ReadWriteRiscvCsrPmpaddr9),
+        riscv_csr!(PMPADDR10, ReadWriteRiscvCsrPmpaddr10),
+        riscv_csr!(PMPADDR11, ReadWriteRiscvCsrPmpaddr11),
+        riscv_csr!(PMPADDR12, ReadWriteRiscvCsrPmpaddr12),
+        riscv_csr!(PMPADDR13, ReadWriteRiscvCsrPmpaddr13),
+        riscv_csr!(PMPADDR14, ReadWriteRiscvCsrPmpaddr14),
+        riscv_csr!(PMPADDR15, ReadWriteRiscvCsrPmpaddr15),
+        riscv_csr!(PMPADDR16, ReadWriteRiscvCsrPmpaddr16),
+        riscv_csr!(PMPADDR17, ReadWriteRiscvCsrPmpaddr17),
+        riscv_csr!(PMPADDR18, ReadWriteRiscvCsrPmpaddr18),
+        riscv_csr!(PMPADDR19, ReadWriteRiscvCsrPmpaddr19),
+        riscv_csr!(PMPADDR20, ReadWriteRiscvCsrPmpaddr20),
+        riscv_csr!(PMPADDR21, ReadWriteRiscvCsrPmpaddr21),
+        riscv_csr!(PMPADDR22, ReadWriteRiscvCsrPmpaddr22),
+        riscv_csr!(PMPADDR23, ReadWriteRiscvCsrPmpaddr23),
+        riscv_csr!(PMPADDR24, ReadWriteRiscvCsrPmpaddr24),
+        riscv_csr!(PMPADDR25, ReadWriteRiscvCsrPmpaddr25),
+        riscv_csr!(PMPADDR26, ReadWriteRiscvCsrPmpaddr26),
+        riscv_csr!(PMPADDR27, ReadWriteRiscvCsrPmpaddr27),
+        riscv_csr!(PMPADDR28, ReadWriteRiscvCsrPmpaddr28),
+        riscv_csr!(PMPADDR29, ReadWriteRiscvCsrPmpaddr29),
+        riscv_csr!(PMPADDR30, ReadWriteRiscvCsrPmpaddr30),
+        riscv_csr!(PMPADDR31, ReadWriteRiscvCsrPmpaddr31),
+        riscv_csr!(PMPADDR32, ReadWriteRiscvCsrPmpaddr32),
+        riscv_csr!(PMPADDR33, ReadWriteRiscvCsrPmpaddr33),
+        riscv_csr!(PMPADDR34, ReadWriteRiscvCsrPmpaddr34),
+        riscv_csr!(PMPADDR35, ReadWriteRiscvCsrPmpaddr35),
+        riscv_csr!(PMPADDR36, ReadWriteRiscvCsrPmpaddr36),
+        riscv_csr!(PMPADDR37, ReadWriteRiscvCsrPmpaddr37),
+        riscv_csr!(PMPADDR38, ReadWriteRiscvCsrPmpaddr38),
+        riscv_csr!(PMPADDR39, ReadWriteRiscvCsrPmpaddr39),
+        riscv_csr!(PMPADDR40, ReadWriteRiscvCsrPmpaddr40),
+        riscv_csr!(PMPADDR41, ReadWriteRiscvCsrPmpaddr41),
+        riscv_csr!(PMPADDR42, ReadWriteRiscvCsrPmpaddr42),
+        riscv_csr!(PMPADDR43, ReadWriteRiscvCsrPmpaddr43),
+        riscv_csr!(PMPADDR44, ReadWriteRiscvCsrPmpaddr44),
+        riscv_csr!(PMPADDR45, ReadWriteRiscvCsrPmpaddr45),
+        riscv_csr!(PMPADDR46, ReadWriteRiscvCsrPmpaddr46),
+        riscv_csr!(PMPADDR47, ReadWriteRiscvCsrPmpaddr47),
+        riscv_csr!(PMPADDR48, ReadWriteRiscvCsrPmpaddr48),
+        riscv_csr!(PMPADDR49, ReadWriteRiscvCsrPmpaddr49),
+        riscv_csr!(PMPADDR50, ReadWriteRiscvCsrPmpaddr50),
+        riscv_csr!(PMPADDR51, ReadWriteRiscvCsrPmpaddr51),
+        riscv_csr!(PMPADDR52, ReadWriteRiscvCsrPmpaddr52),
+        riscv_csr!(PMPADDR53, ReadWriteRiscvCsrPmpaddr53),
+        riscv_csr!(PMPADDR54, ReadWriteRiscvCsrPmpaddr54),
+        riscv_csr!(PMPADDR55, ReadWriteRiscvCsrPmpaddr55),
+        riscv_csr!(PMPADDR56, ReadWriteRiscvCsrPmpaddr56),
+        riscv_csr!(PMPADDR57, ReadWriteRiscvCsrPmpaddr57),
+        riscv_csr!(PMPADDR58, ReadWriteRiscvCsrPmpaddr58),
+        riscv_csr!(PMPADDR59, ReadWriteRiscvCsrPmpaddr59),
+        riscv_csr!(PMPADDR60, ReadWriteRiscvCsrPmpaddr60),
+        riscv_csr!(PMPADDR61, ReadWriteRiscvCsrPmpaddr61),
+        riscv_csr!(PMPADDR62, ReadWriteRiscvCsrPmpaddr62),
+        riscv_csr!(PMPADDR63, ReadWriteRiscvCsrPmpaddr63),
     ],
 
-    mie: &ReadWriteRiscvCsrMie::new(),
-    mtvec: &ReadWriteRiscvCsrMtvec::new(),
-    mscratch: &ReadWriteRiscvCsrMscratch::new(),
-    mepc: &ReadWriteRiscvCsrMepc::new(),
-    mcause: &ReadWriteRiscvCsrMcause::new(),
-    mtval: &ReadWriteRiscvCsrMtval::new(),
-    mip: &ReadWriteRiscvCsrMip::new(),
-    mstatus: &ReadWriteRiscvCsrMstatus::new(),
+    mie: riscv_csr!(MIE, ReadWriteRiscvCsrMie),
+    mtvec: riscv_csr!(MTVEC, ReadWriteRiscvCsrMtvec),
+    mscratch: riscv_csr!(MSCRATCH, ReadWriteRiscvCsrMscratch),
+    mepc: riscv_csr!(MEPC, ReadWriteRiscvCsrMepc),
+    mcause: riscv_csr!(MCAUSE, ReadWriteRiscvCsrMcause),
+    mtval: riscv_csr!(MTVAL, ReadWriteRiscvCsrMtval),
+    mip: riscv_csr!(MIP, ReadWriteRiscvCsrMip),
+    mstatus: riscv_csr!(MSTATUS, ReadWriteRiscvCsrMstatus),
 
-    stvec: &ReadWriteRiscvCsrStvec::new(),
-    utvec: &ReadWriteRiscvCsrUtvec::new(),
+    stvec: riscv_csr!(STVEC, ReadWriteRiscvCsrStvec),
+    utvec: riscv_csr!(UTVEC, ReadWriteRiscvCsrUtvec),
 };
 
 impl CSR<'_> {

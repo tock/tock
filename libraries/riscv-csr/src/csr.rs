@@ -144,6 +144,7 @@ pub trait RISCVCSRReadWrite<T: IntLike, R: RegisterLongName = ()> {
 #[macro_export]
 macro_rules! riscv_csr {
     ( $a:tt, $name:ident ) => {
+        {
             #[derive(Copy, Clone)]
             pub struct $name<T: IntLike, R: RegisterLongName = ()> {
                 associated_register: PhantomData<R>,
@@ -191,5 +192,7 @@ macro_rules! riscv_csr {
                     unimplemented!("writing RISC-V CSR {}", $a)
                 }
             }
+            &$name::new()
+        }
     };
 }
