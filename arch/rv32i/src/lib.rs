@@ -12,7 +12,6 @@ pub mod machine_timer;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
-extern crate tock_registers;
 
 // Re-export the shared CSR library so that dependent crates do not have to have
 // both rv32i and riscv as dependencies.
