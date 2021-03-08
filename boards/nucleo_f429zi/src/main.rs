@@ -213,14 +213,11 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the STM32F446RE chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     stm32f429zi::init();
 
     // We use the default HSI 16Mhz clock
