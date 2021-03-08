@@ -1,4 +1,4 @@
-//! `ReadWriteRiscvCsr` type for RISC-V CSRs.
+//! Types for RISC-V CSRs.
 
 use core::marker::PhantomData;
 
@@ -101,26 +101,121 @@ pub const PMPADDR61: usize = 0x3ED;
 pub const PMPADDR62: usize = 0x3EE;
 pub const PMPADDR63: usize = 0x3EF;
 
+#[macro_export]
+macro_rules! riscv_csr {
+    ( $a:tt, $name:ident ) => {
+            #[derive(Copy, Clone)]
+            pub struct $name<T: IntLike, R: RegisterLongName = ()> {
+                associated_register: PhantomData<R>,
+                associated_length: PhantomData<T>,
+            }
+
+            impl<R: RegisterLongName> $name<usize, R> {
+                const VALUE: usize = $a;
+
+                const fn new() -> Self {
+                    $name {
+                        associated_register: PhantomData,
+                        associated_length: PhantomData,
+                    }
+                }
+
+                #[cfg(all(
+                    any(target_arch = "riscv32", target_arch = "riscv64"),
+                    target_os = "none"
+                ))]
+                #[inline]
+                pub fn get(&self) -> usize {
+                    let r: usize;
+                    unsafe { asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const Self::VALUE); }
+                    r
+                }
+
+                #[cfg(all(
+                    any(target_arch = "riscv32", target_arch = "riscv64"),
+                    target_os = "none"
+                ))]
+                #[inline]
+                pub fn set(&self, val_to_set: usize) {
+                    unsafe { asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const Self::VALUE); }
+                }
+
+                // Mock implementations for tests on Travis-CI.
+                #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+                pub fn get(&self) -> usize {
+                    unimplemented!("reading RISC-V CSR {}", Self::VALUE)
+                }
+
+                #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+                pub fn set(&self, _val_to_set: usize) {
+                    unimplemented!("writing RISC-V CSR {}", Self::VALUE)
+                }
+
+                #[inline]
+                pub fn read(&self, field: Field<usize, R>) -> usize {
+                    field.read(self.get())
+                }
+
+                #[inline]
+                pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
+                    &self,
+                    field: Field<usize, R>,
+                ) -> Option<E> {
+                    field.read_as_enum(self.get())
+                }
+
+                #[inline]
+                pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
+                    LocalRegisterCopy::new(self.get())
+                }
+
+                #[inline]
+                pub fn write(&self, field: FieldValue<usize, R>) {
+                    self.set(field.value);
+                }
+
+                #[inline]
+                pub fn modify(&self, field: FieldValue<usize, R>) {
+                    self.set(field.modify(self.get()));
+                }
+
+                #[inline]
+                pub fn modify_no_read(
+                    &self,
+                    original: LocalRegisterCopy<usize, R>,
+                    field: FieldValue<usize, R>,
+                ) {
+                    self.set(field.modify(original.get()));
+                }
+                #[inline]
+                pub fn is_set(&self, field: Field<usize, R>) -> bool {
+                    field.is_set(self.get())
+                }
+
+                #[inline]
+                pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
+                    field.matches_any(self.get())
+                }
+
+                #[inline]
+                pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
+                    field.matches_all(self.get())
+                }
+            }
+    };
+}
+
 /// Read/Write registers.
 #[derive(Copy, Clone)]
-pub struct ReadWriteRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
+pub struct ReadWriteRiscvPmpCsr<T: IntLike, R: RegisterLongName = ()> {
     value: usize,
     associated_register: PhantomData<R>,
     associated_length: PhantomData<T>,
 }
 
-// morally speaking, these should be implemented; however not yet needed
-//pub struct WriteOnlyRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
-//value: T,
-//associated_register: PhantomData<R>}
-
-//pub struct ReadOnlyRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
-//value: T,
-//associated_register: PhantomData<R>}
-
-impl<R: RegisterLongName> ReadWriteRiscvCsr<usize, R> {
+impl<R: RegisterLongName> ReadWriteRiscvPmpCsr<usize, R> {
     pub const fn new(value: usize) -> Self {
-        ReadWriteRiscvCsr {
+        ReadWriteRiscvPmpCsr {
             value: value,
             associated_register: PhantomData,
             associated_length: PhantomData,
@@ -136,50 +231,6 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<usize, R> {
         let r: usize;
 
         match self.value {
-            #[cfg(not(target_arch = "riscv64"))]
-            MINSTRETH => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRETH);
-            },
-            MINSTRET => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MINSTRET);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            MCYCLEH => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLEH);
-            },
-            MCYCLE => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCYCLE);
-            },
-            MIE => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIE);
-            },
-            MTVEC => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVEC);
-            },
-            MSTATUS => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSTATUS);
-            },
-            UTVEC => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const UTVEC);
-            },
-            STVEC => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const STVEC);
-            },
-            MSCRATCH => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MSCRATCH);
-            },
-            MEPC => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MEPC);
-            },
-            MCAUSE => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MCAUSE);
-            },
-            MTVAL => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MTVAL);
-            },
-            MIP => unsafe {
-                asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const MIP);
-            },
             PMPCFG0 => unsafe {
                 asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const PMPCFG0);
             },
@@ -440,50 +491,6 @@ impl<R: RegisterLongName> ReadWriteRiscvCsr<usize, R> {
     #[inline]
     pub fn set(&self, val_to_set: usize) {
         match self.value {
-            #[cfg(not(target_arch = "riscv64"))]
-            MINSTRETH => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRETH);
-            },
-            MINSTRET => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MINSTRET);
-            },
-            #[cfg(not(target_arch = "riscv64"))]
-            MCYCLEH => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLEH);
-            },
-            MCYCLE => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCYCLE);
-            },
-            MIE => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIE);
-            },
-            MTVEC => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVEC);
-            },
-            MSTATUS => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSTATUS);
-            },
-            UTVEC => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const UTVEC);
-            },
-            STVEC => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const STVEC);
-            },
-            MSCRATCH => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MSCRATCH);
-            },
-            MEPC => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MEPC);
-            },
-            MCAUSE => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MCAUSE);
-            },
-            MTVAL => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MTVAL);
-            },
-            MIP => unsafe {
-                asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const MIP);
-            },
             PMPCFG0 => unsafe {
                 asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const PMPCFG0);
             },

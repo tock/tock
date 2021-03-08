@@ -3,6 +3,8 @@
 #![crate_name = "riscv"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(asm)]
+#![feature(const_fn)]
 
 pub mod csr;
 
