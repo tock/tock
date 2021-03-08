@@ -134,10 +134,9 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point in the vector table called on hard reset.
+/// Main function called after RAM initialized.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
+pub unsafe fn main() {
     nrf52833::init();
 
     let ppi = static_init!(nrf52833::ppi::Ppi, nrf52833::ppi::Ppi::new());
