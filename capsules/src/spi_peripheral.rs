@@ -253,6 +253,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
     ) {
         self.app.map(move |app| {
             let rbuf = readbuf.map(|src| {
+                let index = app.index;
                 app.app_read.mut_map_or((), |dest| {
                     // Need to be careful that app_read hasn't changed
                     // under us, so check all values against actual
@@ -261,8 +262,8 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                     // If app_read is shorter than before, and shorter
                     // than what we have read would require, then truncate.
                     // -pal 12/9/20
-                    let end = app.index;
-                    let start = app.index - length;
+                    let end = index;
+                    let start = index - length;
                     let end = cmp::min(end, cmp::min(src.len(), dest.len()));
 
                     // If the new endpoint is earlier than our expected
