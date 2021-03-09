@@ -29,6 +29,7 @@ members = [
     "boards/stm32f412gdiscovery",
     "boards/teensy40",
     "boards/nano33ble",
+    "boards/swervolf",
     "boards/weact_f401ccu6/",
     "capsules",
     "chips/apollo3",
