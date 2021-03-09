@@ -2,7 +2,7 @@ Userland
 ========
 
 This document explains how application code works in Tock. This is not a guide
-to writing  applications, but rather documentation of the overall design
+to writing applications, but rather documentation of the overall design
 of how applications function.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
@@ -43,7 +43,7 @@ the default, but processes may also be time sliced.  Processes may
 share data with each other via Inter-Process Communication (IPC)
 through system calls.
 
-Processes run code in unprivileged code (e.g., user mode on CortexM or
+Processes run code in unprivileged mode (e.g., user mode on CortexM or
 RV32I microcontrollers). The Tock kernel uses hardware memory
 protection (an MPU on CortexM and a PMP on RV32I) to restrict which
 addresses application code running in a process can access. A process
@@ -141,14 +141,14 @@ It is important to note that upcalls are not executed until a process
 calls `yield`. The kernel will enqueue upcalls as events occur within
 the kernel, but the application will not handle them until it yields.
 
-Applications which are "finished" (i.e. have returned from `main()`)
+Applications which are "finished"
 should call an Exit system call. There are two variants of Exit:
 exit-terminate and exit-restart. They differ in what they signal to
 the kernel: does the application wish to stop running, or be rebooted?
 
 ## Inter-Process Communication
 
-inter-process communication (IPC) allows for separate processes to
+Inter-process communication (IPC) allows for separate processes to
 communicate directly through shared buffers. IPC in Tock is
 implemented with a service-client model. Each process can support one
 service. The service is identified by the name of the application running
