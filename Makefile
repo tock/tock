@@ -411,7 +411,6 @@ ci-job-libraries:
 	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tock-cells && CI=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-rt0 && CI=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-job-archs
 ci-job-archs:
