@@ -94,7 +94,7 @@ pub trait ReadWrite: Read {
     ///
     /// A default instance of an AppSlice must return the passed
     /// default value without executing the closure.
-    fn mut_map_or<F, R>(&self, default: R, fun: F) -> R
+    fn mut_map_or<F, R>(&mut self, default: R, fun: F) -> R
     where
         F: FnOnce(&mut [u8]) -> R;
 }
@@ -169,7 +169,7 @@ impl ReadWrite for ReadWriteAppSlice {
         }
     }
 
-    fn mut_map_or<F, R>(&self, default: R, fun: F) -> R
+    fn mut_map_or<F, R>(&mut self, default: R, fun: F) -> R
     where
         F: FnOnce(&mut [u8]) -> R,
     {
