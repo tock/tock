@@ -831,6 +831,11 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 }
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     _user_stack: *const u8,
     _process_regs: &mut [usize; 8],

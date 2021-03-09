@@ -27,7 +27,7 @@
 //!
 //!    hil::flash
 //!
-//! The tests can be enabled by adding this line to the `reset_handler()`
+//! The tests can be enabled by adding this line to the `main()`
 //!
 //! ```rust
 //! tickv_test::run_tickv_tests(kvstore)

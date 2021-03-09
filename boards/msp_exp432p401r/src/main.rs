@@ -141,14 +141,11 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
     // gpio.pins[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the MSP432 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     startup_intilialisation();
 
     let peripherals = static_init!(

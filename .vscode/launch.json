@@ -13,7 +13,7 @@
             "autorun": [
                 "monitor reset",
                 "monitor speed auto",
-                "b reset_handler"
+                "b initialize_ram_jump_to_main"
             ]
         },
         {

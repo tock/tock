@@ -82,7 +82,7 @@ use when it sends JTAG commands.  Note that you need to use nrf52dk,
 contains symbols for debugging, the latter is a flat binary file.
 
 Finally, type `continue` or `c` to start execution. The device
-will break on entry to `reset_handler`.
+will break on entry to `initialize_ram_jump_to_main`.
 
 ### Debugging Tricks
 

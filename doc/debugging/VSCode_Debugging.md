@@ -25,7 +25,7 @@ Let's now test if this works by configuring some breakpoints:
 
 1. Enter `Explorer mode` by pressing `View/Explorer`
 2. Browse and open a file where you want to enable a breakpoint
-3. In my case I want to have a breakpoint in the `reset_handler` in main.rs
+3. In my case I want to have a breakpoint in the `main` in main.rs
 4. Click to the left of the line number to enable a breakpoint. You should see a
    red dot now as the figure below:
 
@@ -52,7 +52,7 @@ Let's now test if this works by configuring some breakpoints:
 ## Issues
 1. Sometimes GDB behaves unpredictably and stops at the wrong source line. For
    example, sometimes we have noticed that debugger stops at
-   `/kernel/src/support/arm.rs` instead of the `reset_handler`. If that occurs
+   `/kernel/src/support/arm.rs` instead of the `main`. If that occurs
    just press `step over` and it should hopefully jump to correct location.
 2. Rust in `release mode` is optimizing using things such as inlining and
    mangling which makes debugging harder and values may not be visible. To
