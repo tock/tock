@@ -110,7 +110,8 @@ NVICICER:
 MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
-  .word 0xFFFFFFFD"
+  .word 0xFFFFFFFD",
+        options(noreturn)
     );
 }
 
@@ -143,7 +144,8 @@ EXC_RETURN_MSP:
   .word 0xFFFFFFF9
 EXC_RETURN_PSP:
   .word 0xFFFFFFFD
-  "
+  ",
+        options(noreturn)
     );
 }
 
