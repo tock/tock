@@ -1557,6 +1557,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
+            // Actually set the return value for a particular process.
+            //
+            // The UKB implementation uses the bounds of process-accessible
+            // memory to verify that any memory changes are valid. Here, the
+            // unsafe promise we are making is that the bounds passed to the UKB
+            // are correct.
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
