@@ -451,7 +451,14 @@ pub trait ProcessType {
     /// `addr` to `value`. Return true if `addr` is within the RAM
     /// bounds currently exposed to the process (thereby writable
     /// by the process itself) and the value was set, false otherwise.
-    fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+    ///
+    /// ### Safety
+    ///
+    /// This function verifies that the byte to be written is in the process's
+    /// accessible memory. However, to avoid undefined behavior the caller needs
+    /// to ensure that no other references exist to the process's memory before
+    /// calling this function.
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -1448,16 +1455,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    // This function verifies that the dereference is valid and safe.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
-            // This is safe because we have verified that the address we are
-            // writing to is in fact within the process's process-accessible
-            // memory.
-            unsafe {
-                *addr = value;
-            }
+            // We verify that this will only write process-accessible memory,
+            // but this can still be undefined behavior if something else holds
+            // a reference to this memory.
+            *addr = value;
             true
         } else {
             false

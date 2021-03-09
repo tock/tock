@@ -826,13 +826,25 @@ impl Kernel {
                     // Set the "did I trigger callbacks" flag to be 0,
                     // return immediately. If address is invalid does
                     // nothing.
-                    process.set_byte(address, 0);
+                    //
+                    // Safety: this is fine as long as no references to the
+                    // process's memory exist. We do not have a reference,
+                    // so we can safely call `set_byte()`.
+                    unsafe {
+                        process.set_byte(address, 0);
+                    }
                 } else {
                     // There are already enqueued callbacks to execute or
                     // we should wait for them: handle in the next loop
                     // iteration and set the "did I trigger callbacks" flag
                     // to be 1. If address is invalid does nothing.
-                    process.set_byte(address, 1);
+                    //
+                    // Safety: this is fine as long as no references to the
+                    // process's memory exist. We do not have a reference,
+                    // so we can safely call `set_byte()`.
+                    unsafe {
+                        process.set_byte(address, 1);
+                    }
                     process.set_yielded_state();
                 }
             }
