@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm, naked_functions)]
+#![feature(asm, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn generic_isr() {
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    llvm_asm!(
+    asm!(
         "
     /* Skip saving process state if not coming from user-space */
     ldr r0, MEXC_RETURN_PSP
@@ -110,8 +110,9 @@ NVICICER:
 MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
-  .word 0xFFFFFFFD"
-    : : : : "volatile");
+  .word 0xFFFFFFFD",
+        options(noreturn)
+    );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -123,7 +124,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
-    llvm_asm!(
+    asm!(
         "
   ldr r0, EXC_RETURN_MSP
   cmp lr, r0
@@ -143,8 +144,9 @@ EXC_RETURN_MSP:
   .word 0xFFFFFFF9
 EXC_RETURN_PSP:
   .word 0xFFFFFFFD
-  "
-  : : : : "volatile"  );
+  ",
+        options(noreturn)
+    );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -162,47 +164,58 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const u8,
     process_regs: &mut [usize; 8],
 ) -> *mut u8 {
-    llvm_asm!("
+    asm!("
+    // Manually save r6 in r2 and r7 in r3 since as of Feb 2021 asm!() will not
+    // let us mark r6 or r7 as clobbers.
+    mov r2, r6
+    mov r3, r7
+
     /* Load non-hardware-stacked registers from Process stack */
-    ldmia $2!, {r4-r7}
+    ldmia r1!, {r4-r7}
     mov r11, r7
     mov r10, r6
     mov r9,  r5
     mov r8,  r4
-    ldmia $2!, {r4-r7}
-    subs $2, 32 /* Restore pointer to process_regs
+    ldmia r1!, {r4-r7}
+    subs r1, 32 /* Restore pointer to process_regs
                 /* ldmia! added a 32-byte offset */
 
     /* Load bottom of stack into Process Stack Pointer */
-    msr psp, $0
+    msr psp, r0
 
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
     /* Store non-hardware-stacked registers in process_regs */
-    /* $2 still points to process_regs because we are clobbering all */
+    /* r1 still points to process_regs because we are clobbering all */
     /* non-hardware-stacked registers */
-    str r4, [$2, #16]
-    str r5, [$2, #20]
-    str r6, [$2, #24]
-    str r7, [$2, #28]
+    str r4, [r1, #16]
+    str r5, [r1, #20]
+    str r6, [r1, #24]
+    str r7, [r1, #28]
 
     mov  r4, r8
     mov  r5, r9
     mov  r6, r10
     mov  r7, r11
 
-    str r4, [$2, #0]
-    str r5, [$2, #4]
-    str r6, [$2, #8]
-    str r7, [$2, #12]
+    str r4, [r1, #0]
+    str r5, [r1, #4]
+    str r6, [r1, #8]
+    str r7, [r1, #12]
 
-    mrs $0, PSP /* PSP into user_stack */
+    mrs r0, PSP /* PSP into user_stack */
 
-    "
-    : "={r0}"(user_stack)
-    : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
+    // Manually restore r6 and r7.
+    mov r6, r2
+    mov r7, r3
+
+    ",
+    inout("r0") user_stack,
+    in("r1") process_regs,
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r9") _,
+    out("r10") _, out("r11") _);
+
     user_stack as *mut u8
 }
 
@@ -237,15 +250,13 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     //       value. Therefore as a workaround, capture the stacked
     //       registers and invoke a breakpoint.
     //
-    llvm_asm!("
+    asm!(
+        "
          bkpt
 1:
          b 1b
          "
-         :
-         : "r"(&hardfault_stacked_registers)
-         :
-         : "volatile");
+    );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -255,14 +266,69 @@ pub unsafe extern "C" fn hard_fault_handler() {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
+/// Continue the hardfault handler. This function is not `#[naked]`, meaning we
+/// can mix `asm!()` and Rust. We separate this logic to not have to write the
+/// entire fault handler entirely in assembly.
+unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kernel_stack: u32) {
+    if kernel_stack {
+        kernel_hardfault(faulting_stack);
+    } else {
+        // hard fault occurred in an app, not the kernel. The app should be
+        // marked as in an error state and handled by the kernel
+        asm!(
+            "
+            ldr r0, =APP_HARD_FAULT
+            movs r1, #1 /* Fault */
+            str r1, [r0, #0]
+
+            /*
+            * NOTE:
+            * -----
+            *
+            * Even though ARMv6-M SCB and Control registers
+            * are different from ARMv7-M, they are still compatible
+            * with each other. So, we can keep the same code as
+            * ARMv7-M.
+            *
+            * ARMv6-M however has no _privileged_ mode.
+            */
+
+            /* Read the SCB registers. */
+            ldr r0, =SCB_REGISTERS
+            ldr r1, =0xE000ED14
+            ldr r2, [r1, #0] /* CCR */
+            str r2, [r0, #0]
+            ldr r2, [r1, #20] /* CFSR */
+            str r2, [r0, #4]
+            ldr r2, [r1, #24] /* HFSR */
+            str r2, [r0, #8]
+            ldr r2, [r1, #32] /* MMFAR */
+            str r2, [r0, #12]
+            ldr r2, [r1, #36] /* BFAR */
+            str r2, [r0, #16]
+
+            /* Set thread mode to privileged */
+            movs r0, #0
+            msr CONTROL, r0
+            /* No ISB required on M0 */
+            /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+
+            ldr r0, FEXC_RETURN_MSP
+            bx r0
+    .align 4
+    FEXC_RETURN_MSP:
+      .word 0xFFFFFFF9
+        "
+        );
+    }
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
-    let faulting_stack: *mut u32;
-    let kernel_stack: bool;
-
     // If `kernel_stack` is non-zero, then hard-fault occurred in
-    // kernel, otherwise the hard-fault occurrend in user.
-    llvm_asm!("
+    // kernel, otherwise the hard-fault occurred in user.
+    asm!("
     /*
      * Will be incremented to 1 when we determine that it was a fault
      * in the kernel
@@ -286,64 +352,11 @@ _hardfault_msp:
     adds r1, #1
 
 _hardfault_exit:
-    "
-    : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
-    :
-    : "r0", "r1", "r2", "r3"
-    : "volatile"
-    );
 
-    if kernel_stack {
-        kernel_hardfault(faulting_stack);
-    } else {
-        // hard fault occurred in an app, not the kernel. The app should be
-        // marked as in an error state and handled by the kernel
-        llvm_asm!("
-             ldr r0, =APP_HARD_FAULT
-             movs r1, #1 /* Fault */
-             str r1, [r0, #0]
-
-             /*
-              * NOTE:
-              * -----
-              *
-              * Even though ARMv6-M SCB and Control registers
-              * are different from ARMv7-M, they are still compatible
-              * with each other. So, we can keep the same code as
-              * ARMv7-M.
-              *
-              * ARMv6-M however has no _privileged_ mode.
-              */
-
-             /* Read the SCB registers. */
-             ldr r0, =SCB_REGISTERS
-             ldr r1, =0xE000ED14
-             ldr r2, [r1, #0] /* CCR */
-             str r2, [r0, #0]
-             ldr r2, [r1, #20] /* CFSR */
-             str r2, [r0, #4]
-             ldr r2, [r1, #24] /* HFSR */
-             str r2, [r0, #8]
-             ldr r2, [r1, #32] /* MMFAR */
-             str r2, [r0, #12]
-             ldr r2, [r1, #36] /* BFAR */
-             str r2, [r0, #16]
-
-             /* Set thread mode to privileged */
-             movs r0, #0
-             msr CONTROL, r0
-             /* No ISB required on M0 */
-             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-
-             ldr r0, FEXC_RETURN_MSP
-             bx r0
-.align 4
-FEXC_RETURN_MSP:
-  .word 0xFFFFFFF9
-             "
-             :
-             :
-             :
-             : "volatile");
-    }
+    b {}    // Branch to the non-naked fault handler.
+    bx lr   // If continued function returns, we need to manually branch to
+            // link register.
+    ",
+    sym hard_fault_handler_continued,
+    options(noreturn));
 }
