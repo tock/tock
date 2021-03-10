@@ -135,18 +135,6 @@ pub trait Read {
 ///
 /// This is a supertrait of [`Read`], which features further methods.
 pub trait ReadWrite: Read {
-    /// Mutable pointer to the userspace memory region
-    ///
-    /// If the length of the initially shared memory region
-    /// (irrespective of the return value of [`len`](Read::len)) is 0,
-    /// this function must return a pointer to address `0x0`. This is
-    /// because processes allow buffers with length 0 to reclaim
-    /// shared memory with the kernel and are allowed to specify _any_
-    /// address, even if it is not contained within their address
-    /// space. These _dummy addresses_ should not be leaked to outside
-    /// code.
-    fn mut_ptr(&self) -> *mut u8;
-
     /// Applies a function to the mutable slice reference pointed to
     /// by the AppSlice.
     ///
@@ -269,14 +257,6 @@ impl Default for ReadWriteAppSlice {
 }
 
 impl ReadWrite for ReadWriteAppSlice {
-    fn mut_ptr(&self) -> *mut u8 {
-        if self.len == 0 {
-            0x0 as *mut u8
-        } else {
-            self.ptr
-        }
-    }
-
     fn mut_map_or<F, R>(&mut self, default: R, fun: F) -> R
     where
         F: FnOnce(&mut [u8]) -> R,
