@@ -9,19 +9,10 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
-pub struct Writer {
-    initialized: bool,
-}
+pub struct Writer {}
 
 /// Global static for debug writer
-pub static mut WRITER: Writer = Writer { initialized: false };
-
-impl Writer {
-    /// Indicate that USART has already been initialized.
-    pub fn set_initialized(&mut self) {
-        self.initialized = true;
-    }
-}
+pub static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
