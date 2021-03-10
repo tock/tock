@@ -894,7 +894,7 @@ impl Kernel {
                     None => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 });
 
-                let res = SyscallReturn::from_command_result(cres);
+                let res = SyscallReturn::from_command_return(cres);
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
