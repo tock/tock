@@ -24,6 +24,9 @@ fn u64_to_be_u32s(src: u64) -> (u32, u32) {
 
 /// Enumeration of the system call classes based on the identifiers
 /// specified in the Tock ABI.
+///
+/// These are encoded as 8 bit values as on some architectures the value can
+/// be encoded in the instruction itself.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallClass {
