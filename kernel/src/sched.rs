@@ -30,7 +30,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
-use crate::syscall::{Syscall, YieldCall};
+use crate::syscall::{ExitCall, Syscall, YieldCall};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -989,15 +989,31 @@ impl Kernel {
             Syscall::Exit {
                 which,
                 completion_code,
-            } => match which {
-                // The process called the `exit-terminate` system call.
-                0 => process.terminate(completion_code as u32),
-                // The process called the `exit-restart` system call.
-                1 => process.try_restart(completion_code as u32),
-                // The process called an invalid variant of the Exit
-                // system call class.
-                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
-            },
+            } => {
+                // Parse the `which` value according to the definition of the
+                // exit syscall.
+                let exit_type = match which {
+                    // The process called the `exit-terminate` system call.
+                    0 => Some(ExitCall::Terminate),
+                    // The process called the `exit-restart` system call.
+                    1 => Some(ExitCall::Restart),
+                    _ => None,
+                };
+
+                // Handle each variant of the exit syscall.
+                exit_type.map_or_else(
+                    || {
+                        // The process called an invalid variant of the Exit
+                        // system call class.
+                        process
+                            .set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT));
+                    },
+                    |exit| match exit {
+                        ExitCall::Terminate => process.terminate(completion_code as u32),
+                        ExitCall::Restart => process.try_restart(completion_code as u32),
+                    },
+                );
+            }
         }
     }
 }
