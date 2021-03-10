@@ -296,11 +296,11 @@ pub enum SyscallReturn {
 impl SyscallReturn {
     /// Transforms a CommandReturn, which is wrapper around a subset of
     /// SyscallReturn, into a SyscallReturn.
-    /// This allows CommandReturn to include only the variants of
-    /// SyscallReturn that can be returned from a Command,
-    /// while having an inexpensive way to handle it as a
-    /// SyscallReturn for more generic code paths.
-    pub(crate) fn from_command_result(res: CommandReturn) -> Self {
+    ///
+    /// This allows CommandReturn to include only the variants of SyscallReturn
+    /// that can be returned from a Command, while having an inexpensive way to
+    /// handle it as a SyscallReturn for more generic code paths.
+    pub(crate) fn from_command_return(res: CommandReturn) -> Self {
         res.into_inner()
     }
 
