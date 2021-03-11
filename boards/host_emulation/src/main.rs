@@ -100,7 +100,7 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(ddc);
 
-    let uart = &UART0;
+    let uart = &mut UART0;
     uart.initialize();
 
     let uart_mux = components::console::UartMuxComponent::new(uart, 0, ddc).finalize(());
