@@ -41,20 +41,10 @@ pub enum SyscallClass {
 
 /// Enumeration of the yield system calls based on the Yield identifier
 /// values specified in the Tock ABI.
-#[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
-}
-
-/// Enumeration of the exit system calls based on the Exit identifier values
-/// specified in the Tock ABI.
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum ExitCall {
-    Terminate = 0,
-    Restart = 1,
 }
 
 // Required as long as no solution to
