@@ -11,6 +11,6 @@ kernel = { path = "../../kernel" }
 tock-cells = { path = "../../libraries/tock-cells" }
 
 tempfile = "3.1.0"
-zerocopy = "0.3.0"
+zerocopy = { version = "=0.3.0" }
 clap = "2.33.0"
 
