@@ -113,11 +113,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let sp = state.psp as *mut u32;
         let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
 
-        // TODO: Are these guarantees _always_ satisfied? E.g. must
-        // the stack_pointer always be properly aligned?
-
         // These operations are only safe so long as
-        // - the pointers are properly aligned
+        // - the pointers are properly aligned. This is guaranteed because the
+        //   pointers are all offset multiples of 4 bytes from the stack
+        //   pointer, which is guaranteed to be properly aligned after
+        //   exception entry on Cortex-M. See
+        //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
+        //   for more details.
         // - the pointer is dereferencable, i.e. the memory range of
         //   the given size starting at the pointer must all be within
         //   the bounds of a single allocated object
