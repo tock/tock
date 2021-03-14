@@ -14,7 +14,7 @@
 
 with builtins;
 let
-  inherit (pkgs) stdenv;
+  inherit (pkgs) stdenv lib;
   pythonPackages = lib.fix' (self: with self; pkgs.python3Packages //
   {
 
