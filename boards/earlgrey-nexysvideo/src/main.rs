@@ -17,9 +17,10 @@ use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Alarm;
-use kernel::Chip;
+use kernel::mpu::KernelMPU;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
+use kernel::{mpu, Chip};
 use rv32i::csr;
 
 #[allow(dead_code)]
@@ -310,6 +311,24 @@ pub unsafe fn reset_handler() {
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
         static _eappmem: u8;
+        /// The start of the kernel stack (Included only for kernel PMP)
+        static _sstack: u8;
+        /// The end of the kernel stack (Included only for kernel PMP)
+        static _estack: u8;
+        /// The start of the kernel text (Included only for kernel PMP)
+        static _stext: u8;
+        /// The end of the kernel text (Included only for kernel PMP)
+        static _etext: u8;
+        /// The start of the kernel relocation region
+        /// (Included only for kernel PMP)
+        static _srelocate: u8;
+        /// The end of the kernel relocation region
+        /// (Included only for kernel PMP)
+        static _erelocate: u8;
+        /// The start of the kernel BSS (Included only for kernel PMP)
+        static _szero: u8;
+        /// The end of the kernel BSS (Included only for kernel PMP)
+        static _ezero: u8;
     }
 
     let earlgrey_nexysvideo = EarlGreyNexysVideo {
@@ -321,6 +340,53 @@ pub unsafe fn reset_handler() {
         lldb: lldb,
         i2c_master,
     };
+
+    // This is PMP support for kernel regions
+    // PMP does not allow a deny by default option, so all regions not marked
+    // with the below commands will have full access.
+    // This is still a useful implementation as it can be used to limit the
+    // kernels access, for example removing execute permission from regions
+    // we don't need to execute from and removing write permissions from
+    // executable reions.
+    let mut mpu_config = rv32i::pmp::PMPConfig::default();
+    // The kernel stack
+    chip.pmp
+        .allocate_kernel_region(
+            &_sstack as *const u8,
+            &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel text
+    chip.pmp
+        .allocate_kernel_region(
+            &_stext as *const u8,
+            &_etext as *const u8 as usize - &_stext as *const u8 as usize,
+            mpu::Permissions::ReadExecuteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel relocate data
+    chip.pmp
+        .allocate_kernel_region(
+            &_srelocate as *const u8,
+            &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel BSS
+    chip.pmp
+        .allocate_kernel_region(
+            &_szero as *const u8,
+            &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+
+    chip.pmp.enable_kernel_mpu(&mut mpu_config);
 
     kernel::procs::load_processes(
         board_kernel,

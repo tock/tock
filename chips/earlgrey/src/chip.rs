@@ -16,7 +16,7 @@ use crate::plic::PLIC;
 
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
-    pmp: PMP<8>,
+    pub pmp: PMP<8>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
