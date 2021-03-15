@@ -4,6 +4,7 @@ use kernel::common::cells::VolatileCell;
 use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
+use riscv_csr::csr::ReadWriteRiscvCsr;
 
 register_structs! {
     pub PicRegisters {
@@ -59,10 +60,39 @@ register_bitfields![u32,
         ]
     ],
 ];
+register_bitfields![usize,
+    MEIVT [
+        BASE OFFSET(10) NUMBITS(22) []
+    ],
+    MEIPT [
+        PRITHRESH OFFSET(0) NUMBITS(4) []
+    ],
+    MEICIDPL [
+        CLIDPRI OFFSET(0) NUMBITS(4) []
+    ],
+    MEICURPL [
+        CURRPRI OFFSET(0) NUMBITS(4) []
+    ],
+    MEICPCT [
+        RESERVED OFFSET(0) NUMBITS(32) []
+    ],
+    MEIHAP [
+        ZERO OFFSET(0) NUMBITS(2) [],
+        CLAIMID OFFSET(2) NUMBITS(8) [],
+        BASE OFFSET(10) NUMBITS(22) [],
+    ],
+];
 
+#[allow(dead_code)]
 pub struct Pic {
     registers: StaticRef<PicRegisters>,
     saved: [VolatileCell<LocalRegisterCopy<u32>>; 3],
+    meivt: ReadWriteRiscvCsr<usize, MEIVT::Register, 0xBC8>,
+    meipt: ReadWriteRiscvCsr<usize, MEIPT::Register, 0xBC9>,
+    meicpct: ReadWriteRiscvCsr<usize, MEICPCT::Register, 0xBCA>,
+    meicidpl: ReadWriteRiscvCsr<usize, MEICIDPL::Register, 0xBCB>,
+    meicurpl: ReadWriteRiscvCsr<usize, MEICURPL::Register, 0xBCC>,
+    meihap: ReadWriteRiscvCsr<usize, MEIHAP::Register, 0xFC8>,
 }
 
 impl Pic {
@@ -74,6 +104,12 @@ impl Pic {
                 VolatileCell::new(LocalRegisterCopy::new(0)),
                 VolatileCell::new(LocalRegisterCopy::new(0)),
             ],
+            meivt: ReadWriteRiscvCsr::new(),
+            meipt: ReadWriteRiscvCsr::new(),
+            meicpct: ReadWriteRiscvCsr::new(),
+            meicidpl: ReadWriteRiscvCsr::new(),
+            meicurpl: ReadWriteRiscvCsr::new(),
+            meihap: ReadWriteRiscvCsr::new(),
         }
     }
 
@@ -85,7 +121,6 @@ impl Pic {
     }
 
     /// Enable all interrupts.
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub fn enable_all(&self) {
         self.registers.mpiccfg.write(MPICCFG::PRIORD::STANDARD);
 
@@ -101,26 +136,15 @@ impl Pic {
 
         self.clear_all_pending();
 
-        // Write 0 to meipt, meicidpl and meicurpl
-        unsafe {
-            let val_to_set: usize = 0;
-            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const 0xBC9);
-            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const 0xBCB);
-            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const 0xBCC);
-        }
+        self.meipt.set(0);
+        self.meicidpl.set(0);
+        self.meicurpl.set(0);
 
         // Enable all interrupts
         for enable in self.registers.meie.iter() {
             enable.write(MEIE::INTEN::ENABLE);
         }
     }
-
-    // Mock implementations for tests
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn enable_all(&self) -> Option<u32> {
-        unimplemented!()
-    }
-
     /// Disable all interrupts.
     pub fn disable_all(&self) {
         for enable in self.registers.meie.iter() {
@@ -131,20 +155,9 @@ impl Pic {
     /// Get the index (0-256) of the lowest number pending interrupt, or `None` if
     /// none is pending. RISC-V PIC has a "claim" register which makes it easy
     /// to grab the highest priority pending interrupt.
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub fn next_pending(&self) -> Option<u32> {
-        let claim: usize;
-        let claimid: usize;
-
-        unsafe {
-            // Write 0 to meicpct
-            let val_to_set: usize = 0;
-            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const 0xBCA);
-
-            // Read interrupt from meihap
-            asm!("csrr {rd}, {csr}", rd = out(reg) claim, csr = const 0xFC8);
-            claimid = (claim >> 2) & 0xFF;
-        }
+        self.meicpct.set(0);
+        let claimid = self.meihap.read(MEIHAP::CLAIMID);
 
         if claimid == 0 {
             None
@@ -156,12 +169,6 @@ impl Pic {
 
             Some(claimid as u32)
         }
-    }
-
-    // Mock implementations for tests
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-    pub fn next_pending(&self) -> Option<u32> {
-        unimplemented!()
     }
 
     /// Save the current interrupt to be handled later

@@ -1,6 +1,6 @@
 //! Drivers and support modules for SweRV SoCs
 
-#![feature(const_fn, asm)]
+#![feature(const_fn)]
 #![no_std]
 #![crate_name = "swerv"]
 #![crate_type = "rlib"]
