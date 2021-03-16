@@ -291,7 +291,7 @@
 
 * Hudson: Is `reset_handler` called from assembly?
 
-` Brad: No, on Cortex-M platforms it's called by the hardware. On
+* Brad: No, on Cortex-M platforms it's called by the hardware. On
   RISC-V it's called by assembly.
 
 * Hudson: We might be able to do option 4 without a large diff. Git
@@ -519,4 +519,3 @@
   All of the other guarantees are valuable, but there are a lot of
   ways to do that. In priority, those come after preventing the data
   leakage issue.
-
