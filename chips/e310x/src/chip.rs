@@ -19,7 +19,7 @@ pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> 
     pmp: PMP<4>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
-    timer: &'a rv32i::machine_timer::MachineTimer<'a>,
+    timer: &'a sifive::timer::MachineTimer<'a>,
     plic_interrupt_service: &'a I,
 }
 
@@ -72,7 +72,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
     pub unsafe fn new(
         alarm: &'static A,
         plic_interrupt_service: &'a I,
-        timer: &'a rv32i::machine_timer::MachineTimer<'a>,
+        timer: &'a sifive::timer::MachineTimer<'a>,
     ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),

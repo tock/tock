@@ -16,7 +16,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use rv32i::machine_timer::MachineTimer;
+use sifive::timer::MachineTimer;
 
 pub unsafe fn run_multi_alarm(mux: &'static MuxAlarm<'static, MachineTimer<'static>>) {
     debug!("Starting multi alarm test.");

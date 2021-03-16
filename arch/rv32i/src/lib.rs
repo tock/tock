@@ -8,7 +8,6 @@
 use core::fmt::Write;
 
 pub mod clic;
-pub mod machine_timer;
 pub mod pmp;
 pub mod support;
 pub mod syscall;

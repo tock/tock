@@ -37,7 +37,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<
     &'static e310x::chip::E310x<
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
         E310xDefaultPeripherals,
     >,
 > = None;
@@ -62,7 +62,7 @@ struct HiFive1 {
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, sifive::timer::MachineTimer<'static>>,
     >,
 }
 
@@ -152,31 +152,31 @@ pub unsafe fn reset_handler() {
         .initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
 
     let hardware_timer = static_init!(
-        rv32i::machine_timer::MachineTimer,
-        rv32i::machine_timer::MachineTimer::new(e310x::timer::MTIME_BASE)
+        sifive::timer::MachineTimer,
+        sifive::timer::MachineTimer::new(e310x::timer::MTIME_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        MuxAlarm<'static, sifive::timer::MachineTimer>,
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+            VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
         >,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
@@ -187,7 +187,7 @@ pub unsafe fn reset_handler() {
 
     let chip = static_init!(
         e310x::chip::E310x<
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+            VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
             E310xDefaultPeripherals,
         >,
         e310x::chip::E310x::new(systick_virtual_alarm, peripherals, hardware_timer)

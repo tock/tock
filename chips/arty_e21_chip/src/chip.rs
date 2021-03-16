@@ -16,12 +16,12 @@ pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
     pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
-    machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
+    machinetimer: &'a sifive::timer::MachineTimer<'a>,
     interrupt_service: &'a I,
 }
 
 pub struct ArtyExxDefaultPeripherals<'a> {
-    pub machinetimer: rv32i::machine_timer::MachineTimer<'a>,
+    pub machinetimer: sifive::timer::MachineTimer<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub uart0: sifive::uart::Uart<'a>,
 }
@@ -29,7 +29,7 @@ pub struct ArtyExxDefaultPeripherals<'a> {
 impl<'a> ArtyExxDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            machinetimer: rv32i::machine_timer::MachineTimer::new(timer::MTIME_BASE),
+            machinetimer: sifive::timer::MachineTimer::new(timer::MTIME_BASE),
             gpio_port: crate::gpio::Port::new(),
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
         }
@@ -72,7 +72,7 @@ impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
 
 impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     pub unsafe fn new(
-        machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
+        machinetimer: &'a sifive::timer::MachineTimer<'a>,
         interrupt_service: &'a I,
     ) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
