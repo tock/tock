@@ -41,6 +41,7 @@ usage:
 	@echo "       allboards: Compiles Tock for all supported boards"
 	@echo "        allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "          alldoc: Builds Tock documentation for all boards"
+	@echo "          allstack: Prints a basic stack frame analysis for all boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
 	@echo "            list: Lists available boards"
@@ -143,6 +144,12 @@ alldoc:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Documenting $$f";\
 		$(MAKE) -C "boards/$$f" doc || exit 1;\
+		done
+
+.PHONY: allstack
+allstack:
+	@for f in $(ALL_BOARDS);\
+		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
 
 
