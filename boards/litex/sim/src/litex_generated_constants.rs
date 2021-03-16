@@ -30,7 +30,7 @@ pub const TIMER0_INTERRUPT: usize = 1;
 pub const UART_INTERRUPT: usize = 0;
 
 // constants defined in `generated/csr.h`
-pub const CSR_BASE: usize = 0x82000000;
+pub const CSR_BASE: usize = 0xf0000000;
 pub const CSR_CTRL_BASE: usize = CSR_BASE + 0x0000;
 pub const CSR_UART_BASE: usize = CSR_BASE + 0x2000;
 pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x2800;
