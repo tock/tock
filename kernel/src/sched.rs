@@ -932,9 +932,46 @@ impl Kernel {
                 allow_size,
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => process.allow_readwrite(allow_address, allow_size, &|appslice| {
-                        d.allow_readwrite(process.appid(), subdriver_number, appslice)
-                    }),
+                    Some(d) => {
+                        // Try to create an appropriate [`ReadWriteAppSlice`].
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readwrite_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`ReadWriteAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_readwrite(process.appid(), subdriver_number, appslice)
+                                {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`ReadWriteAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::AllowReadWriteFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
                     None => SyscallReturn::AllowReadWriteFailure(
                         ErrorCode::NOSUPPORT,
                         allow_address,
@@ -962,9 +999,52 @@ impl Kernel {
                 allow_size,
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => process.allow_readonly(allow_address, allow_size, &|appslice| {
-                        d.allow_readonly(process.appid(), subdriver_number, appslice)
-                    }),
+                    Some(d) => {
+                        // Try to create an appropriate [`ReadOnlyAppSlice`].
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readonly_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`ReadOnlyAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_readonly(process.appid(), subdriver_number, appslice)
+                                {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        // The capsule has rejected the allow
+                                        // operation. Pass the new buffer information
+                                        // back to the process.
+                                        //
+                                        // TODO: Ensure that the capsule has passed
+                                        // the newly constructed AppSlice back
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`ReadOnlyAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::AllowReadOnlyFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
                     None => SyscallReturn::AllowReadOnlyFailure(
                         ErrorCode::NOSUPPORT,
                         allow_address,

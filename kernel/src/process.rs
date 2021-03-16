@@ -386,66 +386,48 @@ pub trait ProcessType {
     // additional memop like functions
 
     /// Creates a `ReadWriteAppSlice` from the given offset and size
-    /// in process memory and invokes `allow_readwrite` on a `Driver`
-    /// implementation to invoke its system call.
-    ///
-    /// If `buf_start_addr` and `size` are not a valid read-write buffer
-    /// (any byte in the range is not read/write accessible to the process),
-    /// the method returns a failure result.
-    ///
-    /// If the process is not active the method returns a failure result.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
-    ///
-    /// The method takes a closure so it can invoke `allow_readwrite` on
-    /// a `Driver` after it produces a `ReadWriteAppSlice`.
+    /// in process memory.
     ///
     /// ## Returns
     ///
-    /// Whether or not the call to `allow_readwrite` succeeded, or failed,
-    /// either because the kernel or the capsule rejected it. A success (`Ok`)
-    /// result must swap the `ReadWriteAppSlice` with the previously held
-    /// one, while a failure (`Err`) must return the passed one.
-    fn allow_readwrite(
+    /// In case of success, this method returns the created
+    /// [`ReadWriteAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-write buffer (any byte in the range is not read/write
+    ///   accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readwrite_appslice(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadWriteAppSlice,
-        )
-            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> SyscallReturn;
+    ) -> Result<ReadWriteAppSlice, ErrorCode>;
 
-    /// Creates a `ReadOnlyAppSlice` from the given offset and size
-    /// in process memory and invokes `allow_readonly` on a `Driver`
-    /// implementation to invoke its system call.
-    ///
-    /// If `buf_start_addr` and `size` are not a valid read only buffer
-    /// (any byte in the range is not readable by the process),
-    /// the method returns a failure result.
-    ///
-    /// If the process is not active the method returns a failure result.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
-    ///
-    /// The method takes a closure so it can invoke `allow_readonly` on
-    /// a `Driver` after it produces a `ReadOnlyAppSlice`.
+    /// Creates a [`ReadOnlyAppSlice`] from the given offset and size
+    /// in process memory.
     ///
     /// ## Returns
     ///
-    /// Whether or not the call to `allow_readonly` succeeded, or failed,
-    /// either because the kernel or the capsule rejected it. A success (`Ok`)
-    /// result must swap the `ReadOnlyAppSlice` with the previously held
-    /// one, while a failure (`Err`) must return the passed one.
-    fn allow_readonly(
+    /// In case of success, this method returns the created
+    /// [`ReadOnlyAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-only buffer (any byte in the range is not
+    ///   read-accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readonly_appslice(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadOnlyAppSlice,
-        )
-            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> SyscallReturn;
+    ) -> Result<ReadOnlyAppSlice, ErrorCode>;
 
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is within the RAM
@@ -1297,24 +1279,20 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn allow_readwrite(
+    fn build_readwrite_appslice(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadWriteAppSlice,
-        )
-            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> SyscallReturn {
+    ) -> Result<ReadWriteAppSlice, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadWriteFailure(ErrorCode::FAIL, buf_start_addr, size);
+            return Err(ErrorCode::FAIL);
         }
 
         // A process is allowed to pass any pointer if the slice
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
-        let new_slice = if size == 0 {
+        if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
             // dereferencing the pointer here, we pass it along to an
@@ -1327,7 +1305,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
-            unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) }
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
 
@@ -1351,48 +1329,27 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // memory (verified using `in_app_owned_memory`) and
             // respect alignment and other constraints of the Rust
             // references created by ReadWriteAppSlice.
-            unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
-            return SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, buf_start_addr, size);
-        };
-
-        let allow_result = driver_invoc_closure(new_slice);
-
-        // TODO: Check whether the capsule either made the allow fail
-        // and returned the new slice, or it made the allow succeed
-        // and returned the expected slice from the allow table
-
-        match allow_result {
-            Ok(old_slice) => {
-                let (ptr, len) = old_slice.consume();
-                SyscallReturn::AllowReadWriteSuccess(ptr, len)
-            }
-            Err((new_slice, err)) => {
-                let (ptr, len) = new_slice.consume();
-                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
-            }
+            Err(ErrorCode::INVAL)
         }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn allow_readonly(
+    fn build_readonly_appslice(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadOnlyAppSlice,
-        )
-            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> SyscallReturn {
+    ) -> Result<ReadOnlyAppSlice, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::FAIL, buf_start_addr, size);
+            return Err(ErrorCode::FAIL);
         }
 
         // A process is allowed to pass any pointer if the slice
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
-        let new_slice = if size == 0 {
+        if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
             // deferencing the pointer here, we pass it along to an
@@ -1405,7 +1362,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
-            unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) }
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
         {
@@ -1432,26 +1389,9 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // `in_app_flash_memory`) and respect alignment and other
             // constraints of the Rust references created by
             // ReadWriteAppSlice.
-            unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
-            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, buf_start_addr, size);
-        };
-
-        let allow_result = driver_invoc_closure(new_slice);
-
-        // TODO: Check whether the capsule either made the allow fail
-        // and returned the new slice, or it made the allow succeed
-        // and returned the expected slice from the allow table
-
-        match allow_result {
-            Ok(old_slice) => {
-                let (ptr, len) = old_slice.consume();
-                SyscallReturn::AllowReadOnlySuccess(ptr, len)
-            }
-            Err((new_slice, err)) => {
-                let (ptr, len) = new_slice.consume();
-                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
-            }
+            Err(ErrorCode::INVAL)
         }
     }
 
