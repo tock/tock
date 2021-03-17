@@ -49,7 +49,7 @@ struct ArtyE21 {
     gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sifive::timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
     >,
     led: &'static capsules::led::LedDriver<
         'static,
@@ -130,24 +130,23 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, sifive::timer::MachineTimer>,
+        MuxAlarm<'static, sifive::clint::Clint>,
         MuxAlarm::new(&peripherals.machinetimer)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
 
     // Alarm
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
-        components::alarm_component_helper!(sifive::timer::MachineTimer),
-    );
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(sifive::clint::Clint));
 
     // TEST for timer
     //
     // let virtual_alarm_test = static_init!(
-    //     VirtualMuxAlarm<'static, sifive::timer::MachineTimer>,
+    //     VirtualMuxAlarm<'static, sifive::clint::Clint>,
     //     VirtualMuxAlarm::new(mux_alarm)
     // );
     // let timertest = static_init!(
-    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, sifive::timer::MachineTimer>>,
+    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
     //     timer_test::TimerTest::new(virtual_alarm_test)
     // );
     // virtual_alarm_test.set_client(timertest);

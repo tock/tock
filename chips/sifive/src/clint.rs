@@ -7,8 +7,9 @@ use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time}
 use kernel::ReturnCode;
 
 register_structs! {
-    pub MachineTimerRegisters {
-        (0x0000 => _reserved),
+    pub ClintRegisters {
+        (0x0000 => msip: ReadWrite<u32>),
+        (0x0004 => _reserved),
         (0x4000 => compare_low: ReadWrite<u32>),
         (0x4004 => compare_high: ReadWrite<u32>),
         (0x4008 => _reserved2),
@@ -18,14 +19,14 @@ register_structs! {
     }
 }
 
-pub struct MachineTimer<'a> {
-    registers: StaticRef<MachineTimerRegisters>,
+pub struct Clint<'a> {
+    registers: StaticRef<ClintRegisters>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl MachineTimer<'_> {
-    pub const fn new(base: StaticRef<MachineTimerRegisters>) -> Self {
-        MachineTimer {
+impl Clint<'_> {
+    pub const fn new(base: StaticRef<ClintRegisters>) -> Self {
+        Clint {
             registers: base,
             client: OptionalCell::empty(),
         }
@@ -45,7 +46,7 @@ impl MachineTimer<'_> {
     }
 }
 
-impl Time for MachineTimer<'_> {
+impl Time for Clint<'_> {
     type Frequency = Freq32KHz;
     type Ticks = Ticks64;
 
@@ -61,7 +62,7 @@ impl Time for MachineTimer<'_> {
     }
 }
 
-impl<'a> time::Alarm<'a> for MachineTimer<'a> {
+impl<'a> time::Alarm<'a> for Clint<'a> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.client.set(client);
     }
@@ -120,7 +121,7 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
 /// used by a chip if that chip has multiple hardware timer peripherals such that a different
 /// hardware timer can be used to provide alarms to capsules and userspace. This
 /// implementation will not work alongside other uses of the machine timer.
-impl kernel::SchedulerTimer for MachineTimer<'_> {
+impl kernel::SchedulerTimer for Clint<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
         let tics = Self::ticks_from_us(us);
