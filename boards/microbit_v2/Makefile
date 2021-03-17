@@ -37,6 +37,8 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(TOCKLOADER) flash $< --address 0x8000 --page-size 512
 
 .PHONY: flash-bootloader
-flash-bootloader: bootloader/tock-bootloader.microbit_v2.v1.1.1.bin
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
+flash-bootloader: 
+	curl --output /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; verify_image /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; reset; shutdown;"
+	rm /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
 

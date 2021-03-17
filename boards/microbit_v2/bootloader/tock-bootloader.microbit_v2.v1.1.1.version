@@ -1,6 +1,0 @@
-Version: 1.1.1
-Toolchain: rustc 1.51.0-nightly (c2de47a9a 2021-01-06)
-Tock Bootloader Hash: afc516b53ccfa83f86f046282e22b2c24bb079a2
-Tock Hash: 0e21e09c3b88c61434c6344423ad67d2809f0a0c
-Bootloader SHA256: b8e70767c0508ab69bf595e75ab4b370b908eccdd7ceec555f040f06fc0f2370
-Build Date: Wed Feb  3 19:58:14 UTC 2021

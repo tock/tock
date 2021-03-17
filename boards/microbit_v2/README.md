@@ -29,7 +29,7 @@ There are two ways for flashing the bootloader:
 
 ### Building the bootloader
 
-This step is optional, as a prebuilt bootloader is provided `bootloader/tock-bootloader.microbit_v2.v1.1.1.bin`.
+This step is optional, as a prebuilt bootloader is provided as a [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin).
 
 To build the bootloader yourself, please follow the instructions in the Tock Bootloader's [documentation](https://github.com/tock/tock-bootloader/tree/master/boards/microbit_v2-bootloader) for Micro:bit v2.
 ### Using the MicroBit USB Drive
@@ -38,7 +38,7 @@ To build the bootloader yourself, please follow the instructions in the Tock Boo
 
 Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up. 
 
-Drag and drop the `bootloader/tock-bootloader.microbit_v2.v1.1.0.bin` to the `MICROBIT` drive and wait for a few seconds.
+Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin) to the `MICROBIT` drive and wait for a few seconds.
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
 ### Using openocd 
