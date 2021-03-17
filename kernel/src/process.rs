@@ -1305,6 +1305,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
+            //
+            // ### Safety
+            //
+            // We specific a zero-length buffer, so the implementation of
+            // `ReadWriteAppSlice` will handle any safety issues. Therefore, we
+            // can encapsulate the unsafe.
             Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
@@ -1329,6 +1335,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // memory (verified using `in_app_owned_memory`) and
             // respect alignment and other constraints of the Rust
             // references created by ReadWriteAppSlice.
+            //
+            // ### Safety
+            //
+            // We encapsulate the unsafe here on the condition in the TODO
+            // above, as we must ensure that this `ReadWriteAppSlice` will be
+            // the only reference to this memory.
             Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
             Err(ErrorCode::INVAL)
@@ -1362,6 +1374,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
+            //
+            // ### Safety
+            //
+            // We specific a zero-length buffer, so the implementation of
+            // `ReadOnlyAppSlice` will handle any safety issues. Therefore, we
+            // can encapsulate the unsafe.
             Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
@@ -1389,6 +1407,12 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // `in_app_flash_memory`) and respect alignment and other
             // constraints of the Rust references created by
             // ReadWriteAppSlice.
+            //
+            // ### Safety
+            //
+            // We encapsulate the unsafe here on the condition in the TODO
+            // above, as we must ensure that this `ReadOnlyAppSlice` will be
+            // the only reference to this memory.
             Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
             Err(ErrorCode::INVAL)
