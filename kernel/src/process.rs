@@ -1050,9 +1050,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 panic!("Process {} had a fault", self.process_name);
             }
             FaultResponse::Restart(restart_policy) => {
-                // Apply the process policy for whether to restart
+                // Apply the process policy for whether to try to restart
                 // on a fault. We sometimes don't want to (e.g., too
-                // many faults).
+                // many faults). If we decide to try to restart, the
+                // kernel applies its own policy for how to reuse the
+                // process: it may or may not restart the application.
                 if restart_policy.should_restart(self) {
                     self.try_restart(COMPLETION_FAULT);
                 } else {
@@ -1072,27 +1074,28 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    /// Terminates and attempts to restart the process. The process
-    /// always terminates, but may or not restart based on kernel
-    /// policy and process state. It applies the restart policy
-    /// to the process.
+    /// Terminates and attempts to restart the process. The process and
+    /// current application always terminate. The kernel may, based on its own
+    /// policy, restart the application using the same process, reuse the
+    /// process for another application, or simply terminate the process
+    /// and application.
     ///
-    /// This function can be called when the process is in any state and
-    /// attempts to reset all of its state and re-initialize it so that it can
-    /// start running again.
+    /// This function can be called when the process is in any state. It
+    /// attempts to reset all process state and re-initialize it so that it can
+    /// be reused.
     ///
-    /// Restarting can fail for general reasons:
+    /// Restarting an application can fail for two general reasons:
     ///
-    /// 1. The kernel chooses not to restart the process based on the policy the
-    ///    kernel is using for restarting a specific process. For example, if a
-    ///    process has restarted a number of times in a row the kernel may
-    ///    decide to stop executing it.
+    /// 1. The kernel chooses not to restart the application, based on its
+    ///    policy.
     ///
-    /// 2. Some state can no long be configured for the process. For example,
+    /// 2. The kernel decides to restart the application but fails to do so
+    ///    because Some state can no long be configured for the process. For example,
     ///    the syscall state for the process fails to initialize.
     ///
     /// After `restart()` runs the process will either be queued to run its
-    /// `_start` function, or it will be terminated and unrunnable.
+    /// the application's `_start` function, terminated, or queued to run
+    /// a different application's `_start` function..
     fn try_restart(&self, completion_code: u32) {
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
