@@ -325,11 +325,36 @@ pub trait ProcessType {
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
-    /// Terminate the process so it doesn't run, cleaning up its state.
+    /// Stop and clear a process's state, putting it into the `Terminated`
+    /// state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
     fn terminate(&self, completion_code: u32);
 
-    /// Terminate the process and try to restart it, applying kernel
-    /// policies on whether to do so.
+    /// Terminates and attempts to restart the process. The process and current
+    /// application always terminate. The kernel may, based on its own policy,
+    /// restart the application using the same process, reuse the process for
+    /// another application, or simply terminate the process and application.
+    ///
+    /// This function can be called when the process is in any state. It
+    /// attempts to reset all process state and re-initialize it so that it can
+    /// be reused.
+    ///
+    /// Restarting an application can fail for two general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the application, based on its
+    ///    policy.
+    ///
+    /// 2. The kernel decides to restart the application but fails to do so
+    ///    because Some state can no long be configured for the process. For
+    ///    example, the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its the
+    /// application's `_start` function, terminated, or queued to run a
+    /// different application's `_start` function.
     fn try_restart(&self, completion_code: u32);
 
     // memop operations
@@ -1074,28 +1099,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    /// Terminates and attempts to restart the process. The process and
-    /// current application always terminate. The kernel may, based on its own
-    /// policy, restart the application using the same process, reuse the
-    /// process for another application, or simply terminate the process
-    /// and application.
-    ///
-    /// This function can be called when the process is in any state. It
-    /// attempts to reset all process state and re-initialize it so that it can
-    /// be reused.
-    ///
-    /// Restarting an application can fail for two general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the application, based on its
-    ///    policy.
-    ///
-    /// 2. The kernel decides to restart the application but fails to do so
-    ///    because Some state can no long be configured for the process. For example,
-    ///    the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its
-    /// the application's `_start` function, terminated, or queued to run
-    /// a different application's `_start` function..
     fn try_restart(&self, completion_code: u32) {
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
@@ -1109,12 +1112,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // want to reclaim the process resources.
     }
 
-    /// Stop and clear a process's state, putting it into the `Terminated` state.
-    ///
-    /// This will end the process, but does not reset it such that it could be
-    /// restarted and run again. This function instead frees grants and any
-    /// queued tasks for this process, but leaves the debug information about
-    /// the process and other state intact.
     fn terminate(&self, _completion_code: u32) {
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
