@@ -51,7 +51,7 @@ the Hello World exmple app from the libtock-rs repository by running:
 
 ```
 $ cd [LIBTOCK-RS-DIR]
-$ make flash-hifive1
+$ make EXAMPLE=hello_world flash-hifive1
 $ tar xf target/riscv32imac-unknown-none-elf/tab/hifive1/hello_world.tab
 $ cd [TOCK_ROOT]/boards/hifive
 $ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
