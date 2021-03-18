@@ -939,58 +939,62 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         }
 
                         let skip_amt = app.app_buf_offset.get();
-                        let app_buf;
-                        if use1 {
-                            app_buf = &app.app_buf1;
-                        } else {
-                            app_buf = &app.app_buf2;
-                        }
-                        // next we should copy bytes to the app buffer
-                        app_buf.mut_map_or((), |app_buf| {
-                            // Copy bytes to app buffer by iterating over the
-                            // data.
-                            buffer_with_samples.map(|adc_buf| {
-                                // The `for` commands:
-                                //  * `chunks_mut`: get sets of two bytes from the app
-                                //                  buffer
-                                //  * `skip`: skips the already written bytes from the
-                                //            app buffer
-                                //  * `zip`: ties that iterator to an iterator on the
-                                //           adc buffer, limiting iteration length to
-                                //           the minimum of each of their lengths
-                                //  * `take`: limits us to the minimum of buffer lengths
-                                //            or sample length
-                                // We then split each sample into its two bytes and copy
-                                // them to the app buffer
-                                for (chunk, &sample) in app_buf
-                                    .chunks_mut(2)
-                                    .skip(skip_amt)
-                                    .zip(adc_buf.iter())
-                                    .take(length)
-                                {
-                                    let mut val = sample;
-                                    for byte in chunk.iter_mut() {
-                                        *byte = (val & 0xFF) as u8;
-                                        val = val >> 8;
+
+                        {
+                            let app_buf;
+                            if use1 {
+                                app_buf = &mut app.app_buf1;
+                            } else {
+                                app_buf = &mut app.app_buf2;
+                            }
+
+                            // next we should copy bytes to the app buffer
+                            app_buf.mut_map_or((), |app_buf| {
+                                // Copy bytes to app buffer by iterating over the
+                                // data.
+                                buffer_with_samples.map(|adc_buf| {
+                                    // The `for` commands:
+                                    //  * `chunks_mut`: get sets of two bytes from the app
+                                    //                  buffer
+                                    //  * `skip`: skips the already written bytes from the
+                                    //            app buffer
+                                    //  * `zip`: ties that iterator to an iterator on the
+                                    //           adc buffer, limiting iteration length to
+                                    //           the minimum of each of their lengths
+                                    //  * `take`: limits us to the minimum of buffer lengths
+                                    //            or sample length
+                                    // We then split each sample into its two bytes and copy
+                                    // them to the app buffer
+                                    for (chunk, &sample) in app_buf
+                                        .chunks_mut(2)
+                                        .skip(skip_amt)
+                                        .zip(adc_buf.iter())
+                                        .take(length)
+                                    {
+                                        let mut val = sample;
+                                        for byte in chunk.iter_mut() {
+                                            *byte = (val & 0xFF) as u8;
+                                            val = val >> 8;
+                                        }
                                     }
-                                }
+                                });
                             });
-                        });
+                        }
                         // update our byte offset based on how many samples we
                         // copied
                         app.app_buf_offset
                             .set(app.app_buf_offset.get() + length * 2);
 
                         // let in_use_buf;
-                        let buf_ptr = if use1 {
-                            app.app_buf1.ptr()
+                        let (buf_ptr, buf_len) = if use1 {
+                            (app.app_buf1.ptr(), app.app_buf1.len())
                         } else {
-                            app.app_buf2.ptr()
+                            (app.app_buf2.ptr(), app.app_buf2.len())
                         };
                         // if the app_buffer is filled, perform callback
                         if perform_callback {
                             // actually schedule the callback
-                            let len_chan = ((app_buf.len() / 2) << 8) | (self.channel.get() & 0xFF);
+                            let len_chan = ((buf_len / 2) << 8) | (self.channel.get() & 0xFF);
                             app.callback.schedule(
                                 self.mode.get() as usize,
                                 len_chan,

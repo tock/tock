@@ -325,11 +325,36 @@ pub trait ProcessType {
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
-    /// Terminate the process so it doesn't run, cleaning up its state.
+    /// Stop and clear a process's state, putting it into the `Terminated`
+    /// state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
     fn terminate(&self, completion_code: u32);
 
-    /// Terminate the process and try to restart it, applying kernel
-    /// policies on whether to do so.
+    /// Terminates and attempts to restart the process. The process and current
+    /// application always terminate. The kernel may, based on its own policy,
+    /// restart the application using the same process, reuse the process for
+    /// another application, or simply terminate the process and application.
+    ///
+    /// This function can be called when the process is in any state. It
+    /// attempts to reset all process state and re-initialize it so that it can
+    /// be reused.
+    ///
+    /// Restarting an application can fail for two general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the application, based on its
+    ///    policy.
+    ///
+    /// 2. The kernel decides to restart the application but fails to do so
+    ///    because Some state can no long be configured for the process. For
+    ///    example, the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its the
+    /// application's `_start` function, terminated, or queued to run a
+    /// different application's `_start` function.
     fn try_restart(&self, completion_code: u32);
 
     // memop operations
@@ -386,71 +411,60 @@ pub trait ProcessType {
     // additional memop like functions
 
     /// Creates a `ReadWriteAppSlice` from the given offset and size
-    /// in process memory and invokes `allow_readwrite` on a `Driver`
-    /// implementation to invoke its system call.
-    ///
-    /// If `buf_start_addr` and `size` are not a valid read-write buffer
-    /// (any byte in the range is not read/write accessible to the process),
-    /// the method returns a failure result.
-    ///
-    /// If the process is not active the method returns a failure result.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
-    ///
-    /// The method takes a closure so it can invoke `allow_readwrite` on
-    /// a `Driver` after it produces a `ReadWriteAppSlice`.
+    /// in process memory.
     ///
     /// ## Returns
     ///
-    /// Whether or not the call to `allow_readwrite` succeeded, or failed,
-    /// either because the kernel or the capsule rejected it. A success (`Ok`)
-    /// result must swap the `ReadWriteAppSlice` with the previously held
-    /// one, while a failure (`Err`) must return the passed one.
-    fn allow_readwrite(
+    /// In case of success, this method returns the created
+    /// [`ReadWriteAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-write buffer (any byte in the range is not read/write
+    ///   accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readwrite_appslice(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadWriteAppSlice,
-        )
-            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> SyscallReturn;
+    ) -> Result<ReadWriteAppSlice, ErrorCode>;
 
-    /// Creates a `ReadOnlyAppSlice` from the given offset and size
-    /// in process memory and invokes `allow_readonly` on a `Driver`
-    /// implementation to invoke its system call.
-    ///
-    /// If `buf_start_addr` and `size` are not a valid read only buffer
-    /// (any byte in the range is not readable by the process),
-    /// the method returns a failure result.
-    ///
-    /// If the process is not active the method returns a failure result.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
-    ///
-    /// The method takes a closure so it can invoke `allow_readonly` on
-    /// a `Driver` after it produces a `ReadOnlyAppSlice`.
+    /// Creates a [`ReadOnlyAppSlice`] from the given offset and size
+    /// in process memory.
     ///
     /// ## Returns
     ///
-    /// Whether or not the call to `allow_readonly` succeeded, or failed,
-    /// either because the kernel or the capsule rejected it. A success (`Ok`)
-    /// result must swap the `ReadOnlyAppSlice` with the previously held
-    /// one, while a failure (`Err`) must return the passed one.
-    fn allow_readonly(
+    /// In case of success, this method returns the created
+    /// [`ReadOnlyAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-only buffer (any byte in the range is not
+    ///   read-accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readonly_appslice(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadOnlyAppSlice,
-        )
-            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> SyscallReturn;
+    ) -> Result<ReadOnlyAppSlice, ErrorCode>;
 
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is within the RAM
     /// bounds currently exposed to the process (thereby writable
     /// by the process itself) and the value was set, false otherwise.
+    ///
+    /// ### Safety
+    ///
+    /// This function verifies that the byte to be written is in the process's
+    /// accessible memory. However, to avoid undefined behavior the caller needs
+    /// to ensure that no other references exist to the process's memory before
+    /// calling this function.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
@@ -525,27 +539,27 @@ pub trait ProcessType {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn);
+    fn set_syscall_return_value(&self, return_value: SyscallReturn);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    unsafe fn set_process_function(&self, upcall: FunctionCall);
+    fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
     ///
     /// This will return `None` if the process is inactive and cannot be
     /// switched to.
-    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
+    fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Print out the memory map (Grant region, heap, stack, program
     /// memory, BSS, and data sections) of this process.
-    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+    fn print_memory_map(&self, writer: &mut dyn Write);
 
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
-    unsafe fn print_full_process(&self, writer: &mut dyn Write);
+    fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
 
@@ -1061,9 +1075,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 panic!("Process {} had a fault", self.process_name);
             }
             FaultResponse::Restart(restart_policy) => {
-                // Apply the process policy for whether to restart
+                // Apply the process policy for whether to try to restart
                 // on a fault. We sometimes don't want to (e.g., too
-                // many faults).
+                // many faults). If we decide to try to restart, the
+                // kernel applies its own policy for how to reuse the
+                // process: it may or may not restart the application.
                 if restart_policy.should_restart(self) {
                     self.try_restart(COMPLETION_FAULT);
                 } else {
@@ -1083,27 +1099,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    /// Terminates and attempts to restart the process. The process
-    /// always terminates, but may or not restart based on kernel
-    /// policy and process state. It applies the restart policy
-    /// to the process.
-    ///
-    /// This function can be called when the process is in any state and
-    /// attempts to reset all of its state and re-initialize it so that it can
-    /// start running again.
-    ///
-    /// Restarting can fail for general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the process based on the policy the
-    ///    kernel is using for restarting a specific process. For example, if a
-    ///    process has restarted a number of times in a row the kernel may
-    ///    decide to stop executing it.
-    ///
-    /// 2. Some state can no long be configured for the process. For example,
-    ///    the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its
-    /// `_start` function, or it will be terminated and unrunnable.
     fn try_restart(&self, completion_code: u32) {
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
@@ -1117,12 +1112,6 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // want to reclaim the process resources.
     }
 
-    /// Stop and clear a process's state, putting it into the `Terminated` state.
-    ///
-    /// This will end the process, but does not reset it such that it could be
-    /// restarted and run again. This function instead frees grants and any
-    /// queued tasks for this process, but leaves the debug information about
-    /// the process and other state intact.
     fn terminate(&self, _completion_code: u32) {
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
@@ -1290,24 +1279,20 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn allow_readwrite(
+    fn build_readwrite_appslice(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadWriteAppSlice,
-        )
-            -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)>,
-    ) -> SyscallReturn {
+    ) -> Result<ReadWriteAppSlice, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadWriteFailure(ErrorCode::FAIL, buf_start_addr, size);
+            return Err(ErrorCode::FAIL);
         }
 
         // A process is allowed to pass any pointer if the slice
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
-        let new_slice = if size == 0 {
+        if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
             // dereferencing the pointer here, we pass it along to an
@@ -1320,7 +1305,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
-            unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) }
+            //
+            // ### Safety
+            //
+            // We specific a zero-length buffer, so the implementation of
+            // `ReadWriteAppSlice` will handle any safety issues. Therefore, we
+            // can encapsulate the unsafe.
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
 
@@ -1344,48 +1335,33 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // memory (verified using `in_app_owned_memory`) and
             // respect alignment and other constraints of the Rust
             // references created by ReadWriteAppSlice.
-            unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) }
+            //
+            // ### Safety
+            //
+            // We encapsulate the unsafe here on the condition in the TODO
+            // above, as we must ensure that this `ReadWriteAppSlice` will be
+            // the only reference to this memory.
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
-            return SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, buf_start_addr, size);
-        };
-
-        let allow_result = driver_invoc_closure(new_slice);
-
-        // TODO: Check whether the capsule either made the allow fail
-        // and returned the new slice, or it made the allow succeed
-        // and returned the expected slice from the allow table
-
-        match allow_result {
-            Ok(old_slice) => {
-                let (ptr, len) = old_slice.consume();
-                SyscallReturn::AllowReadWriteSuccess(ptr, len)
-            }
-            Err((new_slice, err)) => {
-                let (ptr, len) = new_slice.consume();
-                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
-            }
+            Err(ErrorCode::INVAL)
         }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn allow_readonly(
+    fn build_readonly_appslice(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-        driver_invoc_closure: &dyn Fn(
-            ReadOnlyAppSlice,
-        )
-            -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)>,
-    ) -> SyscallReturn {
+    ) -> Result<ReadOnlyAppSlice, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
-            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::FAIL, buf_start_addr, size);
+            return Err(ErrorCode::FAIL);
         }
 
         // A process is allowed to pass any pointer if the slice
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
-        let new_slice = if size == 0 {
+        if size == 0 {
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
             // deferencing the pointer here, we pass it along to an
@@ -1398,7 +1374,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // It should be fine to ignore the lint here, as a slice
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
-            unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) }
+            //
+            // ### Safety
+            //
+            // We specific a zero-length buffer, so the implementation of
+            // `ReadOnlyAppSlice` will handle any safety issues. Therefore, we
+            // can encapsulate the unsafe.
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
         {
@@ -1425,31 +1407,23 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // `in_app_flash_memory`) and respect alignment and other
             // constraints of the Rust references created by
             // ReadWriteAppSlice.
-            unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) }
+            //
+            // ### Safety
+            //
+            // We encapsulate the unsafe here on the condition in the TODO
+            // above, as we must ensure that this `ReadOnlyAppSlice` will be
+            // the only reference to this memory.
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) })
         } else {
-            return SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, buf_start_addr, size);
-        };
-
-        let allow_result = driver_invoc_closure(new_slice);
-
-        // TODO: Check whether the capsule either made the allow fail
-        // and returned the new slice, or it made the allow succeed
-        // and returned the expected slice from the allow table
-
-        match allow_result {
-            Ok(old_slice) => {
-                let (ptr, len) = old_slice.consume();
-                SyscallReturn::AllowReadOnlySuccess(ptr, len)
-            }
-            Err((new_slice, err)) => {
-                let (ptr, len) = new_slice.consume();
-                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
-            }
+            Err(ErrorCode::INVAL)
         }
     }
 
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
+            // We verify that this will only write process-accessible memory,
+            // but this can still be undefined behavior if something else holds
+            // a reference to this memory.
             *addr = value;
             true
         } else {
@@ -1545,8 +1519,14 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         self.process_name
     }
 
-    unsafe fn set_syscall_return_value(&self, return_value: SyscallReturn) {
-        match self.stored_state.map(|stored_state| {
+    fn set_syscall_return_value(&self, return_value: SyscallReturn) {
+        match self.stored_state.map(|stored_state| unsafe {
+            // Actually set the return value for a particular process.
+            //
+            // The UKB implementation uses the bounds of process-accessible
+            // memory to verify that any memory changes are valid. Here, the
+            // unsafe promise we are making is that the bounds passed to the UKB
+            // are correct.
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
@@ -1575,7 +1555,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn set_process_function(&self, upcall: FunctionCall) {
+    fn set_process_function(&self, callback: FunctionCall) {
         // See if we can actually enqueue this function for this process.
         // Architecture-specific code handles actually doing this since the
         // exact method is both architecture- and implementation-specific.
@@ -1583,12 +1563,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // This can fail, for example if the process does not have enough memory
         // remaining.
         match self.stored_state.map(|stored_state| {
-            self.chip.userspace_kernel_boundary().set_process_function(
-                self.memory.as_ptr(),
-                self.app_break.get(),
-                stored_state,
-                upcall,
-            )
+            // Let the UKB implementation handle setting the process's PC so
+            // that the process executes the upcall function. We encapsulate
+            // unsafe here because we are guaranteeing that the memory bounds
+            // passed to `set_process_function` are correct.
+            unsafe {
+                self.chip.userspace_kernel_boundary().set_process_function(
+                    self.memory.as_ptr(),
+                    self.app_break.get(),
+                    stored_state,
+                    callback,
+                )
+            }
         }) {
             Some(Ok(())) => {
                 // If we got an `Ok` we are all set and should mark that this
@@ -1616,7 +1602,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+    fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_active() {
             return None;
@@ -1624,11 +1610,18 @@ impl<C: Chip> ProcessType for Process<'_, C> {
 
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
-                let (switch_reason, optional_stack_pointer) = self
-                    .chip
-                    .userspace_kernel_boundary()
-                    .switch_to_process(self.memory.as_ptr(), self.app_break.get(), stored_state);
-                (Some(switch_reason), optional_stack_pointer)
+                // Switch to the process. We guarantee that the memory pointers
+                // we pass are valid, ensuring this context switch is safe.
+                // Therefore we encapsulate the `unsafe`.
+                unsafe {
+                    let (switch_reason, optional_stack_pointer) =
+                        self.chip.userspace_kernel_boundary().switch_to_process(
+                            self.memory.as_ptr(),
+                            self.app_break.get(),
+                            stored_state,
+                        );
+                    (Some(switch_reason), optional_stack_pointer)
+                }
             });
 
         // If the UKB implementation passed us a stack pointer, update our
@@ -1675,16 +1668,16 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         });
     }
 
-    unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
+    fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
-        let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
+        let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
 
         // SRAM addresses
-        let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
+        let sram_end = self.memory.as_ptr().wrapping_add(self.memory.len()) as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
@@ -1834,16 +1827,20 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         ));
     }
 
-    unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+    fn print_full_process(&self, writer: &mut dyn Write) {
         self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
-            self.chip.userspace_kernel_boundary().print_context(
-                self.memory.as_ptr(),
-                self.app_break.get(),
-                stored_state,
-                writer,
-            );
+            // We guarantee the memory bounds pointers provided to the UKB are
+            // correct.
+            unsafe {
+                self.chip.userspace_kernel_boundary().print_context(
+                    self.memory.as_ptr(),
+                    self.app_break.get(),
+                    stored_state,
+                    writer,
+                );
+            }
         });
 
         // Display the current state of the MPU for this process.

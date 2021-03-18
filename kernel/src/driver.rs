@@ -75,6 +75,7 @@ use crate::process;
 use crate::returncode::ReturnCode;
 use crate::syscall::SyscallReturn;
 use crate::upcall::{AppId, Upcall};
+use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified
 /// in TRD104.
@@ -148,7 +149,6 @@ impl CommandReturn {
     }
 }
 
-use core::convert::TryFrom;
 impl From<ReturnCode> for CommandReturn {
     fn from(rc: ReturnCode) -> Self {
         match rc {
