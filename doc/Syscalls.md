@@ -67,7 +67,7 @@ In Tock, a process can be in one of seven states:
  - **Yielded**: Suspended operation. A Yielded process will not be scheduled by
  Tock. Processes often yield while they are waiting for I/O or other operations
  to complete and have no immediately useful work to do. Whenever the kernel issues
- a upcall to a Yielded process, the process is transitioned to the Running state.
+ an upcall to a Yielded process, the process is transitioned to the Running state.
  - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
  Tock. Processes enter the Fault state by performing an illegal operation, such
  as accessing memory outside of their address space.
