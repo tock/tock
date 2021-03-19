@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
@@ -81,7 +81,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     buffer: ReadOnlyAppSlice,
 
     // if Some, the application is awaiting the result of a CRC
@@ -214,9 +214,9 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for CRC result
             0 => self

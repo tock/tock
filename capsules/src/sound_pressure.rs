@@ -57,7 +57,7 @@ use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -65,7 +65,7 @@ pub const DRIVER_NUM: usize = driver::NUM::SoundPressure as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     subscribed: bool,
     enable: bool,
 }
@@ -144,9 +144,9 @@ impl Driver for SoundPressureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to sound_pressure reading with callback
             0 => {

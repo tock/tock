@@ -54,8 +54,8 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice,
-    ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    Upcall,
 };
 
 /// Syscall driver number.
@@ -109,7 +109,7 @@ pub(crate) enum AdcMode {
 
 // Datas passed by the application to us
 pub struct AppSys {
-    callback: Callback,
+    callback: Upcall,
     pending_command: bool,
     command: OptionalCell<Operation>,
     channel: usize,
@@ -119,7 +119,7 @@ pub struct AppSys {
 pub struct App {
     app_buf1: ReadWriteAppSlice,
     app_buf2: ReadWriteAppSlice,
-    callback: Callback,
+    callback: Upcall,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -132,7 +132,7 @@ impl Default for App {
         App {
             app_buf1: ReadWriteAppSlice::default(),
             app_buf2: ReadWriteAppSlice::default(),
-            callback: Callback::default(),
+            callback: Upcall::default(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -145,7 +145,7 @@ impl Default for App {
 impl Default for AppSys {
     fn default() -> AppSys {
         AppSys {
-            callback: Callback::default(),
+            callback: Upcall::default(),
             pending_command: false,
             command: OptionalCell::empty(),
             channel: 0,
@@ -439,7 +439,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// Collect analog samples continuously.
     ///
     /// Fills one "allowed" application buffer at a time and then swaps to
-    /// filling the second buffer. Callbacks occur when the in use "allowed"
+    /// filling the second buffer. Upcalls occur when the in use "allowed"
     /// buffer fills.
     ///
     /// - `channel` - index into `channels` array, which channel to sample
@@ -1167,9 +1167,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         appid: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
@@ -1342,9 +1342,9 @@ impl Driver for AdcVirtualized<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {

@@ -28,8 +28,8 @@ use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{
-    AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice,
-    ReturnCode,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    Upcall,
 };
 
 /// Syscall driver number.
@@ -38,7 +38,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     buffer: ReadWriteAppSlice,
     remaining: usize,
     idx: usize,
@@ -183,9 +183,9 @@ impl<'a> Driver for RngDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps

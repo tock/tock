@@ -16,7 +16,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -39,7 +39,7 @@ enum TextScreenCommand {
 }
 
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
     write_position: usize,
@@ -52,7 +52,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Callback::default(),
+            callback: Upcall::default(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
             write_position: 0,
@@ -213,9 +213,9 @@ impl<'a> Driver for TextScreen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 let res = self

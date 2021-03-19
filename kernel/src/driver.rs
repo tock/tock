@@ -7,7 +7,7 @@
 //! Tock supports six system calls. The `yield` and `memop` system calls are
 //! handled by the core kernel, while four others are implemented by drivers:
 //!
-//!   * `subscribe` passes a callback to the driver which it can
+//!   * `subscribe` passes a upcall to the driver which it can
 //!   invoke on the process later, when an event has occurred or data
 //!   of interest is available.
 //!
@@ -43,12 +43,12 @@
 //!
 //! While drivers do not handle `yield` system calls, it is important
 //! to understand them and how they interact with `subscribe`, which
-//! registers callback functions with the kernel. When a process calls
+//! registers upcall functions with the kernel. When a process calls
 //! a `yield` system call, the kernel checks if there are any pending
-//! callbacks for the process. If there are pending callbacks, it
-//! pushes one callback onto the process stack. If there are no
-//! pending callbacks, `yield-wait` will cause the process to sleep
-//! until a callback is trigered, while `yield-no-wait` returns
+//! upcalls for the process. If there are pending upcalls, it
+//! pushes one upcall onto the process stack. If there are no
+//! pending upcalls, `yield-wait` will cause the process to sleep
+//! until a upcall is trigered, while `yield-no-wait` returns
 //! immediately.
 //!
 //! # Method result types
@@ -69,12 +69,12 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-use crate::callback::{AppId, Callback};
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::syscall::SyscallReturn;
+use crate::upcall::{AppId, Upcall};
 use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified
@@ -186,10 +186,10 @@ pub trait Driver {
     fn subscribe(
         &self,
         subscribe_identifier: usize,
-        callback: Callback,
+        upcall: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
-        Err((callback, ErrorCode::NOSUPPORT))
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        Err((upcall, ErrorCode::NOSUPPORT))
     }
 
     /// System call for a process to perform a short synchronous operation

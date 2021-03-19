@@ -31,7 +31,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +59,7 @@ pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: MapCell<Callback>,
+    callback: MapCell<Upcall>,
 }
 
 impl<'a> PCA9544A<'a> {
@@ -68,7 +68,7 @@ impl<'a> PCA9544A<'a> {
             i2c: i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: MapCell::new(Callback::default()),
+            callback: MapCell::new(Upcall::default()),
         }
     }
 
@@ -157,20 +157,20 @@ impl Driver for PCA9544A<'_> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Callback is triggered when a channel is finished being selected
+    /// - `0`: Upcall is triggered when a channel is finished being selected
     ///   or when the current channel setup is returned.
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 if let Some(prev) = self.callback.replace(callback) {
                     Ok(prev)
                 } else {
-                    Ok(Callback::default())
+                    Ok(Upcall::default())
                 }
             }
 

@@ -98,7 +98,6 @@ pub mod introspection;
 pub mod ipc;
 pub mod syscall;
 
-mod callback;
 mod config;
 mod driver;
 mod errorcode;
@@ -109,8 +108,8 @@ mod platform;
 mod process;
 mod returncode;
 mod sched;
+mod upcall;
 
-pub use crate::callback::{AppId, Callback};
 pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};
@@ -125,6 +124,7 @@ pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
+pub use crate::upcall::{AppId, Upcall};
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These

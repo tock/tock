@@ -12,11 +12,11 @@
 
 use core::cell::Cell;
 
-use crate::callback::AppId;
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::NumericCellExt;
 use crate::process;
 use crate::sched::Kernel;
+use crate::upcall::AppId;
 
 /// This struct provides the inspection functions.
 pub struct KernelInfo {
@@ -91,16 +91,16 @@ impl KernelInfo {
             .process_map_or(0, app, |process| process.debug_syscall_count())
     }
 
-    /// Returns the number of dropped callbacks the app has experience.
-    /// Callbacks can be dropped if the queue for the app is full when a capsule
-    /// tries to schedule a callback.
-    pub fn number_app_dropped_callbacks(
+    /// Returns the number of dropped upcalls the app has experience.
+    /// Upcalls can be dropped if the queue for the app is full when a capsule
+    /// tries to schedule a upcall.
+    pub fn number_app_dropped_upcalls(
         &self,
         app: AppId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
-            .process_map_or(0, app, |process| process.debug_dropped_callback_count())
+            .process_map_or(0, app, |process| process.debug_dropped_upcall_count())
     }
 
     /// Returns the number of time this app has been restarted.

@@ -46,7 +46,7 @@ use core::mem;
 
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Callback, CommandReturn, Driver};
+use kernel::{AppId, CommandReturn, Driver, Upcall};
 use kernel::{ErrorCode, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
@@ -1395,7 +1395,7 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
 struct App {
-    callback: Callback,
+    callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
     read_buffer: ReadWriteAppSlice,
 }
@@ -1520,9 +1520,9 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set callback
             0 => {

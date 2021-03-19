@@ -22,7 +22,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;
@@ -58,7 +58,7 @@ enum_from_primitive! {
 
 pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
-    callback: Cell<Callback>,
+    callback: Cell<Upcall>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
@@ -71,7 +71,7 @@ impl<'a> Mlx90614SMBus<'_> {
     ) -> Mlx90614SMBus<'a> {
         Mlx90614SMBus {
             smbus_temp,
-            callback: Cell::new(Callback::default()),
+            callback: Cell::new(Upcall::default()),
             temperature_client: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
@@ -190,9 +190,9 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
                 Ok(self.callback.replace(callback))

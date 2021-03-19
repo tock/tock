@@ -16,7 +16,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, ReturnCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -25,7 +25,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     pending: bool,
 }
 
@@ -72,9 +72,9 @@ impl Driver for AmbientLight<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 let rcode = self

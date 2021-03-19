@@ -15,7 +15,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, Callback, CommandReturn};
+use kernel::{AppId, CommandReturn, Upcall};
 use kernel::{Driver, ErrorCode, Read, ReadWrite, ReadWriteAppSlice};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
@@ -28,7 +28,7 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     master_tx_buffer: ReadWriteAppSlice,
     master_rx_buffer: ReadWriteAppSlice,
     slave_tx_buffer: ReadWriteAppSlice,
@@ -263,9 +263,9 @@ impl Driver for I2CMasterSlaveDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 self.app.map(|app| {

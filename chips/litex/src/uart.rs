@@ -237,7 +237,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
 
     // This is either called as a deferred call or by a
     // hardware-generated interrupt, hence it is guaranteed to be an
-    // upcall
+    // callback
     fn resume_tx(&self) {
         let len = self.tx_len.get();
         let mut progress = self.tx_progress.get();
@@ -344,12 +344,12 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         //
         // If it does not fill the FIFO, an
         // interrupt will _not_ be generated and hence we have to
-        // perform the upcall using a deferred call.
+        // perform the callback using a deferred call.
         //
         // If we fill up the FIFO, an interrupt _will_ be
         // generated. We can transmit the rest using `resume_tx` and
         // directly call the callback there, as we are guaranteed to
-        // be in an upcall.
+        // be in a callback.
         let mut fifo_full: bool;
         let mut progress: usize = 0;
         while {
@@ -370,7 +370,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // _must_ have been written to the device
         //
         // In this case, we must request a deferred call for the
-        // upcall
+        // callback
         if !fifo_full {
             assert!(progress == tx_len);
 

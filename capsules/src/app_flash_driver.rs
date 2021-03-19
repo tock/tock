@@ -27,7 +27,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{AppId, Callback, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice};
+use kernel::{AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +35,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     buffer: ReadOnlyAppSlice,
     pending_command: bool,
     flash_address: usize,
@@ -200,9 +200,9 @@ impl Driver for AppFlash<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps

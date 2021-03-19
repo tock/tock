@@ -24,8 +24,8 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{
-    debug, AppId, Callback, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice,
-    ReadWrite, ReadWriteAppSlice, ReturnCode,
+    debug, AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, ReturnCode, Upcall,
 };
 
 use crate::driver;
@@ -68,8 +68,8 @@ impl UDPEndpoint {
 
 #[derive(Default)]
 pub struct App {
-    rx_callback: Callback,
-    tx_callback: Callback,
+    rx_callback: Upcall,
+    tx_callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     app_cfg: ReadWriteAppSlice,
@@ -371,9 +371,9 @@ impl<'a> Driver for UDPDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 let res = self.apps.enter(app_id, |app, _| {

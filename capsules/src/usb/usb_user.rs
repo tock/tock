@@ -29,14 +29,14 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Callback,
+    callback: Upcall,
     awaiting: Option<Request>,
 }
 
@@ -106,9 +106,9 @@ where
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for result
             0 => self

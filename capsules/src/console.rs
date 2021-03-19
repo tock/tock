@@ -42,7 +42,7 @@ use core::{cmp, mem};
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, Callback, ErrorCode, Grant};
+use kernel::{AppId, ErrorCode, Grant, Upcall};
 use kernel::{CommandReturn, Driver, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
@@ -52,13 +52,13 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(Default)]
 pub struct App {
-    write_callback: Callback,
+    write_callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
-    read_callback: Callback,
+    read_callback: Upcall,
     read_buffer: ReadWriteAppSlice,
     read_len: usize,
 }
@@ -233,9 +233,9 @@ impl Driver for Console<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        mut callback: Callback,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 => {
                 // putstr/write done

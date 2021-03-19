@@ -85,7 +85,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, CommandReturn, Driver, ErrorCode, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 use crate::driver;
 use crate::lsm303xx::{
@@ -137,7 +137,7 @@ pub struct Lsm303agrI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
-    callback: Cell<Callback>,
+    callback: Cell<Upcall>,
     state: Cell<State>,
     accel_scale: Cell<Lsm303Scale>,
     mag_range: Cell<Lsm303Range>,
@@ -162,7 +162,7 @@ impl<'a> Lsm303agrI2C<'a> {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
-            callback: Cell::new(Callback::default()),
+            callback: Cell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),
@@ -596,9 +596,9 @@ impl Driver for Lsm303agrI2C<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Callback,
+        callback: Upcall,
         _appid: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
                 Ok (self.callback.replace (callback))

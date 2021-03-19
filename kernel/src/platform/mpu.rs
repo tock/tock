@@ -1,6 +1,6 @@
 //! Interface for configuring the Memory Protection Unit.
 
-use crate::callback::AppId;
+use crate::upcall::AppId;
 use core::cmp;
 use core::fmt::{self, Display};
 
