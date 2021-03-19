@@ -91,8 +91,8 @@
 //! Hello World!
 //! list
 //! PID    Name    Quanta  Syscalls  Dropped Upcalls  Restarts    State  Grants
-//! 00     blink        0       113                  0         0  Yielded    1/12
-//! 01     c_hello      0         8                  0         0  Yielded    3/12
+//! 00     blink        0       113                0         0  Yielded    1/12
+//! 01     c_hello      0         8                0         0  Yielded    3/12
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -264,7 +264,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
 
                                     debug!(
-                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}",
+                                        "  {:?}\t{:<20}{:6}{:10}{:17}{:10}  {:?}{:5}/{}",
                                         appid,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
