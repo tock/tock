@@ -69,7 +69,10 @@ COMMENT_MAX_LENGTH = 80
 
 
 def comment(text):
-    return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+    if text:
+        return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+    else:
+        return "/// (no description)"
 
 
 class CodeBlock(str):
