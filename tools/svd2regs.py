@@ -70,7 +70,9 @@ COMMENT_MAX_LENGTH = 80
 
 def comment(text):
     if text:
-        return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+        lines = text.split ("\n")
+        lines = ["/// {}".format(line[:COMMENT_MAX_LENGTH].strip()) for line in lines]
+        return "\n".join (lines)
     else:
         return "/// (no description)"
 
