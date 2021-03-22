@@ -107,7 +107,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -184,7 +184,7 @@ pub struct L3gd20Spi<'a> {
     hpf_mode: Cell<u8>,
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
-    callback: OptionalCell<Callback>,
+    callback: Cell<Upcall>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -205,7 +205,7 @@ impl<'a> L3gd20Spi<'a> {
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
-            callback: OptionalCell::empty(),
+            callback: Cell::new(Upcall::default()),
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -294,25 +294,31 @@ impl<'a> L3gd20Spi<'a> {
 }
 
 impl Driver for L3gd20Spi<'_> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        _appid: AppId,
+    ) -> CommandReturn {
         match command_num {
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
             // Check is sensor is correctly connected
             1 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.is_present();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Power On
             2 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.power_on();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Scale
@@ -320,9 +326,9 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let scale = data1 as u8;
                     self.set_scale(scale);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Enable High Pass Filter
@@ -331,9 +337,9 @@ impl Driver for L3gd20Spi<'_> {
                     let mode = data1 as u8;
                     let divider = data2 as u8;
                     self.set_hpf_parameters(mode, divider);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set High Pass Filter Mode and Divider
@@ -341,47 +347,47 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let enabled = if data1 == 1 { true } else { false };
                     self.enable_hpf(enabled);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read XYZ
             6 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_xyz();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Temperature
             7 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_temperature();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
+        mut callback: Upcall,
+        _appid: AppId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                self.callback.insert (callback);
-                ReturnCode::SUCCESS
+                callback = self.callback.replace (callback);
+                Ok (callback)
             },
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 }
@@ -404,9 +410,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                 } else {
                     false
                 };
-                self.callback.map(|callback| {
-                    callback.schedule(1, if present { 1 } else { 0 }, 0);
-                });
+                self.callback
+                    .get()
+                    .schedule(1, if present { 1 } else { 0 }, 0);
                 L3gd20Status::Idle
             }
 
@@ -450,13 +456,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     false
                 };
                 if values {
-                    self.callback.map(|callback| {
-                        callback.schedule(x, y, z);
-                    });
+                    self.callback.get().schedule(x, y, z);
                 } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
+                    self.callback.get().schedule(0, 0, 0);
                 }
                 L3gd20Status::Idle
             }
@@ -480,21 +482,15 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     false
                 };
                 if value {
-                    self.callback.map(|callback| {
-                        callback.schedule(temperature, 0, 0);
-                    });
+                    self.callback.get().schedule(temperature, 0, 0);
                 } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
+                    self.callback.get().schedule(0, 0, 0);
                 }
                 L3gd20Status::Idle
             }
 
             _ => {
-                self.callback.map(|callback| {
-                    callback.schedule(0, 0, 0);
-                });
+                self.callback.get().schedule(0, 0, 0);
                 L3gd20Status::Idle
             }
         });

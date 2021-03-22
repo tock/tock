@@ -354,7 +354,7 @@ pub unsafe fn reset_handler() {
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 2)
         .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
         .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));

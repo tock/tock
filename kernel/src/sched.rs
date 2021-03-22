@@ -1,7 +1,9 @@
-//! Tock's central kernel logic and scheduler trait.
+//! Tock's main kernel loop, scheduler loop, and Scheduler trait.
 //!
-//! Also defines several utility functions to reduce duplicated code between
-//! different scheduler implementations.
+//! This module also includes utility functions that are commonly used
+//! by scheduler policy implementations.  Scheduling policy (round
+//! robin, priority, etc.) is defined in the `sched` subcrate and
+//! selected by a board.
 
 pub(crate) mod cooperative;
 pub(crate) mod mlfq;
@@ -11,12 +13,13 @@ pub(crate) mod round_robin;
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
 use crate::debug;
+use crate::driver::CommandReturn;
+use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
@@ -25,8 +28,9 @@ use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
-use crate::returncode::ReturnCode;
-use crate::syscall::{ContextSwitchReason, Syscall};
+use crate::syscall::{ContextSwitchReason, SyscallReturn};
+use crate::syscall::{Syscall, YieldCall};
+use crate::upcall::{AppId, Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -121,7 +125,7 @@ pub enum SchedulingDecision {
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
-    /// outstanding callbacks and processes in the Running state.
+    /// outstanding upcalls and processes in the Running state.
     work: Cell<usize>,
 
     /// This holds a pointer to the static array of Process pointers.
@@ -319,26 +323,25 @@ impl Kernel {
         }
     }
 
-    /// Run a closure on every process, but only continue if the closure returns
-    /// `FAIL`. That is, if the closure returns any other return code than
-    /// `FAIL`, that value will be returned from this function and the iteration
-    /// of the array of processes will stop.
-    pub(crate) fn process_until<F>(&self, closure: F) -> ReturnCode
+    /// Run a closure on every process, but only continue if the closure returns `None`. That is,
+    /// if the closure returns any non-`None` value, iteration stops and the value is returned from
+    /// this function to the called.
+    pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
-        F: Fn(&dyn process::ProcessType) -> ReturnCode,
+        F: Fn(&dyn process::ProcessType) -> Option<T>,
     {
         for process in self.processes.iter() {
             match process {
                 Some(p) => {
                     let ret = closure(*p);
-                    if ret != ReturnCode::FAIL {
+                    if ret.is_some() {
                         return ret;
                     }
                 }
                 None => {}
             }
         }
-        ReturnCode::FAIL
+        None
     }
 
     /// Retrieve the `AppId` of the given app based on its identifier. This is
@@ -529,7 +532,7 @@ impl Kernel {
     /// running after calling a syscall. However, the scheduler is given an out,
     /// as `do_process()` will check with the scheduler before re-executing the
     /// process to allow it to return from the syscall. If a process yields with
-    /// no callbacks pending, exits, exceeds its timeslice, or is interrupted,
+    /// no upcalls pending, exits, exceeds its timeslice, or is interrupted,
     /// then `do_process()` will return.
     ///
     /// Depending on the particular scheduler in use, this function may act in a
@@ -551,7 +554,7 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    unsafe fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
+    fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
@@ -599,7 +602,8 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            if !scheduler.continue_process(process.appid(), chip) {
+            let continue_process = unsafe { scheduler.continue_process(process.appid(), chip) };
+            if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
             }
@@ -627,178 +631,7 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            process.debug_syscall_called(syscall);
-
-                            // Enforce platform-specific syscall filtering here.
-                            //
-                            // Before continuing to handle non-yield syscalls
-                            // the kernel first checks if the platform wants to
-                            // block that syscall for the process, and if it
-                            // does, sets a return value which is returned to
-                            // the calling process.
-                            //
-                            // Filtering a syscall (i.e. blocking the syscall
-                            // from running) does not cause the process to loose
-                            // its timeslice. The error will be returned
-                            // immediately (assuming the process has not already
-                            // exhausted its timeslice) allowing the process to
-                            // decide how to handle the error.
-                            if syscall != Syscall::YIELD {
-                                if let Err(response) = platform.filter_syscall(process, &syscall) {
-                                    process.set_syscall_return_value(response.into());
-                                    continue;
-                                }
-                            }
-
-                            // Handle each of the syscalls.
-                            match syscall {
-                                Syscall::MEMOP { operand, arg0 } => {
-                                    let res = memop::memop(process, operand, arg0);
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            operand,
-                                            arg0,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(res.into());
-                                }
-                                Syscall::YIELD => {
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!("[{:?}] yield", process.appid());
-                                    }
-                                    process.set_yielded_state();
-
-                                    // There might be already enqueued callbacks
-                                    continue;
-                                }
-                                Syscall::SUBSCRIBE {
-                                    driver_number,
-                                    subdriver_number,
-                                    callback_ptr,
-                                    appdata,
-                                } => {
-                                    // A callback is identified as a tuple of
-                                    // the driver number and the subdriver
-                                    // number.
-                                    let callback_id = CallbackId {
-                                        driver_num: driver_number,
-                                        subscribe_num: subdriver_number,
-                                    };
-                                    // Only one callback should exist per tuple.
-                                    // To ensure that there are no pending
-                                    // callbacks with the same identifier but
-                                    // with the old function pointer, we clear
-                                    // them now.
-                                    process.remove_pending_callbacks(callback_id);
-
-                                    let callback = NonNull::new(callback_ptr).map(|ptr| {
-                                        Callback::new(
-                                            process.appid(),
-                                            callback_id,
-                                            appdata,
-                                            ptr.cast(),
-                                        )
-                                    });
-
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(d) => d.subscribe(
-                                                    subdriver_number,
-                                                    callback,
-                                                    process.appid(),
-                                                ),
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            callback_ptr as usize,
-                                            appdata,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(res.into());
-                                }
-                                Syscall::COMMAND {
-                                    driver_number,
-                                    subdriver_number,
-                                    arg0,
-                                    arg1,
-                                } => {
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(d) => d.command(
-                                                    subdriver_number,
-                                                    arg0,
-                                                    arg1,
-                                                    process.appid(),
-                                                ),
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            arg0,
-                                            arg1,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(res.into());
-                                }
-                                Syscall::ALLOW {
-                                    driver_number,
-                                    subdriver_number,
-                                    allow_address,
-                                    allow_size,
-                                } => {
-                                    let res = platform.with_driver(driver_number, |driver| {
-                                        match driver {
-                                            Some(d) => {
-                                                match process.allow(allow_address, allow_size) {
-                                                    Ok(oslice) => d.allow(
-                                                        process.appid(),
-                                                        subdriver_number,
-                                                        oslice,
-                                                    ),
-                                                    Err(err) => err, /* memory not valid */
-                                                }
-                                            }
-                                            None => ReturnCode::ENODEVICE,
-                                        }
-                                    });
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
-                                            process.appid(),
-                                            driver_number,
-                                            subdriver_number,
-                                            allow_address as usize,
-                                            allow_size,
-                                            usize::from(res),
-                                            res
-                                        );
-                                    }
-                                    process.set_syscall_return_value(res.into());
-                                }
-                            }
+                            self.handle_syscall(platform, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -823,7 +656,7 @@ impl Kernel {
                 }
                 process::State::Yielded | process::State::Unstarted => {
                     // If the process is yielded or hasn't been started it is
-                    // waiting for a callback. If there is a task scheduled for
+                    // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
                     match process.dequeue_task() {
                         None => break,
@@ -851,14 +684,23 @@ impl Kernel {
                                         );
                                     },
                                     |ipc| {
-                                        ipc.schedule_callback(process.appid(), otherapp, ipc_type);
+                                        // TODO(alevy): this could error for a variety of reasons.
+                                        // Should we communicate the error somehow?
+                                        // https://github.com/tock/tock/issues/1993
+                                        unsafe {
+                                            let _ = ipc.schedule_upcall(
+                                                process.appid(),
+                                                otherapp,
+                                                ipc_type,
+                                            );
+                                        }
                                     },
                                 );
                             }
                         },
                     }
                 }
-                process::State::Fault => {
+                process::State::Faulted | process::State::Terminated => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
                 }
@@ -868,10 +710,6 @@ impl Kernel {
                 }
                 process::State::StoppedYielded => {
                     return_reason = StoppedExecutingReason::Stopped;
-                    break;
-                }
-                process::State::StoppedFaulted => {
-                    return_reason = StoppedExecutingReason::StoppedFaulted;
                     break;
                 }
             }
@@ -899,5 +737,347 @@ impl Kernel {
         scheduler_timer.reset();
 
         (return_reason, time_executed_us)
+    }
+
+    /// Method to invoke a system call on a particular process.
+    /// Applies the kernel system call filtering policy (if any).
+    /// Handles `Yield` and `Exit`, dispatches `Memop` to `memop::memop`,
+    /// and dispatches peripheral driver system calls to peripheral
+    /// driver capsules through the platforms `with_driver` method.
+    #[inline]
+    fn handle_syscall<P: Platform>(
+        &self,
+        platform: &P,
+        process: &dyn process::ProcessType,
+        syscall: Syscall,
+    ) {
+        // Hook for process debugging.
+        process.debug_syscall_called(syscall);
+
+        // Enforce platform-specific syscall filtering here.
+        //
+        // Before continuing to handle non-yield syscalls
+        // the kernel first checks if the platform wants to
+        // block that syscall for the process, and if it
+        // does, sets a return value which is returned to
+        // the calling process.
+        //
+        // Filtering a syscall (i.e. blocking the syscall
+        // from running) does not cause the process to loose
+        // its timeslice. The error will be returned
+        // immediately (assuming the process has not already
+        // exhausted its timeslice) allowing the process to
+        // decide how to handle the error.
+        match syscall {
+            Syscall::Yield {
+                which: _,
+                address: _,
+            } => {} // Yield is not filterable
+            Syscall::Exit {
+                which: _,
+                completion_code: _,
+            } => {} // Exit is not filterable
+            Syscall::Memop {
+                operand: _,
+                arg0: _,
+            } => {} // Memop is not filterable
+            _ => {
+                // Check all other syscalls for filtering
+                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                    process.set_syscall_return_value(SyscallReturn::Failure(response));
+
+                    return;
+                }
+            }
+        }
+
+        // Handle each of the syscalls.
+        match syscall {
+            Syscall::Memop { operand, arg0 } => {
+                let rval = memop::memop(process, operand, arg0);
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] memop({}, {:#x}) = {:?}",
+                        process.appid(),
+                        operand,
+                        arg0,
+                        rval
+                    );
+                }
+                process.set_syscall_return_value(rval);
+            }
+            Syscall::Yield { which, address } => {
+                if config::CONFIG.trace_syscalls {
+                    debug!("[{:?}] yield. which: {}", process.appid(), which);
+                }
+                if which > (YieldCall::Wait as usize) {
+                    // Only 0 and 1 are valid, so this is not a valid
+                    // yield system call, Yield does not have a return
+                    // value because it can push a function call onto
+                    // the stack; just return control to the process.
+                    return;
+                }
+                let wait = which == (YieldCall::Wait as usize);
+                // If this is a yield-no-wait AND there are no pending
+                // tasks, then return immediately. Otherwise, go into the
+                // yielded state and execute tasks now or when they arrive.
+                let return_now = !wait && !process.has_tasks();
+                if return_now {
+                    // Set the "did I trigger upcalls" flag to be 0,
+                    // return immediately. If address is invalid does
+                    // nothing.
+                    //
+                    // Safety: this is fine as long as no references to the
+                    // process's memory exist. We do not have a reference,
+                    // so we can safely call `set_byte()`.
+                    unsafe {
+                        process.set_byte(address, 0);
+                    }
+                } else {
+                    // There are already enqueued upcalls to execute or
+                    // we should wait for them: handle in the next loop
+                    // iteration and set the "did I trigger upcalls" flag
+                    // to be 1. If address is invalid does nothing.
+                    //
+                    // Safety: this is fine as long as no references to the
+                    // process's memory exist. We do not have a reference,
+                    // so we can safely call `set_byte()`.
+                    unsafe {
+                        process.set_byte(address, 1);
+                    }
+                    process.set_yielded_state();
+                }
+            }
+            Syscall::Subscribe {
+                driver_number,
+                subdriver_number,
+                upcall_ptr,
+                appdata,
+            } => {
+                // A upcall is identified as a tuple of
+                // the driver number and the subdriver
+                // number.
+                let upcall_id = UpcallId {
+                    driver_num: driver_number,
+                    subscribe_num: subdriver_number,
+                };
+                // Only one upcall should exist per tuple.
+                // To ensure that there are no pending
+                // upcalls with the same identifier but
+                // with the old function pointer, we clear
+                // them now.
+                process.remove_pending_upcalls(upcall_id);
+
+                let ptr = NonNull::new(upcall_ptr);
+                let upcall = ptr.map_or(Upcall::default(), |ptr| {
+                    Upcall::new(process.appid(), upcall_id, appdata, ptr.cast())
+                });
+                let rval = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => {
+                        let res = d.subscribe(subdriver_number, upcall, process.appid());
+                        match res {
+                            // An Ok() returns the previous upcall, while
+                            // Err() returns the one that was just passed
+                            // (because the call was rejected).
+                            Ok(oldcb) => oldcb.into_subscribe_success(),
+                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                        }
+                    }
+                    None => upcall.into_subscribe_failure(ErrorCode::NOSUPPORT),
+                });
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        upcall_ptr as usize,
+                        appdata,
+                        rval
+                    );
+                }
+
+                process.set_syscall_return_value(rval);
+            }
+            Syscall::Command {
+                driver_number,
+                subdriver_number,
+                arg0,
+                arg1,
+            } => {
+                let cres = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
+                    None => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                });
+
+                let res = SyscallReturn::from_command_return(cres);
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        arg0,
+                        arg1,
+                        res,
+                    );
+                }
+                process.set_syscall_return_value(res);
+            }
+            Syscall::ReadWriteAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => {
+                        // Try to create an appropriate [`ReadWriteAppSlice`].
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readwrite_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`ReadWriteAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_readwrite(process.appid(), subdriver_number, appslice)
+                                {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`ReadWriteAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::AllowReadWriteFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
+                    None => SyscallReturn::AllowReadWriteFailure(
+                        ErrorCode::NOSUPPORT,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+                process.set_syscall_return_value(res);
+            }
+            Syscall::ReadOnlyAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => {
+                        // Try to create an appropriate [`ReadOnlyAppSlice`].
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readonly_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`ReadOnlyAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_readonly(process.appid(), subdriver_number, appslice)
+                                {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        // The capsule has rejected the allow
+                                        // operation. Pass the new buffer information
+                                        // back to the process.
+                                        //
+                                        // TODO: Ensure that the capsule has passed
+                                        // the newly constructed AppSlice back
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`ReadOnlyAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::AllowReadOnlyFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
+                    None => SyscallReturn::AllowReadOnlyFailure(
+                        ErrorCode::NOSUPPORT,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.appid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+
+                process.set_syscall_return_value(res);
+            }
+            Syscall::Exit {
+                which,
+                completion_code,
+            } => match which {
+                // The process called the `exit-terminate` system call.
+                0 => process.terminate(completion_code as u32),
+                // The process called the `exit-restart` system call.
+                1 => process.try_restart(completion_code as u32),
+                // The process called an invalid variant of the Exit
+                // system call class.
+                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
+            },
+        }
     }
 }

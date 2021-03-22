@@ -84,7 +84,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -134,7 +134,7 @@ pub struct Lsm303dlhcI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
-    callback: OptionalCell<Callback>,
+    callback: Cell<Upcall>,
     state: Cell<State>,
     accel_scale: Cell<Lsm303Scale>,
     mag_range: Cell<Lsm303Range>,
@@ -159,7 +159,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
-            callback: OptionalCell::empty(),
+            callback: Cell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),
@@ -318,9 +318,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     false
                 };
 
-                self.callback.map(|callback| {
-                    callback.schedule(if present { 1 } else { 0 }, 0, 0);
-                });
+                self.callback
+                    .get()
+                    .schedule(if present { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
@@ -328,9 +328,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
             State::SetPowerMode => {
                 let set_power = error == Error::CommandComplete;
 
-                self.callback.map(|callback| {
-                    callback.schedule(if set_power { 1 } else { 0 }, 0, 0);
-                });
+                self.callback
+                    .get()
+                    .schedule(if set_power { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
@@ -344,9 +344,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
             State::SetScaleAndResolution => {
                 let set_scale_and_resolution = error == Error::CommandComplete;
 
-                self.callback.map(|callback| {
-                    callback.schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
-                });
+                self.callback
+                    .get()
+                    .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
@@ -391,13 +391,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.map(|callback| {
-                        callback.schedule(x, y, z);
-                    });
+                    self.callback.get().schedule(x, y, z);
                 } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
+                    self.callback.get().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
@@ -406,17 +402,15 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
             State::SetTemperatureDataRate => {
                 let set_temperature_and_magneto_data_rate = error == Error::CommandComplete;
 
-                self.callback.map(|callback| {
-                    callback.schedule(
-                        if set_temperature_and_magneto_data_rate {
-                            1
-                        } else {
-                            0
-                        },
-                        0,
-                        0,
-                    );
-                });
+                self.callback.get().schedule(
+                    if set_temperature_and_magneto_data_rate {
+                        1
+                    } else {
+                        0
+                    },
+                    0,
+                    0,
+                );
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
@@ -427,9 +421,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
             State::SetRange => {
                 let set_range = error == Error::CommandComplete;
 
-                self.callback.map(|callback| {
-                    callback.schedule(if set_range { 1 } else { 0 }, 0, 0);
-                });
+                self.callback
+                    .get()
+                    .schedule(if set_range { 1 } else { 0 }, 0, 0);
                 if self.config_in_progress.get() {
                     self.config_in_progress.set(false);
                 }
@@ -452,13 +446,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.map(|callback| {
-                        callback.schedule(temp, 0, 0);
-                    });
+                    self.callback.get().schedule(temp, 0, 0);
                 } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
+                    self.callback.get().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
@@ -492,13 +482,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                     false
                 };
                 if values {
-                    self.callback.map(|callback| {
-                        callback.schedule(x, y, z);
-                    });
+                    self.callback.get().schedule(x, y, z);
                 } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
+                    self.callback.get().schedule(0, 0, 0);
                 }
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
@@ -514,16 +500,22 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
 }
 
 impl Driver for Lsm303dlhcI2C<'_> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        _appid: AppId,
+    ) -> CommandReturn {
         match command_num {
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
             // Check is sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
                     self.is_present();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Accelerometer Power Mode
@@ -531,12 +523,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303AccelDataRate::from_usize(data1) {
                         self.set_power_mode(data_rate, if data2 != 0 { true } else { false });
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::EINVAL
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Accelerometer Scale And Resolution
@@ -544,12 +536,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(scale) = Lsm303Scale::from_usize(data1) {
                         self.set_scale_and_resolution(scale, if data2 != 0 { true } else { false });
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::EINVAL
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Magnetometer Temperature Enable and Data Rate
@@ -560,12 +552,12 @@ impl Driver for Lsm303dlhcI2C<'_> {
                             if data2 != 0 { true } else { false },
                             data_rate,
                         );
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::EINVAL
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Magnetometer Range
@@ -573,59 +565,58 @@ impl Driver for Lsm303dlhcI2C<'_> {
                 if self.state.get() == State::Idle {
                     if let Some(range) = Lsm303Range::from_usize(data1) {
                         self.set_range(range);
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::EINVAL
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Acceleration XYZ
             6 => {
                 if self.state.get() == State::Idle {
                     self.read_acceleration_xyz();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Temperature
             7 => {
                 if self.state.get() == State::Idle {
                     self.read_temperature();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Mangetometer XYZ
             8 => {
                 if self.state.get() == State::Idle {
                     self.read_magnetometer_xyz();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
+        callback: Upcall,
+        _appid: AppId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                self.callback.insert (callback);
-                ReturnCode::SUCCESS
+                Ok (self.callback.replace (callback))
             },
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err ((callback, ErrorCode::NOSUPPORT)),
         }
     }
 }

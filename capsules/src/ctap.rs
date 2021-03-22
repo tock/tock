@@ -29,27 +29,30 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
-    callback: OptionalCell<Callback>,
-    recv_buf: Option<AppSlice<Shared, u8>>,
-    send_buf: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    recv_buf: ReadWriteAppSlice,
+    send_buf: ReadWriteAppSlice,
     can_receive: Cell<bool>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            callback: OptionalCell::empty(),
-            recv_buf: None,
-            send_buf: None,
+            callback: Upcall::default(),
+            recv_buf: ReadWriteAppSlice::default(),
+            send_buf: ReadWriteAppSlice::default(),
             can_receive: Cell::new(false),
         }
     }
@@ -88,38 +91,38 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::UsbHid<'a, [u8; 64]> for Cta
     fn send_buffer(
         &'a self,
         send: &'static mut [u8; 64],
-    ) -> Result<usize, (ReturnCode, &'static mut [u8; 64])> {
+    ) -> Result<usize, (ErrorCode, &'static mut [u8; 64])> {
         if let Some(usb) = self.usb {
             usb.send_buffer(send)
         } else {
-            Err((ReturnCode::ENOSUPPORT, send))
+            Err((ErrorCode::NOSUPPORT, send))
         }
     }
 
-    fn send_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+    fn send_cancel(&'a self) -> Result<&'static mut [u8; 64], ErrorCode> {
         if let Some(usb) = self.usb {
             usb.send_cancel()
         } else {
-            Err(ReturnCode::ENOSUPPORT)
+            Err(ErrorCode::NOSUPPORT)
         }
     }
 
     fn receive_buffer(
         &'a self,
         recv: &'static mut [u8; 64],
-    ) -> Result<(), (ReturnCode, &'static mut [u8; 64])> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 64])> {
         if let Some(usb) = self.usb {
             usb.receive_buffer(recv)
         } else {
-            Err((ReturnCode::ENODEVICE, recv))
+            Err((ErrorCode::NODEVICE, recv))
         }
     }
 
-    fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ReturnCode> {
+    fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ErrorCode> {
         if let Some(usb) = self.usb {
             usb.receive_cancel()
         } else {
-            Err(ReturnCode::ENOSUPPORT)
+            Err(ErrorCode::NOSUPPORT)
         }
     }
 }
@@ -127,25 +130,19 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::UsbHid<'a, [u8; 64]> for Cta
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for CtapDriver<'a, U> {
     fn packet_received(
         &'a self,
-        _result: ReturnCode,
+        _result: Result<(), ErrorCode>,
         buffer: &'static mut [u8; 64],
         _endpoint: usize,
     ) {
         self.appid.map(|id| {
             self.app
                 .enter(*id, |app, _| {
-                    match app.recv_buf.as_mut() {
-                        Some(dest) => {
-                            dest.as_mut().copy_from_slice(buffer.as_ref());
-                        }
-                        None => {}
-                    };
-
-                    app.callback.map(|cb| {
-                        cb.schedule(0, 0, 0);
-                        // Set that we can't receive until the app says we can
-                        app.can_receive.set(false);
+                    app.recv_buf.mut_map_or((), |dest| {
+                        dest.as_mut().copy_from_slice(buffer.as_ref());
                     });
+
+                    app.callback.schedule(0, 0, 0);
+                    app.can_receive.set(false);
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -159,16 +156,14 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 
     fn packet_transmitted(
         &'a self,
-        _result: ReturnCode,
+        _result: Result<(), ErrorCode>,
         buffer: &'static mut [u8; 64],
         _endpoint: usize,
     ) {
         self.appid.map(|id| {
             self.app
                 .enter(*id, |app, _| {
-                    app.callback.map(|cb| {
-                        cb.schedule(1, 0, 0);
-                    });
+                    app.callback.schedule(1, 0, 0);
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -193,33 +188,38 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 }
 
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Pass buffer for the recvieved data to be stored in
             0 => self
                 .app
                 .enter(appid, |app, _| {
-                    app.recv_buf = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut slice, &mut app.recv_buf);
+                    Ok(())
                 })
-                .unwrap_or(ReturnCode::FAIL),
+                .unwrap_or(Err(ErrorCode::FAIL)),
 
             // Pass buffer for the sent data to be stored in
             1 => self
                 .app
                 .enter(appid, |app, _| {
-                    app.send_buf = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut slice, &mut app.send_buf);
+                    Ok(())
                 })
-                .unwrap_or(ReturnCode::FAIL),
+                .unwrap_or(Err(ErrorCode::FAIL)),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -234,22 +234,27 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         appid: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             0 => {
                 // set callback
                 self.app
                     .enter(appid, |app, _| {
-                        app.callback.insert(callback);
-                        ReturnCode::SUCCESS
+                        mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .unwrap_or(Err(ErrorCode::FAIL))
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -259,7 +264,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         _data1: usize,
         _data2: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> CommandReturn {
         let can_access = self.appid.map_or(true, |owning_app| {
             if owning_app == &appid {
                 // We own the Ctap device
@@ -270,7 +275,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         });
 
         if !can_access {
-            return ReturnCode::EBUSY;
+            return CommandReturn::failure(ErrorCode::BUSY);
         }
 
         match command_num {
@@ -280,24 +285,23 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                 .enter(appid, |app, _| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
-                        match app.send_buf.as_ref() {
-                            Some(d) => {
-                                self.send_buffer.take().map(|buf| {
-                                    let data = d.as_ref();
+                        app.send_buf
+                            .map_or(CommandReturn::failure(ErrorCode::RESERVE), |d| {
+                                self.send_buffer.take().map_or(
+                                    CommandReturn::failure(ErrorCode::RESERVE),
+                                    |buf| {
+                                        let data = d.as_ref();
 
-                                    // Copy the data into the static buffer
-                                    buf.copy_from_slice(&data[0..]);
+                                        // Copy the data into the static buffer
+                                        buf.copy_from_slice(&data[0..]);
 
-                                    let _ = usb.send_buffer(buf);
-                                });
-                            }
-                            None => {
-                                return ReturnCode::ERESERVE;
-                            }
-                        };
-                        ReturnCode::SUCCESS
+                                        let _ = usb.send_buffer(buf);
+                                        CommandReturn::success()
+                                    },
+                                )
+                            })
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -310,17 +314,17 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                         app.can_receive.set(true);
                         if let Some(buf) = self.recv_buffer.take() {
                             match usb.receive_buffer(buf) {
-                                Ok(_) => ReturnCode::SUCCESS,
+                                Ok(_) => CommandReturn::success(),
                                 Err((err, buffer)) => {
                                     self.recv_buffer.replace(buffer);
-                                    err
+                                    CommandReturn::failure(err)
                                 }
                             }
                         } else {
-                            ReturnCode::EBUSY
+                            CommandReturn::failure(ErrorCode::BUSY)
                         }
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -333,12 +337,12 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                         match usb.receive_cancel() {
                             Ok(buf) => {
                                 self.recv_buffer.replace(buf);
-                                ReturnCode::ENOSUPPORT
+                                CommandReturn::success()
                             }
-                            Err(err) => err,
+                            Err(err) => CommandReturn::failure(err),
                         }
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -351,12 +355,12 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                         match usb.receive_cancel() {
                             Ok(buf) => {
                                 self.recv_buffer.replace(buf);
-                                ReturnCode::ENOSUPPORT
+                                CommandReturn::success()
                             }
-                            Err(err) => err,
+                            Err(err) => CommandReturn::failure(err),
                         }
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -380,50 +384,52 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                     if let Some(usb) = self.usb {
                         if app.can_receive.get() {
                             // We are already receiving
-                            ReturnCode::EBUSY
+                            CommandReturn::failure(ErrorCode::BUSY)
                         } else {
                             app.can_receive.set(true);
                             if let Some(buf) = self.recv_buffer.take() {
                                 match usb.receive_buffer(buf) {
-                                    Ok(_) => ReturnCode::SUCCESS,
+                                    Ok(_) => CommandReturn::success(),
                                     Err((err, buffer)) => {
                                         self.recv_buffer.replace(buffer);
-                                        return err;
+                                        return CommandReturn::failure(err);
                                     }
                                 }
                             } else {
-                                return ReturnCode::EBUSY;
+                                return CommandReturn::failure(ErrorCode::BUSY);
                             };
 
                             if !app.can_receive.get() {
                                 // The call to receive_buffer() collected a pending packet.
+                                CommandReturn::failure(ErrorCode::BUSY)
                             } else {
-                                match app.send_buf.as_ref() {
-                                    Some(d) => {
-                                        self.send_buffer.take().map(|buf| {
-                                            let data = d.as_ref();
+                                app.send_buf.map_or(
+                                    CommandReturn::failure(ErrorCode::RESERVE),
+                                    |d| {
+                                        self.send_buffer.take().map_or(
+                                            CommandReturn::failure(ErrorCode::RESERVE),
+                                            |buf| {
+                                                let data = d.as_ref();
 
-                                            // Copy the data into the static buffer
-                                            buf.copy_from_slice(&data[0..]);
+                                                // Copy the data into the static buffer
+                                                buf.copy_from_slice(&data[0..]);
 
-                                            let _ = usb.send_buffer(buf);
-                                        });
-                                    }
-                                    None => {
-                                        return ReturnCode::ERESERVE;
-                                    }
-                                };
+                                                let _ = usb.send_buffer(buf);
+                                                CommandReturn::success()
+                                            },
+                                        )
+                                    },
+                                )
                             }
-                            ReturnCode::SUCCESS
                         }
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

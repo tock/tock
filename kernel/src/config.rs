@@ -31,7 +31,7 @@ pub(crate) struct Config {
     /// Whether the kernel should trace syscalls to the debug output.
     ///
     /// If enabled, the kernel will print a message in the debug output for each system call and
-    /// callback, with details including the application ID, and system call or callback parameters.
+    /// upcall, with details including the application ID, and system call or upcall parameters.
     pub(crate) trace_syscalls: bool,
 
     /// Whether the kernel should show debugging output when loading processes.

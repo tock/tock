@@ -42,8 +42,10 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::convert::TryInto;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
@@ -134,12 +136,17 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
         );
     }
 
-    pub fn write(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
+    pub fn write(
+        &self,
+        address: u16,
+        buffer: &'static mut [u8],
+        len: u16,
+    ) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, move |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), move |txbuffer| {
                 txbuffer[0] = Opcodes::WriteEnable as u8;
 
                 let write_len = cmp::min(txbuffer.len(), len as usize);
@@ -151,19 +158,23 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                 self.client_write_len.set(write_len as u16);
 
                 self.state.set(State::WriteEnable);
-                self.spi.read_write_bytes(txbuffer, None, 1)
+                let res = self.spi.read_write_bytes(txbuffer, None, 1);
+                match res {
+                    ReturnCode::SUCCESS => Ok(()),
+                    rc => Err(rc.try_into().unwrap()),
+                }
             })
     }
 
-    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
+    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         txbuffer[0] = Opcodes::ReadMemory as u8;
                         txbuffer[1] = ((address >> 8) & 0xFF) as u8;
                         txbuffer[2] = (address & 0xFF) as u8;
@@ -174,8 +185,13 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                         let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
 
                         self.state.set(State::ReadMemory);
-                        self.spi
-                            .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3)
+                        let res = self
+                            .spi
+                            .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
+                        match res {
+                            ReturnCode::SUCCESS => Ok(()),
+                            rc => Err(rc.try_into().unwrap()),
+                        }
                     })
             })
     }
@@ -298,11 +314,21 @@ impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage<
         self.client.set(client);
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.read(address as u16, buffer, length as u16)
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.write(address as u16, buffer, length as u16)
     }
 }

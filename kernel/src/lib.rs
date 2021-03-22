@@ -98,9 +98,9 @@ pub mod introspection;
 pub mod ipc;
 pub mod syscall;
 
-mod callback;
 mod config;
 mod driver;
+mod errorcode;
 mod grant;
 mod mem;
 mod memop;
@@ -108,11 +108,12 @@ mod platform;
 mod process;
 mod returncode;
 mod sched;
+mod upcall;
 
-pub use crate::callback::{AppId, Callback};
-pub use crate::driver::Driver;
+pub use crate::driver::{CommandReturn, Driver};
+pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{DynamicGrant, Grant};
-pub use crate::mem::{AppSlice, Private, Shared};
+pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};
@@ -123,6 +124,7 @@ pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
+pub use crate::upcall::{AppId, Upcall};
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These

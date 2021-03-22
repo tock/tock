@@ -42,9 +42,13 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::mem;
+
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, CommandReturn, Driver, Upcall};
+use kernel::{ErrorCode, ReturnCode};
+use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -159,7 +163,7 @@ enum AlarmState {
 
 /// Error codes returned if an SD card transaction fails
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum ErrorCode {
+enum SdCardError {
     CardStateChanged = -1,
     InitializationFailure = -2,
     ReadFailure = -3,
@@ -448,7 +452,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -518,7 +522,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -547,7 +551,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -614,7 +618,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -652,7 +656,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -675,7 +679,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -737,7 +741,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::InitializationFailure as u32);
+                        client.error(SdCardError::InitializationFailure as u32);
                     });
                 }
             }
@@ -764,7 +768,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::ReadFailure as u32);
+                        client.error(SdCardError::ReadFailure as u32);
                     });
                 }
             }
@@ -794,7 +798,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::ReadFailure as u32);
+                        client.error(SdCardError::ReadFailure as u32);
                     });
                 }
             }
@@ -852,7 +856,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::ReadFailure as u32);
+                        client.error(SdCardError::ReadFailure as u32);
                     });
                 }
             }
@@ -914,7 +918,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::ReadFailure as u32);
+                        client.error(SdCardError::ReadFailure as u32);
                     });
                 }
             }
@@ -967,7 +971,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                         self.alarm_state.set(AlarmState::Idle);
                         self.alarm_count.set(0);
                         self.client.map(move |client| {
-                            client.error(ErrorCode::WriteFailure as u32);
+                            client.error(SdCardError::WriteFailure as u32);
                         });
                     }
                 } else {
@@ -978,7 +982,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::WriteFailure as u32);
+                        client.error(SdCardError::WriteFailure as u32);
                     });
                 }
             }
@@ -1002,7 +1006,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
                     self.client.map(move |client| {
-                        client.error(ErrorCode::WriteFailure as u32);
+                        client.error(SdCardError::WriteFailure as u32);
                     });
                 }
             }
@@ -1054,7 +1058,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
             self.alarm_state.set(AlarmState::Idle);
             self.alarm_count.set(0);
             self.client.map(move |client| {
-                client.error(ErrorCode::TimeoutFailure as u32);
+                client.error(SdCardError::TimeoutFailure as u32);
             });
         } else {
             self.alarm_count.set(repeats + 1);
@@ -1201,27 +1205,29 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         });
     }
 
-    pub fn initialize(&self) -> ReturnCode {
+    pub fn initialize(&self) -> Result<(), ErrorCode> {
         // if not already, set card to uninitialized again
         self.is_initialized.set(false);
 
         // no point in initializing if the card is not installed
         if self.is_installed() {
             // reset the SD card in order to start initializing it
-            self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                self.rxbuffer
-                    .take()
-                    .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
-                        self.state.set(SpiState::InitReset);
-                        self.send_command(SDCmd::CMD0_Reset, 0x0, txbuffer, rxbuffer, 10);
+            self.txbuffer
+                .take()
+                .map_or(Err(ErrorCode::NOMEM), |txbuffer| {
+                    self.rxbuffer
+                        .take()
+                        .map_or(Err(ErrorCode::NOMEM), move |rxbuffer| {
+                            self.state.set(SpiState::InitReset);
+                            self.send_command(SDCmd::CMD0_Reset, 0x0, txbuffer, rxbuffer, 10);
 
-                        // command started successfully
-                        ReturnCode::SUCCESS
-                    })
-            })
+                            // command started successfully
+                            Ok(())
+                        })
+                })
         } else {
             // no sd card installed
-            ReturnCode::EUNINSTALLED
+            Err(ErrorCode::UNINSTALLED)
         }
     }
 
@@ -1357,7 +1363,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
             self.state.set(SpiState::Idle);
             self.alarm_state.set(AlarmState::Idle);
             self.client.map(move |client| {
-                client.error(ErrorCode::CardStateChanged as u32);
+                client.error(SdCardError::CardStateChanged as u32);
             });
         }
 
@@ -1389,9 +1395,9 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
 struct App {
-    callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    write_buffer: ReadOnlyAppSlice,
+    read_buffer: ReadWriteAppSlice,
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
@@ -1421,18 +1427,14 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
-                cb.schedule(0, installed as usize, 0);
-            });
+            app.callback.schedule(0, installed as usize, 0);
         });
     }
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
-                let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
-                cb.schedule(1, block_size as usize, size_in_kb);
-            });
+            let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
+            app.callback.schedule(1, block_size as usize, size_in_kb);
         });
     }
 
@@ -1441,7 +1443,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.app.map(|app| {
             let mut read_len = 0;
             self.kernel_buf.map(|data| {
-                app.read_buffer.as_mut().map(|read_buffer| {
+                app.read_buffer.mut_map_or(0, |read_buffer| {
                     let read_buffer = read_buffer;
                     // copy bytes to user buffer
                     // Limit to minimum length between read_buffer, data, and
@@ -1451,15 +1453,14 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                         *read_byte = data_byte;
                     }
                     read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
+                    read_len
                 });
             });
 
             // perform callback
             // Note that we are explicitly performing the callback even if no
             // data was read or if the app's read_buffer doesn't exist
-            app.callback.map(|mut cb| {
-                cb.schedule(2, read_len, 0);
-            });
+            app.callback.schedule(2, read_len, 0);
         });
     }
 
@@ -1467,111 +1468,123 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
-                cb.schedule(3, 0, 0);
-            });
+            app.callback.schedule(3, 0, 0);
         });
     }
 
     fn error(&self, error: u32) {
         self.app.map(|app| {
-            app.callback.map(|mut cb| {
-                cb.schedule(4, error as usize, 0);
-            });
+            app.callback.schedule(4, error as usize, 0);
         });
     }
 }
 
 /// Connections to userspace syscalls
 impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
-    fn allow(
+    fn allow_readwrite(
         &self,
         _appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         match allow_num {
             // Pass read buffer in from application
             0 => {
-                self.app.map(|app| app.read_buffer = slice);
-                ReturnCode::SUCCESS
+                self.app.map(|app| {
+                    mem::swap(&mut app.read_buffer, &mut slice);
+                });
+                Ok(slice)
             }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
+        }
+    }
 
-            // Pass write buffer in from application
-            1 => {
-                self.app.map(|app| app.write_buffer = slice);
-                ReturnCode::SUCCESS
+    fn allow_readonly(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        // Pass write buffer in from application
+        match allow_num {
+            0 => {
+                self.app.map(|app| {
+                    mem::swap(&mut app.write_buffer, &mut slice);
+                });
+                Ok(slice)
             }
-
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set callback
             0 => {
-                self.app.map(|app| app.callback = callback);
-                ReturnCode::SUCCESS
+                self.app.map(|app| {
+                    mem::swap(&mut app.callback, &mut callback);
+                });
+                Ok(callback)
             }
-
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // check if present
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // is_installed
             1 => {
-                let value = self.sdcard.is_installed() as usize;
-                ReturnCode::SuccessWithValue { value: value }
+                let value = self.sdcard.is_installed() as u32;
+                CommandReturn::success_u32(value)
             }
 
             // initialize
-            2 => self.sdcard.initialize(),
+            2 => match self.sdcard.initialize() {
+                Ok(()) => CommandReturn::success(),
+                Err(e) => CommandReturn::failure(e),
+            },
 
             // read_block
-            3 => self
-                .kernel_buf
-                .take()
-                .map_or(ReturnCode::EBUSY, |kernel_buf| {
-                    self.sdcard.read_blocks(kernel_buf, data as u32, 1)
-                }),
+            3 => self.kernel_buf.take().map_or(
+                CommandReturn::failure(ErrorCode::BUSY),
+                |kernel_buf| {
+                    CommandReturn::from(self.sdcard.read_blocks(kernel_buf, data as u32, 1))
+                },
+            ),
 
             // write_block
             4 => {
-                self.app.map_or(ReturnCode::ENOMEM, |app| {
-                    app.write_buffer
-                        .as_mut()
-                        .map_or(ReturnCode::ENOMEM, |write_buffer| {
-                            self.kernel_buf
-                                .take()
-                                .map_or(ReturnCode::EBUSY, |kernel_buf| {
-                                    // copy over write data from application
-                                    // Limit to minimum length between kernel_buf,
-                                    // write_buffer, and 512 (block size)
-                                    for (kernel_byte, &write_byte) in
-                                        kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
-                                    {
-                                        *kernel_byte = write_byte;
-                                    }
+                let result: ReturnCode = self.app.map_or(ReturnCode::ENOMEM, |app| {
+                    app.write_buffer.map_or(ReturnCode::ENOMEM, |write_buffer| {
+                        self.kernel_buf
+                            .take()
+                            .map_or(ReturnCode::EBUSY, |kernel_buf| {
+                                // copy over write data from application
+                                // Limit to minimum length between kernel_buf,
+                                // write_buffer, and 512 (block size)
+                                for (kernel_byte, &write_byte) in
+                                    kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
+                                {
+                                    *kernel_byte = write_byte;
+                                }
 
-                                    // begin writing
-                                    self.sdcard.write_blocks(kernel_buf, data as u32, 1)
-                                })
-                        })
-                })
+                                // begin writing
+                                self.sdcard.write_blocks(kernel_buf, data as u32, 1)
+                            })
+                    })
+                });
+                CommandReturn::from(result)
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

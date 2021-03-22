@@ -56,9 +56,14 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::ErrorCode;
+use kernel::{
+    AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -81,27 +86,27 @@ pub enum NonvolatileUser {
 }
 
 pub struct App {
-    callback_read: Option<Callback>,
-    callback_write: Option<Callback>,
+    callback_read: Upcall,
+    callback_write: Upcall,
     pending_command: bool,
     command: NonvolatileCommand,
     offset: usize,
     length: usize,
-    buffer_read: Option<AppSlice<Shared, u8>>,
-    buffer_write: Option<AppSlice<Shared, u8>>,
+    buffer_read: ReadWriteAppSlice,
+    buffer_write: ReadOnlyAppSlice,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            callback_read: None,
-            callback_write: None,
+            callback_read: Upcall::default(),
+            callback_write: Upcall::default(),
             pending_command: false,
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
             length: 0,
-            buffer_read: None,
-            buffer_write: None,
+            buffer_read: ReadWriteAppSlice::default(),
+            buffer_write: ReadOnlyAppSlice::default(),
         }
     }
 }
@@ -179,7 +184,7 @@ impl<'a> NonvolatileStorage<'a> {
         offset: usize,
         length: usize,
         app_id: Option<AppId>,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // Do bounds check.
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
@@ -189,7 +194,7 @@ impl<'a> NonvolatileStorage<'a> {
                     || length > self.userspace_length
                     || offset + length > self.userspace_length
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -200,7 +205,7 @@ impl<'a> NonvolatileStorage<'a> {
                     || length > self.kernel_length
                     || offset + length > self.kernel_start_address + self.kernel_length
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
             }
         }
@@ -209,23 +214,19 @@ impl<'a> NonvolatileStorage<'a> {
         // or from the kernel.
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                app_id.map_or(ReturnCode::FAIL, |appid| {
+                app_id.map_or(Err(ErrorCode::FAIL), |appid| {
                     self.apps
                         .enter(appid, |app, _| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
-                                NonvolatileCommand::UserspaceRead => {
-                                    app.buffer_read.as_ref().map_or(0, |appbuf| appbuf.len())
-                                }
-                                NonvolatileCommand::UserspaceWrite => {
-                                    app.buffer_write.as_ref().map_or(0, |appbuf| appbuf.len())
-                                }
+                                NonvolatileCommand::UserspaceRead => app.buffer_read.len(),
+                                NonvolatileCommand::UserspaceWrite => app.buffer_write.len(),
                                 _ => 0,
                             };
 
                             // Check that it exists.
                             if allow_buf_len == 0 || self.buffer.is_none() {
-                                return ReturnCode::ERESERVE;
+                                return Err(ErrorCode::RESERVE);
                             }
 
                             // Shorten the length if the application gave us nowhere to
@@ -242,14 +243,14 @@ impl<'a> NonvolatileStorage<'a> {
 
                                 // Need to copy bytes if this is a write!
                                 if command == NonvolatileCommand::UserspaceWrite {
-                                    app.buffer_write.as_mut().map(|app_buffer| {
+                                    app.buffer_write.map_or((), |app_buffer| {
                                         self.buffer.map(|kernel_buffer| {
                                             // Check that the internal buffer and the buffer that was
                                             // allowed are long enough.
                                             let write_len =
                                                 cmp::min(active_len, kernel_buffer.len());
 
-                                            let d = &mut app_buffer.as_mut()[0..write_len];
+                                            let d = &app_buffer[0..write_len];
                                             for (i, c) in
                                                 kernel_buffer[0..write_len].iter_mut().enumerate()
                                             {
@@ -265,24 +266,24 @@ impl<'a> NonvolatileStorage<'a> {
                                 if app.pending_command == true {
                                     // No more room in the queue, nowhere to store this
                                     // request.
-                                    ReturnCode::ENOMEM
+                                    Err(ErrorCode::NOMEM)
                                 } else {
                                     // We can store this, so lets do it.
                                     app.pending_command = true;
                                     app.command = command;
                                     app.offset = offset;
                                     app.length = active_len;
-                                    ReturnCode::SUCCESS
+                                    Ok(())
                                 }
                             }
                         })
-                        .unwrap_or_else(|err| err.into())
+                        .unwrap_or_else(|err| Err(err.into()))
                 })
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
                 self.kernel_buffer
                     .take()
-                    .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
+                    .map_or(Err(ErrorCode::NOMEM), |kernel_buffer| {
                         let active_len = cmp::min(length, kernel_buffer.len());
 
                         // Check if there is something going on.
@@ -297,18 +298,18 @@ impl<'a> NonvolatileStorage<'a> {
                                 NonvolatileCommand::KernelWrite => {
                                     self.driver.write(kernel_buffer, offset, active_len)
                                 }
-                                _ => ReturnCode::FAIL,
+                                _ => Err(ErrorCode::FAIL),
                             }
                         } else {
                             if self.kernel_pending_command.get() == true {
-                                ReturnCode::ENOMEM
+                                Err(ErrorCode::NOMEM)
                             } else {
                                 self.kernel_pending_command.set(true);
                                 self.kernel_command.set(command);
                                 self.kernel_readwrite_length.set(active_len);
                                 self.kernel_readwrite_address.set(offset);
                                 self.kernel_buffer.replace(kernel_buffer);
-                                ReturnCode::SUCCESS
+                                Ok(())
                             }
                         }
                     })
@@ -321,27 +322,29 @@ impl<'a> NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // Calculate where we want to actually read from in the physical
         // storage.
         let physical_address = offset + self.userspace_start_address;
 
-        self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
-            // Check that the internal buffer and the buffer that was
-            // allowed are long enough.
-            let active_len = cmp::min(length, buffer.len());
+        self.buffer
+            .take()
+            .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                // Check that the internal buffer and the buffer that was
+                // allowed are long enough.
+                let active_len = cmp::min(length, buffer.len());
 
-            // self.current_app.set(Some(appid));
-            match command {
-                NonvolatileCommand::UserspaceRead => {
-                    self.driver.read(buffer, physical_address, active_len)
+                // self.current_app.set(Some(appid));
+                match command {
+                    NonvolatileCommand::UserspaceRead => {
+                        self.driver.read(buffer, physical_address, active_len)
+                    }
+                    NonvolatileCommand::UserspaceWrite => {
+                        self.driver.write(buffer, physical_address, active_len)
+                    }
+                    _ => Err(ErrorCode::FAIL),
                 }
-                NonvolatileCommand::UserspaceWrite => {
-                    self.driver.write(buffer, physical_address, active_len)
-                }
-                _ => ReturnCode::FAIL,
-            }
-        })
+            })
     }
 
     fn check_queue(&self) {
@@ -362,7 +365,7 @@ impl<'a> NonvolatileStorage<'a> {
                         self.kernel_readwrite_address.get(),
                         self.kernel_readwrite_length.get(),
                     ),
-                    _ => ReturnCode::FAIL,
+                    _ => Err(ErrorCode::FAIL),
                 }
             });
         } else {
@@ -374,8 +377,13 @@ impl<'a> NonvolatileStorage<'a> {
                         self.current_user.set(NonvolatileUser::App {
                             app_id: app.appid(),
                         });
-                        self.userspace_call_driver(app.command, app.offset, app.length)
-                            == ReturnCode::SUCCESS
+                        if let Ok(()) =
+                            self.userspace_call_driver(app.command, app.offset, app.length)
+                        {
+                            true
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -402,10 +410,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                 NonvolatileUser::App { app_id } => {
                     let _ = self.apps.enter(app_id, move |app, _| {
                         // Need to copy in the contents of the buffer
-                        app.buffer_read.as_mut().map(|app_buffer| {
+                        app.buffer_read.mut_map_or((), |app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
 
-                            let d = &mut app_buffer.as_mut()[0..(read_len as usize)];
+                            let d = &mut app_buffer[0..(read_len as usize)];
                             for (i, c) in buffer[0..read_len].iter().enumerate() {
                                 d[i] = *c;
                             }
@@ -415,7 +423,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_read.map(|mut cb| cb.schedule(length, 0, 0));
+                        app.callback_read.schedule(length, 0, 0);
                     });
                 }
             }
@@ -439,7 +447,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_write.map(|mut cb| cb.schedule(length, 0, 0));
+                        app.callback_write.schedule(length, 0, 0);
                     });
                 }
             }
@@ -455,12 +463,22 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
         self.kernel_client.set(client);
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelRead, address, length, None)
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(
+        &self,
+        buffer: &'static mut [u8],
+        address: usize,
+        length: usize,
+    ) -> Result<(), ErrorCode> {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelWrite, address, length, None)
     }
@@ -468,28 +486,61 @@ impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorag
 
 /// Provide an interface for userland.
 impl Driver for NonvolatileStorage<'_> {
-    /// Setup shared buffers.
+    /// Setup shared kernel-writable buffers.
     ///
     /// ### `allow_num`
     ///
     /// - `0`: Setup a buffer to read from the nonvolatile storage into.
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        self.apps
-            .enter(appid, |app, _| {
-                match allow_num {
-                    0 => app.buffer_read = slice,
-                    1 => app.buffer_write = slice,
-                    _ => return ReturnCode::ENOSUPPORT,
-                }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
+            0 => self
+                .apps
+                .enter(appid, |app, _| {
+                    mem::swap(&mut slice, &mut app.buffer_read);
+                    Ok(())
+                })
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
+        }
+    }
+
+    /// Setup shared kernel-readable buffers.
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `0`: Setup a buffer to write bytes to the nonvolatile storage.
+    fn allow_readonly(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
+            0 => self
+                .apps
+                .enter(appid, |app, _| {
+                    mem::swap(&mut slice, &mut app.buffer_write);
+                    Ok(())
+                })
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
+        }
     }
 
     /// Setup callbacks.
@@ -501,19 +552,28 @@ impl Driver for NonvolatileStorage<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                match subscribe_num {
-                    0 => app.callback_read = callback,
-                    1 => app.callback_write = callback,
-                    _ => return ReturnCode::ENOSUPPORT,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(app_id, |app, _| match subscribe_num {
+                0 => {
+                    mem::swap(&mut app.callback_read, &mut callback);
+                    Ok(())
                 }
-                ReturnCode::SUCCESS
+                1 => {
+                    mem::swap(&mut app.callback_write, &mut callback);
+                    Ok(())
+                }
+                _ => Err(ErrorCode::NOSUPPORT),
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| Err(err.into()));
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
+        }
     }
 
     /// Command interface.
@@ -526,46 +586,54 @@ impl Driver for NonvolatileStorage<'_> {
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
-    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
-        let command_num = arg0 & 0xFF;
-
+    fn command(
+        &self,
+        command_num: usize,
+        offset: usize,
+        length: usize,
+        appid: AppId,
+    ) -> CommandReturn {
         match command_num {
-            0 =>
-            /* This driver exists. */
-            {
-                ReturnCode::SUCCESS
+            0 /* This driver exists. */ => {
+                CommandReturn::success()
             }
 
-            // How many bytes are accessible from userspace.
-            1 => ReturnCode::SuccessWithValue {
-                value: self.userspace_length,
+            1 /* How many bytes are accessible from userspace */ => {
+                // TODO: Would break on 64-bit platforms
+                CommandReturn::success_u32(self.userspace_length as u32)
             },
 
-            // Issue a read
-            2 => {
-                let length = (arg0 >> 8) & 0xFFFFFF;
-                let offset = arg1;
-                self.enqueue_command(
-                    NonvolatileCommand::UserspaceRead,
-                    offset,
-                    length,
-                    Some(appid),
-                )
+            2 /* Issue a read command */ => {
+                let res =
+                    self.enqueue_command(
+                        NonvolatileCommand::UserspaceRead,
+                        offset,
+                        length,
+                        Some(appid),
+                    );
+
+                match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
+                }
             }
 
-            // Issue a write
-            3 => {
-                let length = (arg0 >> 8) & 0xFFFFFF;
-                let offset = arg1;
-                self.enqueue_command(
-                    NonvolatileCommand::UserspaceWrite,
-                    offset,
-                    length,
-                    Some(appid),
-                )
+            3 /* Issue a write command */ => {
+                let res =
+                    self.enqueue_command(
+                        NonvolatileCommand::UserspaceWrite,
+                        offset,
+                        length,
+                        Some(appid),
+                    );
+
+                match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
+                }
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

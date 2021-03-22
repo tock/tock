@@ -30,11 +30,15 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 use core::cell::Cell;
 use core::convert::TryInto;
 use core::marker::PhantomData;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, ReturnCode,
+    Upcall,
+};
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
@@ -72,55 +76,44 @@ where
         }
     }
 
-    fn run(&self) -> ReturnCode {
-        self.appid.map_or(ReturnCode::ERESERVE, move |appid| {
+    fn run(&self) -> Result<(), ErrorCode> {
+        self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
                 .enter(*appid, |app, _| {
-                    match app.key.as_ref() {
-                        Some(k) => {
-                            self.hmac
-                                .set_mode_hmacsha256(k.as_ref().try_into().unwrap())
-                                .unwrap();
-                        }
-                        None => {
-                            return ReturnCode::ERESERVE;
-                        }
-                    };
+                    app.key.map_or((), |k| {
+                        self.hmac
+                            .set_mode_hmacsha256(k.as_ref().try_into().unwrap())
+                            .unwrap();
+                    });
 
-                    match app.data.as_ref() {
-                        Some(d) => {
-                            self.data_buffer.map(|buf| {
-                                let data = d.as_ref();
+                    app.data.map_or(Err(ErrorCode::RESERVE), |d| {
+                        self.data_buffer.map(|buf| {
+                            let data = d.as_ref();
 
-                                // Determine the size of the static buffer we have
-                                let static_buffer_len = buf.len();
+                            // Determine the size of the static buffer we have
+                            let static_buffer_len = buf.len();
 
-                                // If we have more data then the static buffer we set how much data we are going to copy
-                                if data.len() > static_buffer_len {
-                                    self.data_copied.set(static_buffer_len);
-                                }
-
-                                // Copy the data into the static buffer
-                                buf.copy_from_slice(&data[..static_buffer_len]);
-                            });
-
-                            // Add the data from the static buffer to the HMAC
-                            if let Err(e) = self
-                                .hmac
-                                .add_data(LeasableBuffer::new(self.data_buffer.take().unwrap()))
-                            {
-                                self.data_buffer.replace(e.1);
-                                return e.0;
+                            // If we have more data then the static buffer we set how much data we are going to copy
+                            if data.len() > static_buffer_len {
+                                self.data_copied.set(static_buffer_len);
                             }
-                        }
-                        None => {
-                            return ReturnCode::ERESERVE;
-                        }
-                    };
 
-                    ReturnCode::SUCCESS
+                            // Copy the data into the static buffer
+                            buf.copy_from_slice(&data[..static_buffer_len]);
+                        });
+
+                        // Add the data from the static buffer to the HMAC
+                        if let Err(e) = self
+                            .hmac
+                            .add_data(LeasableBuffer::new(self.data_buffer.take().unwrap()))
+                        {
+                            self.data_buffer.replace(e.1);
+                            return Err(e.0);
+                        }
+                        Ok(())
+                    })
                 })
-                .unwrap_or_else(|err| err.into())
+                .unwrap_or_else(|err| Err(err.into()))
         })
     }
 
@@ -137,7 +130,7 @@ where
                     // Mark this driver as being in use.
                     self.appid.set(appid);
                     // Actually make the buzz happen.
-                    self.run() == ReturnCode::SUCCESS
+                    self.run() == Ok(())
                 })
             });
             if started_command {
@@ -150,7 +143,7 @@ where
 impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Client<'a, T>
     for HmacDriver<'a, H, T>
 {
-    fn add_data_done(&'a self, _result: Result<(), ReturnCode>, data: &'static mut [u8]) {
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app, _| {
@@ -160,34 +153,34 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                     self.data_buffer.replace(data);
 
                     self.data_buffer.map(|buf| {
-                        match app.data.as_ref() {
-                            Some(d) => {
-                                let data = d.as_ref();
+                        let ret = app.data.map_or(Err(ErrorCode::RESERVE), |d| {
+                            let data = d.as_ref();
 
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
-                                // Determine how much data we have already copied
-                                let copied_data = self.data_copied.get();
+                            // Determine the size of the static buffer we have
+                            static_buffer_len = buf.len();
+                            // Determine how much data we have already copied
+                            let copied_data = self.data_copied.get();
 
-                                data_len = data.len();
+                            data_len = data.len();
 
-                                if data_len > copied_data {
-                                    let remaining_data = &d.as_ref()[copied_data..];
-                                    let remaining_len = data_len - copied_data;
+                            if data_len > copied_data {
+                                let remaining_data = &d.as_ref()[copied_data..];
+                                let remaining_len = data_len - copied_data;
 
-                                    if remaining_len < static_buffer_len {
-                                        buf[..remaining_len].copy_from_slice(remaining_data);
-                                    } else {
-                                        buf.copy_from_slice(&remaining_data[..static_buffer_len]);
-                                    }
+                                if remaining_len < static_buffer_len {
+                                    buf[..remaining_len].copy_from_slice(remaining_data);
+                                } else {
+                                    buf.copy_from_slice(&remaining_data[..static_buffer_len]);
                                 }
                             }
-                            None => {
-                                // No data buffer, clear the appid and data
-                                self.hmac.clear_data();
-                                self.appid.clear();
-                                self.check_queue();
-                            }
+                            Ok(())
+                        });
+
+                        if ret == Err(ErrorCode::RESERVE) {
+                            // No data buffer, clear the appid and data
+                            self.hmac.clear_data();
+                            self.appid.clear();
+                            self.check_queue();
                         }
                     });
 
@@ -227,9 +220,8 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                         self.hmac.clear_data();
                         self.appid.clear();
 
-                        app.callback.map(|cb| {
-                            cb.schedule(usize::from(e.0), 0, 0);
-                        });
+                        app.callback
+                            .schedule(usize::from(ReturnCode::from(e.0)), 0, 0);
 
                         self.check_queue();
                         return;
@@ -246,7 +238,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
         });
     }
 
-    fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &'static mut T) {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |app, _| {
@@ -254,17 +246,18 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
-                    match app.dest.as_mut() {
-                        Some(dest) => {
-                            dest.as_mut().copy_from_slice(digest.as_ref());
-                        }
-                        None => {}
-                    };
-
-                    app.callback.map(|cb| match result {
-                        Ok(_) => cb.schedule(0, pointer as usize, 0),
-                        Err(e) => cb.schedule(usize::from(e), pointer as usize, 0),
+                    app.data.mut_map_or((), |dest| {
+                        dest.as_mut().copy_from_slice(digest.as_ref());
                     });
+
+                    match result {
+                        Ok(_) => app.callback.schedule(0, pointer as usize, 0),
+                        Err(e) => app.callback.schedule(
+                            usize::from(ReturnCode::from(e)),
+                            pointer as usize,
+                            0,
+                        ),
+                    };
 
                     // Clear the current appid as it has finished running
                     self.appid.clear();
@@ -302,42 +295,47 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
     for HmacDriver<'a, H, T>
 {
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Pass buffer for the key to be in
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.key = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut slice, &mut app.key);
+                    Ok(())
                 })
-                .unwrap_or(ReturnCode::FAIL),
+                .unwrap_or(Err(ErrorCode::FAIL)),
 
             // Pass buffer for the data to be in
             1 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.data = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut slice, &mut app.data);
+                    Ok(())
                 })
-                .unwrap_or(ReturnCode::FAIL),
+                .unwrap_or(Err(ErrorCode::FAIL)),
 
             // Pass buffer for the digest to be in.
             2 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.dest = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut slice, &mut app.dest);
+                    Ok(())
                 })
-                .unwrap_or(ReturnCode::FAIL),
+                .unwrap_or(Err(ErrorCode::FAIL)),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -350,22 +348,27 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         appid: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             0 => {
                 // set callback
                 self.apps
                     .enter(appid, |app, _| {
-                        app.callback.insert(callback);
-                        ReturnCode::SUCCESS
+                        mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .unwrap_or(Err(ErrorCode::FAIL))
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -388,7 +391,13 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
     ///
     /// - `0`: set_algorithm
     /// - `1`: run
-    fn command(&self, command_num: usize, data1: usize, _data2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        _data2: usize,
+        appid: AppId,
+    ) -> CommandReturn {
         let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
@@ -420,9 +429,9 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                     // SHA256
                     0 => {
                         // Only Sha256 is supported, we don't need to do anything
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     }
-                    _ => ReturnCode::ENOSUPPORT,
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 }
             }
 
@@ -432,13 +441,14 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                     self.appid.set(appid);
                     let ret = self.run();
 
-                    if ret != ReturnCode::SUCCESS {
+                    if let Err(e) = ret {
                         self.hmac.clear_data();
                         self.appid.clear();
                         self.check_queue();
+                        CommandReturn::failure(e)
+                    } else {
+                        CommandReturn::success()
                     }
-
-                    ret
                 } else {
                     // There is an active app, so queue this request (if possible).
                     self.apps
@@ -447,11 +457,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this
                                 // request.
-                                ReturnCode::ENOMEM
+                                CommandReturn::failure(ErrorCode::NOMEM)
                             } else {
                                 // We can store this, so lets do it.
                                 app.pending_run_app = Some(appid);
-                                ReturnCode::SUCCESS
+                                CommandReturn::success()
                             }
                         })
                         .unwrap_or_else(|err| err.into())
@@ -459,27 +469,16 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
 
+#[derive(Default)]
 pub struct App {
-    callback: OptionalCell<Callback>,
+    callback: Upcall,
     pending_run_app: Option<AppId>,
-    key: Option<AppSlice<Shared, u8>>,
-    data: Option<AppSlice<Shared, u8>>,
-    dest: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: OptionalCell::empty(),
-            pending_run_app: None,
-            key: None,
-            data: None,
-            dest: None,
-        }
-    }
+    key: ReadWriteAppSlice,
+    data: ReadWriteAppSlice,
+    dest: ReadWriteAppSlice,
 }

@@ -12,10 +12,11 @@
 //! ```
 
 use core::convert::From;
+use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, Shared};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -38,9 +39,9 @@ enum TextScreenCommand {
 }
 
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     pending_command: bool,
-    shared: Option<AppSlice<Shared, u8>>,
+    shared: ReadOnlyAppSlice,
     write_position: usize,
     write_len: usize,
     command: TextScreenCommand,
@@ -51,9 +52,9 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: None,
+            callback: Upcall::default(),
             pending_command: false,
-            shared: None,
+            shared: ReadOnlyAppSlice::default(),
             write_position: 0,
             write_len: 0,
             command: TextScreenCommand::Idle,
@@ -90,8 +91,9 @@ impl<'a> TextScreen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> ReturnCode {
-        self.apps
+    ) -> CommandReturn {
+        let res = self
+            .apps
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
@@ -114,7 +116,12 @@ impl<'a> TextScreen<'a> {
                     }
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .map_err(ErrorCode::from);
+        if let Err(err) = res {
+            CommandReturn::failure(err)
+        } else {
+            CommandReturn::success()
+        }
     }
 
     fn do_command(
@@ -143,16 +150,21 @@ impl<'a> TextScreen<'a> {
                     if data1 > 0 {
                         app.write_position = 0;
                         app.write_len = data1;
-                        if let Some(to_write_buffer) = &app.shared {
-                            self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
-                                for n in 0..data1 {
-                                    buffer[n] = to_write_buffer.as_ref()[n];
+                        app.shared.map_or(ReturnCode::ENOMEM, |to_write_buffer| {
+                            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+                                let len = cmp::min(app.write_len, buffer.len());
+                                for n in 0..len {
+                                    buffer[n] = to_write_buffer[n];
                                 }
-                                self.text_screen.print(buffer, data1)
+                                match self.text_screen.print(buffer, len) {
+                                    Ok(()) => ReturnCode::SUCCESS,
+                                    Err((err, buffer)) => {
+                                        self.buffer.replace(buffer);
+                                        err
+                                    }
+                                }
                             })
-                        } else {
-                            ReturnCode::ENOMEM
-                        }
+                        })
                     } else {
                         ReturnCode::ENOMEM
                     }
@@ -191,9 +203,7 @@ impl<'a> TextScreen<'a> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
-                app.callback.map(|mut cb| {
-                    cb.schedule(data1, data2, data3);
-                });
+                app.callback.schedule(data1, data2, data3);
             });
         });
     }
@@ -203,25 +213,37 @@ impl<'a> Driver for TextScreen<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let res = self
+                    .apps
+                    .enter(app_id, |app, _| {
+                        mem::swap(&mut app.callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    Err((callback, e))
+                } else {
+                    Ok(callback)
+                }
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, data1: usize, data2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        appid: AppId,
+    ) -> CommandReturn {
         match command_num {
             // This driver exists.
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
             // Get Resolution
             1 => self.enqueue_command(TextScreenCommand::GetResolution, data1, data2, appid),
             // Display
@@ -245,27 +267,32 @@ impl<'a> Driver for TextScreen<'a> {
             //Set Curosr
             11 => self.enqueue_command(TextScreenCommand::SetCursor, data1, data2, appid),
             // NOSUPPORT
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
-    fn allow(
+    fn allow_readonly(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         match allow_num {
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    let _ = if let Some(ref s) = slice { s.len() } else { 0 };
-                    app.shared = slice;
-                    app.write_position = 0;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let res = self
+                    .apps
+                    .enter(appid, |app, _| {
+                        mem::swap(&mut app.shared, &mut slice);
+                        app.write_position = 0;
+                    })
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    Err((slice, e))
+                } else {
+                    Ok(slice)
+                }
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 }
@@ -276,9 +303,9 @@ impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
         self.run_next_command();
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode) {
+    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: ReturnCode) {
         self.buffer.replace(buffer);
-        self.schedule_callback(usize::from(r), 0, 0);
+        self.schedule_callback(usize::from(r), len, 0);
         self.run_next_command();
     }
 }

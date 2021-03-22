@@ -67,10 +67,12 @@
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
@@ -79,8 +81,8 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    buffer: ReadOnlyAppSlice,
 
     // if Some, the application is awaiting the result of a CRC
     //   using the given algorithm
@@ -128,22 +130,18 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         for app in self.apps.iter() {
             app.enter(|app, _| {
                 if let Some(alg) = app.waiting {
-                    if let Some(buffer) = app.buffer.take() {
-                        let r = self.crc_unit.compute(buffer.as_ref(), alg);
-                        if r == ReturnCode::SUCCESS {
-                            // The unit is now computing a CRC for this app
-                            self.serving_app.set(app.appid());
-                            found = true;
-                        } else {
-                            // The app's request failed
-                            if let Some(mut callback) = app.callback {
-                                callback.schedule(From::from(r), 0, 0);
-                            }
-                            app.waiting = None;
-                        }
+                    let rcode = app
+                        .buffer
+                        .map_or(ReturnCode::ENOMEM, |buf| self.crc_unit.compute(buf, alg));
 
-                        // Put back taken buffer
-                        app.buffer = Some(buffer);
+                    if rcode == ReturnCode::SUCCESS {
+                        // The unit is now computing a CRC for this app
+                        self.serving_app.set(app.appid());
+                        found = true;
+                    } else {
+                        // The app's request failed
+                        app.callback.schedule(From::from(rcode), 0, 0);
+                        app.waiting = None;
                     }
                 }
             });
@@ -171,22 +169,26 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
     ///
-    fn allow(
+    fn allow_readonly(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.buffer = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.buffer, &mut slice);
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
         }
     }
 
@@ -212,19 +214,24 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             // Set callback for CRC result
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.callback, &mut callback);
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
         }
     }
 
@@ -287,10 +294,16 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
     ///   `CRC-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
-    fn command(&self, command_num: usize, algorithm: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        algorithm: usize,
+        _: usize,
+        appid: AppId,
+    ) -> CommandReturn {
         match command_num {
             // This driver is present
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // Request a CRC computation
             2 => {
@@ -299,28 +312,26 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                         .enter(appid, |app, _| {
                             if app.waiting.is_some() {
                                 // Each app may make only one request at a time
-                                ReturnCode::EBUSY
+                                Err(ErrorCode::BUSY)
                             } else {
-                                if app.callback.is_some() && app.buffer.is_some() {
-                                    app.waiting = Some(alg);
-                                    ReturnCode::SUCCESS
-                                } else {
-                                    ReturnCode::EINVAL
-                                }
+                                app.waiting = Some(alg);
+                                Ok(ReturnCode::SUCCESS)
                             }
                         })
-                        .unwrap_or_else(|err| err.into())
+                        .map_err(ErrorCode::from)
                 } else {
-                    ReturnCode::EINVAL
+                    Err(ErrorCode::INVAL)
                 };
 
-                if result == ReturnCode::SUCCESS {
+                if let Err(e) = result {
+                    CommandReturn::failure(e)
+                } else {
                     self.serve_waiting_apps();
+                    CommandReturn::success()
                 }
-                result
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -330,9 +341,8 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
         self.serving_app.take().map(|appid| {
             self.apps
                 .enter(appid, |app, _| {
-                    if let Some(mut callback) = app.callback {
-                        callback.schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
-                    }
+                    app.callback
+                        .schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
                     app.waiting = None;
                     ReturnCode::SUCCESS
                 })

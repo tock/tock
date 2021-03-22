@@ -77,7 +77,7 @@ struct EarlGreyNexysVideo {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -252,7 +252,7 @@ pub unsafe fn reset_handler() {
     ));
 
     let i2c_master = static_init!(
-        capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+        capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.i2c,
             &mut capsules::i2c_master::BUF,

@@ -69,7 +69,7 @@ static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 /// flags for display on/off control
 static LCD_DISPLAYON: u8 = 0x04;
 static LCD_CURSORON: u8 = 0x02;
-static LCD_BLINKON: u8 = 0x04;
+static LCD_BLINKON: u8 = 0x01;
 static LCD_BLINKOFF: u8 = 0x00;
 
 /// flags for function set
@@ -142,6 +142,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
 
     write_buffer: TakeCell<'static, [u8]>,
     write_len: Cell<u8>,
+    write_buffer_len: Cell<u8>,
     write_offset: Cell<u8>,
 }
 
@@ -190,6 +191,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             done_printing: Cell::new(false),
             write_buffer: TakeCell::empty(),
             write_len: Cell::new(0),
+            write_buffer_len: Cell::new(0),
             write_offset: Cell::new(0),
         };
         hd44780.init(width, height);
@@ -336,9 +338,13 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     } else if self.done_printing.get() {
                         self.done_printing.set(false);
                         if self.write_buffer.is_some() {
-                            self.write_buffer
-                                .take()
-                                .map(|buffer| client.write_complete(buffer, ReturnCode::SUCCESS));
+                            self.write_buffer.take().map(|buffer| {
+                                client.write_complete(
+                                    buffer,
+                                    self.write_buffer_len.get() as usize,
+                                    ReturnCode::SUCCESS,
+                                )
+                            });
                         }
                     } else {
                         client.command_complete(ReturnCode::SUCCESS);
@@ -593,15 +599,20 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         (16, 2)
     }
 
-    fn print(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn print(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         if self.lcd_status.get() == LCDStatus::Idle {
             self.write_buffer.replace(buffer);
             self.write_len.replace(len as u8);
+            self.write_buffer_len.replace(len as u8);
             self.write_offset.set(0);
             self.write_character();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err((ReturnCode::EBUSY, buffer))
         }
     }
 

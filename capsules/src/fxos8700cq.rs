@@ -202,7 +202,6 @@ impl<'a> Fxos8700cq<'a> {
     fn start_read_accel(&self) {
         // Need an interrupt pin
         self.interrupt_pin1.make_input();
-
         self.buffer.take().map(|buf| {
             self.i2c.enable();
             // Configure the data ready interrupt.
@@ -242,7 +241,20 @@ impl gpio::Client for Fxos8700cq<'_> {
 }
 
 impl I2CClient for Fxos8700cq<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+        // If there's an I2C error, just reset and issue a callback
+        // with all 0s. Otherwise, if there's no sensor attacherd,
+        // it's possible to have nondeterminstic behavior, where
+        // sometimes you get callbacks and sometimes you don't, based
+        // on whether a floating interrupt line triggers. -pal 3/19/21
+        if error != Error::CommandComplete {
+            self.state.set(State::Disabled);
+            self.buffer.replace(buffer);
+            self.callback.map(|cb| {
+                cb.callback(0, 0, 0);
+            });
+            return;
+        }
         match self.state.get() {
             State::ReadAccelSetup => {
                 // Setup the interrupt so we know when the sample is ready

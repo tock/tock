@@ -26,16 +26,17 @@
 //!         usb_client, board_kernel.create_grant(&grant_cap)));
 //! ```
 
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     awaiting: Option<Request>,
 }
 
@@ -76,9 +77,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            if let Some(mut callback) = app.callback {
-                                callback.schedule(From::from(ReturnCode::SUCCESS), 0, 0);
-                            }
+                            app.callback.schedule(0, 0, 0);
                             app.awaiting = None;
                         }
                     }
@@ -107,26 +106,31 @@ where
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             // Set callback for result
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.callback, &mut callback);
+                    Ok(())
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // This driver is present
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // Enable USB controller, attach to bus, and service default control endpoint
             1 => {
@@ -135,25 +139,24 @@ where
                     .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
-                            ReturnCode::EBUSY
+                            Err(ErrorCode::BUSY)
                         } else {
-                            if app.callback.is_some() {
-                                app.awaiting = Some(Request::EnableAndAttach);
-                                ReturnCode::SUCCESS
-                            } else {
-                                ReturnCode::EINVAL
-                            }
+                            app.awaiting = Some(Request::EnableAndAttach);
+                            Ok(())
                         }
                     })
-                    .unwrap_or_else(|err| err.into());
+                    .unwrap_or_else(|err| Err(err.into()));
 
-                if result == ReturnCode::SUCCESS {
-                    self.serve_waiting_apps();
+                match result {
+                    Ok(()) => {
+                        self.serve_waiting_apps();
+                        CommandReturn::success()
+                    }
+                    Err(e) => CommandReturn::failure(e),
                 }
-                result
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

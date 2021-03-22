@@ -53,9 +53,10 @@
 //! ```
 
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +64,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     subscribed: bool,
 }
 
@@ -85,27 +86,41 @@ impl<'a> TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, appid: AppId) -> CommandReturn {
         self.apps
             .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
-                    self.driver.read_temperature()
+                    let rcode = self.driver.read_temperature();
+                    let eres = ErrorCode::try_from(rcode);
+                    match eres {
+                        Ok(ecode) => CommandReturn::failure(ecode),
+                        _ => CommandReturn::success(),
+                    }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        self.apps
+    fn configure_callback(
+        &self,
+        mut callback: Upcall,
+        app_id: AppId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .apps
             .enter(app_id, |app, _| {
-                app.callback = callback;
-                ReturnCode::SUCCESS
+                mem::swap(&mut app.callback, &mut callback);
             })
-            .unwrap_or_else(|err| err.into())
+            .map_err(ErrorCode::from);
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 }
 
@@ -116,7 +131,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
+                    app.callback.schedule(temp_val, 0, 0);
                 }
             });
         }
@@ -127,24 +142,24 @@ impl Driver for TemperatureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to temperature reading with callback
             0 => self.configure_callback(callback, app_id),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // read temperature
             1 => self.enqueue_command(appid),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

@@ -23,9 +23,11 @@
 //! ```
 
 use core::cmp;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::ErrorCode;
+use kernel::{AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -33,8 +35,8 @@ pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    buffer: ReadOnlyAppSlice,
     pending_command: bool,
     flash_address: usize,
 }
@@ -63,48 +65,48 @@ impl<'a> AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> Result<(), ErrorCode> {
         self.apps
             .enter(appid, |app, _| {
                 // Check that this is a valid range in the app's flash.
-                let flash_length = app.buffer.as_mut().map_or(0, |app_buffer| app_buffer.len());
+                let flash_length = app.buffer.len();
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
                 if flash_address < app_flash_start
                     || flash_address >= app_flash_end
                     || flash_address + flash_length >= app_flash_end
                 {
-                    return ReturnCode::EINVAL;
+                    return Err(ErrorCode::INVAL);
                 }
 
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
 
-                    app.buffer
-                        .as_mut()
-                        .map_or(ReturnCode::ERESERVE, |app_buffer| {
-                            // Copy contents to internal buffer and write it.
-                            self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
+                    app.buffer.map_or(Err(ErrorCode::RESERVE), |app_buffer| {
+                        // Copy contents to internal buffer and write it.
+                        self.buffer
+                            .take()
+                            .map_or(Err(ErrorCode::RESERVE), |buffer| {
                                 let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &mut app_buffer.as_mut()[0..length];
+                                let d = &app_buffer[0..length];
                                 for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
                                     *c = d[i];
                                 }
 
                                 self.driver.write(buffer, flash_address, length)
                             })
-                        })
+                    })
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     } else {
                         app.pending_command = true;
                         app.flash_address = flash_address;
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| Err(err.into()))
     }
 }
 
@@ -118,9 +120,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.callback.map(|mut cb| {
-                    cb.schedule(0, 0, 0);
-                });
+                app.callback.schedule(0, 0, 0);
             });
         });
 
@@ -132,20 +132,23 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
                     self.current_app.set(app.appid());
                     let flash_address = app.flash_address;
 
-                    app.buffer.as_mut().map_or(false, |app_buffer| {
+                    app.buffer.map_or(false, |app_buffer| {
                         self.buffer.take().map_or(false, |buffer| {
                             if app_buffer.len() != 512 {
                                 false
                             } else {
                                 // Copy contents to internal buffer and write it.
                                 let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &mut app_buffer.as_mut()[0..length];
+                                let d = &app_buffer[0..length];
                                 for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
                                     *c = d[i];
                                 }
 
-                                self.driver.write(buffer, flash_address, length)
-                                    == ReturnCode::SUCCESS
+                                if let Ok(()) = self.driver.write(buffer, flash_address, length) {
+                                    true
+                                } else {
+                                    false
+                                }
                             }
                         })
                     })
@@ -166,21 +169,26 @@ impl Driver for AppFlash<'_> {
     /// ### `allow_num`
     ///
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
-    fn allow(
+    fn allow_readonly(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.buffer = slice;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.buffer, &mut slice);
+                    Ok(())
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -192,18 +200,23 @@ impl Driver for AppFlash<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut app.callback, &mut callback);
+                    Ok(())
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -213,21 +226,24 @@ impl Driver for AppFlash<'_> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
-            0 =>
-            /* This driver exists. */
-            {
-                ReturnCode::SUCCESS
+            0 /* This driver exists. */ => {
+                CommandReturn::success()
             }
 
-            // Write to flash from the allowed buffer.
-            1 => {
+            1 /* Write to flash from the allowed buffer */ => {
                 let flash_address = arg1;
-                self.enqueue_write(flash_address, appid)
+
+                let res = self.enqueue_write(flash_address, appid);
+
+                match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
+                }
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

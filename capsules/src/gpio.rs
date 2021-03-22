@@ -51,19 +51,20 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
+use core::mem;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-    apps: Grant<Option<Callback>>,
+    apps: Grant<Upcall>,
 }
 
 impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-        grant: Grant<Option<Callback>>,
+        grant: Grant<Upcall>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
             if let Some(pin) = maybe_pin {
@@ -76,54 +77,54 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
         }
     }
 
-    fn configure_input_pin(&self, pin_num: u32, config: usize) -> ReturnCode {
+    fn configure_input_pin(&self, pin_num: u32, config: usize) -> CommandReturn {
         let maybe_pin = self.pins[pin_num as usize];
         if let Some(pin) = maybe_pin {
             pin.make_input();
             match config {
                 0 => {
                     pin.set_floating_state(gpio::FloatingState::PullNone);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
                 1 => {
                     pin.set_floating_state(gpio::FloatingState::PullUp);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
                 2 => {
                     pin.set_floating_state(gpio::FloatingState::PullDown);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
-                _ => ReturnCode::ENOSUPPORT,
+                _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
             }
         } else {
-            ReturnCode::ENODEVICE
+            CommandReturn::failure(ErrorCode::NODEVICE)
         }
     }
 
-    fn configure_interrupt(&self, pin_num: u32, config: usize) -> ReturnCode {
+    fn configure_interrupt(&self, pin_num: u32, config: usize) -> CommandReturn {
         let pins = self.pins.as_ref();
         let index = pin_num as usize;
         if let Some(pin) = pins[index] {
             match config {
                 0 => {
                     pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
 
                 1 => {
                     pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
 
                 2 => {
                     pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 }
 
-                _ => ReturnCode::ENOSUPPORT,
+                _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
             }
         } else {
-            ReturnCode::ENODEVICE
+            CommandReturn::failure(ErrorCode::NODEVICE)
         }
     }
 }
@@ -137,7 +138,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
 
             // schedule callback with the pin number and value
             self.apps.each(|callback| {
-                callback.map(|mut cb| cb.schedule(pin_num as usize, pin_state as usize, 0));
+                callback.schedule(pin_num as usize, pin_state as usize, 0);
             });
         }
     }
@@ -153,22 +154,25 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
             0 => self
                 .apps
                 .enter(app_id, |app, _| {
-                    **app = callback;
-                    ReturnCode::SUCCESS
+                    mem::swap(&mut **app, &mut callback);
                 })
-                .unwrap_or_else(|err| err.into()),
-
+                .map_err(ErrorCode::from),
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
         }
     }
 
@@ -202,25 +206,24 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> CommandReturn {
         let pins = self.pins.as_ref();
         let pin_index = data1;
         match command_num {
             // number of pins
-            0 => ReturnCode::SuccessWithValue {
-                value: pins.len() as usize,
-            },
+            0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable output
             1 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.make_output();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -228,13 +231,14 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // set pin
             2 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.set();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -242,13 +246,14 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // clear pin
             3 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.clear();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -256,13 +261,14 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // toggle pin
             4 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.toggle();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -271,7 +277,8 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             5 => {
                 let pin_config = data2;
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     self.configure_input_pin(pin_index as u32, pin_config)
                 }
@@ -280,15 +287,14 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // read input
             6 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         let pin_state = pin.read();
-                        ReturnCode::SuccessWithValue {
-                            value: pin_state as usize,
-                        }
+                        CommandReturn::success_u32(pin_state as u32)
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -298,7 +304,8 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             7 => {
                 let irq_config = data2;
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     self.configure_interrupt(pin_index as u32, irq_config)
                 }
@@ -308,14 +315,15 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // (no affect or reliance on registered callback)
             8 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.disable_interrupts();
                         pin.deactivate_to_low_power();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
@@ -323,19 +331,20 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // disable pin
             9 => {
                 if pin_index >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    /* impossible pin */
+                    CommandReturn::failure(ErrorCode::INVAL)
                 } else {
                     if let Some(pin) = pins[pin_index] {
                         pin.deactivate_to_low_power();
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::ENODEVICE
+                        CommandReturn::failure(ErrorCode::NODEVICE)
                     }
                 }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
