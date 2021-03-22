@@ -261,6 +261,24 @@ pub fn load_processes<C: Chip>(
     Ok(())
 }
 
+/// Opaque identifier for dynamic grants allocated from a process's grant
+/// region.
+///
+/// This type allows Process to provide a handle to a dynamic grant within a
+/// process's memory that `DynamicGrant` can use to access the dynamic grant
+/// memory later.
+///
+/// We use this type rather than a direct pointer so that any attempt to access
+/// can ensure the process still exists and is valid, and that the dynamic grant
+/// has not been freed.
+///
+/// The fields of this struct are private so only Process can create this
+/// identifier.
+#[derive(Copy, Clone)]
+pub struct ProcessDynamicGrantIdentifer {
+    offset: usize,
+}
+
 /// This trait is implemented by process structs.
 pub trait ProcessType {
     /// Returns the process's identifier
@@ -499,29 +517,79 @@ pub trait ProcessType {
 
     // grants
 
-    /// Create new memory in the grant region, and check that the MPU region
-    /// covering program memory does not extend past the kernel memory break.
+    /// Allocate memory from the grant region and store the reference in the
+    /// proper grant pointer index.
     ///
-    /// This will return `None` and fail if the process is inactive.
-    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
+    /// This function must check that the doing the allocation does not cause
+    /// the kernel memory break to go below the top of the process accessible
+    /// memory region allowed by the MPU. Note, this can be different from the
+    /// actual app_brk, as MPU alignment and size constraints may result in the
+    /// PMP enforced region differing from the app_brk.
+    ///
+    /// This will return `None` and fail if:
+    /// - The process is inactive, or
+    /// - There is not enough available memory to do the allocation, or
+    /// - The grant_num is invalid, or
+    /// - The grant_num already has an allocated grant.
+    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
 
-    unsafe fn free(&self, _: *mut u8);
+    /// Check if a given grant for this process has been allocated.
+    ///
+    /// Returns `None` if the process is not active. Otherwise, returns `true`
+    /// if the grant has been allocated, `false` otherwise.
+    fn grant_is_allocated(&self, grant_num: usize) -> Option<bool>;
 
-    /// Get the grant pointer for this grant number.
+    /// Allocate memory from the grant region that is `size` bytes long and
+    /// aligned to `align` bytes. This is used for creating dynamic grants which
+    /// are not recorded in the grant pointer array, but are useful for capsules
+    /// which need additional process-specific dynamically allocated memory.
     ///
-    /// This will return `None` if the process is inactive and the grant region
-    /// cannot be used.
-    ///
-    /// Caution: The grant may not have been allocated yet, so it is possible
-    /// for this grant pointer to be null.
-    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+    /// If successful, return a Some() with an identifier that can be used with
+    /// `enter_dynamic_grant()` to get access to the memory and the pointer to
+    /// the memory which must be used to initialize the memory.
+    fn allocate_dynamic_grant(
+        &self,
+        size: usize,
+        align: usize,
+    ) -> Option<(ProcessDynamicGrantIdentifer, NonNull<u8>)>;
 
-    /// Set the grant pointer for this grant number.
+    /// Enter the grant based on `grant_num` for this process.
     ///
-    /// Note: This method trusts arguments completely, that is, it assumes the
-    /// index into the grant array is valid and the pointer is to an allocated
-    /// grant region in the process memory.
-    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
+    /// Entering a grant means getting access to the actual memory for the
+    /// object stored as the grant.
+    ///
+    /// This will return an `Err` if the process is inactive of the `grant_num`
+    /// is invalid, if the grant has not been allocated, or if the grant is
+    /// already entered. If this returns `Ok()` then the pointer points to the
+    /// previously allocated memory for this grant.
+    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error>;
+
+    /// Enter a dynamic grant based on the `identifier`.
+    ///
+    /// This retrieves a pointer to the previously allocated dynamic grant based
+    /// on the identifier returned when the dynamic grant was allocated.
+    ///
+    /// This returns an error if the dynamic grant is no longer accessible, or
+    /// if the process is inactive.
+    fn enter_dynamic_grant(
+        &self,
+        identifier: ProcessDynamicGrantIdentifer,
+    ) -> Result<*mut u8, Error>;
+
+    /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
+    /// entered.
+    ///
+    /// If `grant_num` is valid, this function cannot fail. If `grant_num` is
+    /// invalid, this function will do nothing. If the process is inactive then
+    /// grants are invalid and are not entered or not entered, and this function
+    /// will do nothing.
+    fn leave_grant(&self, grant_num: usize);
+
+    /// Return the count of the number of allocated grants if the process is
+    /// active.
+    ///
+    /// Useful for debugging/inspecting the system.
+    fn grant_allocated_count(&self) -> Option<usize>;
 
     // functions for processes that are architecture specific
 
@@ -927,6 +995,12 @@ pub struct Process<'a, C: 'static + Chip> {
     memory_start: *const u8,
     /// Number of bytes of memory allocated to this process.
     memory_len: usize,
+
+    /// Reference to the slice of pointers stored in the process's memory
+    /// reserved for the kernel. These pointers are null if the grant region has
+    /// not been allocated. When the grant region is allocated these pointers
+    /// are updated to point to the allocated memory.
+    grant_pointers: MapCell<&'static mut [*mut u8]>,
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
@@ -1439,88 +1513,187 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
+    fn grant_is_allocated(&self, grant_num: usize) -> Option<bool> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
-        self.mpu_config.and_then(|mut config| {
-            // First, compute the candidate new pointer. Note that at this
-            // point we have not yet checked whether there is space for
-            // this allocation or that it meets alignment requirements.
-            let new_break_unaligned = self
-                .kernel_memory_break
-                .get()
-                .wrapping_offset(-(size as isize));
-
-            // The alignment must be a power of two, 2^a. The expression
-            // `!(align - 1)` then returns a mask with leading ones,
-            // followed by `a` trailing zeros.
-            let alignment_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
-
-            // Verify there is space for this allocation
-            if new_break < self.app_break.get() {
-                None
-            // Verify it didn't wrap around
-            } else if new_break > self.kernel_memory_break.get() {
-                None
-            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
-                self.app_break.get(),
-                new_break,
-                mpu::Permissions::ReadWriteOnly,
-                &mut config,
-            ) {
-                None
-            } else {
-                self.kernel_memory_break.set(new_break);
-                unsafe {
-                    // Two unsafe steps here, both okay as we just made this pointer
-                    Some(NonNull::new_unchecked(new_break as *mut u8))
-                }
-            }
+        // Update the grant pointer to the address of the new allocation.
+        self.grant_pointers.map_or(None, |grant_pointers| {
+            // Implement `grant_pointers[grant_num]` without a
+            // chance of a panic.
+            grant_pointers
+                .get(grant_num)
+                .map_or(None, |grant_pointer_pointer| {
+                    Some(!(*grant_pointer_pointer).is_null())
+                })
         })
     }
 
-    unsafe fn free(&self, _: *mut u8) {}
-
-    // This is safe today, as MPU constraints ensure that `mem_end` will always
-    // be aligned on at least a word boundary. While this is unlikely to
-    // change, it should be more proactively enforced.
-    //
-    // TODO: https://github.com/tock/tock/issues/1739
-    #[allow(clippy::cast_ptr_alignment)]
-    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
-        // Do not try to access the grant region of inactive process.
+    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>> {
+        // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
-        // Sanity check the argument
+        // Verify the grant_num is valid.
         if grant_num >= self.kernel.get_grant_count_and_finalize() {
             return None;
         }
 
-        let grant_num = grant_num as isize;
-        let grant_pointer = unsafe {
-            let grant_pointer_array = self.mem_end() as *const *mut u8;
-            *grant_pointer_array.offset(-(grant_num + 1))
-        };
-        Some(grant_pointer)
+        // Verify that the grant is not already allocated. If the pointer is not
+        // null then the grant is already allocated.
+        if let Some(is_allocated) = self.grant_is_allocated(grant_num) {
+            if is_allocated {
+                return None;
+            }
+        }
+
+        // Use the shared grant allocator function to actually allocate memory.
+        // Returns `None` if the allocation cannot be created.
+        if let Some(grant_ptr) = self.allocate_in_grant_region_internal(size, align) {
+            // Update the grant pointer to the address of the new allocation.
+            self.grant_pointers.map_or(None, |grant_pointers| {
+                // Implement `grant_pointers[grant_num] = grant_ptr` without a
+                // chance of a panic.
+                grant_pointers
+                    .get_mut(grant_num)
+                    .map_or(None, |grant_pointer_pointer| {
+                        // Actually set the grant pointer.
+                        *grant_pointer_pointer = grant_ptr.as_ptr() as *mut u8;
+
+                        // If all of this worked, return the allocated pointer.
+                        Some(grant_ptr)
+                    })
+            })
+        } else {
+            // Could not allocate the memory for the grant region.
+            None
+        }
     }
 
-    // This is safe today, as MPU constraints ensure that `mem_end` will always
-    // be aligned on at least a word boundary. While this is unlikely to
-    // change, it should be more proactively enforced.
-    //
-    // TODO: https://github.com/tock/tock/issues/1739
-    #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
-        let grant_num = grant_num as isize;
-        let grant_pointer_array = self.mem_end() as *mut *mut u8;
-        let grant_pointer_pointer = grant_pointer_array.offset(-(grant_num + 1));
-        *grant_pointer_pointer = grant_ptr;
+    fn allocate_dynamic_grant(
+        &self,
+        size: usize,
+        align: usize,
+    ) -> Option<(ProcessDynamicGrantIdentifer, NonNull<u8>)> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
+        // Use the shared grant allocator function to actually allocate memory.
+        // Returns `None` if the allocation cannot be created.
+        if let Some(ptr) = self.allocate_in_grant_region_internal(size, align) {
+            // Create the identifier that the caller will use to get access to this
+            // dynamic grant in the future.
+            let identifier = self.create_dynamic_grant_identifier(ptr);
+
+            Some((identifier, ptr))
+        } else {
+            // Could not allocate memory for the dynamic grant.
+            None
+        }
+    }
+
+    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
+        // Retrieve the grant pointer from the `grant_pointers` slice. We use
+        // `[slice].get()` so that if the grant number is invalid this will
+        // return `Err` and not panic.
+        self.grant_pointers
+            .map_or(Err(Error::KernelError), |grant_pointers| {
+                // Implement `grant_pointers[grant_num]` without a chance of a
+                // panic.
+                match grant_pointers.get_mut(grant_num) {
+                    Some(grant_pointer_pointer) => {
+                        // Get a copy of the actual grant pointer.
+                        let grant_ptr = *grant_pointer_pointer;
+
+                        // Check if the grant pointer is marked that the grant
+                        // has already been entered. If so, return an error.
+                        if (grant_ptr as usize) & 0x1 == 0x1 {
+                            // Lowest bit is one, meaning this grant has been
+                            // entered.
+                            Err(Error::AlreadyInUse)
+                        } else {
+                            // Now, to mark that the grant has been entered, we
+                            // set the lowest bit to one and save this as the
+                            // grant pointer.
+                            *grant_pointer_pointer = (grant_ptr as usize | 0x1) as *mut u8;
+
+                            // And we return the grant pointer to the entered
+                            // grant.
+                            Ok(grant_ptr)
+                        }
+                    }
+                    None => Err(Error::AddressOutOfBounds),
+                }
+            })
+    }
+
+    fn enter_dynamic_grant(
+        &self,
+        identifier: ProcessDynamicGrantIdentifer,
+    ) -> Result<*mut u8, Error> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
+        // Get the address of the dynamic grant based on the identifier.
+        let dynamic_grant_address = self.get_dynamic_grant_address(identifier);
+
+        // We never deallocate dynamic grants and only we can change the
+        // `identifier` so we know this is a valid address for the dynamic
+        // grant.
+        Ok(dynamic_grant_address as *mut u8)
+    }
+
+    fn leave_grant(&self, grant_num: usize) {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return;
+        }
+
+        self.grant_pointers.map(|grant_pointers| {
+            // Implement `grant_pointers[grant_num]` without a chance of a
+            // panic.
+            match grant_pointers.get_mut(grant_num) {
+                Some(grant_pointer_pointer) => {
+                    // Get a copy of the actual grant pointer.
+                    let grant_ptr = *grant_pointer_pointer;
+
+                    // Now, to mark that the grant has been released, we set the
+                    // lowest bit back to zero and save this as the grant
+                    // pointer.
+                    *grant_pointer_pointer = (grant_ptr as usize & !0x1) as *mut u8;
+                }
+                None => {}
+            }
+        });
+    }
+
+    fn grant_allocated_count(&self) -> Option<usize> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
+        self.grant_pointers.map(|grant_pointers| {
+            // Filter our list of grant pointers into just the non null ones,
+            // and count those. A grant is allocated if its grant pointer is non
+            // null.
+            grant_pointers
+                .iter()
+                .filter(|grant_ptr| !grant_ptr.is_null())
+                .count()
+        })
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -1857,31 +2030,34 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             self.kernel.get_grant_count_and_finalize()
         ));
         let rows = (number_grants + 2) / 3;
-        // Iterate each grant and show its address.
-        for i in 0..rows {
-            for j in 0..3 {
-                let index = i + (rows * j);
-                if index >= number_grants {
-                    break;
-                }
 
-                match self.get_grant_ptr(index) {
-                    Some(ptr) => {
-                        if ptr.is_null() {
+        // Access our array of grant pointers.
+        self.grant_pointers.map(|grant_pointers| {
+            // Iterate each grant and show its address.
+            for i in 0..rows {
+                for j in 0..3 {
+                    let index = i + (rows * j);
+                    if index >= number_grants {
+                        break;
+                    }
+
+                    // Implement `grant_pointers[grant_num]` without a chance of
+                    // a panic.
+                    grant_pointers.get(index).map(|grant_pointer_pointer| {
+                        if grant_pointer_pointer.is_null() {
                             let _ =
                                 writer.write_fmt(format_args!("  Grant {:>2}: --        ", index));
                         } else {
-                            let _ =
-                                writer.write_fmt(format_args!("  Grant {:>2}: {:p}", index, ptr));
+                            let _ = writer.write_fmt(format_args!(
+                                "  Grant {:>2}: {:p}",
+                                index, grant_pointer_pointer
+                            ));
                         }
-                    }
-                    None => {
-                        // Don't display if the grant ptr is completely invalid.
-                    }
+                    });
                 }
+                let _ = writer.write_fmt(format_args!("\r\n"));
             }
-            let _ = writer.write_fmt(format_args!("\r\n"));
-        }
+        });
 
         // Display the current state of the MPU for this process.
         self.mpu_config.map(|config| {
@@ -2201,10 +2377,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
-        let opts =
-            slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
+        let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_ptrs_num);
         for opt in opts.iter_mut() {
-            *opt = ptr::null()
+            *opt = ptr::null_mut()
         }
 
         // Now that we know we have the space we can setup the memory for the
@@ -2253,6 +2428,7 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
+        process.grant_pointers = MapCell::new(opts);
 
         process.flash = app_flash;
 
@@ -2534,6 +2710,94 @@ impl<C: 'static + Chip> Process<'_, C> {
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
             write_volatile(ctr_ptr, ptr::null_mut());
         }
+    }
+
+    /// Allocate memory in a process's grant region.
+    ///
+    /// Ensures that the allocation is of `size` bytes and aligned to `align`
+    /// bytes.
+    ///
+    /// If there is not enough memory, or the MPU cannot isolate the process
+    /// accessible region from the new kernel memory break after doing the
+    /// allocation, then this will return `None`.
+    fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
+        self.mpu_config.and_then(|mut config| {
+            // First, compute the candidate new pointer. Note that at this
+            // point we have not yet checked whether there is space for
+            // this allocation or that it meets alignment requirements.
+            let new_break_unaligned = self.kernel_memory_break.get().wrapping_sub(size);
+
+            // Our minimum alignment requirement is two bytes, so that the
+            // lowest bit of the address will always be zero and we can use it
+            // as a flag. It doesn't hurt to increase the alignment (except for
+            // potentially a wasted byte) so we make sure `align` is at least
+            // two.
+            let align = cmp::max(align, 2);
+
+            // The alignment must be a power of two, 2^a. The expression
+            // `!(align - 1)` then returns a mask with leading ones,
+            // followed by `a` trailing zeros.
+            let alignment_mask = !(align - 1);
+            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+
+            // Verify there is space for this allocation
+            if new_break < self.app_break.get() {
+                None
+            // Verify it didn't wrap around
+            } else if new_break > self.kernel_memory_break.get() {
+                None
+            // Verify this is compatible with the MPU.
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                self.app_break.get(),
+                new_break,
+                mpu::Permissions::ReadWriteOnly,
+                &mut config,
+            ) {
+                None
+            } else {
+                // Allocation is valid.
+
+                // We always allocate down, so we must lower the
+                // kernel_memory_break.
+                self.kernel_memory_break.set(new_break);
+
+                // We need `grant_ptr` as a mutable pointer.
+                let grant_ptr = new_break as *mut u8;
+
+                // ### Safety
+                //
+                // Here we are guaranteeing that `grant_ptr` is not null. We can
+                // ensure this because we just created `grant_ptr` based on the
+                // process's allocated memory, and we know it cannot be null.
+                unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
+            }
+        })
+    }
+
+    /// Create the identifier for a dynamic grant that grant.rs uses to access
+    /// the dynamic grant.
+    ///
+    /// We create this identifier by calculating the number of bytes between
+    /// where the dynamic grant starts and the end of the process memory.
+    fn create_dynamic_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessDynamicGrantIdentifer {
+        let dynamic_grant_address = ptr.as_ptr() as usize;
+        let process_memory_end = self.mem_end() as usize;
+
+        ProcessDynamicGrantIdentifer {
+            offset: process_memory_end - dynamic_grant_address,
+        }
+    }
+
+    /// Use a ProcessDynamicGrantIdentifer to find the address of the dynamic
+    /// grant.
+    ///
+    /// This reverses `create_dynamic_grant_identifier()`.
+    fn get_dynamic_grant_address(&self, identifier: ProcessDynamicGrantIdentifer) -> usize {
+        let process_memory_end = self.mem_end() as usize;
+
+        // Subtract the offset in the identifier from the end of the process
+        // memory to get the address of the dynamic grant.
+        process_memory_end - identifier.offset
     }
 
     /// Check if the process is active.
