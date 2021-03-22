@@ -8,6 +8,7 @@ use kernel::AppId;
 use kernel::Platform;
 use kernel::{create_capability, static_init};
 
+mod async_data_stream;
 mod chip;
 mod emulation_config;
 mod ipc_syscalls;
@@ -60,7 +61,7 @@ static mut CHIP: Option<&'static chip::HostChip> = None;
 static mut EXTERNAL_PROCESS_CAP: &dyn capabilities::ExternalProcessCapability =
     &create_capability!(capabilities::ExternalProcessCapability);
 
-pub static mut UART0: uart::UartIO = uart::UartIO::create();
+pub static mut UART0: uart::UartIO = uart::UartIO::create("0");
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
