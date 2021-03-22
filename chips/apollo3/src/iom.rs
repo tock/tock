@@ -524,8 +524,6 @@ impl<'a> Iom<'_> {
                     );
 
                     self.smbus.set(false);
-
-                    return;
                 }
             }
         }
