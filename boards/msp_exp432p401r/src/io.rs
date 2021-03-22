@@ -10,19 +10,10 @@ use msp432::gpio::IntPinNr;
 use msp432::wdt::Wdt;
 
 /// Uart is used by kernel::debug to panic message to the serial port.
-pub struct Uart {
-    initialized: bool,
-}
+pub struct Uart {}
 
 /// Global static for debug writer
-pub static mut UART: Uart = Uart { initialized: false };
-
-impl Uart {
-    /// Indicate that UART has already been initialized.
-    pub fn set_initialized(&mut self) {
-        self.initialized = true;
-    }
-}
+pub static mut UART: Uart = Uart {};
 
 impl Write for Uart {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {

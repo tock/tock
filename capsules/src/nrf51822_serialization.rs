@@ -39,8 +39,6 @@ pub struct App {
     callback: Upcall,
     tx_buffer: ReadOnlyAppSlice,
     rx_buffer: ReadWriteAppSlice,
-    rx_recv_so_far: usize, // How many RX bytes we have currently received.
-    rx_recv_total: usize,  // The total number of bytes we expect to receive.
 }
 
 // Local buffer for passing data between applications and the underlying
@@ -119,8 +117,6 @@ impl Driver for Nrf51822Serialization<'_> {
                 self.active_app.set(appid);
                 self.apps
                     .enter(appid, |app, _| {
-                        app.rx_recv_so_far = 0;
-                        app.rx_recv_total = 0;
                         core::mem::swap(&mut app.rx_buffer, &mut slice);
                     })
                     .map_err(ErrorCode::from)
