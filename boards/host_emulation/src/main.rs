@@ -11,6 +11,7 @@ use kernel::{create_capability, static_init};
 mod async_data_stream;
 mod chip;
 mod emulation_config;
+mod i2cp;
 mod ipc_syscalls;
 mod log;
 mod process;
@@ -63,6 +64,11 @@ static mut EXTERNAL_PROCESS_CAP: &dyn capabilities::ExternalProcessCapability =
 
 pub static mut UART0: uart::UartIO = uart::UartIO::create("0");
 
+pub static mut I2CP: [i2cp::I2CPeripheral; 3] = [
+    i2cp::I2CPeripheral::new("1"),
+    i2cp::I2CPeripheral::new("2"),
+    i2cp::I2CPeripheral::new("3"),
+];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct HostBoard {

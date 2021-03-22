@@ -34,9 +34,16 @@ impl std::fmt::Display for EmulationError {
 
 pub static mut UART0: uart::UartIO = uart::UartIO::create("0");
 
+pub static mut I2CP: [i2cp::I2CPeripheral; 3] = [
+    i2cp::I2CPeripheral::new("1"),
+    i2cp::I2CPeripheral::new("2"),
+    i2cp::I2CPeripheral::new("3"),
+];
+
 pub mod async_data_stream;
 pub mod chip;
 pub mod emulation_config;
+pub mod i2cp;
 pub mod ipc_syscalls;
 mod log;
 pub mod mpu;

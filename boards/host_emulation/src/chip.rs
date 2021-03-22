@@ -85,6 +85,9 @@ impl kernel::Chip for HostChip {
         }
         unsafe {
             super::UART0.handle_pending_requests();
+            for i2cp in &super::I2CP {
+                i2cp.handle_pending_requests();
+            }
         }
     }
 
