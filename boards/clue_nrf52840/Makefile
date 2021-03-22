@@ -16,9 +16,13 @@ KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.el
 # Upload the kernel using nrfutil
 .PHONY: program program-apps
 
+# Default target for installing the kernel.
+.PHONY: install
+install: program
+
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 	ifndef PORT
-		$(error Please specify the serial port using the PORT variable) 
+		$(error Please specify the serial port using the PORT variable)
 	endif
 	adafruit-nrfutil dfu genpkg --dev-type 0x0052 --sd-req 0x00B6 --application $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin $(KERNEL).zip
 	echo "Trying to reset device"
@@ -28,10 +32,10 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 # Upload the kernel and apps using nrfutil
 program-apps: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 	ifndef PORT
-		$(error Please specify the serial port using the PORT variable) 
+		$(error Please specify the serial port using the PORT variable)
 	endif
 	ifndef APP
-		$(error Please define the APP variable with the TBF file to flash an application) 
+		$(error Please define the APP variable with the TBF file to flash an application)
 	endif
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --output-target=binary -S $(KERNEL_WITH_APP) $(KERNEL_WITH_APP).bin

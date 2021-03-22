@@ -16,7 +16,7 @@ use crate::plic::PLIC;
 
 pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
-    pmp: PMP<4, 2>,
+    pub pmp: PMP<8>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
@@ -154,7 +154,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
 impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     for EarlGrey<'a, A, I>
 {
-    type MPU = PMP<4, 2>;
+    type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();

@@ -16,7 +16,7 @@ use kernel::InterruptService;
 
 pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMP<8, 4>,
+    pmp: PMP<4>,
     plic: &'a Plic,
     scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'a rv32i::machine_timer::MachineTimer<'a>,
@@ -105,7 +105,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
 impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
     for E310x<'a, A, I>
 {
-    type MPU = PMP<8, 4>;
+    type MPU = PMP<4>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
     type WatchDog = ();

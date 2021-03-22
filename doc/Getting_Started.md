@@ -132,33 +132,21 @@ subdirectory provide more details for each platform.
 
 ## Loading the kernel onto a board
 
-The process to load the kernel onto the board depends on the board.
-There are two main variants: some boards (notably the
-[Imix](../boards/imix/README.md) and [Hail](../boards/hail/README.md)
-boards) have a serial bootloader, most other boards use a programming
-adapter that supports the JTAG or SWD protocol instead.
+The process to load the kernel onto the board depends on the board. You should
+be able to program the kernel by running:
 
-To load a kernel onto a board using a serial bootloader, no other
-software is required and you can just run
+    $ make install
 
-    $ make program
-
-in the board's directory. To load the kernel using a programming
-adapter, you need the appropriate software that supports the adapter
-and can then install the kernel by running
-
-    $ make flash
-
-Depending on the adapter, you will need either the free `openocd` or
-Segger's proprietary `JLinkExe`. Programming adapters are available as
+For some boards, you will need a programming adapter to flash code. Depending on
+the board and which adapter it supports, you will need either the free `openocd`
+or Segger's proprietary `JLinkExe`. Programming adapters are available as
 standalone devices (for example the [JLink EDU JTAG
 debugger](https://www.segger.com/j-link-edu.html) available on
 [Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)),
-but most development boards come with an onboard programming and
-debugging adapter. In that case, the board you use determines which
-software you will need and the `Makefile` in the board directory will
-know which one to call. Again, the [board-specific
-READMEs](../boards/README.md) provide the required details.
+but most development boards come with an onboard programming and debugging
+adapter. In that case, the board you use determines which software you will need
+and the `Makefile` in the board directory will know which one to call. Again,
+the [board-specific READMEs](../boards/README.md) provide the required details.
 
 ### Installing `JLinkExe`
 

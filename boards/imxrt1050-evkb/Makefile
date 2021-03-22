@@ -1,7 +1,7 @@
 # Makefile for building the tock kernel for the i.MX RT1052 platform
-# 
+#
 APP=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf
-# APP=../../../libtock-rs/target/thumbv7em-none-eabi/tab/imxrt1050/hello_world/cortex-m7.tbf 
+# APP=../../../libtock-rs/target/thumbv7em-none-eabi/tab/imxrt1050/hello_world/cortex-m7.tbf
 TARGET=thumbv7em-none-eabi
 PLATFORM=imxrt1050-evkb
 
@@ -13,6 +13,10 @@ R_KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-ap
 MCUX_IDE_BIN=/Applications/MCUXpressoIDE_11.1.1_3241/ide/plugins/com.nxp.mcuxpresso.tools.bin.macosx_11.1.0.202002241259/binaries/
 
 include ../Makefile.common
+
+# Default target for installing the kernel.
+.PHONY: install
+install: flash
 
 .PHONY: $(TOCK_ROOT_DIRECTORY)program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf

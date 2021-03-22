@@ -32,6 +32,7 @@ OBJDUMP = "llvm-objdump"
 verbose = False
 show_waste = False
 symbol_depth = 1
+sort_by_size = False # Otherwise lexicographic order
 
 # A map of section name -> size
 sections = {}
@@ -56,8 +57,9 @@ Options:
   -dn, --depth=n      Group symbols at depth n or greater. E.g.,
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
+  -s, --size          Sort symbols by size (normally lexicographic)
   -v, --verbose       Print verbose output (RAM waste and embedded flash data)
-  -s, --show-waste    Show where RAM is wasted (due to padding)
+  -w, --show-waste    Show where RAM is wasted (due to padding)
 
 Note: depends on llvm-objdump to extract symbols""")
 
@@ -89,25 +91,93 @@ def trim_hash_from_symbol(symbol):
 
 def parse_mangled_name(name):
     """Take a potentially mangled symbol name and demangle it to its
-       name, removing the trailing hash. Raise a cxxflit.InvalidName exception
-       if it is not a mangled symbol."""
-    demangled = cxxfilt.demangle(name, external_only=False)
+       name, removing the trailing hash. This is not just a simple
+       demangling: for methods, it outputs the structure + method
+       as a :: separated name, eliding the trait (if any)."""
+    
+    #print("Name:           ", name);
+    
+    # Trim a trailing . number (e.g., ".71") which breaks demangling
+    match = re.search('\.\d+$', name)
+    if match != None:
+        name = name[:match.start()]
+
+    # Trim a trailing ".llvm", which breaks demangling
+    match = re.search('\.llvm', name)
+    if match != None:
+        name = name[:match.start()]
+
+    demangled = ""       
+    try:
+        demangled = cxxfilt.demangle(name, external_only=False)
+    except cxxfilt.InvalidName:
+        demangled = name
+        
     corrected_name = trim_hash_from_symbol(demangled)
+
+    #print("  - Demangled:  ", demangled);
+    #print("  - Corrected:  ", corrected_name);
+
     # Rust-specific mangled names triggered by Tock Components, e.g.
     # ZN100_$LT$capsules..ieee802154..driver..RadioDriver$u20$as$u20$capsules..ieee802154..device..RxClient$GT$7receive
     # This name has two parts: the structure, then the trait method it is
-    # implementing. This code parses only the structure name, so all
-    # methods that are trait implementations are just clumped under the
-    # name of the structure. -pal
-    if corrected_name[0:5] == "_$LT$":
-        # Trim off the _$LT$, then truncate at next $, this will extract
-        # capsules..ieee802154..driver..RadioDriver
-        corrected_name = corrected_name[5:]
-        endpos = corrected_name.find("$")
-        if endpos > 0:
-            corrected_name = corrected_name[0:endpos]
+    # implementing.
 
-    return corrected_name
+    if corrected_name[0:5] == "_$LT$":
+        # Trim off the _$LT$
+        corrected_name = corrected_name[len("_$LT$"):]
+        
+    # If this is an implementation of a trait method, the trait's name
+    # is interposed between the structure and method. Cut it out.
+    # It starts with $u20$as$u20$ and ends with $GT$.
+
+    structure_name = corrected_name
+    structure_end = len(structure_name)
+    # If there is an "as", cut it off
+    as_end = structure_name.find("$u20$as$u20$");
+    if as_end >= 0:
+        structure_name = structure_name[:as_end]
+        structure_end = as_end
+
+    # If there is a "for", cut it off
+    for_end = structure_name.find("$u20$for$u20$");
+    if for_end >= 0:
+        structure_name = structure_name[:for_end]
+        structure_end = for_end
+
+    # Structures can have a trailing $LT$ which takes one
+    # of 3 forms: trim all of them.
+    shorter_structure_end = structure_name.find("::_$LT");
+    if shorter_structure_end >= 0:
+        structure_name = structure_name[:shorter_structure_end]
+
+    shorter_structure_end = structure_name.find("_$LT");
+    if shorter_structure_end >= 0:
+        structure_name = structure_name[:shorter_structure_end]
+        
+    shorter_structure_end = structure_name.find("$LT");
+    if shorter_structure_end >= 0:
+        structure_name = structure_name[:shorter_structure_end]
+
+    # mangled_method is the symbol after the structure and trait.
+    # It can have a lot of extra stuff besides the name, including
+    # "as" elements and "$GT$". Remove them.
+    mangled_method = corrected_name[structure_end:]
+    trait_start = mangled_method.find("$u20$as$u20$") + len("$u20$as$u20$")
+    mangled_method = mangled_method[trait_start:]
+
+
+    method = mangled_method
+    trait_end = method.find("$GT$")
+    if trait_end >= 0:
+        trait_end = trait_end + len("$GT$")
+        method = method[trait_end:]
+    #print("  - Method:     ", method)
+    
+    symbol = structure_name + method
+    symbol = symbol.replace("..", "::")
+    
+    return symbol
 
 def process_symbol_line(line):
     """Parse a line the SYMBOL TABLE section of the objdump output and
@@ -125,29 +195,20 @@ def process_symbol_line(line):
         # Initialized data: part of the flash image, then copied into RAM
         # on start. The .data section in normal hosted C.
         if segment == "relocate":
-            try:
-                demangled = parse_mangled_name(name)
-                kernel_initialized.append((demangled, addr, size, 0))
-            except cxxfilt.InvalidName:
-                kernel_initialized.append((name, addr, size, 0))
+            demangled = parse_mangled_name(name)
+            kernel_initialized.append((demangled, addr, size, 0))
 
         # Uninitialized data, stored in a zeroed RAM section. The
         # .bss section in normal hosted C.
         elif segment == "sram":
-            try:
-                demangled = parse_mangled_name(name)
-                kernel_uninitialized.append((demangled, addr, size, 0))
-            except cxxfilt.InvalidName:
-                kernel_uninitialized.append((name, addr, size, 0))
+            demangled = parse_mangled_name(name)
+            kernel_uninitialized.append((demangled, addr, size, 0))
 
         # Code and embedded data.
         elif segment == "text":
-            # pylint: disable=anomalous-backslash-in-string
             match = re.search('\$(((\w+\.\.)+)(\w+))\$', name)
             if match != None:
-                symbol = match.group(1)
-                symbol = symbol.replace('..', '::')
-                symbol = trim_hash_from_symbol(symbol)
+                symbol = parse_mangled_name(name)
                 kernel_functions.append((symbol, addr, size, 0))
             else:
                 try:
@@ -276,15 +337,26 @@ def print_groups(title, groups):
     group_sum = 0
     output = ""
     max_string_len = len(max(groups.keys(), key=len))
-    for key in sorted(groups.keys()):
+    group_sizes = {}
+    
+    for key in groups.keys():
         symbols = groups[key]
 
         group_size = 0
         for (_, size) in symbols:
             group_size = group_size + size
+        group_sizes[key] = group_size
 
-        output = output + string_for_group(key, max_string_len, group_size, len(symbols))
-        group_sum = group_sum + group_size
+    if sort_by_size:
+        for k, v in sorted(group_sizes.items(), key=lambda item: item[1], reverse=True):
+            group_size = v
+            output = output + string_for_group(k, max_string_len, group_size, len(symbols))
+            group_sum = group_sum + group_size
+    else:
+        for key in sorted(group_sizes.keys()):
+            group_size = group_sizes[key]
+            output = output + string_for_group(key, max_string_len, group_size, len(symbols))
+            group_sum = group_sum + group_size
 
     print(title + ": " + str(group_sum) + " bytes")
     print(output, end = '')
@@ -331,17 +403,20 @@ def compute_padding(symbols):
 
 def parse_options(opts):
     """Parse command line options."""
-    global symbol_depth, verbose, show_waste
-    valid = 'd:vs' 
-    long_valid = ['depth=', 'verbose', 'show-waste']
+    global symbol_depth, verbose, show_waste, sort_by_size
+    valid = 'd:vsw' 
+    long_valid = ['depth=', 'verbose', 'show-waste', 'size']
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
         if opt == '-d' or opt == '--depth':
             symbol_depth = int(val)
         elif opt == '-v' or opt == '--verbose':
             verbose = True
-        elif opt == '-s' or opt == '--show-waste':
+        elif opt == '-w' or opt == '--show-waste':
             show_waste = True
+        elif opt == '-s' or opt == '--size':
+            print("sorting by size")
+            sort_by_size = True
         else:
             usage("unrecognized option: " + opt)
             return []

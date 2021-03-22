@@ -2,7 +2,6 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(llvm_asm)]
 #![feature(asm)]
 #![feature(naked_functions)]
 #![no_std]
@@ -214,24 +213,39 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// Assembly function called from `UserspaceKernelBoundary` to switch to an
 /// an application. This handles storing and restoring application state before
 /// and after the switch.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[no_mangle]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    llvm_asm!(
-        "
+    asm!(
+    "
+    // Rust `asm!()` macro (as of Feb 2021) will not let us mark r6 or r7 as
+    // clobbers. r6 is used internally by LLVM, and r7 is used for the frame
+    // pointer. However, in the process of restoring and saving the process's
+    // registers, we do in fact clobber r6 and r7. So, we work around this by
+    // doing our own manual saving of r6 using r2 and r7 using r3, and then mark
+    // both as clobbered.
+    mov r2, r6
+    mov r3, r7
+
     // The arguments passed in are:
-    // - `r0` is the top of the user stack
+    // - `r0` is the bottom of the user stack
     // - `r1` is a reference to `CortexMStoredState.regs`
 
     // Load bottom of stack into Process Stack Pointer.
-    msr psp, $0
+    msr psp, r0  // PSP = r0
 
     // Load non-hardware-stacked registers from the process stored state. Ensure
-    // that $2 is stored in a callee saved register.
-    ldmia $2, {r4-r11}
+    // that the address register (right now r1) is stored in a callee saved
+    // register.
+    ldmia r1, {{r4-r11}}
 
     // SWITCH
     svc 0xff   // It doesn't matter which SVC number we use here as it has no
@@ -243,18 +257,31 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 
     // Push non-hardware-stacked registers into the saved state for the
     // application.
-    stmia $2, {r4-r11}
+    stmia r1, {{r4-r11}}
 
     // Update the user stack pointer with the current value after the
     // application has executed.
-    mrs $0, PSP   // r0 = PSP"
-    : "={r0}"(user_stack)
-    : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
+    mrs r0, PSP   // r0 = PSP
+
+    // Need to restore r6 and r7 since we clobbered them when switching to and
+    // from the app.
+    mov r6, r2
+    mov r7, r3
+    ",
+    inout("r0") user_stack,
+    in("r1") process_regs,
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r9") _,
+    out("r10") _, out("r11") _);
+
     user_stack
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[inline(never)]
 unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     let stacked_r0: u32 = *faulting_stack.offset(0);
@@ -397,7 +424,12 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
     );
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 /// Continue the hardfault handler. This function is not `#[naked]`, meaning we can mix
 /// `asm!()` and Rust. We separate this logic to not have to write the entire fault
 /// handler entirely in assembly.
@@ -454,7 +486,12 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
     }
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // First need to determine if this a kernel fault or a userspace fault, and store
@@ -538,7 +575,7 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     let vecttbl = (hfsr & 0x02) == 0x02;
     let forced = (hfsr & 0x40000000) == 0x40000000;
 
-    let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
+    let _ = writer.write_fmt(format_args!("\r\n---| Cortex-M Fault Status |---\r\n"));
 
     if iaccviol {
         let _ = writer.write_fmt(format_args!(
@@ -671,7 +708,7 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     }
 
     if cfsr == 0 && hfsr == 0 {
-        let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
+        let _ = writer.write_fmt(format_args!("No Cortex-M faults detected.\r\n"));
     } else {
         let _ = writer.write_fmt(format_args!(
             "Fault Status Register (CFSR):       {:#010X}\r\n",

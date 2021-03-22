@@ -1,14 +1,5 @@
 //! Implementation of the physical memory protection unit (PMP).
 //!
-//! Different PMP implementations support different numbers of PMP entries. To
-//! reduce memory overhead, the PMP implementation supports customizing the
-//! number of supported entries to match the hardware. Ideally we would do this
-//! by templating the implementation on the number of entries, but that is an
-//! experimental feature in Rust. To mimic that functionality, we wrap this
-//! entire PMP implementation in a macro, and then require that each chip with
-//! an PMP instantiate their own PMP implementation with the size customized for
-//! the chip's hardware.
-//!
 //! ## Implementation
 //!
 //! We use the PMP Top of Region (TOR) alignment as there are alignment issues
@@ -47,19 +38,84 @@ register_bitfields![u8,
 ];
 
 /// Main PMP struct.
-pub struct PMP<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> {
+///
+/// Tock will ignore locked PMP regions. Note that Tock will not make any
+/// attempt to avoid access faults from locked regions.
+///
+/// `MAX_AVAILABLE_REGIONS_OVER_TWO`: The number of PMP regions divided by 2.
+///  The RISC-V spec mandates that there must be either 0, 16 or 64 PMP
+///  regions implemented. If you are using this PMP struct we are assuming
+///  there are more than 0 implemented. So this value should be either 8 or 32.
+///
+///  If however you know the exact number of PMP regions implemented by your
+///  platform and it's not going to change you can just specify the number.
+///  This means that Tock won't be able to dynamically handle more regions,
+///  but it will reduce runtime space requirements.
+///  Note: that this does not mean all PMP regions are connected.
+///  Some of the regions can be WARL (Write Any Read Legal). All this means
+///  is that accessing `NUM_REGIONS` won't cause a fault.
+pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// The application that the MPU was last configured for. Used (along with
     /// the `is_dirty` flag) to determine if MPU can skip writing the
     /// configuration to hardware.
     last_configured_for: MapCell<AppId>,
+    /// This is a 64-bit mask of locked regions.
+    /// Each bit that is set in this mask indicates that the region is locked
+    /// and cannot be used by Tock.
+    locked_region_mask: Cell<u64>,
+    /// This is the total number of avaliable regions.
+    /// This will be between 0 and MAX_AVAILABLE_REGIONS_OVER_TWO * 2 depending
+    /// on the hardware and previous boot stages.
+    num_regions: usize,
 }
 
-impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize>
-    PMP<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
-{
-    pub const unsafe fn new() -> Self {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    pub unsafe fn new() -> Self {
+        // RISC-V PMP can support from 0 to 64 PMP regions
+        // Let's figure out how many are supported.
+        // We count any regions that are locked as unsupported
+        let mut num_regions = 0;
+        let mut locked_region_mask = 0;
+
+        for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+            // Read the current value
+            let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
+
+            // Flip R, W, X bits
+            let pmpcfg_new = pmpcfg_og ^ (3 << ((i % 4) * 8));
+            csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
+
+            // Check if the bits are set
+            let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
+
+            // Check if the changes stuck
+            if pmpcfg_check == pmpcfg_og {
+                // If we get here then our changes didn't stick, let's figure
+                // out why
+
+                // Check if the locked bit is set
+                if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
+                    // The bit is locked. Mark this regions as not usable
+                    locked_region_mask |= 1 << i;
+                } else {
+                    // The locked bit isn't set
+                    // This region must not be connected, which means we have run out
+                    // of usable regions, break the loop
+                    break;
+                }
+            } else {
+                // Found a working region
+                num_regions += 1;
+            }
+
+            // Reset back to how we found it
+            csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
+        }
+
         Self {
             last_configured_for: MapCell::empty(),
+            num_regions,
+            locked_region_mask: Cell::new(locked_region_mask),
         }
     }
 }
@@ -145,9 +201,9 @@ impl PMPRegion {
 }
 
 /// Struct storing region configuration for RISCV PMP.
-pub struct PMPConfig<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> {
+pub struct PMPConfig<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// Array of PMP regions. Each region requires two physical entries.
-    regions: [Option<PMPRegion>; NUM_REGIONS_OVER_TWO],
+    regions: [Option<PMPRegion>; MAX_AVAILABLE_REGIONS_OVER_TWO],
     /// Indicates if the configuration has changed since the last time it was
     /// written to hardware.
     is_dirty: Cell<bool>,
@@ -155,8 +211,8 @@ pub struct PMPConfig<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize
     app_memory_region: OptionalCell<usize>,
 }
 
-impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> Default
-    for PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> Default
+    for PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     /// `NUM_REGIONS` is the number of PMP entries the hardware supports.
     ///
@@ -165,15 +221,15 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> Default
     /// require us to pass both of these values as separate generic consts.
     fn default() -> Self {
         PMPConfig {
-            regions: [None; NUM_REGIONS_OVER_TWO],
+            regions: [None; MAX_AVAILABLE_REGIONS_OVER_TWO],
             is_dirty: Cell::new(true),
             app_memory_region: OptionalCell::empty(),
         }
     }
 }
 
-impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> fmt::Display
-    for PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
+    for PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, " PMP regions:\r\n")?;
@@ -187,12 +243,15 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> fmt::Display
     }
 }
 
-impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize>
-    PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
-{
-    fn unused_region_number(&self) -> Option<usize> {
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    /// Get the first unused region
+    fn unused_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if self.app_memory_region.contains(&number) {
+                continue;
+            }
+            // This region exists, but is locked
+            if locked_region_mask & (1 << number) > 0 {
                 continue;
             }
             if region.is_none() {
@@ -202,60 +261,40 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize>
         None
     }
 
-    fn sort_regions(&mut self) {
-        // Get the app region address
-        let app_addres = if self.app_memory_region.is_some() {
-            Some(
-                self.regions[self.app_memory_region.unwrap_or(0)]
-                    .unwrap()
-                    .location
-                    .0,
-            )
-        } else {
-            None
-        };
-
-        // Sort the regions
-        self.regions.sort_unstable_by(|a, b| {
-            let (a_start, _a_size) = match a {
-                Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-            };
-            let (b_start, _b_size) = match b {
-                Some(region) => (region.location().0 as usize, region.location().1),
-                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
-            };
-            a_start.cmp(&b_start)
-        });
-
-        // Update the app region after the sort
-        if app_addres.is_some() {
-            for (i, region) in self.regions.iter().enumerate() {
-                match region {
-                    Some(reg) => {
-                        if reg.location.0 == app_addres.unwrap() {
-                            self.app_memory_region.set(i);
-                        }
-                    }
-                    None => {}
-                }
+    /// Get the last unused region
+    /// The app regions need to be lower then the kernel to ensure they
+    /// match before the kernel ones.
+    fn unused_kernel_region_number(&self, locked_region_mask: u64) -> Option<usize> {
+        for (num, region) in self.regions.iter().rev().enumerate() {
+            let number = MAX_AVAILABLE_REGIONS_OVER_TWO - num - 1;
+            if self.app_memory_region.contains(&number) {
+                continue;
+            }
+            // This region exists, but is locked
+            if locked_region_mask & (1 << number) > 0 {
+                continue;
+            }
+            if region.is_none() {
+                return Some(number);
             }
         }
+        None
     }
 }
 
-impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
-    for PMP<NUM_REGIONS, NUM_REGIONS_OVER_TWO>
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
+    for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
-    type MpuConfig = PMPConfig<NUM_REGIONS, NUM_REGIONS_OVER_TWO>;
+    type MpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
 
     fn clear_mpu(&self) {
         // We want to disable all of the hardware entries, so we use `NUM_REGIONS` here,
         // and not `NUM_REGIONS / 2`.
-        for x in 0..NUM_REGIONS {
+        for x in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             match x % 4 {
                 0 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r0::CLEAR
                             + csr::pmpconfig::pmpcfg::w0::CLEAR
                             + csr::pmpconfig::pmpcfg::x0::CLEAR
@@ -264,7 +303,8 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
                     );
                 }
                 1 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r1::CLEAR
                             + csr::pmpconfig::pmpcfg::w1::CLEAR
                             + csr::pmpconfig::pmpcfg::x1::CLEAR
@@ -273,7 +313,8 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
                     );
                 }
                 2 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r2::CLEAR
                             + csr::pmpconfig::pmpcfg::w2::CLEAR
                             + csr::pmpconfig::pmpcfg::x2::CLEAR
@@ -282,7 +323,8 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
                     );
                 }
                 3 => {
-                    csr::CSR.pmpcfg[x / 4].modify(
+                    csr::CSR.pmpconfig_modify(
+                        x / 4,
                         csr::pmpconfig::pmpcfg::r3::CLEAR
                             + csr::pmpconfig::pmpcfg::w3::CLEAR
                             + csr::pmpconfig::pmpcfg::x3::CLEAR
@@ -292,16 +334,16 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
                 }
                 _ => unreachable!(),
             }
-            csr::CSR.pmpaddr[x].set(0x0);
+            csr::CSR.pmpconfig_set(x, 0x0);
         }
 
         //set first PMP to have permissions to entire space
-        csr::CSR.pmpaddr[0].set(0xFFFF_FFFF);
+        csr::CSR.pmpaddr0.set(0xFFFF_FFFF);
         //enable R W X fields
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::r0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::w0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::x0::SET);
-        csr::CSR.pmpcfg[0].modify(csr::pmpconfig::pmpcfg::a0::TOR);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::r0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::w0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::x0::SET);
+        csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::a0::TOR);
         // PMP is not configured for any process now
         self.last_configured_for.take();
     }
@@ -314,7 +356,7 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
     }
 
     fn number_total_regions(&self) -> usize {
-        NUM_REGIONS / 2
+        self.num_regions / 2
     }
 
     fn allocate_region(
@@ -336,7 +378,7 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
             }
         }
 
-        let region_num = config.unused_region_number()?;
+        let region_num = config.unused_region_number(self.locked_region_mask.get())?;
 
         // Logical region
         let mut start = unallocated_memory_start as usize;
@@ -361,8 +403,6 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
 
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
-
-        config.sort_regions();
 
         Some(mpu::Region::new(start as *const u8, size))
     }
@@ -392,7 +432,7 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
         let region_num = if config.app_memory_region.is_some() {
             config.app_memory_region.unwrap_or(0)
         } else {
-            config.unused_region_number()?
+            config.unused_region_number(self.locked_region_mask.get())?
         };
 
         // App memory size is what we actual set the region to. So this region
@@ -434,8 +474,6 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
 
         config.app_memory_region.set(region_num);
 
-        config.sort_regions();
-
         Some((region_start as *const u8, region_size))
     }
 
@@ -472,8 +510,6 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
         config.regions[region_num] = Some(region);
         config.is_dirty.set(true);
 
-        config.sort_regions();
-
         Ok(())
     }
 
@@ -496,33 +532,39 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
                         match x % 2 {
                             0 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
                                     csr::pmpconfig::pmpcfg::r0::CLEAR
                                         + csr::pmpconfig::pmpcfg::w0::CLEAR
                                         + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::TOR,
+                                        + csr::pmpconfig::pmpcfg::a0::OFF,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 8 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
+                                csr::CSR.pmpconfig_set(
+                                    x / 2,
+                                    cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2),
+                                );
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
-                                csr::CSR.pmpcfg[x / 2].modify(
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
                                     csr::pmpconfig::pmpcfg::r2::CLEAR
                                         + csr::pmpconfig::pmpcfg::w2::CLEAR
                                         + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::TOR,
+                                        + csr::pmpconfig::pmpcfg::a2::OFF,
                                 );
-                                csr::CSR.pmpaddr[x * 2].set(start >> 2);
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
-                                csr::CSR.pmpcfg[x / 2]
-                                    .set(cfg_val << 24 | csr::CSR.pmpcfg[x / 2].get());
-                                csr::CSR.pmpaddr[(x * 2) + 1].set((start + size) >> 2);
+                                csr::CSR.pmpconfig_set(
+                                    x / 2,
+                                    cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
+                                );
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             _ => break,
                         }
@@ -532,6 +574,123 @@ impl<const NUM_REGIONS: usize, const NUM_REGIONS_OVER_TWO: usize> kernel::mpu::M
             }
             config.is_dirty.set(false);
             self.last_configured_for.put(*app_id);
+        }
+    }
+}
+
+/// This is PMP support for kernel regions
+/// PMP does not allow a deny by default option, so all regions not marked
+/// with the below commands will have full access.
+/// This is still a useful implementation as it can be used to limit the
+/// kernels access, for example removing execute permission from regions
+/// we don't need to execute from and removing write permissions from
+/// executable reions.
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
+    for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
+{
+    type KernelMpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
+
+    fn allocate_kernel_region(
+        &self,
+        memory_start: *const u8,
+        memory_size: usize,
+        permissions: mpu::Permissions,
+        config: &mut Self::KernelMpuConfig,
+    ) -> Option<mpu::Region> {
+        for region in config.regions.iter() {
+            if region.is_some() {
+                if region.unwrap().overlaps(memory_start, memory_size) {
+                    return None;
+                }
+            }
+        }
+
+        let region_num = config.unused_kernel_region_number(self.locked_region_mask.get())?;
+
+        // Logical region
+        let mut start = memory_start as usize;
+        let mut size = memory_size;
+
+        // Region start always has to align to 4 bytes
+        if start % 4 != 0 {
+            start += 4 - (start % 4);
+        }
+
+        // Region size always has to align to 4 bytes
+        if size % 4 != 0 {
+            size += 4 - (size % 4);
+        }
+
+        // Regions must be at least 8 bytes
+        if size < 8 {
+            size = 8;
+        }
+
+        let region = PMPRegion::new(start as *const u8, size, permissions);
+
+        config.regions[region_num] = Some(region);
+
+        // Mark the region as locked so that the app PMP doesn't use it.
+        let mut mask = self.locked_region_mask.get();
+        mask |= 1 << region_num;
+        self.locked_region_mask.set(mask);
+
+        Some(mpu::Region::new(start as *const u8, size))
+    }
+
+    fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig) {
+        for (i, region) in config.regions.iter().rev().enumerate() {
+            let x = MAX_AVAILABLE_REGIONS_OVER_TWO - i - 1;
+            match region {
+                Some(r) => {
+                    let cfg_val = r.cfg.value as usize;
+                    let start = r.location.0 as usize;
+                    let size = r.location.1;
+
+                    match x % 2 {
+                        0 => {
+                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                x / 2,
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+
+                            // Set access to end address
+                            csr::CSR
+                                .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
+                            // Lock the CSR
+                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
+                        }
+                        1 => {
+                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                x / 2,
+                                csr::pmpconfig::pmpcfg::r2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpconfig_set(
+                                x / 2,
+                                cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
+                            );
+                            // Lock the CSR
+                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
+                        }
+                        _ => break,
+                    }
+                }
+                None => {}
+            };
         }
     }
 }

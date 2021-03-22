@@ -2,7 +2,7 @@
 # pushed to master.
 status = [
   "ci-format (ubuntu-latest)", "ci-build (ubuntu-latest)", "ci-tests (ubuntu-latest)", "ci-qemu",
-  "ci-format (macos-latest)", "ci-build (macos-latest)", "ci-tests (macos-latest)"
+  "ci-build (macos-latest)", "ci-tests (macos-latest)"
 ]
 
 # List of PR labels that may not be attached to a PR when it is r+-ed.

@@ -14,20 +14,20 @@
 
 with builtins;
 let
-  inherit (pkgs) stdenv;
-  pythonPackages = stdenv.lib.fix' (self: with self; pkgs.python3Packages //
+  inherit (pkgs) stdenv lib;
+  pythonPackages = lib.fix' (self: with self; pkgs.python3Packages //
   {
 
     tockloader = buildPythonPackage rec {
       pname = "tockloader";
-      version = "1.3.1";
+      version = "1.6.0";
       name = "${pname}-${version}";
 
       propagatedBuildInputs = [ argcomplete colorama crcmod pyserial pytoml ];
 
       src = fetchPypi {
         inherit pname version;
-        sha256 = "1gralnhvl82xr7rkrmxj0c1rxn1y9dlbmkkrklcdjahragbknivn";
+        sha256 = "1aqkj1nplcw3gmklrhq6vxy6v9ad5mqiw4y1svasak2zkqdk1wyc";
       };
     };
   });

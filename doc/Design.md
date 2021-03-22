@@ -381,7 +381,7 @@ Tock also tries to ensure Tock "just works" for users. This manifests by trying
 to minimize the number of steps to get Tock running. The build system uses
 `make` which is familiar to many developers, and just running `make` in a board
 folder will compile the kernel. The most supported boards (Hail and imix) can
-then be programmed by just running `make program`. Installing an app just
+then be programmed by just running `make install`. Installing an app just
 requires one more command: `tockloader install blink`. Tockloader will continue
 to expand to support the ease-of-use with Tock. Now, "just works" is a design
 goal that Tock is not completely meeting. But, future design decisions should

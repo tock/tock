@@ -17,6 +17,10 @@ endif
 
 TOCKLOADER_JTAG_FLAGS = --jlink --board nrf52dk
 
+# Default target for installing the kernel.
+.PHONY: install
+install: flash
+
 # Upload the kernel over JTAG
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
