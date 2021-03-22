@@ -50,7 +50,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -407,23 +407,21 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    callback: OptionalCell<Callback>,
+    callback: Cell<Upcall>,
 }
 
 impl<'a> LTC294XDriver<'a> {
     pub fn new(ltc: &'a LTC294X<'a>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
-            callback: OptionalCell::empty(),
+            callback: Cell::new(Upcall::default()),
         }
     }
 }
 
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(0, 0, 0);
-        });
+        self.callback.get().schedule(0, 0, 0);
     }
 
     fn status(
@@ -434,38 +432,30 @@ impl LTC294XClient for LTC294XDriver<'_> {
         charge_alert_high: bool,
         accumulated_charge_overflow: bool,
     ) {
-        self.callback.map(|cb| {
-            let ret = (undervolt_lockout as usize)
-                | ((vbat_alert as usize) << 1)
-                | ((charge_alert_low as usize) << 2)
-                | ((charge_alert_high as usize) << 3)
-                | ((accumulated_charge_overflow as usize) << 4);
-            cb.schedule(1, ret, self.ltc294x.model.get() as usize);
-        });
+        let ret = (undervolt_lockout as usize)
+            | ((vbat_alert as usize) << 1)
+            | ((charge_alert_low as usize) << 2)
+            | ((charge_alert_high as usize) << 3)
+            | ((accumulated_charge_overflow as usize) << 4);
+        self.callback
+            .get()
+            .schedule(1, ret, self.ltc294x.model.get() as usize);
     }
 
     fn charge(&self, charge: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(2, charge as usize, 0);
-        });
+        self.callback.get().schedule(2, charge as usize, 0);
     }
 
     fn done(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(3, 0, 0);
-        });
+        self.callback.get().schedule(3, 0, 0);
     }
 
     fn voltage(&self, voltage: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(4, voltage as usize, 0);
-        });
+        self.callback.get().schedule(4, voltage as usize, 0);
     }
 
     fn current(&self, current: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(5, current as usize, 0);
-        });
+        self.callback.get().schedule(5, current as usize, 0);
     }
 }
 
@@ -486,17 +476,14 @@ impl Driver for LTC294XDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => Ok(self.callback.replace(callback)),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -517,13 +504,13 @@ impl Driver for LTC294XDriver<'_> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // Check this driver exists.
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // Get status.
-            1 => self.ltc294x.read_status(),
+            1 => self.ltc294x.read_status().into(),
 
             // Configure.
             2 => {
@@ -546,34 +533,35 @@ impl Driver for LTC294XDriver<'_> {
 
                 self.ltc294x
                     .configure(int_pin_conf, prescaler as u8, vbat_alert)
+                    .into()
             }
 
             // Reset charge.
-            3 => self.ltc294x.reset_charge(),
+            3 => self.ltc294x.reset_charge().into(),
 
             // Set high threshold
-            4 => self.ltc294x.set_high_threshold(data as u16),
+            4 => self.ltc294x.set_high_threshold(data as u16).into(),
 
             // Set low threshold
-            5 => self.ltc294x.set_low_threshold(data as u16),
+            5 => self.ltc294x.set_low_threshold(data as u16).into(),
 
             // Get charge
-            6 => self.ltc294x.get_charge(),
+            6 => self.ltc294x.get_charge().into(),
 
             // Shutdown
-            7 => self.ltc294x.shutdown(),
+            7 => self.ltc294x.shutdown().into(),
 
             // Get voltage
-            8 => self.ltc294x.get_voltage(),
+            8 => self.ltc294x.get_voltage().into(),
 
             // Get current
-            9 => self.ltc294x.get_current(),
+            9 => self.ltc294x.get_current().into(),
 
             // Set the current chip model
-            10 => self.ltc294x.set_model(data),
+            10 => self.ltc294x.set_model(data).into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

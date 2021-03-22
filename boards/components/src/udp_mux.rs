@@ -60,8 +60,7 @@ static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 
 pub const MAX_PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
-const UDP_HDR_SIZE: usize = 8;
-static mut UDP_DGRAM: [u8; MAX_PAYLOAD_LEN - UDP_HDR_SIZE] = [0; MAX_PAYLOAD_LEN - UDP_HDR_SIZE];
+static mut UDP_DGRAM: [u8; MAX_PAYLOAD_LEN] = [0; MAX_PAYLOAD_LEN];
 
 // Rather than require a data structure with 65535 slots (number of UDP ports), we
 // use a structure that can hold up to 16 port bindings. Any given capsule can bind

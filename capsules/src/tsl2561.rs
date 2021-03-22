@@ -14,10 +14,10 @@
 //! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -204,7 +204,7 @@ enum State {
 pub struct TSL2561<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: OptionalCell<Callback>,
+    callback: Cell<Upcall>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -219,7 +219,7 @@ impl<'a> TSL2561<'a> {
         TSL2561 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: OptionalCell::empty(),
+            callback: Cell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -404,7 +404,7 @@ impl i2c::I2CClient for TSL2561<'_> {
 
                 let lux = self.calculate_lux(chan0, chan1);
 
-                self.callback.map(|cb| cb.schedule(0, lux, 0));
+                self.callback.get().schedule(0, lux, 0);
 
                 buffer[0] = Registers::Control as u8 | COMMAND_REG;
                 buffer[1] = POWER_OFF;
@@ -440,31 +440,27 @@ impl Driver for TSL2561<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            // Set a callback
-            0 => {
-                // Set callback function
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => Ok(self.callback.replace(callback)),
+
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => CommandReturn::success(),
             // Take a measurement
             1 => {
                 self.take_measurement();
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

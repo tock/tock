@@ -27,7 +27,7 @@ driver is in capsules/src/low\_level\_debug.rs.
 
     **Argument 2**: Unused
 
-    **Returns**: SUCCESS
+    **Returns**: Success
 
   * ### Command Number: 1
 
@@ -39,7 +39,7 @@ driver is in capsules/src/low\_level\_debug.rs.
 
     **Argument 2**: Unused
 
-    **Returns**: SUCCESS
+    **Returns**: Success
 
   * ### Command Number: 2
 
@@ -51,7 +51,7 @@ driver is in capsules/src/low\_level\_debug.rs.
 
     **Argument 2**: Unused
 
-    **Returns**: SUCCESS
+    **Returns**: Success
 
   * ### Command Number: 3
 
@@ -65,7 +65,7 @@ driver is in capsules/src/low\_level\_debug.rs.
 
     **Argument 2**: Second number to print
 
-    **Returns**: SUCCESS
+    **Returns**: Success
 
 ## Predefined Alert Codes
 

@@ -3,7 +3,9 @@
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -11,8 +13,8 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
-    slice: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    slice: ReadWriteAppSlice,
 }
 
 pub static mut BUF: [u8; 64] = [0; 64];
@@ -25,15 +27,15 @@ struct Transaction {
     read_len: OptionalCell<usize>,
 }
 
-pub struct I2CMasterDriver<I: 'static + i2c::I2CMaster> {
-    i2c: &'static I,
+pub struct I2CMasterDriver<'a, I: 'a + i2c::I2CMaster> {
+    i2c: &'a I,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
     apps: Grant<App>,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
-    pub fn new(i2c: &'static I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<I> {
+impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
+    pub fn new(i2c: &'a I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<'a, I> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),
@@ -42,22 +44,17 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
         }
     }
 
-    fn operation(
-        &self,
-        app_id: AppId,
-        app: &mut App,
-        command: Cmd,
-        addr: u8,
-        wlen: u8,
-        rlen: u8,
-    ) -> ReturnCode {
+    fn operation(&self, app_id: AppId, app: &mut App, command: Cmd, addr: u8, wlen: u8, rlen: u8) {
+        // TODO(alevy) this function used to try and return ReturnCodes, but would always return
+        // ENOSUPPORT and all call-sites simply ignore the return value. Nonetheless, some error
+        // handling is probably useful. Comments inline where there used to be non-success results.
         self.apps
             .enter(app_id, |_, _| {
-                if let Some(app_buffer) = app.slice.take() {
+                // TODO(alevy): if app.slice.map doesn't have a slice, we would have returned
+                // EINVAL here. I.e., the driver is attempting an operation without sharing memory.
+                app.slice.map_or((), |app_buffer| {
                     self.buf.take().map(|buffer| {
-                        for n in 0..wlen as usize {
-                            buffer[n] = app_buffer.as_ref()[n];
-                        }
+                        buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
 
                         let read_len: OptionalCell<usize>;
                         if rlen == 0 {
@@ -66,27 +63,19 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
                             read_len = OptionalCell::new(rlen as usize);
                         }
                         self.tx.put(Transaction { app_id, read_len });
-                        app.slice = Some(app_buffer);
 
                         match command {
-                            Cmd::Ping => return ReturnCode::EINVAL,
+                            Cmd::Ping => (), // Unexpected, shouldn't get here (was ReturnCode::EINVAL)
                             Cmd::Write => self.i2c.write(addr, buffer, wlen),
                             Cmd::Read => self.i2c.read(addr, buffer, rlen),
                             Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
                         }
-                        ReturnCode::SUCCESS
                     });
-                    // buffer has not been returned by I2C
-                    // i2c_master.rs should not allow us to get here
-                    ReturnCode::ENOMEM
-                } else {
-                    // AppDriver is attempting operation
-                    // but has not granted memory
-                    ReturnCode::EINVAL
-                }
+                    // TODO(alevy): if buf.take() returned None, the I2C hadn't returned the
+                    // buffer. This shouldn't happen and previous this returned ENOMEM
+                })
             })
             .expect("Appid does not map to app");
-        ReturnCode::ENOSUPPORT
     }
 }
 
@@ -102,27 +91,31 @@ pub enum Cmd {
 }
 }
 
-impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
+impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
     ///
     /// - `1`: buffer for command
-    fn allow(
+    fn allow_readwrite(
         &self,
         appid: AppId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
             1 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.slice = slice;
-                    ReturnCode::SUCCESS
+                    core::mem::swap(&mut app.slice, &mut slice);
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -134,32 +127,36 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             1 /* write_read_done */ => {
                 self.apps.enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into())
+                    core::mem::swap(&mut app.callback, &mut callback);
+                }).map_err(ErrorCode::from)
             },
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandReturn {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
-                Cmd::Ping => ReturnCode::SUCCESS,
+                Cmd::Ping => CommandReturn::success(),
                 Cmd::Write => self
                     .apps
                     .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
                         self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
@@ -168,7 +165,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                         let addr = arg1 as u8;
                         let read_len = arg2;
                         self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::WriteRead => {
@@ -185,37 +182,29 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                                 write_len as u8,
                                 read_len as u8,
                             );
-                            ReturnCode::SUCCESS
+                            CommandReturn::success()
                         })
                         .unwrap_or_else(|err| err.into())
                 }
             }
         } else {
-            ReturnCode::ENOSUPPORT
+            CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }
 
-impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
+impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app, _| {
                 if let Some(read_len) = tx.read_len.take() {
-                    if let Some(mut app_buffer) = app.slice.take() {
-                        for n in 0..read_len {
-                            app_buffer.as_mut()[n] = buffer[n];
-                        }
-                        app.slice.replace(app_buffer);
-                    } else {
-                        // app has requested read but we have no buffer
-                        // should not arrive here
-                    }
+                    app.slice.mut_map_or((), |app_buffer| {
+                        app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);
+                    });
                 }
 
                 // signal to driver that tx complete
-                app.callback.map(|mut cb| {
-                    cb.schedule(0, 0, 0);
-                });
+                app.callback.schedule(0, 0, 0);
             })
         });
 

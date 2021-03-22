@@ -5,9 +5,9 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{slice_from_raw_parts_mut, write, NonNull};
 
-use crate::callback::AppId;
 use crate::process::{Error, ProcessType};
 use crate::sched::Kernel;
+use crate::upcall::AppId;
 
 /// Type that indicates a grant region has been entered and borrowed.
 /// This is passed to capsules when they try to enter a grant region.
@@ -191,7 +191,6 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     pub fn enter<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
-        R: Copy,
     {
         let mut allocator = Allocator {
             appid: self.process.appid(),
@@ -371,7 +370,6 @@ impl<T: Default> Grant<T> {
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
-        R: Copy,
     {
         appid
             .kernel

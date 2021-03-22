@@ -18,10 +18,11 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -36,7 +37,7 @@ pub enum NineDofCommand {
 }
 
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     pending_command: bool,
     command: NineDofCommand,
     arg1: usize,
@@ -45,7 +46,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: None,
+            callback: Upcall::default(),
             pending_command: false,
             command: NineDofCommand::Exists,
             arg1: 0,
@@ -71,7 +72,7 @@ impl<'a> NineDof<'a> {
     // Check so see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
-    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> CommandReturn {
         self.apps
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
@@ -80,19 +81,22 @@ impl<'a> NineDof<'a> {
                     if value != ReturnCode::SUCCESS {
                         self.current_app.clear();
                     }
-                    value
+                    CommandReturn::from(value)
                 } else {
                     if app.pending_command == true {
-                        ReturnCode::ENOMEM
+                        CommandReturn::failure(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
                         app.arg1 = arg1;
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     }
                 }
             })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| {
+                let rcode: ReturnCode = err.into();
+                CommandReturn::from(rcode)
+            })
     }
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
@@ -130,6 +134,25 @@ impl<'a> NineDof<'a> {
             _ => ReturnCode::ENOSUPPORT,
         }
     }
+
+    fn configure_callback(
+        &self,
+        mut callback: Upcall,
+        app_id: AppId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(app_id, |app, _| {
+                mem::swap(&mut app.callback, &mut callback);
+            })
+            .map_err(ErrorCode::from);
+
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
+    }
 }
 
 impl hil::sensors::NineDofClient for NineDof<'_> {
@@ -144,9 +167,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
-                app.callback.map(|mut cb| {
-                    cb.schedule(arg1, arg2, arg3);
-                });
+                app.callback.schedule(arg1, arg2, arg3);
             });
         });
 
@@ -160,9 +181,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                     // Don't bother re-issuing this command, just use
                     // the existing result.
                     app.pending_command = false;
-                    app.callback.map(|mut cb| {
-                        cb.schedule(arg1, arg2, arg3);
-                    });
+                    app.callback.schedule(arg1, arg2, arg3);
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
@@ -183,29 +202,18 @@ impl Driver for NineDof<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => self.configure_callback(callback, app_id),
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         match command_num {
-            0 =>
-            /* This driver exists. */
-            {
-                ReturnCode::SUCCESS
-            }
-
+            0 => CommandReturn::success(),
             // Single acceleration reading.
             1 => self.enqueue_command(NineDofCommand::ReadAccelerometer, arg1, appid),
 
@@ -215,7 +223,7 @@ impl Driver for NineDof<'_> {
             // Single gyroscope reading.
             200 => self.enqueue_command(NineDofCommand::ReadGyroscope, arg1, appid),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

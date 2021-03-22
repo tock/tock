@@ -1,6 +1,6 @@
 //! Interface for USB HID (Human Interface Device) class
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// The 'types' of USB HID, this should define the size of send/received packets
 pub trait UsbHidType: Copy + Clone + Sized {}
@@ -16,19 +16,29 @@ pub trait Client<'a, T: UsbHidType> {
     /// This will return the buffer passed into `receive_buffer()` as well as
     /// the endpoint where the data was received. If the buffer length is smaller
     /// then the data length the buffer will only contain part of the packet and
-    /// `result` will contain indicate an `ESIZE` error. Result will indicate
-    /// `ECANCEL` if a receive was cancelled by `receive_cancel()` but the
-    /// callback still occured. See `receive_cancel()` for more details.
-    fn packet_received(&'a self, result: ReturnCode, buffer: &'static mut T, endpoint: usize);
+    /// `result` will contain indicate an `SIZE` error. Result will indicate
+    /// `CANCEL` if a receive was cancelled by `receive_cancel()` but the
+    /// callback still occurred. See `receive_cancel()` for more details.
+    fn packet_received(
+        &'a self,
+        result: Result<(), ErrorCode>,
+        buffer: &'static mut T,
+        endpoint: usize,
+    );
 
     /// Called when a packet has been finished transmitting.
     /// This will return the buffer passed into `send_buffer()` as well as
     /// the endpoint where the data was sent. If not all of the data could
-    /// be sent the `result` will contain the `ESIZE` error. Result will
-    /// indicate `ECANCEL` if a send was cancelled by `send_cancel()`
-    /// but the callback still occured. See `send_cancel()` for more
+    /// be sent the `result` will contain the `SIZE` error. Result will
+    /// indicate `CANCEL` if a send was cancelled by `send_cancel()`
+    /// but the callback still occurred. See `send_cancel()` for more
     /// details.
-    fn packet_transmitted(&'a self, result: ReturnCode, buffer: &'static mut T, endpoint: usize);
+    fn packet_transmitted(
+        &'a self,
+        result: Result<(), ErrorCode>,
+        buffer: &'static mut T,
+        endpoint: usize,
+    );
 
     /// Called when checking if we can start a new receive operation.
     /// Should return true if we are ready to receive and not currently
@@ -53,7 +63,7 @@ pub trait UsbHid<'a, T: UsbHidType> {
     ///
     /// On success returns the length of data to be sent.
     /// On failure returns an error code and the buffer passed in.
-    fn send_buffer(&'a self, send: &'static mut T) -> Result<usize, (ReturnCode, &'static mut T)>;
+    fn send_buffer(&'a self, send: &'static mut T) -> Result<usize, (ErrorCode, &'static mut T)>;
 
     /// Cancels a send called by `send_buffer()`.
     /// If `send_cancel()` successfully cancels a send transaction
@@ -68,7 +78,7 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// `Err(EBUSY)` and the callback will still occur.
     /// Note that unless the transaction completes the callback will
     /// indicate a result of `ECANCEL`.
-    fn send_cancel(&'a self) -> Result<&'static mut T, ReturnCode>;
+    fn send_cancel(&'a self) -> Result<&'static mut T, ErrorCode>;
 
     /// Sets the buffer for received data to be stored and enables receive
     /// transactions. Once this is called the implementation will enable
@@ -84,7 +94,7 @@ pub trait UsbHid<'a, T: UsbHidType> {
     ///
     /// On success returns nothing.
     /// On failure returns an error code and the buffer passed in.
-    fn receive_buffer(&'a self, recv: &'static mut T) -> Result<(), (ReturnCode, &'static mut T)>;
+    fn receive_buffer(&'a self, recv: &'static mut T) -> Result<(), (ErrorCode, &'static mut T)>;
 
     /// Cancels a receive called by `receive_buffer()`.
     /// If `receive_cancel()` successfully cancels a receive transaction
@@ -99,5 +109,5 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// `Err(EBUSY)` and the callback will still occur.
     /// Note that unless the transaction completes the callback will
     /// indicate a result of `ECANCEL`.
-    fn receive_cancel(&'a self) -> Result<&'static mut T, ReturnCode>;
+    fn receive_cancel(&'a self) -> Result<&'static mut T, ErrorCode>;
 }

@@ -39,7 +39,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -47,7 +47,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
     // App state
-    callback: Cell<Option<Callback>>,
+    callback: Cell<Upcall>,
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
@@ -61,22 +61,20 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
             channels,
 
             // App state
-            callback: Cell::new(None),
+            callback: Cell::new(Upcall::default()),
         }
     }
 
     // Do a single comparison on a channel
-    fn comparison(&self, channel: usize) -> ReturnCode {
+    fn comparison(&self, channel: usize) -> Result<bool, ErrorCode> {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];
         let result = self.analog_comparator.comparison(chan);
 
-        ReturnCode::SuccessWithValue {
-            value: result as usize,
-        }
+        Ok(result)
     }
 
     // Start comparing on a channel
@@ -119,19 +117,20 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 => ReturnCode::SuccessWithValue {
-                value: self.channels.len() as usize,
+            0 => CommandReturn::success_u32(self.channels.len() as u32),
+
+            1 => match self.comparison(channel) {
+                Ok(b) => CommandReturn::success_u32(b as u32),
+                Err(e) => CommandReturn::failure(e),
             },
 
-            1 => self.comparison(channel),
+            2 => self.start_comparing(channel).into(),
 
-            2 => self.start_comparing(channel),
+            3 => self.stop_comparing(channel).into(),
 
-            3 => self.stop_comparing(channel),
-
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -139,17 +138,14 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Subscribe to all interrupts
-            0 => {
-                self.callback.set(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => Ok(self.callback.replace(callback)),
             // Default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 }
@@ -157,10 +153,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
-    /// Callback to userland, signaling the application
+    /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.callback
-            .get()
-            .map_or_else(|| false, |mut cb| cb.schedule(channel, 0, 0));
+        self.callback.get().schedule(channel, 0, 0);
     }
 }

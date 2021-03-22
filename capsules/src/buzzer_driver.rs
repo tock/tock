@@ -40,10 +40,11 @@
 
 use core::cmp;
 
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, ReturnCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -62,7 +63,7 @@ pub enum BuzzerCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>, // Optional callback to signal when the buzzer event is over.
+    callback: Upcall, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
@@ -172,7 +173,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
             let _ = self.apps.enter(app_id, |app, _| {
-                app.callback.map(|mut cb| cb.schedule(0, 0, 0));
+                app.callback.schedule(0, 0, 0);
             });
         });
 
@@ -191,18 +192,21 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        mut callback: Upcall,
         app_id: AppId,
-    ) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                match subscribe_num {
-                    0 => app.callback = callback,
-                    _ => return ReturnCode::ENOSUPPORT,
-                }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
+            0 => self
+                .apps
+                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 
     /// Command interface.
@@ -210,20 +214,26 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     /// ### `command_num`
     ///
     /// - `0`: Return SUCCESS if this driver is included on the platform.
-    /// - `1`: Buzz the buzzer. `arg1` is used for the frequency in hertz, and
-    ///   `arg2` is the duration in ms. Note the duration is capped at 5000
+    /// - `1`: Buzz the buzzer. `data1` is used for the frequency in hertz, and
+    ///   `data2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        appid: AppId,
+    ) -> CommandReturn {
         match command_num {
             0 =>
             /* This driver exists. */
             {
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
 
             1 => {
-                let frequency_hz = arg1;
-                let duration_ms = cmp::min(arg2, self.max_duration_ms);
+                let frequency_hz = data1;
+                let duration_ms = cmp::min(data2, self.max_duration_ms);
                 self.enqueue_command(
                     BuzzerCommand::Buzz {
                         frequency_hz,
@@ -231,9 +241,10 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
                     },
                     appid,
                 )
+                .into()
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

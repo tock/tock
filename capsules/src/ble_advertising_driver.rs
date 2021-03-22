@@ -10,13 +10,14 @@
 //! Data payloads are limited to 31 bytes since the maximum advertising channel
 //! protocol data unit (PDU) is 37 bytes and includes a 6-byte header.
 //!
-//! ### Allow system call
+//! ### Allow system calls
 //!
-//! The allow systems calls are used for buffers from allocated by userland
+//! There is one ReadWrite and one ReadOnly allow buffers, both at index `0`.
 //!
-//! There are two different buffers:
-//! * 0: Advertising data
-//! * 1: Passive scanning buffer
+//! * ReadOnly: Advertising data, containing the full _payload_ (i.e. excluding the header) the
+//!             process wishes to advertise.
+//! * ReadWrite: Passive scanning buffer, which is populated during BLE scans with complete (i.e.
+//!              including headers) advertising packets received on channels 37, 38 and 39.
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
@@ -102,12 +103,15 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::ReturnCode;
+use kernel::{
+    CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -170,7 +174,7 @@ pub struct App {
     alarm_data: AlarmData,
 
     // Advertising meta-data
-    adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    adv_data: ReadOnlyAppSlice,
     address: [u8; PACKET_ADDR_LEN],
     pdu_type: AdvPduType,
     advertisement_interval_ms: u32,
@@ -183,19 +187,19 @@ pub struct App {
     random_nonce: u32,
 
     // Scanning meta-data
-    scan_buffer: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    scan_callback: Option<kernel::Callback>,
+    scan_buffer: ReadWriteAppSlice,
+    scan_callback: kernel::Upcall,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             alarm_data: AlarmData::new(),
-            adv_data: None,
-            scan_buffer: None,
+            adv_data: ReadOnlyAppSlice::default(),
+            scan_buffer: ReadWriteAppSlice::default(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
-            scan_callback: None,
+            scan_callback: kernel::Upcall::default(),
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
@@ -222,7 +226,7 @@ impl App {
     // Byte 2-5          random
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
-    fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
+    fn generate_random_address(&mut self, appid: kernel::AppId) -> Result<(), ErrorCode> {
         self.address = [
             0xf0,
             (appid.id() & 0xff) as u8,
@@ -231,7 +235,7 @@ impl App {
             ((appid.id() << 24) & 0xff) as u8,
             0xf0,
         ];
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
@@ -239,7 +243,7 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data.as_ref().map_or(ReturnCode::FAIL, |adv_data| {
+        self.adv_data.map_or(ReturnCode::FAIL, |adv_data| {
             ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
                 let adv_data_len = cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
                 let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
@@ -452,20 +456,14 @@ where
 
                 if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
                     // write to buffer in userland
-                    let success = app
-                        .scan_buffer
-                        .as_mut()
-                        .map(|userland| {
-                            for (dst, src) in userland.iter_mut().zip(buf[0..len as usize].iter()) {
-                                *dst = *src;
-                            }
-                        })
-                        .is_some();
+                    let success = app.scan_buffer.mut_map_or(false, |userland| {
+                        userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
+                        true
+                    });
 
                     if success {
-                        app.scan_callback.map(|mut cb| {
-                            cb.schedule(usize::from(result), len as usize, 0);
-                        });
+                        app.scan_callback
+                            .schedule(usize::from(result), len as usize, 0);
                     }
                 }
 
@@ -553,12 +551,11 @@ where
         data: usize,
         interval: usize,
         appid: kernel::AppId,
-    ) -> ReturnCode {
+    ) -> CommandReturn {
         match command_num {
             // Start periodic advertisements
             0 => {
-                let ret = self
-                    .app
+                self.app
                     .enter(appid, |app, _| {
                         if let Some(BLEState::Initialized) = app.process_status {
                             let pdu_type = data as AdvPduType;
@@ -569,20 +566,25 @@ where
                                     app.random_nonce = self.alarm.now().into_u32();
                                     app.advertisement_interval_ms = cmp::max(20, interval as u32);
                                     app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
-                                    ReturnCode::SUCCESS
+                                    Ok(())
                                 }
-                                _ => ReturnCode::EINVAL,
+                                _ => Err(ErrorCode::INVAL),
                             }
                         } else {
-                            ReturnCode::EBUSY
+                            Err(ErrorCode::BUSY)
                         }
                     })
-                    .unwrap_or_else(|err| err.into());
-                if ret == ReturnCode::SUCCESS {
-                    // must be called outside closure passed to grant region!
-                    self.reset_active_alarm();
-                }
-                ret
+                    .map_or_else(
+                        |err| CommandReturn::failure(err.into()),
+                        |res| match res {
+                            Ok(_) => {
+                                // must be called outside closure passed to grant region!
+                                self.reset_active_alarm();
+                                CommandReturn::success()
+                            }
+                            Err(e) => CommandReturn::failure(e.into()),
+                        },
+                    )
             }
 
             // Stop periodic advertisements or passive scanning
@@ -591,9 +593,9 @@ where
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
                         app.process_status = Some(BLEState::Initialized);
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     }
-                    _ => ReturnCode::EBUSY,
+                    _ => CommandReturn::failure(ErrorCode::BUSY),
                 })
                 .unwrap_or_else(|err| err.into()),
 
@@ -617,12 +619,12 @@ where
                                     if let ReturnCode::SUCCESS = status {
                                         app.tx_power = tx_power;
                                     }
-                                    status
+                                    status.into()
                                 }
-                                _ => ReturnCode::EINVAL,
+                                _ => CommandReturn::failure(ErrorCode::INVAL),
                             }
                         } else {
-                            ReturnCode::EBUSY
+                            CommandReturn::failure(ErrorCode::BUSY)
                         }
                     })
                     .unwrap_or_else(|err| err.into())
@@ -630,87 +632,111 @@ where
 
             // Passive scanning mode
             5 => {
-                let ret = self
-                    .app
+                self.app
                     .enter(appid, |app, _| {
                         if let Some(BLEState::Initialized) = app.process_status {
                             app.process_status = Some(BLEState::ScanningIdle);
                             app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
-                            ReturnCode::SUCCESS
+                            Ok(())
                         } else {
-                            ReturnCode::EBUSY
+                            Err(ErrorCode::BUSY)
                         }
                     })
-                    .unwrap_or_else(|err| err.into());
-                if ret == ReturnCode::SUCCESS {
-                    // must be called outside closure passed to grant region!
-                    self.reset_active_alarm();
-                }
-                ret
+                    .map_or_else(
+                        |err| err.into(),
+                        |res| match res {
+                            Ok(_) => {
+                                // must be called outside closure passed to grant region!
+                                self.reset_active_alarm();
+                                CommandReturn::success()
+                            }
+                            Err(e) => CommandReturn::failure(e.into()),
+                        },
+                    )
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+        .into()
     }
 
-    fn allow(
+    fn allow_readonly(
         &self,
         appid: kernel::AppId,
         allow_num: usize,
-        slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Advertisement buffer
             0 => self
                 .app
                 .enter(appid, |app, _| {
-                    app.adv_data = slice;
-                    if let ReturnCode::SUCCESS = app.generate_random_address(appid) {
+                    app.generate_random_address(appid).map(|_| {
                         app.process_status = Some(BLEState::Initialized);
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::FAIL
-                    }
+                        mem::swap(&mut app.adv_data, &mut slice);
+                    })
                 })
-                .unwrap_or_else(|err| err.into()),
+                .unwrap_or_else(|err| Err(err.into())),
 
+            // Operation not supported
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
+        }
+    }
+
+    fn allow_readwrite(
+        &self,
+        appid: kernel::AppId,
+        allow_num: usize,
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Passive scanning buffer
-            1 => self
+            0 => self
                 .app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        app.scan_buffer = slice;
+                        mem::swap(&mut app.scan_buffer, &mut slice);
                         app.process_status = Some(BLEState::Initialized);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
-                    _ => ReturnCode::EINVAL,
+                    _ => Err(ErrorCode::INVAL),
                 })
-                .unwrap_or_else(|err| err.into()),
+                .unwrap_or_else(|err| Err(err.into())),
 
             // Operation not supported
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<kernel::Callback>,
+        mut callback: kernel::Upcall,
         app_id: kernel::AppId,
-    ) -> ReturnCode {
+    ) -> Result<kernel::Upcall, (kernel::Upcall, ErrorCode)> {
         match subscribe_num {
-            // Callback for scanning
+            // Upcall for scanning
             0 => self
                 .app
                 .enter(app_id, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        app.scan_callback = callback;
-                        ReturnCode::SUCCESS
+                        mem::swap(&mut app.scan_callback, &mut callback);
+                        Ok(callback)
                     }
-                    _ => ReturnCode::EINVAL,
+                    _ => Err((callback, ErrorCode::INVAL)),
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| Err((callback, err.into()))),
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 }

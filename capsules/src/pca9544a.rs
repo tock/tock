@@ -29,9 +29,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +59,7 @@ pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Upcall>,
 }
 
 impl<'a> PCA9544A<'a> {
@@ -68,55 +68,59 @@ impl<'a> PCA9544A<'a> {
             i2c: i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: OptionalCell::empty(),
+            callback: MapCell::new(Upcall::default()),
         }
     }
 
     /// Choose which channel(s) are active. Channels are encoded with a bitwise
     /// mask (0x01 means enable channel 0, 0x0F means enable all channels).
     /// Send 0 to disable all channels.
-    fn select_channels(&self, channel_bitmask: u8) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.i2c.enable();
+    fn select_channels(&self, channel_bitmask: u8) -> CommandReturn {
+        self.buffer
+            .take()
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            // Always clear the settings so we get to a known state
-            buffer[0] = 0;
+                // Always clear the settings so we get to a known state
+                buffer[0] = 0;
 
-            // Iterate the bit array to send the correct channel enables
-            let mut index = 1;
-            for i in 0..4 {
-                if channel_bitmask & (0x01 << i) != 0 {
-                    // B2 B1 B0 are set starting at 0x04
-                    buffer[index] = i + 4;
-                    index += 1;
+                // Iterate the bit array to send the correct channel enables
+                let mut index = 1;
+                for i in 0..4 {
+                    if channel_bitmask & (0x01 << i) != 0 {
+                        // B2 B1 B0 are set starting at 0x04
+                        buffer[index] = i + 4;
+                        index += 1;
+                    }
                 }
-            }
 
-            self.i2c.write(buffer, index as u8);
-            self.state.set(State::Done);
+                self.i2c.write(buffer, index as u8);
+                self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
-        })
+                CommandReturn::success()
+            })
     }
 
-    fn read_interrupts(&self) -> ReturnCode {
+    fn read_interrupts(&self) -> CommandReturn {
         self.read_control(ControlField::InterruptMask)
     }
 
-    fn read_selected_channels(&self) -> ReturnCode {
+    fn read_selected_channels(&self) -> CommandReturn {
         self.read_control(ControlField::SelectedChannels)
     }
 
-    fn read_control(&self, field: ControlField) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.i2c.enable();
+    fn read_control(&self, field: ControlField) -> CommandReturn {
+        self.buffer
+            .take()
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            // Just issuing a read to the selector reads its control register.
-            self.i2c.read(buffer, 1);
-            self.state.set(State::ReadControl(field));
+                // Just issuing a read to the selector reads its control register.
+                self.i2c.read(buffer, 1);
+                self.state.set(State::ReadControl(field));
 
-            ReturnCode::SUCCESS
-        })
+                CommandReturn::success()
+            })
     }
 }
 
@@ -153,22 +157,25 @@ impl Driver for PCA9544A<'_> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Callback is triggered when a channel is finished being selected
+    /// - `0`: Upcall is triggered when a channel is finished being selected
     ///   or when the current channel setup is returned.
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
+                if let Some(prev) = self.callback.replace(callback) {
+                    Ok(prev)
+                } else {
+                    Ok(Upcall::default())
+                }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -181,25 +188,25 @@ impl Driver for PCA9544A<'_> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
             // Check if present.
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // Select channels.
-            1 => self.select_channels(data as u8),
+            1 => self.select_channels(data as u8).into(),
 
             // Disable all channels.
-            2 => self.select_channels(0),
+            2 => self.select_channels(0).into(),
 
             // Read the current interrupt fired mask.
-            3 => self.read_interrupts(),
+            3 => self.read_interrupts().into(),
 
             // Read the current selected channels.
-            4 => self.read_selected_channels(),
+            4 => self.read_selected_channels().into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

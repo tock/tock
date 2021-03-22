@@ -38,9 +38,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -361,14 +361,14 @@ impl i2c::I2CClient for MAX17205<'_> {
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
-    callback: OptionalCell<Callback>,
+    callback: MapCell<Upcall>,
 }
 
 impl<'a> MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
-            callback: OptionalCell::empty(),
+            callback: MapCell::new(Upcall::default()),
         }
     }
 }
@@ -419,17 +419,23 @@ impl Driver for MAX17205Driver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
+        callback: Upcall,
         _app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
+                if let Some(prev) = self.callback.replace(callback) {
+                    Ok(prev)
+                } else {
+                    // TODO(alevy): This should never happen because we start with a full MapCell
+                    // and only ever replace it. This is just defensive until this module becomes
+                    // multi-user, which will preclude the need for a MapCell in the first place.
+                    Ok(Upcall::default())
+                }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -443,27 +449,27 @@ impl Driver for MAX17205Driver<'_> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> CommandReturn {
         match command_num {
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // read status
-            1 => self.max17205.setup_read_status(),
+            1 => self.max17205.setup_read_status().into(),
 
             // get soc
-            2 => self.max17205.setup_read_soc(),
+            2 => self.max17205.setup_read_soc().into(),
 
             // get voltage & current
-            3 => self.max17205.setup_read_curvolt(),
+            3 => self.max17205.setup_read_curvolt().into(),
 
             // get raw coulombs
-            4 => self.max17205.setup_read_coulomb(),
+            4 => self.max17205.setup_read_coulomb().into(),
 
             //
-            5 => self.max17205.setup_read_romid(),
+            5 => self.max17205.setup_read_romid().into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
