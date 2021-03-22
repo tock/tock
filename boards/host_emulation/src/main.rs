@@ -60,6 +60,8 @@ static mut CHIP: Option<&'static chip::HostChip> = None;
 static mut EXTERNAL_PROCESS_CAP: &dyn capabilities::ExternalProcessCapability =
     &create_capability!(capabilities::ExternalProcessCapability);
 
+pub static mut UART0: uart::UartIO = uart::UartIO::create();
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct HostBoard {
@@ -69,7 +71,6 @@ struct HostBoard {
         capsules::virtual_uart::UartDevice<'static>,
     >,
 }
-
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for HostBoard {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
