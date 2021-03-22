@@ -30,7 +30,7 @@ The following combinations between kernel and userspace should work:
 - Tock on release v1.6, libtock-c on v1.6.
 - Tock on release v1.6, libtock-rs on master.
 
-Note, libtock-rs does not currently support Tock 2.0.
+Note, libtock-rs does not currently support Tock 2.0, but will before 2.0 is released.
 
 Tock will continue to make this easier as we work towards the 2.0 release.
 
