@@ -139,7 +139,7 @@ pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
+    app_memory: &mut [u8],
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
@@ -1934,16 +1934,16 @@ impl<C: 'static + Chip> Process<'_, C> {
     // Memory offset to make room for this process's metadata.
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Process<C>>();
 
-    pub(crate) unsafe fn create(
+    pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
         app_flash: &'static [u8],
         header_length: usize,
         app_version: u16,
-        remaining_memory: &'static mut [u8],
+        remaining_memory: &'a mut [u8],
         fault_response: FaultResponse,
         index: usize,
-    ) -> Result<(Option<&'static dyn ProcessType>, &'static mut [u8]), ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn ProcessType>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length as usize)
