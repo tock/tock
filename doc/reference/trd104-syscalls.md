@@ -443,7 +443,7 @@ instead.
 
 If a userspace process invokes subscribe on a driver ID that is not
 installed in the kernel, the kernel MUST return a failure with an
-error code of NOSUPPORT and an upcall of the Null Upcall.
+error code of `NODEVICE` and an upcall of the Null Upcall.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
