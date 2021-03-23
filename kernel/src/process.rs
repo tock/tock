@@ -124,8 +124,12 @@ impl fmt::Debug for ProcessLoadError {
 /// Processes are found in flash starting from the given address and iterating
 /// through Tock Binary Format (TBF) headers. Processes are given memory out of
 /// the `app_memory` buffer until either the memory is exhausted or the
-/// allocated number of processes are created. A reference to each process is
-/// stored in the provided `procs` array. How process faults are handled by the
+/// allocated number of processes are created. This buffer is a non-static slice,
+/// ensuring that this code cannot hold onto the slice past the end of this function
+/// (instead, processes store a pointer and length), which necessary for later
+/// creation of `AppSlice`'s in this memory region to be sound.
+/// A reference to each process is stored in the provided `procs` array.
+/// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
 ///
 /// This function is made `pub` so that board files can use it, but loading
@@ -139,7 +143,7 @@ pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &mut [u8],
+    app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
