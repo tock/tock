@@ -938,7 +938,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             });
                         }
 
-                        let skip_amt = app.app_buf_offset.get();
+                        let skip_amt = app.app_buf_offset.get() / 2;
 
                         {
                             let app_buf;
