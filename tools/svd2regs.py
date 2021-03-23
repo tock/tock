@@ -74,7 +74,7 @@ def comment(text):
         lines = ["/// {}".format(line[:COMMENT_MAX_LENGTH].strip()) for line in lines]
         return "\n".join (lines)
     else:
-        return "/// (no description)"
+        return ""
 
 
 class CodeBlock(str):
