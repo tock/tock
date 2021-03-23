@@ -42,7 +42,6 @@ pub struct App {
     callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
-    write_position: usize,
     write_len: usize,
     command: TextScreenCommand,
     data1: usize,
@@ -55,7 +54,6 @@ impl Default for App {
             callback: Upcall::default(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
-            write_position: 0,
             write_len: 0,
             command: TextScreenCommand::Idle,
             data1: 1,
@@ -109,7 +107,6 @@ impl<'a> TextScreen<'a> {
                     } else {
                         app.pending_command = true;
                         app.command = command;
-                        app.write_position = 0;
                         app.data1 = data1;
                         app.data2 = data2;
                         ReturnCode::SUCCESS
@@ -148,7 +145,6 @@ impl<'a> TextScreen<'a> {
                 .apps
                 .enter(appid, |app, _| {
                     if data1 > 0 {
-                        app.write_position = 0;
                         app.write_len = data1;
                         app.shared.map_or(ReturnCode::ENOMEM, |to_write_buffer| {
                             self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
@@ -283,7 +279,6 @@ impl<'a> Driver for TextScreen<'a> {
                     .apps
                     .enter(appid, |app, _| {
                         mem::swap(&mut app.shared, &mut slice);
-                        app.write_position = 0;
                     })
                     .map_err(ErrorCode::from);
                 if let Err(e) = res {
