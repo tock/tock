@@ -70,14 +70,9 @@ impl Platform for SweRVolf {
     }
 }
 
-/// Reset Handler.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// Main function called after RAM initialized.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
+pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
