@@ -89,9 +89,9 @@ the imix, the Hail, and the nrf52dk. This is typically the structure
 that defines all of the capsules the kernel has, the code to configure the
 MCU's IO pins into the proper states, initializing the kernel and loading
 processes. The principal file in this directory is `main.rs`, and the
-principal initialization function is `reset_handler` (which executes
-when the MCU resets). The board code also defines how system call device
-identifiers map to capsules, in the `with_driver` function.
+principal initialization function is `main` (which executes when the MCU
+resets after RAM has been initialized). The board code also defines how system
+call device identifiers map to capsules, in the `with_driver` function.
 
 - **capsules**: contains MCU-independent kernel extensions that
 can build on top of chip-specific implementations of particular peripherals.

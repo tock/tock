@@ -336,7 +336,7 @@ pub trait KernelMPU {
     /// kernel regions specified by `allocate_kernel_region()` protected by
     /// the MPU.
     ///
-    /// It is expected that this function is called in `reset_handler()`.
+    /// It is expected that this function is called in `main()`.
     ///
     /// Once enabled this cannot be disabled. It is expected there won't be any
     /// changes to the kernel regions after this is enabled.

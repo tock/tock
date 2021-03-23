@@ -61,7 +61,6 @@ members = [
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tock-register-interface",
-    "libraries/tock-rt0",
     "libraries/tickv",
 ]
 exclude = [

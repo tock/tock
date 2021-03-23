@@ -153,16 +153,15 @@ impl Platform for LiteXArty {
     }
 }
 
-/// Reset Handler
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// and RAM setup.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     // ---------- BASIC INITIALIZATION ----------
 
     // Basic setup of the riscv platform.
-    rv32i::init_memory();
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
     // initialize capabilities

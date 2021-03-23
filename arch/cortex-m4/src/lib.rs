@@ -14,6 +14,7 @@ pub use cortexm::support;
 
 pub use cortexm::generic_isr;
 pub use cortexm::hard_fault_handler_arm_v7m as hard_fault_handler;
+pub use cortexm::initialize_ram_jump_to_main;
 pub use cortexm::nvic;
 pub use cortexm::print_cortexm_state as print_cortexm4_state;
 pub use cortexm::scb;

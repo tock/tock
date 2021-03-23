@@ -60,7 +60,7 @@ type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripher
 static mut CHIP: Option<&'static Chip> = None;
 
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     imxrt1060::init();
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(

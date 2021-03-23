@@ -82,14 +82,12 @@ impl Platform for HiFive1 {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// setup and RAM initialization.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
+pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 

@@ -45,7 +45,7 @@
 //! }
 //! ```
 //!
-//! In `reset_handler()`:
+//! In `main()`:
 //!
 //! ```rust
 //! # use kernel::static_init;
