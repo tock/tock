@@ -64,11 +64,14 @@ register_structs! {
 register_structs! {
     /// SIO Control Registers
     SIORegisters {
+        /// Not used
+        (0x000 => _reserved0),
+
         /// Input value for GPIO pins
         (0x004 => gpio_in: ReadWrite<u32, GPIO_IN::Register>),
 
         /// Not used
-        (0x008 => _reserved0),
+        (0x008 => _reserved1),
 
         /// GPIO output value
         (0x010 => gpio_out: ReadWrite<u32, GPIO_OUT::Register>),
@@ -425,14 +428,14 @@ impl<'a> RPGpioPin<'a> {
 
     fn get_mode(&self) -> hil::gpio::Configuration {
         //TODO - read alternate function
-        let pad_output_disable = self.gpio_pad_registers.gpio_pad[self.pin].read(GPIO_PAD::OD);
+        let pad_output_disable = !self.gpio_pad_registers.gpio_pad[self.pin].is_set(GPIO_PAD::OD);
         let pin_mask = 1 << self.pin;
         let sio_output_enable = (self.sio_registers.gpio_oe.read(GPIO_OE::OE) & pin_mask) != 0;
 
         match (pad_output_disable, sio_output_enable) {
-            (0, true) => hil::gpio::Configuration::Output,
-            (0, false) => hil::gpio::Configuration::Input,
-            (1, _) => hil::gpio::Configuration::LowPower,
+            (true, true) => hil::gpio::Configuration::Output,
+            (true, false) => hil::gpio::Configuration::Input,
+            (false, _) => hil::gpio::Configuration::LowPower,
             _ => panic!("Invalid GPIO state mode"),
         }
     }
@@ -450,7 +453,7 @@ impl<'a> RPGpioPin<'a> {
     fn set_function(&self, f: GpioFunction) {
         self.gpio_registers.pin[self.pin]
             .ctrl
-            .modify(GPIOx_CTRL::FUNCSEL.val(f as u32));
+            .write(GPIOx_CTRL::FUNCSEL.val(f as u32));
     }
 
     fn get_pullup_pulldown(&self) -> hil::gpio::FloatingState {

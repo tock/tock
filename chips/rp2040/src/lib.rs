@@ -1,7 +1,12 @@
 #![feature(const_fn)]
 #![no_std]
 
+pub mod chip;
+pub mod clocks;
+pub mod deferred_call_tasks;
 pub mod gpio;
+pub mod resets;
+pub mod xosc;
 
 use cortexm0p::{self, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt};
 use tock_rt0;
