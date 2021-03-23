@@ -11,7 +11,7 @@ options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
   11f7416e36](https://github.com/enjoy-digital/litex/tree/11f7416e3603bf404a3c603902162cf02551e98c)
-- using the included [lx_sim.py](https://github.com/enjoy-digital/litex/blob/11f7416e3603bf404a3c603902162cf02551e98c/litex/tools/litex_sim.py)
+- using the included [lxsim](https://github.com/enjoy-digital/litex/blob/11f7416e3603bf404a3c603902162cf02551e98c/litex/tools/litex_sim.py)
 - built around a VexRiscv-CPU
 - featuring a TIMER0 with 64-bit wide hardware uptime
 - along with the following configuration options:
