@@ -11,9 +11,9 @@ differ significantly depending on the LiteX release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  4092180662](https://github.com/enjoy-digital/litex/tree/4092180662ec62cf28b9283a020f1ff7f0892c19)
-- using the included [target
-  file](https://github.com/enjoy-digital/litex/blob/4092180662ec62cf28b9283a020f1ff7f0892c19/litex/boards/targets/arty.py)
+  11f7416e36](https://github.com/enjoy-digital/litex/tree/11f7416e3603bf404a3c603902162cf02551e98c)
+- using the companion [target
+  file](https://github.com/litex-hub/litex-boards/blob/ef662035b13a65955e94b018621c327448f9105e/litex_boards/targets/arty.py) from `litex-boards`
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
   compressed instruction support
 - along with the following configuration options:
@@ -41,9 +41,9 @@ Verilog files) can be obtained from the [Tock on LiteX companion
 repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2020122201](https://github.com/lschuermann/tock-litex/releases/tag/2020122201). The
+2021031601](https://github.com/lschuermann/tock-litex/releases/tag/2021031601). The
 bitstream for this board is located in `arty_a7-35t.zip` under
-`gateware/arty.bin`.
+`gateware/arty.bit`.
 
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in `src/litex_generated.rs`. To support
