@@ -1177,7 +1177,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn flash_end(&self) -> *const u8 {
-        unsafe { self.flash.as_ptr().add(self.flash.len()) }
+        self.flash.as_ptr().wrapping_add(self.flash.len())
     }
 
     fn kernel_memory_break(&self) -> *const u8 {
