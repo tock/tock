@@ -114,35 +114,14 @@ $ make flash-debug
 
 ### Flashing app
 
-Apps are built out-of-tree. Once an app is built, you can use
-`arm-none-eabi-objcopy` with `--update-section` to create an ELF image with the
-apps included.
+Please refer to the [tockloader](https://github.com/tock/tockloader) documentation to flash apps.
 
+With bootloader
 ```bash
-$ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
-    target/thumbv7em-none-eabi/debug/stm32f3discovery.elf \
-    target/thumbv7em-none-eabi/debug/stm32f3discovery-app.elf
+$ tockloader install app.tab
 ```
 
-For example, you can update `Makefile` as follows.
-
-```
-APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
-
-.PHONY: flash-app
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-    arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown;"
-```
-
-After setting `APP`, `KERNEL`, `KERNEL_WITH_APP`, and `program` target
-dependency, you can do
-
+Without bootloader
 ```bash
-$ make flash-app
+$ tockloader --openocd --board microbit_v2 install app.tab
 ```
-
-to flash the image.
