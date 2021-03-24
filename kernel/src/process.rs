@@ -124,8 +124,12 @@ impl fmt::Debug for ProcessLoadError {
 /// Processes are found in flash starting from the given address and iterating
 /// through Tock Binary Format (TBF) headers. Processes are given memory out of
 /// the `app_memory` buffer until either the memory is exhausted or the
-/// allocated number of processes are created. A reference to each process is
-/// stored in the provided `procs` array. How process faults are handled by the
+/// allocated number of processes are created. This buffer is a non-static slice,
+/// ensuring that this code cannot hold onto the slice past the end of this function
+/// (instead, processes store a pointer and length), which necessary for later
+/// creation of `AppSlice`'s in this memory region to be sound.
+/// A reference to each process is stored in the provided `procs` array.
+/// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
 ///
 /// This function is made `pub` so that board files can use it, but loading
@@ -139,7 +143,7 @@ pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
+    app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
@@ -892,7 +896,7 @@ pub struct Process<'a, C: 'static + Chip> {
     /// Application memory layout:
     ///
     /// ```text
-    ///     ╒════════ ← memory[memory.len()]
+    ///     ╒════════ ← memory_start + memory_len
     ///  ╔═ │ Grant Pointers
     ///  ║  │ ──────
     ///     │ Process Control Block
@@ -914,11 +918,16 @@ pub struct Process<'a, C: 'static + Chip> {
     ///  E  │                                    S B
     ///  D  │ ──────  ← current_stack_pointer      L
     ///     │                                    ║ E
-    ///  ╚═ ╘════════ ← memory[0]               ═╝
+    ///  ╚═ ╘════════ ← memory_start            ═╝
     /// ```
     ///
-    /// The process's memory.
-    memory: &'static mut [u8],
+    /// The start of process memory. We store this as a pointer and length and
+    /// not a slice due to Rust aliasing rules. If we were to store a slice,
+    /// then any time another slice to the same memory or an AppSlice is used in
+    /// the kernel would be undefined behavior.
+    memory_start: *const u8,
+    /// Number of bytes of memory allocated to this process.
+    memory_len: usize,
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
@@ -1152,11 +1161,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn mem_start(&self) -> *const u8 {
-        self.memory.as_ptr()
+        self.memory_start
     }
 
     fn mem_end(&self) -> *const u8 {
-        unsafe { self.memory.as_ptr().add(self.memory.len()) }
+        self.memory_start.wrapping_add(self.memory_len)
     }
 
     fn flash_start(&self) -> *const u8 {
@@ -1530,7 +1539,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     return_value,
@@ -1569,7 +1578,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // passed to `set_process_function` are correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     callback,
@@ -1614,12 +1623,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // we pass are valid, ensuring this context switch is safe.
                 // Therefore we encapsulate the `unsafe`.
                 unsafe {
-                    let (switch_reason, optional_stack_pointer) =
-                        self.chip.userspace_kernel_boundary().switch_to_process(
-                            self.memory.as_ptr(),
-                            self.app_break.get(),
-                            stored_state,
-                        );
+                    let (switch_reason, optional_stack_pointer) = self
+                        .chip
+                        .userspace_kernel_boundary()
+                        .switch_to_process(self.mem_start(), self.app_break.get(), stored_state);
                     (Some(switch_reason), optional_stack_pointer)
                 }
             });
@@ -1677,7 +1684,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let flash_app_size = flash_end - flash_app_start;
 
         // SRAM addresses
-        let sram_end = self.memory.as_ptr().wrapping_add(self.memory.len()) as usize;
+        let sram_end = self.mem_end() as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
@@ -1689,7 +1696,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let sram_stack_bottom: Option<usize> = self.debug.map_or(None, |debug| {
             debug.app_stack_min_pointer.map(|p| p as usize)
         });
-        let sram_start = self.memory.as_ptr() as usize;
+        let sram_start = self.mem_start() as usize;
 
         // SRAM sizes
         let sram_grant_size = sram_end - sram_grant_start;
@@ -1835,7 +1842,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     writer,
@@ -1900,7 +1907,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 ));
             } else {
                 // PIC, need to specify the addresses.
-                let sram_start = self.memory.as_ptr() as usize;
+                let sram_start = self.mem_start() as usize;
                 let flash_start = self.flash.as_ptr() as usize;
                 let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
@@ -1931,16 +1938,16 @@ impl<C: 'static + Chip> Process<'_, C> {
     // Memory offset to make room for this process's metadata.
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Process<C>>();
 
-    pub(crate) unsafe fn create(
+    pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
         app_flash: &'static [u8],
         header_length: usize,
         app_version: u16,
-        remaining_memory: &'static mut [u8],
+        remaining_memory: &'a mut [u8],
         fault_response: FaultResponse,
         index: usize,
-    ) -> Result<(Option<&'static dyn ProcessType>, &'static mut [u8]), ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn ProcessType>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length as usize)
@@ -2242,7 +2249,8 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory = app_memory;
+        process.memory_start = app_memory.as_ptr();
+        process.memory_len = app_memory.len();
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
@@ -2287,8 +2295,8 @@ impl<C: 'static + Chip> Process<'_, C> {
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
                 argument0: flash_app_start_addr,
-                argument1: process.memory.as_ptr() as usize,
-                argument2: process.memory.len() as usize,
+                argument1: process.memory_start as usize,
+                argument2: process.memory_len,
                 argument3: process.app_break.get() as usize,
             }));
         });
@@ -2399,9 +2407,9 @@ impl<C: 'static + Chip> Process<'_, C> {
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
-            self.memory.as_ptr() as *const u8,
-            self.memory.len(),
-            self.memory.len(), //we want exactly as much as we had before restart
+            self.mem_start(),
+            self.memory_len,
+            self.memory_len, //we want exactly as much as we had before restart
             min_process_memory_size,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
@@ -2476,8 +2484,8 @@ impl<C: 'static + Chip> Process<'_, C> {
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
                 argument0: flash_app_start,
-                argument1: self.memory.as_ptr() as usize,
-                argument2: self.memory.len() as usize,
+                argument1: self.mem_start() as usize,
+                argument2: self.memory_len,
                 argument3: self.app_break.get() as usize,
             }));
         });
