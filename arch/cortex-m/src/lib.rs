@@ -131,7 +131,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     target_os = "none"
 ))]
 #[naked]
-pub unsafe extern "C" fn generic_isr_armv7m() {
+pub unsafe extern "C" fn generic_isr_arm_v7m() {
     asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.

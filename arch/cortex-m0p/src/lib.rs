@@ -22,7 +22,6 @@ pub use cortexm0::hard_fault_handler;
 pub use cortexm0::svc_handler;
 pub use cortexm0::systick_handler;
 
-
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user(
