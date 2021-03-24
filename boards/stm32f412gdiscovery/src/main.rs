@@ -356,18 +356,23 @@ unsafe fn setup_peripherals(
     trng.enable_clock();
 }
 
-/// Main function.
+/// Statically initialize the core peripherals for the chip.
 ///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f412g::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> (
+    &'static mut Stm32f412gDefaultPeripherals<'static>,
+    &'static stm32f412g::syscfg::Syscfg<'static>,
+    &'static stm32f412g::dma1::Dma1<'static>,
+) {
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
     let syscfg = static_init!(
         stm32f412g::syscfg::Syscfg,
         stm32f412g::syscfg::Syscfg::new(rcc)
     );
+
     let exti = static_init!(stm32f412g::exti::Exti, stm32f412g::exti::Exti::new(syscfg));
     let dma1 = static_init!(stm32f412g::dma1::Dma1, stm32f412g::dma1::Dma1::new(rcc));
 
@@ -375,6 +380,17 @@ pub unsafe fn main() {
         Stm32f412gDefaultPeripherals,
         Stm32f412gDefaultPeripherals::new(rcc, exti, dma1)
     );
+    (peripherals, syscfg, dma1)
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    stm32f412g::init();
+
+    let (peripherals, syscfg, dma1) = get_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
     setup_peripherals(
