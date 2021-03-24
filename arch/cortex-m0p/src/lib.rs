@@ -22,17 +22,6 @@ pub use cortexm0::hard_fault_handler;
 pub use cortexm0::svc_handler;
 pub use cortexm0::systick_handler;
 
-extern "C" {
-    // _estack is not really a function, but it makes the types work
-    // You should never actually invoke it!!
-    fn _estack();
-    static mut _sstack: u32;
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
-}
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
