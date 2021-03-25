@@ -253,13 +253,13 @@ pub unsafe fn main() {
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
-            &peripherals.i2c,
+            &peripherals.i2c0,
             &mut capsules::i2c_master::BUF,
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
 
-    peripherals.i2c.set_master_client(i2c_master);
+    peripherals.i2c0.set_master_client(i2c_master);
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
