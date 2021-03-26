@@ -24,49 +24,6 @@ pub use cortexm::systick;
 pub use cortexm::systick_handler_arm_v7m as systick_handler;
 pub use cortexm::unhandled_interrupt;
 
-/// Assembly function called from `UserspaceKernelBoundary` to switch to an
-/// an application. This handles storing and restoring application state before
-/// and after the switch.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-#[no_mangle]
-pub unsafe extern "C" fn switch_to_user_arm_v7m(
-    mut user_stack: *const usize,
-    process_regs: &mut [usize; 8],
-) -> *const usize {
-    llvm_asm!(
-        "
-    // The arguments passed in are:
-    // - `r0` is the top of the user stack
-    // - `r1` is a reference to `CortexMStoredState.regs`
-
-    // Load bottom of stack into Process Stack Pointer.
-    msr psp, $0
-
-    // Load non-hardware-stacked registers from the process stored state. Ensure
-    // that $2 is stored in a callee saved register.
-    ldmia $2, {r4-r11}
-
-    // SWITCH
-    svc 0xff   // It doesn't matter which SVC number we use here as it has no
-               // defined meaning for the Cortex-M syscall interface. Data being
-               // returned from a syscall is transfered on the app's stack.
-
-    // When execution returns here we have switched back to the kernel from the
-    // application.
-
-    // Push non-hardware-stacked registers into the saved state for the
-    // application.
-    stmia $2, {r4-r11}
-
-    // Update the user stack pointer with the current value after the
-    // application has executed.
-    mrs $0, PSP   // r0 = PSP"
-    : "={r0}"(user_stack)
-    : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r8","r9","r10","r11" : "volatile" );
-    user_stack
-}
-
 /// Provide a `switch_to_user` function with exactly that name for syscall.rs.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
@@ -74,7 +31,7 @@ pub unsafe extern "C" fn switch_to_user(
     user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
-    cortexm::switch_to_user(user_stack, process_regs)
+    cortexm::switch_to_user_arm_v7m(user_stack, process_regs)
 }
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
