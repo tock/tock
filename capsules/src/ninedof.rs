@@ -177,7 +177,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let appid = cntr.appid();
+            let appid = cntr.processid();
             let started_command = cntr.enter(|app| {
                 if app.pending_command
                     && app.command == finished_command

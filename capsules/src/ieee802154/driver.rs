@@ -354,7 +354,7 @@ impl<'a> RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            let appid = app.appid();
+            let appid = app.processid();
             app.enter(|app| {
                 if app.pending_tx.is_some() {
                     pending_app = Some(appid);

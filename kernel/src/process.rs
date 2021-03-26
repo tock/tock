@@ -123,7 +123,7 @@ impl ProcessId {
     /// match then `None` will be returned.
     pub(crate) fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
-        if self.kernel.appid_is_valid(self) {
+        if self.kernel.processid_is_valid(self) {
             Some(self.index)
         } else {
             None

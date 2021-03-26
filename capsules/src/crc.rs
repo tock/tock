@@ -128,7 +128,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            let appid = app.appid();
+            let appid = app.processid();
             app.enter(|app| {
                 if let Some(alg) = app.waiting {
                     let rcode = app

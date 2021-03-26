@@ -149,7 +149,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let appid = appiter.appid();
+            let appid = appiter.processid();
             let started_command = appiter.enter(|app| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {

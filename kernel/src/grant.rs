@@ -217,7 +217,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // used.
 
         let grant_num = grant.grant_num;
-        let appid = process.appid();
+        let processid = process.processid();
 
         // Check if the grant is allocated. If not, we allocate it process
         // memory first. We then create an `ProcessGrant` object for this grant.
@@ -233,19 +233,20 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 // If the grant could not be allocated this will cause the
                 // `new()` function to return with an error.
                 let alloc_size = size_of::<T>();
-                let new_region =
-                    appid
-                        .kernel
-                        .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-                            process
-                                .allocate_grant(grant_num, alloc_size, align_of::<T>())
-                                .map_or(Err(Error::OutOfMemory), |buf| {
-                                    // Convert untyped `*mut u8` allocation to
-                                    // allocated type
-                                    let ptr = NonNull::cast::<T>(buf);
-                                    Ok(ptr)
-                                })
-                        })?;
+                let new_region = processid.kernel.process_map_or(
+                    Err(Error::NoSuchApp),
+                    processid,
+                    |process| {
+                        process
+                            .allocate_grant(grant_num, alloc_size, align_of::<T>())
+                            .map_or(Err(Error::OutOfMemory), |buf| {
+                                // Convert untyped `*mut u8` allocation to
+                                // allocated type
+                                let ptr = NonNull::cast::<T>(buf);
+                                Ok(ptr)
+                            })
+                    },
+                )?;
 
                 // ### Safety
                 //
@@ -302,8 +303,8 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     }
 
     /// Return the ProcessId of the process this ProcessGrant is associated with.
-    pub fn appid(&self) -> ProcessId {
-        self.process.appid()
+    pub fn processid(&self) -> ProcessId {
+        self.process.processid()
     }
 
     /// Run a function with access to the memory in the related process for the
@@ -586,7 +587,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // Setup an allocator in case the capsule needs additional memory in the
         // grant space.
         let mut allocator = GrantRegionAllocator {
-            appid: self.process.appid(),
+            processid: self.process.processid(),
         };
 
         // Allow the capsule to access the grant.
@@ -615,7 +616,7 @@ pub struct CustomGrant<T> {
     identifier: ProcessCustomGrantIdentifer,
 
     /// Identifier for the process where this custom grant is allocated.
-    appid: ProcessId,
+    processid: ProcessId,
 
     /// Used to keep the Rust type of the grant.
     _phantom: PhantomData<T>,
@@ -623,17 +624,17 @@ pub struct CustomGrant<T> {
 
 impl<T> CustomGrant<T> {
     /// Creates a new `CustomGrant`.
-    fn new(identifier: ProcessCustomGrantIdentifer, appid: ProcessId) -> Self {
+    fn new(identifier: ProcessCustomGrantIdentifer, processid: ProcessId) -> Self {
         CustomGrant {
             identifier,
-            appid,
+            processid,
             _phantom: PhantomData,
         }
     }
 
     /// Helper function to get the ProcessId from the custom grant.
-    pub fn appid(&self) -> ProcessId {
-        self.appid
+    pub fn processid(&self) -> ProcessId {
+        self.processid
     }
 
     /// Gives access to inner data within the given closure.
@@ -651,9 +652,9 @@ impl<T> CustomGrant<T> {
     {
         // Verify that the process this CustomGrant was allocated within still
         // exists.
-        self.appid
+        self.processid
             .kernel
-            .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
+            .process_map_or(Err(Error::NoSuchApp), self.processid, |process| {
                 // App is valid.
 
                 // Now try to access the custom grant memory.
@@ -681,7 +682,7 @@ impl<T> CustomGrant<T> {
 /// per-process dynamic allocation it can allocate additional memory.
 pub struct GrantRegionAllocator {
     /// The process the allocator will allocate memory from.
-    appid: ProcessId,
+    processid: ProcessId,
 }
 
 impl GrantRegionAllocator {
@@ -713,7 +714,7 @@ impl GrantRegionAllocator {
             write(typed_ptr.as_ptr(), init());
         }
 
-        Ok(CustomGrant::new(custom_grant_identifier, self.appid))
+        Ok(CustomGrant::new(custom_grant_identifier, self.processid))
     }
 
     /// Allocates a slice of n instances of a given type. Each instance is
@@ -745,7 +746,7 @@ impl GrantRegionAllocator {
             }
         }
 
-        Ok(CustomGrant::new(custom_grant_identifier, self.appid))
+        Ok(CustomGrant::new(custom_grant_identifier, self.processid))
     }
 
     /// Allocates uninitialized grant memory appropriate to store a `T`.
@@ -770,9 +771,9 @@ impl GrantRegionAllocator {
         let alloc_size = size_of::<T>()
             .checked_mul(num_items)
             .ok_or(Error::OutOfMemory)?;
-        self.appid
+        self.processid
             .kernel
-            .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
+            .process_map_or(Err(Error::NoSuchApp), self.processid, |process| {
                 process
                     .allocate_custom_grant(alloc_size, align_of::<T>())
                     .map_or(
@@ -829,14 +830,14 @@ impl<T: Default> Grant<T> {
     /// This creates a `ProcessGrant` which is a handle for a grant allocated
     /// for a specific process. Then, that `ProcessGrant` is entered and the
     /// provided closure is run with access to the memory in the grant region.
-    pub fn enter<F, R>(&self, appid: ProcessId, fun: F) -> Result<R, Error>
+    pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantMemory<T>) -> R,
     {
         // Verify that this process actually exists.
-        appid
+        processid
             .kernel
-            .process_map_or(Err(Error::NoSuchApp), appid, |process| {
+            .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                 // Get the `ProcessGrant` for the process, possibly needing to
                 // actually allocate the memory in the process's grant region to
                 // do so. This can fail for a variety of reasons, and if so we
@@ -859,14 +860,14 @@ impl<T: Default> Grant<T> {
     ///
     /// The allocator allows the caller to dynamically allocate additional
     /// memory in the process's grant region.
-    pub fn enter_with_allocator<F, R>(&self, appid: ProcessId, fun: F) -> Result<R, Error>
+    pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
     {
         // Verify that this process actually exists.
-        appid
+        processid
             .kernel
-            .process_map_or(Err(Error::NoSuchApp), appid, |process| {
+            .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                 // Get the `ProcessGrant` for the process, possibly needing to
                 // actually allocate the memory in the process's grant region to
                 // do so. This can fail for a variety of reasons, and if so we
@@ -895,10 +896,10 @@ impl<T: Default> Grant<T> {
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
-            let appid = pg.appid();
+            let processid = pg.processid();
             // Since we iterating, there is no return value we need to worry
             // about.
-            pg.enter(|memory| fun(appid, memory));
+            pg.enter(|memory| fun(processid, memory));
         }
     }
 

@@ -371,7 +371,7 @@ impl<'a> NonvolatileStorage<'a> {
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let appid = cntr.appid();
+                let appid = cntr.processid();
                 let started_command = cntr.enter(|app| {
                     if app.pending_command {
                         app.pending_command = false;

@@ -373,7 +373,7 @@ impl<'a> Screen<'a> {
 
         // Check if there are any pending events.
         for app in self.apps.iter() {
-            let appid = app.appid();
+            let appid = app.processid();
             let started_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
