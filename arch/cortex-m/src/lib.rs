@@ -32,9 +32,14 @@ extern "C" {
 /// interrupt has occurred, but is slightly more efficient than the
 /// `generic_isr` handler on account of not needing to mark the interrupt as
 /// pending.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[naked]
-pub unsafe extern "C" fn systick_handler() {
+pub unsafe extern "C" fn systick_handler_arm_v7m() {
     asm!(
         "
     // Set thread mode to privileged to switch back to kernel mode.
@@ -57,9 +62,14 @@ pub unsafe extern "C" fn systick_handler() {
 
 /// This is called after a `svc` instruction, both when switching to userspace
 /// and when userspace makes a system call.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[naked]
-pub unsafe extern "C" fn svc_handler() {
+pub unsafe extern "C" fn svc_handler_arm_v7m() {
     asm!(
         "
     // First check to see which direction we are going in. If the link register
@@ -114,9 +124,14 @@ pub unsafe extern "C" fn svc_handler() {
 ///
 /// If the ISR is called while an app is running, this will switch control to
 /// the kernel.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(all(
+    target_arch = "arm",
+    target_feature = "v7",
+    target_feature = "thumb-mode",
+    target_os = "none"
+))]
 #[naked]
-pub unsafe extern "C" fn generic_isr() {
+pub unsafe extern "C" fn generic_isr_arm_v7m() {
     asm!(
         "
     // Set thread mode to privileged to ensure we are executing as the kernel.
@@ -811,17 +826,17 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 ///////////////////////////////////////////////////////////////////
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn systick_handler() {
+pub unsafe extern "C" fn systick_handler_arm_v7m() {
     unimplemented!()
 }
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn svc_handler() {
+pub unsafe extern "C" fn svc_handler_arm_v7m() {
     unimplemented!()
 }
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn generic_isr() {
+pub unsafe extern "C" fn generic_isr_arm_v7m() {
     unimplemented!()
 }
 
