@@ -9,6 +9,9 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use core::cell::Cell;
+
+use crate::interrupts;
 
 struct GpioPin {
     status: ReadOnly<u32, GPIOx_STATUS::Register>,
@@ -93,6 +96,18 @@ register_structs! {
 
         /// GPIO output enable clear
         (0x028 => gpio_oe_clr: ReadWrite<u32, GPIO_OE_CLR::Register>),
+
+        /// Not used
+        (0x02C => _reserved2),
+
+        /// FIFO status
+        (0x050 => fifo_st: ReadWrite<u32, FIFO_ST::Register>),
+
+        /// FIFO write
+        (0x054 => fifo_wr: ReadWrite<u32, FIFO_WR::Register>),
+
+        /// FIFO read
+        (0x058 => fifo_rd: ReadOnly<u32, FIFO_RD::Register>),
 
         /// End
         (0x02c => @END),
@@ -363,6 +378,24 @@ register_bitfields![u32,
         ///Perform an atomic bit-clear on GPIO_OE
         OE OFFSET(0) NUMBITS(30) []
     ],
+    FIFO_ST [
+        /// FIFO read when empy
+        ROE OFFSET(3) NUMBITS(1) [],
+        /// FIFO written when full
+        WOF OFFSET(2) NUMBITS(1) [],
+        /// FIFO not full
+        RDY OFFSET(1) NUMBITS(1) [],
+        /// FIFO not empty
+        VLD OFFSET(0) NUMBITS(1) []
+    ],
+    FIFO_WR [
+        /// FIFO Write
+        VALUE OFFSET(0) NUMBITS(32)
+    ],
+    FIFO_RD [
+        /// FIFO Read
+        VALUE OFFSET(0) NUMBITS(32)
+    ],
 ];
 
 const GPIO_BASE_ADDRESS: usize = 0x40014000;
@@ -469,8 +502,12 @@ impl<'a> RPGpioPin<'a> {
         }
     }
 
-    fn activate_pads(&self) {
+    pub fn activate_pads(&self) {
         self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::CLEAR + GPIO_PAD::IE::SET);
+    }
+
+    pub fn deactivate_pads(&self) {
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::SET + GPIO_PAD::IE::CLEAR);
     }
 }
 
@@ -584,5 +621,36 @@ impl hil::gpio::Input for RPGpioPin<'_> {
         } else {
             true
         }
+    }
+}
+
+pub struct SIO {
+    interrupts: Cell<usize>,
+    registers: StaticRef<SIORegisters>
+}
+
+impl SIO {
+    pub const fn new () -> Self {
+        Self {
+            interrupts: Cell::new (0),
+            registers: SIO_BASE
+        }
+    }
+
+    pub fn handle_proc_interrupt (&self, proc: usize) {
+        if proc == 1 {
+            panic! ("Kernel should not run on PROC 1");
+        }
+    }
+
+    pub unsafe fn disable_fifo (&self, proc: usize) {
+        let interrupt = match proc {
+            0 => interrupts::SIO_IRQ_PROC0,
+            1 => interrupts::SIO_IRQ_PROC1,
+            _ => panic! ("Proc {} does not exist, must be 0 or 1", proc)
+        };
+        let n = cortexm0p::nvic::Nvic::new(interrupt);
+        n.clear_pending();
+        n.disable ();
     }
 }

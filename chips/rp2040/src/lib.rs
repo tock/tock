@@ -7,17 +7,17 @@ pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod resets;
 pub mod xosc;
+pub mod interrupts;
 
-use cortexm0p::{self, hard_fault_handler, svc_handler, systick_handler, unhandled_interrupt};
-use tock_rt0;
+use cortexm0p::{
+    self, hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,
+    unhandled_interrupt,
+};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-
-    // Defined by platform
-    fn reset_handler();
 }
 
 #[cfg_attr(
@@ -28,7 +28,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    reset_handler,
+    initialize_ram_jump_to_main,
     unhandled_interrupt, // NMI
     hard_fault_handler,  // Hard Fault
     unhandled_interrupt, // MemManage
@@ -54,9 +54,6 @@ extern "C" {
 }
 
 pub unsafe fn init() {
-    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
-
     cortexm0p::nvic::disable_all();
     cortexm0p::nvic::clear_all_pending();
 }

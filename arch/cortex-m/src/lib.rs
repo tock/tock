@@ -239,7 +239,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     ldr r0, ={sbss}     // r0 = first address of .bss
     ldr r1, ={ebss}     // r1 = first address after .bss
 
-    mov r2, #0          // r2 = 0
+    movs r2, #0          // r2 = 0
 
   bss_init_loop:
     cmp r1, r0          // We increment r0. Check if we have reached r1

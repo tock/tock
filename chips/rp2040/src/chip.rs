@@ -9,6 +9,8 @@ use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::resets::Resets;
 use crate::xosc::Xosc;
+use crate::gpio::SIO;
+use crate::interrupts;
 
 pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm0p::mpu::MPU,
@@ -45,6 +47,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
+                    panic! ("fired {}", interrupt);
                     let n = cortexm0p::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
@@ -95,6 +98,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
 
 pub struct Rp2040DefaultPeripherals {
     pub resets: Resets,
+    pub sio: SIO,
     pub clocks: Clocks,
     pub xosc: Xosc,
 }
@@ -103,6 +107,7 @@ impl Rp2040DefaultPeripherals {
     pub const fn new() -> Self {
         Self {
             resets: Resets::new(),
+            sio: SIO::new (),
             clocks: Clocks::new(),
             xosc: Xosc::new(),
         }
@@ -112,7 +117,15 @@ impl Rp2040DefaultPeripherals {
 impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            _ => return false,
+            interrupts::SIO_IRQ_PROC0 => {
+                self.sio.handle_proc_interrupt (0);
+                true
+            }
+            interrupts::SIO_IRQ_PROC1 => {
+                self.sio.handle_proc_interrupt (1);
+                true
+            }
+            _ => false,
         }
         // true
     }
@@ -120,7 +133,7 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals {
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         match task {
             // DeferredCallTask::Flash => self.flash.handle_interrupt(),
-            _ => return false,
+            _ => false,
         }
         // true
     }

@@ -1,6 +1,4 @@
-use kernel::common::registers::{
-    register_bitfields, register_structs, Field, FieldValue, ReadWrite,
-};
+use kernel::common::registers::{register_bitfields, register_structs, FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 
 register_structs! {

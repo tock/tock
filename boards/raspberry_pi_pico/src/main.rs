@@ -9,10 +9,13 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
-use kernel::static_init;
+use enum_primitive::cast::FromPrimitive;
+
+use kernel::component::Component;
+use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
 use rp2040;
-use rp2040::chip::Rp2040DefaultPeripherals;
+use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::PllClock;
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
@@ -33,6 +36,31 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 #[used]
 #[link_section = ".flash_bootloader"]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
+
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 4;
+
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
+
+static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
+
+/// Supported drivers by the platform
+pub struct RaspberryPiPico {
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
+}
+
+impl Platform for RaspberryPiPico {
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+    {
+        match driver_num {
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            _ => f(None),
+        }
+    }
+}
 
 /// Entry point used for debuger
 #[no_mangle]
@@ -86,7 +114,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
 
@@ -120,11 +148,40 @@ pub unsafe fn reset_handler() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
-    use kernel::hil::gpio::{Configure, Output};
+    // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
+    for pin in &[26..30] {
+        let gpio = RPGpioPin::new (RPGpio::from_usize (0).unwrap());
+        gpio.deactivate_pads ();
+    }
 
-    let pin = RPGpioPin::new(RPGpio::GPIO25);
-    pin.make_output();
-    pin.set();
+    // disable FIFO interrupt
+    peripherals.sio.disable_fifo (0);
 
-    loop {}
+    // use kernel::hil::gpio::{Configure, Output};
+
+    // let pin = RPGpioPin::new(RPGpio::GPIO25);
+    // pin.make_output();
+    // pin.set();
+
+    let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals));
+
+    CHIP = Some(chip);
+
+    let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES));
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+
+    let raspberry_pi_pico = RaspberryPiPico {
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+    };
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+    board_kernel.kernel_loop(
+        &raspberry_pi_pico,
+        chip,
+        Some(&raspberry_pi_pico.ipc),
+        scheduler,
+        &main_loop_capability,
+    );
 }
