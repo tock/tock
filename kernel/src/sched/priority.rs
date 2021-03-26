@@ -44,7 +44,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
                 .kernel
                 .get_process_iter()
                 .find(|&proc| proc.ready())
-                .map_or(None, |proc| Some(proc.appid()));
+                .map_or(None, |proc| Some(proc.processid()));
             self.running.insert(next);
 
             SchedulingDecision::RunProcess((next.unwrap(), None))

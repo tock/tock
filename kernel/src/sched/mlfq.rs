@@ -157,7 +157,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
             let node_ref = node_ref_opt.unwrap(); // Panic if fail bc processes_blocked()!
             let timeslice =
                 self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-            let next = node_ref.proc.unwrap().appid(); // Panic if fail bc processes_blocked()!
+            let next = node_ref.proc.unwrap().processid(); // Panic if fail bc processes_blocked()!
             self.last_queue_idx.set(queue_idx);
             self.last_timeslice.set(timeslice);
 

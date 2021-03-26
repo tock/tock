@@ -234,7 +234,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                                             && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
                                         {
                                             Some(CommandReturn::success_u32(
-                                                p.appid().id() as u32 + 1,
+                                                p.processid().id() as u32 + 1,
                                             ))
                                         } else {
                                             None

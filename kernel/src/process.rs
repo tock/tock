@@ -16,36 +16,36 @@ use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 
-/// Userspace app identifier.
+/// Userspace process identifier.
 ///
-/// This should be treated as an opaque type that can be used to represent an
-/// application on the board without requiring an actual reference to a
-/// `Process` object. Having this `ProcessId` reference type is useful for
-/// managing ownership and type issues in Rust, but more importantly `ProcessId`
-/// serves as a tool for capsules to hold pointers to applications.
+/// This should be treated as an opaque type that can be used to represent a
+/// process on the board without requiring an actual reference to a `Process`
+/// object. Having this `ProcessId` reference type is useful for managing
+/// ownership and type issues in Rust, but more importantly `ProcessId` serves
+/// as a tool for capsules to hold pointers to applications.
 ///
-/// Since `ProcessId` implements `Copy`, having an `ProcessId` does _not_ ensure that
-/// the process the `ProcessId` refers to is still valid. The process may have been
-/// removed, terminated, or restarted as a new process. Therefore, all uses of
-/// `ProcessId` in the kernel must check that the `ProcessId` is still valid. This check
-/// happens automatically when `.index()` is called, as noted by the return
-/// type: `Option<usize>`. `.index()` will return the index of the process in
-/// the processes array, but if the process no longer exists then `None` is
-/// returned.
+/// Since `ProcessId` implements `Copy`, having an `ProcessId` does _not_ ensure
+/// that the process the `ProcessId` refers to is still valid. The process may
+/// have been removed, terminated, or restarted as a new process. Therefore, all
+/// uses of `ProcessId` in the kernel must check that the `ProcessId` is still
+/// valid. This check happens automatically when `.index()` is called, as noted
+/// by the return type: `Option<usize>`. `.index()` will return the index of the
+/// process in the processes array, but if the process no longer exists then
+/// `None` is returned.
 ///
-/// Outside of the kernel crate, holders of an `ProcessId` may want to use `.id()`
-/// to retrieve a simple identifier for the process that can be communicated
-/// over a UART bus or syscall interface. This call is guaranteed to return a
-/// suitable identifier for the `ProcessId`, but does not check that the
-/// corresponding application still exists.
+/// Outside of the kernel crate, holders of an `ProcessId` may want to use
+/// `.id()` to retrieve a simple identifier for the process that can be
+/// communicated over a UART bus or syscall interface. This call is guaranteed
+/// to return a suitable identifier for the `ProcessId`, but does not check that
+/// the corresponding application still exists.
 ///
 /// This type also provides capsules an interface for interacting with processes
 /// since they otherwise would have no reference to a `Process`. Very limited
 /// operations are available through this interface since capsules should not
 /// need to know the details of any given process. However, certain information
 /// makes certain capsules possible to implement. For example, capsules can use
-/// the `get_editable_flash_range()` function so they can safely allow an app
-/// to modify its own flash.
+/// the `get_editable_flash_range()` function so they can safely allow an app to
+/// modify its own flash.
 #[derive(Clone, Copy)]
 pub struct ProcessId {
     /// Reference to the main kernel struct. This is needed for checking on
@@ -68,7 +68,8 @@ pub struct ProcessId {
     /// The combination of (index, identifier) is used to check if the app this
     /// `ProcessId` refers to is still valid. If the stored identifier in the
     /// process at the given index does not match the value saved here, then the
-    /// process moved or otherwise ended, and this `ProcessId` is no longer valid.
+    /// process moved or otherwise ended, and this `ProcessId` is no longer
+    /// valid.
     identifier: usize,
 }
 
@@ -163,8 +164,8 @@ impl ProcessId {
 /// This trait represents a generic process that the Tock scheduler can
 /// schedule.
 pub trait Process {
-    /// Returns the process's identifier
-    fn appid(&self) -> ProcessId;
+    /// Returns the process's identifier.
+    fn processid(&self) -> ProcessId;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app

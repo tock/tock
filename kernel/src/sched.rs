@@ -260,7 +260,7 @@ impl Kernel {
                 process_entry.map_or(None, |process| {
                     // Check that the process stored here matches the identifier
                     // in the `appid`.
-                    if process.appid() == appid {
+                    if process.processid() == appid {
                         Some(closure(process))
                     } else {
                         None
@@ -352,8 +352,8 @@ impl Kernel {
     pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<ProcessId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
-                if p2.appid().id() == identifier {
-                    Some(p2.appid())
+                if p2.processid().id() == identifier {
+                    Some(p2.processid())
                 } else {
                     None
                 }
@@ -367,9 +367,9 @@ impl Kernel {
     ///
     /// This is needed for `ProcessId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    pub(crate) fn appid_is_valid(&self, appid: &ProcessId) -> bool {
+    pub(crate) fn processid_is_valid(&self, appid: &ProcessId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.appid().id() == appid.id())
+            p.map_or(false, |process| process.processid().id() == appid.id())
         })
     }
 
@@ -603,7 +603,7 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe { scheduler.continue_process(process.appid(), chip) };
+            let continue_process = unsafe { scheduler.continue_process(process.processid(), chip) };
             if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
@@ -678,7 +678,7 @@ impl Kernel {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
                                         "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                        process.appid(),
+                                        process.processid(),
                                         ccb.pc,
                                         ccb.argument0,
                                         ccb.argument1,
@@ -702,7 +702,7 @@ impl Kernel {
                                         // https://github.com/tock/tock/issues/1993
                                         unsafe {
                                             let _ = ipc.schedule_upcall(
-                                                process.appid(),
+                                                process.processid(),
                                                 otherapp,
                                                 ipc_type,
                                             );
@@ -811,7 +811,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] memop({}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         operand,
                         arg0,
                         rval
@@ -821,7 +821,7 @@ impl Kernel {
             }
             Syscall::Yield { which, address } => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield. which: {}", process.appid(), which);
+                    debug!("[{:?}] yield. which: {}", process.processid(), which);
                 }
                 if which > (YieldCall::Wait as usize) {
                     // Only 0 and 1 are valid, so this is not a valid
@@ -883,11 +883,11 @@ impl Kernel {
 
                 let ptr = NonNull::new(upcall_ptr);
                 let upcall = ptr.map_or(Upcall::default(), |ptr| {
-                    Upcall::new(process.appid(), upcall_id, appdata, ptr.cast())
+                    Upcall::new(process.processid(), upcall_id, appdata, ptr.cast())
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.appid());
+                        let res = d.subscribe(subdriver_number, upcall, process.processid());
                         match res {
                             // An Ok() returns the previous upcall, while
                             // Err() returns the one that was just passed
@@ -901,7 +901,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         upcall_ptr as usize,
@@ -919,7 +919,7 @@ impl Kernel {
                 arg1,
             } => {
                 let cres = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
                     None => CommandReturn::failure(ErrorCode::NODEVICE),
                 });
 
@@ -928,7 +928,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         arg0,
@@ -956,8 +956,11 @@ impl Kernel {
                             Ok(appslice) => {
                                 // Creating the [`ReadWriteAppSlice`] worked,
                                 // provide it to the capsule.
-                                match d.allow_readwrite(process.appid(), subdriver_number, appslice)
-                                {
+                                match d.allow_readwrite(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
                                     Ok(returned_appslice) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
@@ -995,7 +998,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         allow_address as usize,
@@ -1023,8 +1026,11 @@ impl Kernel {
                             Ok(appslice) => {
                                 // Creating the [`ReadOnlyAppSlice`] worked,
                                 // provide it to the capsule.
-                                match d.allow_readonly(process.appid(), subdriver_number, appslice)
-                                {
+                                match d.allow_readonly(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
                                     Ok(returned_appslice) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
@@ -1068,7 +1074,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         allow_address as usize,
