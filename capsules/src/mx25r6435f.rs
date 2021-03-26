@@ -54,6 +54,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
@@ -224,10 +225,10 @@ impl<
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         txbuffer[0] = Opcodes::RDID as u8;
 
                         self.state.set(State::ReadId);
@@ -242,7 +243,7 @@ impl<
         });
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 txbuffer[0] = Opcodes::WREN as u8;
                 self.spi.read_write_bytes(txbuffer, None, 1)
             })
@@ -267,10 +268,10 @@ impl<
         let retval = self
             .txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         // Setup the read instruction
                         txbuffer[0] = Opcodes::READ as u8;
                         txbuffer[1] = ((sector_index * SECTOR_SIZE) >> 16) as u8;
@@ -290,7 +291,7 @@ impl<
                     })
             });
 
-        if retval == ReturnCode::SUCCESS {
+        if retval == Ok(()) {
             self.client_sector.replace(sector);
             Ok(())
         } else {
@@ -310,7 +311,7 @@ impl<
         });
         let retval = self.enable_write();
 
-        if retval == ReturnCode::SUCCESS {
+        if retval == Ok(()) {
             self.client_sector.replace(sector);
             Ok(())
         } else {

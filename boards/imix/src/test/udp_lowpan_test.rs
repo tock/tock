@@ -428,7 +428,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     fn capsule_send_fail(&self) {
         let ret = self.mock_udp1.send(0);
-        assert!(ret != ReturnCode::SUCCESS); //trying to send while not bound should fail!
+        assert!(ret != Ok(())); //trying to send while not bound should fail!
 
         debug!("send_fail test passed")
     }
@@ -585,8 +585,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::SUCCESS);
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Ok(()));
         debug!("send_valid_net_cap test executed, look at printed results once callbacks arrive");
     }
 
@@ -617,8 +617,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
         debug!("send_invalid_net_cap_port test executed, expect one send with Result: SUCCESS");
     }
 
@@ -645,8 +645,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         };
 
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
         debug!("send_invalid_net_cap_addr executed, expect one send with Result: SUCCESS");
     }
 
@@ -678,8 +678,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
         debug!(
             "send_invalid_net_cap_addr_port test executed, expect one send with Result: SUCCESS"
         );

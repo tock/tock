@@ -4,6 +4,7 @@ use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 use crate::dma1;
@@ -280,7 +281,7 @@ impl<'a> Usart<'a> {
             // alert client
             self.tx_client.map(|client| {
                 buffer.map(|buf| {
-                    client.transmitted_buffer(buf, len, ReturnCode::SUCCESS);
+                    client.transmitted_buffer(buf, len, Ok(()));
                 });
             });
         }
@@ -389,7 +390,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             // there is an ongoing transmission, quit it
-            return (ReturnCode::EBUSY, Some(tx_data));
+            return (Err(ErrorCode::BUSY), Some(tx_data));
         }
 
         // setup and enable dma stream
@@ -402,19 +403,19 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 
         // enable dma tx on peripheral side
         self.enable_tx();
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn transmit_abort(&self) -> ReturnCode {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
-            self.abort_tx(ReturnCode::ECANCEL);
-            ReturnCode::EBUSY
+            self.abort_tx(Err(ErrorCode::CANCEL));
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -458,7 +459,7 @@ impl<'a> hil::uart::Configure for Usart<'a> {
         // Enable USART
         self.registers.cr1.modify(CR1::UE::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -473,11 +474,11 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
-            return (ReturnCode::EBUSY, Some(rx_buffer));
+            return (Err(ErrorCode::BUSY), Some(rx_buffer));
         }
 
         if rx_len > rx_buffer.len() {
-            return (ReturnCode::ESIZE, Some(rx_buffer));
+            return (Err(ErrorCode::SIZE), Some(rx_buffer));
         }
 
         // setup and enable dma stream
@@ -490,16 +491,16 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
 
         // enable dma rx on the peripheral side
         self.enable_rx();
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        self.abort_rx(ReturnCode::ECANCEL, hil::uart::Error::Aborted);
-        ReturnCode::EBUSY
+        self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
+        Err(ErrorCode::BUSY)
     }
 }
 
@@ -527,12 +528,7 @@ impl dma1::StreamClient for Usart<'_> {
                 // alert client
                 self.rx_client.map(|client| {
                     buffer.map(|buf| {
-                        client.received_buffer(
-                            buf,
-                            length,
-                            ReturnCode::SUCCESS,
-                            hil::uart::Error::None,
-                        );
+                        client.received_buffer(buf, length, Ok(()), hil::uart::Error::None);
                     });
                 });
             }

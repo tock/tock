@@ -74,6 +74,7 @@ use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::UDPHeader;
 use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -276,9 +277,9 @@ impl IP6Header {
                     None => 0xffff, //Will be dropped, as ones comp -0 checksum is invalid
                 };
                 if checksum != 0 {
-                    return ReturnCode::FAIL; //Incorrect cksum
+                    return Err(ErrorCode::FAIL); //Incorrect cksum
                 }
-                ReturnCode::SUCCESS
+                Ok(())
             }
             ip6_nh::ICMP => {
                 // Untested (10/5/18)
@@ -292,11 +293,11 @@ impl IP6Header {
                     None => 0xffff, //Will be dropped, as ones comp -0 checksum is invalid
                 };
                 if checksum != 0 {
-                    return ReturnCode::FAIL; //Incorrect cksum
+                    return Err(ErrorCode::FAIL); //Incorrect cksum
                 }
-                ReturnCode::SUCCESS
+                Ok(())
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 }

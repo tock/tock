@@ -509,9 +509,9 @@ impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
     fn read_gyroscope(&self) -> ReturnCode {
         if self.status.get() == L3gd20Status::Idle {
             self.read_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -524,9 +524,9 @@ impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
     fn read_temperature(&self) -> ReturnCode {
         if self.status.get() == L3gd20Status::Idle {
             self.read_temperature();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

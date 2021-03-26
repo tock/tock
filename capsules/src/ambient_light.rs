@@ -48,14 +48,14 @@ impl<'a> AmbientLight<'a> {
         self.apps
             .enter(appid, |app, _| {
                 if app.pending {
-                    ReturnCode::ENOMEM
+                    Err(ErrorCode::NOMEM)
                 } else {
                     app.pending = true;
                     if !self.command_pending.get() {
                         self.command_pending.set(true);
                         self.sensor.read_light_intensity();
                     }
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
             })
             .unwrap_or_else(|err| err.into())
@@ -81,7 +81,7 @@ impl Driver for AmbientLight<'_> {
                     .apps
                     .enter(app_id, |app, _| {
                         mem::swap(&mut callback, &mut app.callback);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     })
                     .unwrap_or_else(|err| err.into());
 

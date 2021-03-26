@@ -1,6 +1,7 @@
 //! STimer driver for the Apollo3
 
 use kernel::common::cells::OptionalCell;
+use kernel::ErrorCode;
 
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
@@ -139,15 +140,15 @@ impl<'a> Counter<'a> for STimer<'a> {
     fn start(&self) -> ReturnCode {
         // Set the clock source
         self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 
     fn reset(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -211,7 +212,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
                 + STCFG::COMPARE_G_EN::CLEAR
                 + STCFG::COMPARE_H_EN::CLEAR,
         );
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

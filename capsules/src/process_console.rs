@@ -119,6 +119,7 @@ use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
+use kernel::ErrorCode;
 use kernel::Kernel;
 use kernel::ReturnCode;
 
@@ -185,7 +186,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 //debug!("Starting process console");
             });
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     // Process the command in the command buffer and clear the buffer.
@@ -306,20 +307,20 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
     fn write_byte(&self, byte: u8) -> ReturnCode {
         if self.tx_in_progress.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 buffer[0] = byte;
                 self.uart.transmit_buffer(buffer, 1);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
     fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
         if self.tx_in_progress.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
@@ -328,7 +329,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
                 self.uart.transmit_buffer(buffer, len);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }

@@ -354,7 +354,7 @@ impl Nvmc {
         self.state.set(FlashState::Erase);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 

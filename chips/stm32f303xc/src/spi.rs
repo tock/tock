@@ -1,5 +1,6 @@
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
@@ -350,7 +351,7 @@ impl<'a> Spi<'a> {
         len: usize,
     ) -> ReturnCode {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         if self.transfers.get() == 0 {
@@ -395,9 +396,9 @@ impl<'a> Spi<'a> {
                 self.registers.cr2.modify(CR2::TXEIE::SET);
             });
 
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -466,7 +467,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
     ) -> ReturnCode {
         // If busy, don't start
         if self.is_busy() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.read_write_bytes(Some(write_buffer), read_buffer, len)

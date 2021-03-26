@@ -97,19 +97,19 @@ impl<'a> TextScreen<'a> {
                     self.current_app.set(appid);
                     app.command = command;
                     let r = self.do_command(command, data1, data2, appid);
-                    if r != ReturnCode::SUCCESS {
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
                     r
                 } else {
                     if app.pending_command == true {
-                        ReturnCode::EBUSY
+                        Err(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
                         app.data1 = data1;
                         app.data2 = data2;
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 }
             })
@@ -131,9 +131,9 @@ impl<'a> TextScreen<'a> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
-                self.schedule_callback(usize::from(ReturnCode::SUCCESS), x, y);
+                self.schedule_callback(usize::from(Ok(())), x, y);
                 self.run_next_command();
-                ReturnCode::SUCCESS
+                Ok(())
             }
             TextScreenCommand::Display => self.text_screen.display_on(),
             TextScreenCommand::NoDisplay => self.text_screen.display_off(),
@@ -146,14 +146,14 @@ impl<'a> TextScreen<'a> {
                 .enter(appid, |app, _| {
                     if data1 > 0 {
                         app.write_len = data1;
-                        app.shared.map_or(ReturnCode::ENOMEM, |to_write_buffer| {
-                            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+                        app.shared.map_or(Err(ErrorCode::NOMEM), |to_write_buffer| {
+                            self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                                 let len = cmp::min(app.write_len, buffer.len());
                                 for n in 0..len {
                                     buffer[n] = to_write_buffer[n];
                                 }
                                 match self.text_screen.print(buffer, len) {
-                                    Ok(()) => ReturnCode::SUCCESS,
+                                    Ok(()) => Ok(()),
                                     Err((err, buffer)) => {
                                         self.buffer.replace(buffer);
                                         err
@@ -162,14 +162,14 @@ impl<'a> TextScreen<'a> {
                             })
                         })
                     } else {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
             TextScreenCommand::Clear => self.text_screen.clear(),
             TextScreenCommand::Home => self.text_screen.clear(),
             TextScreenCommand::ShowCursor => self.text_screen.show_cursor(),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -181,10 +181,10 @@ impl<'a> TextScreen<'a> {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
                     let r = self.do_command(app.command, app.data1, app.data2, app.appid());
-                    if r != ReturnCode::SUCCESS {
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
-                    r == ReturnCode::SUCCESS
+                    r == Ok(())
                 } else {
                     false
                 }

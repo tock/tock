@@ -4,6 +4,7 @@ use kernel::common::math;
 use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -60,9 +61,9 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
             self.state.set(State::ReadingSPL);
             self.spl_pos.set(0);
             self.adc.sample();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -72,12 +73,12 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
 
     fn enable(&self) -> ReturnCode {
         self.enable_pin.map(|pin| pin.set());
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn disable(&self) -> ReturnCode {
         self.enable_pin.map(|pin| pin.clear());
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -99,8 +100,7 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
             }) {
                 // self.enable_pin.map (|pin| pin.clear ());
                 let spl = self.compute_spl();
-                self.spl_client
-                    .map(|client| client.callback(ReturnCode::SUCCESS, spl));
+                self.spl_client.map(|client| client.callback(Ok(()), spl));
             }
         }
     }

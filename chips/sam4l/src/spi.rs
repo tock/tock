@@ -21,6 +21,7 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
+use kernel::ErrorCode;
 use kernel::{ClockInterface, ReturnCode};
 
 #[repr(C)]
@@ -450,7 +451,7 @@ impl SpiHw {
         len: usize,
     ) -> ReturnCode {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         // Start by enabling the SPI driver.
@@ -502,7 +503,7 @@ impl SpiHw {
             });
         });
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -572,7 +573,7 @@ impl spi::SpiMaster for SpiHw {
     ) -> ReturnCode {
         // If busy, don't start.
         if self.is_busy() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.read_write_bytes(Some(write_buffer), read_buffer, len)

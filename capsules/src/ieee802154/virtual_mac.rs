@@ -33,6 +33,7 @@ use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
@@ -126,7 +127,7 @@ impl<'a> MuxMac<'a> {
     ) -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
-            if result == ReturnCode::SUCCESS {
+            if result == Ok(()) {
                 self.inflight.set(node);
             }
             Some((result, mbuf))
@@ -289,16 +290,14 @@ impl<'a> device::MacDevice<'a> for MacUser<'a> {
         // pending transmission then we must fail to entertain this one.
         self.operation
             .take()
-            .map_or((ReturnCode::FAIL, None), |op| match op {
+            .map_or((Err(ErrorCode::FAIL), None), |op| match op {
                 Op::Idle => {
                     self.operation.replace(Op::Transmit(frame));
-                    self.mux
-                        .do_next_op_sync(self)
-                        .unwrap_or((ReturnCode::SUCCESS, None))
+                    self.mux.do_next_op_sync(self).unwrap_or((Ok(()), None))
                 }
                 Op::Transmit(old_frame) => {
                     self.operation.replace(Op::Transmit(old_frame));
-                    (ReturnCode::EBUSY, Some(frame.into_buf()))
+                    (Err(ErrorCode::BUSY), Some(frame.into_buf()))
                 }
             })
     }

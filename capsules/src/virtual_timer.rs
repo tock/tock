@@ -98,7 +98,7 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
 
     fn cancel(&self) -> ReturnCode {
         match self.mode.get() {
-            Mode::Uninserted | Mode::Disabled => ReturnCode::SUCCESS,
+            Mode::Uninserted | Mode::Disabled => Ok(()),
             Mode::OneShot | Mode::Repeating => {
                 self.mode.set(Mode::Disabled);
                 self.mux.enabled.decrement();
@@ -108,7 +108,7 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
                 if self.mux.enabled.get() == 0 {
                     self.mux.alarm.disarm();
                 }
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }

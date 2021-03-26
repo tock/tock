@@ -43,6 +43,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{
@@ -149,7 +150,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                         device.received_buffer(
                             rxbuf,
                             position,
-                            ReturnCode::ECANCEL,
+                            Err(ErrorCode::CANCEL),
                             uart::Error::Aborted,
                         );
                         // Need to check if receive was called in callback
@@ -225,7 +226,7 @@ impl<'a> MuxUart<'a> {
                     node.operation.map(move |op| match op {
                         Operation::Transmit { len } => {
                             let (rcode, rbuf) = self.uart.transmit_buffer(buf, *len);
-                            if rcode != ReturnCode::SUCCESS {
+                            if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);
                                     client.transmitted_buffer(rbuf.unwrap(), 0, rcode);
@@ -234,7 +235,7 @@ impl<'a> MuxUart<'a> {
                         }
                         Operation::TransmitWord { word } => {
                             let rcode = self.uart.transmit_word(*word);
-                            if rcode != ReturnCode::SUCCESS {
+                            if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);
                                     client.transmitted_word(rcode);
@@ -400,7 +401,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     /// Transmit data.
@@ -410,24 +411,24 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.transmitting.get() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            (Err(ErrorCode::BUSY), Some(tx_data))
         } else {
             self.tx_buffer.replace(tx_data);
             self.transmitting.set(true);
             self.operation.set(Operation::Transmit { len: tx_len });
             self.mux.do_next_op_async();
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         }
     }
 
     fn transmit_word(&self, word: u32) -> ReturnCode {
         if self.transmitting.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.transmitting.set(true);
             self.operation.set(Operation::TransmitWord { word: word });
             self.mux.do_next_op_async();
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -444,9 +445,9 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(rx_buffer))
+            (Err(ErrorCode::BUSY), Some(rx_buffer))
         } else if rx_len > rx_buffer.len() {
-            (ReturnCode::ESIZE, Some(rx_buffer))
+            (Err(ErrorCode::SIZE), Some(rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);
@@ -454,7 +455,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
             self.state.set(UartDeviceReceiveState::Idle);
             self.mux.start_receive(rx_len);
             self.state.set(UartDeviceReceiveState::Receiving);
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         }
     }
 
@@ -463,10 +464,10 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     fn receive_abort(&self) -> ReturnCode {
         self.state.set(UartDeviceReceiveState::Aborting);
         self.mux.uart.receive_abort();
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }

@@ -6,6 +6,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[repr(C)]
@@ -64,7 +65,7 @@ impl<'a> Trng<'a> {
         self.regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
-            let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
+            let result = client.entropy_available(&mut TrngIter(self), Ok(()));
             if let Continue::Done = result {
                 // disable controller
                 self.regs
@@ -100,11 +101,11 @@ impl<'a> entropy::Entropy32<'a> for Trng<'a> {
             .cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
         self.regs.ier.write(Interrupt::DATRDY::SET);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn cancel(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn set_client(&'a self, client: &'a dyn entropy::Client32) {

@@ -9,6 +9,7 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 const ADC_BASE: StaticRef<AdcRegisters> =
@@ -767,7 +768,7 @@ impl hil::adc::Adc for Adc<'_> {
         }
 
         if self.mode.get() != AdcMode::Disabled {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.mode.set(AdcMode::Repeated);
@@ -793,7 +794,7 @@ impl hil::adc::Adc for Adc<'_> {
             + CTL0::SC::SET,
         );
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
@@ -802,13 +803,13 @@ impl hil::adc::Adc for Adc<'_> {
         }
 
         if self.mode.get() != AdcMode::Disabled {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         if frequency == 0 || frequency > 5000 {
             // Limit the frequency to 5kHz since the overhead of the callback and the interrupt
             // handler is too big otherwise and the timing starts becoming incorrect
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         self.mode.set(AdcMode::Repeated);
@@ -838,14 +839,14 @@ impl hil::adc::Adc for Adc<'_> {
             + CTL0::ENC::SET,
         );
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop_sampling(&self) -> ReturnCode {
         let mode = self.mode.get();
 
         if mode == AdcMode::Disabled {
-            return ReturnCode::EOFF;
+            return Err(ErrorCode::OFF);
         }
 
         self.timer.map(|timer| timer.stop());
@@ -867,7 +868,7 @@ impl hil::adc::Adc for Adc<'_> {
         }
 
         self.mode.set(AdcMode::Disabled);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn get_resolution_bits(&self) -> usize {
@@ -906,13 +907,13 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
             self.setup();
         }
         if self.mode.get() != AdcMode::Disabled {
-            return (ReturnCode::EBUSY, Some(buffer1), Some(buffer2));
+            return (Err(ErrorCode::BUSY), Some(buffer1), Some(buffer2));
         }
         if frequency == 0 || frequency > MAX_SAMPLE_FREQ_HZ {
-            return (ReturnCode::EINVAL, Some(buffer1), Some(buffer2));
+            return (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2));
         }
         if length1 == 0 {
-            return (ReturnCode::EINVAL, Some(buffer1), Some(buffer2));
+            return (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2));
         }
 
         self.mode.set(AdcMode::Highspeed);
@@ -960,7 +961,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         self.timer
             .map(|timer| timer.start(frequency, timer::InternalTrigger::CaptureCompare1));
 
-        (ReturnCode::SUCCESS, None, None)
+        (Ok(()), None, None)
     }
 
     fn provide_buffer(
@@ -975,7 +976,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         let buf = unsafe { buf_u16_to_buf_u8(buffer) };
         self.dma
             .map(move |dma| dma.provide_new_buffer(buf, length * 2));
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn retrieve_buffers(
@@ -987,13 +988,9 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     ) {
         if self.mode.get() != AdcMode::Disabled {
             // When the device is active, the buffers cannot be returned
-            (ReturnCode::EINVAL, None, None)
+            (Err(ErrorCode::INVAL), None, None)
         } else {
-            (
-                ReturnCode::SUCCESS,
-                self.buffer1.take(),
-                self.buffer2.take(),
-            )
+            (Ok(()), self.buffer1.take(), self.buffer2.take())
         }
     }
 }

@@ -90,6 +90,7 @@ use core::marker::PhantomData;
 use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
@@ -243,18 +244,18 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 })
             });
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         } else {
-            (ReturnCode::EBUSY, Some(tx_data))
+            (Err(ErrorCode::BUSY), Some(tx_data))
         }
     }
 
     fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -262,7 +263,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
     fn alarm(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {
-                client.transmitted_buffer(buffer, self.tx_len.get(), ReturnCode::SUCCESS);
+                client.transmitted_buffer(buffer, self.tx_len.get(), Ok(()));
             });
         });
     }
@@ -272,7 +273,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
 // virtualized UART MUX. -pal 1/10/19
 impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
     fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -286,14 +287,14 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
         buffer: &'static mut [u8],
         _len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(buffer))
+        (Err(ErrorCode::FAIL), Some(buffer))
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

@@ -1235,51 +1235,53 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
-                self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                    self.rxbuffer
-                        .take()
-                        .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
-                            // save the user buffer for later
-                            self.client_buffer.replace(buffer);
-                            self.client_offset.set(0);
+                self.txbuffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |txbuffer| {
+                        self.rxbuffer
+                            .take()
+                            .map_or(Err(ErrorCode::NOMEM), move |rxbuffer| {
+                                // save the user buffer for later
+                                self.client_buffer.replace(buffer);
+                                self.client_offset.set(0);
 
-                            // convert block address to byte address for non-block
-                            //  access cards
-                            let mut address = sector;
-                            if self.card_type.get() != SDCardType::SDv2BlockAddressable {
-                                address *= 512;
-                            }
+                                // convert block address to byte address for non-block
+                                //  access cards
+                                let mut address = sector;
+                                if self.card_type.get() != SDCardType::SDv2BlockAddressable {
+                                    address *= 512;
+                                }
 
-                            self.state.set(SpiState::StartReadBlocks { count: count });
-                            if count == 1 {
-                                self.send_command(
-                                    SDCmd::CMD17_ReadSingle,
-                                    address,
-                                    txbuffer,
-                                    rxbuffer,
-                                    10,
-                                );
-                            } else {
-                                self.send_command(
-                                    SDCmd::CMD18_ReadMultiple,
-                                    address,
-                                    txbuffer,
-                                    rxbuffer,
-                                    10,
-                                );
-                            }
+                                self.state.set(SpiState::StartReadBlocks { count: count });
+                                if count == 1 {
+                                    self.send_command(
+                                        SDCmd::CMD17_ReadSingle,
+                                        address,
+                                        txbuffer,
+                                        rxbuffer,
+                                        10,
+                                    );
+                                } else {
+                                    self.send_command(
+                                        SDCmd::CMD18_ReadMultiple,
+                                        address,
+                                        txbuffer,
+                                        rxbuffer,
+                                        10,
+                                    );
+                                }
 
-                            // command started successfully
-                            ReturnCode::SUCCESS
-                        })
-                })
+                                // command started successfully
+                                Ok(())
+                            })
+                    })
             } else {
                 // sd card not initialized
-                ReturnCode::ERESERVE
+                Err(ErrorCode::RESERVE)
             }
         } else {
             // sd card not installed
-            ReturnCode::EUNINSTALLED
+            Err(ErrorCode::UNINSTALLED)
         }
     }
 
@@ -1287,46 +1289,48 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
-                self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                    self.rxbuffer
-                        .take()
-                        .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
-                            // save the user buffer for later
-                            self.client_buffer.replace(buffer);
-                            self.client_offset.set(0);
+                self.txbuffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |txbuffer| {
+                        self.rxbuffer
+                            .take()
+                            .map_or(Err(ErrorCode::NOMEM), move |rxbuffer| {
+                                // save the user buffer for later
+                                self.client_buffer.replace(buffer);
+                                self.client_offset.set(0);
 
-                            // convert block address to byte address for non-block
-                            //  access cards
-                            let mut address = sector;
-                            if self.card_type.get() != SDCardType::SDv2BlockAddressable {
-                                address *= 512;
-                            }
+                                // convert block address to byte address for non-block
+                                //  access cards
+                                let mut address = sector;
+                                if self.card_type.get() != SDCardType::SDv2BlockAddressable {
+                                    address *= 512;
+                                }
 
-                            self.state.set(SpiState::StartWriteBlocks { count: count });
-                            if count == 1 {
-                                self.send_command(
-                                    SDCmd::CMD24_WriteSingle,
-                                    address,
-                                    txbuffer,
-                                    rxbuffer,
-                                    10,
-                                );
+                                self.state.set(SpiState::StartWriteBlocks { count: count });
+                                if count == 1 {
+                                    self.send_command(
+                                        SDCmd::CMD24_WriteSingle,
+                                        address,
+                                        txbuffer,
+                                        rxbuffer,
+                                        10,
+                                    );
 
-                                // command started successfully
-                                ReturnCode::SUCCESS
-                            } else {
-                                // can't write multiple blocks yet
-                                ReturnCode::ENOSUPPORT
-                            }
-                        })
-                })
+                                    // command started successfully
+                                    Ok(())
+                                } else {
+                                    // can't write multiple blocks yet
+                                    Err(ErrorCode::NOSUPPORT)
+                                }
+                            })
+                    })
             } else {
                 // sd card not initialized
-                ReturnCode::ERESERVE
+                Err(ErrorCode::RESERVE)
             }
         } else {
             // sd card not installed
-            ReturnCode::EUNINSTALLED
+            Err(ErrorCode::UNINSTALLED)
         }
     }
 }
@@ -1562,24 +1566,25 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
 
             // write_block
             4 => {
-                let result: ReturnCode = self.app.map_or(ReturnCode::ENOMEM, |app| {
-                    app.write_buffer.map_or(ReturnCode::ENOMEM, |write_buffer| {
-                        self.kernel_buf
-                            .take()
-                            .map_or(ReturnCode::EBUSY, |kernel_buf| {
-                                // copy over write data from application
-                                // Limit to minimum length between kernel_buf,
-                                // write_buffer, and 512 (block size)
-                                for (kernel_byte, &write_byte) in
-                                    kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
-                                {
-                                    *kernel_byte = write_byte;
-                                }
+                let result: ReturnCode = self.app.map_or(Err(ErrorCode::NOMEM), |app| {
+                    app.write_buffer
+                        .map_or(Err(ErrorCode::NOMEM), |write_buffer| {
+                            self.kernel_buf
+                                .take()
+                                .map_or(Err(ErrorCode::BUSY), |kernel_buf| {
+                                    // copy over write data from application
+                                    // Limit to minimum length between kernel_buf,
+                                    // write_buffer, and 512 (block size)
+                                    for (kernel_byte, &write_byte) in
+                                        kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
+                                    {
+                                        *kernel_byte = write_byte;
+                                    }
 
-                                // begin writing
-                                self.sdcard.write_blocks(kernel_buf, data as u32, 1)
-                            })
-                    })
+                                    // begin writing
+                                    self.sdcard.write_blocks(kernel_buf, data as u32, 1)
+                                })
+                        })
                 });
                 CommandReturn::from(result)
             }

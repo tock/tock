@@ -629,18 +629,18 @@ impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
     fn read_accelerometer(&self) -> ReturnCode {
         if self.state.get() == State::Idle {
             self.read_acceleration_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
     fn read_magnetometer(&self) -> ReturnCode {
         if self.state.get() == State::Idle {
             self.read_magnetometer_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -653,9 +653,9 @@ impl<'a> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a> {
     fn read_temperature(&self) -> ReturnCode {
         if self.state.get() == State::Idle {
             self.read_temperature();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

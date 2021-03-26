@@ -29,6 +29,7 @@ use kernel::debug;
 use kernel::hil::bus8080::{self, Bus8080};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMasterClient, SpiMasterDevice};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// Bus width used for address width and data width
@@ -130,14 +131,14 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
             BusWidth::Bits8 => self
                 .addr_buffer
                 .take()
-                .map_or(ReturnCode::ENOMEM, |buffer| {
+                .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.status.set(BusStatus::SetAddress);
                     buffer[0] = addr as u8;
                     self.spi.read_write_bytes(buffer, None, 1);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -148,9 +149,9 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
         if buffer.len() >= len * bytes {
             self.status.set(BusStatus::Write);
             self.spi.read_write_bytes(buffer, None, len * bytes);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 
@@ -168,9 +169,9 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                     self.status.set(BusStatus::Read);
                     self.spi
                         .read_write_bytes(write_buffer, Some(buffer), len * bytes);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 } else {
-                    ReturnCode::ENOMEM
+                    Err(ErrorCode::NOMEM)
                 }
             },
         )
@@ -240,14 +241,14 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
             BusWidth::Bits8 => self
                 .addr_buffer
                 .take()
-                .map_or(ReturnCode::ENOMEM, |buffer| {
+                .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     buffer[0] = addr as u8;
                     self.status.set(BusStatus::SetAddress);
                     self.i2c.write(buffer, 1);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }),
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -260,9 +261,9 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
             self.len.set(len);
             self.status.set(BusStatus::Write);
             self.i2c.write(buffer, (len * bytes) as u8);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 
@@ -274,9 +275,9 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
             self.len.set(len);
             self.status.set(BusStatus::Read);
             self.i2c.read(buffer, (len * bytes) as u8);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 
@@ -339,7 +340,7 @@ impl<'a, B: Bus8080<'static>> Bus<'a> for Bus8080Bus<'a, B> {
         if let Some(bus_width) = Self::to_bus8080_width(addr_width) {
             self.bus.set_addr(bus_width, addr)
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -347,7 +348,7 @@ impl<'a, B: Bus8080<'static>> Bus<'a> for Bus8080Bus<'a, B> {
         if let Some(bus_width) = Self::to_bus8080_width(data_width) {
             self.bus.write(bus_width, buffer, len)
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -355,7 +356,7 @@ impl<'a, B: Bus8080<'static>> Bus<'a> for Bus8080Bus<'a, B> {
         if let Some(bus_width) = Self::to_bus8080_width(data_width) {
             self.bus.read(bus_width, buffer, len)
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 

@@ -349,7 +349,7 @@ impl<'a> Alarm<'a> for TimerAlarm<'a> {
 
     fn disarm(&self) -> ReturnCode {
         self.disable_interrupts();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

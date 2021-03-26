@@ -80,7 +80,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     // Start comparing on a channel
     fn start_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -92,7 +92,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     // Stop comparing on a channel
     fn stop_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];

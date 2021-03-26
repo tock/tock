@@ -29,6 +29,7 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
@@ -838,7 +839,7 @@ impl FLASHCALW {
             || buffer.len() < size
         {
             // invalid flash address
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((Err(ErrorCode::INVAL), buffer));
         }
 
         // Actually do a copy from flash into the buffer.
@@ -874,7 +875,7 @@ impl FLASHCALW {
             FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return Err((ReturnCode::EBUSY, data)),
+            _ => return Err((Err(ErrorCode::BUSY), data)),
         }
 
         // Save the buffer for the future write.
@@ -894,13 +895,13 @@ impl FLASHCALW {
             FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return ReturnCode::EBUSY,
+            _ => return Err(ErrorCode::BUSY),
         }
 
         self.current_state
             .set(FlashState::EraseUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 

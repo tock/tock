@@ -132,9 +132,9 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
                 if let Some(alg) = app.waiting {
                     let rcode = app
                         .buffer
-                        .map_or(ReturnCode::ENOMEM, |buf| self.crc_unit.compute(buf, alg));
+                        .map_or(Err(ErrorCode::NOMEM), |buf| self.crc_unit.compute(buf, alg));
 
-                    if rcode == ReturnCode::SUCCESS {
+                    if rcode == Ok(()) {
                         // The unit is now computing a CRC for this app
                         self.serving_app.set(app.appid());
                         found = true;
@@ -315,7 +315,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                                 Err(ErrorCode::BUSY)
                             } else {
                                 app.waiting = Some(alg);
-                                Ok(ReturnCode::SUCCESS)
+                                Ok(Ok(()))
                             }
                         })
                         .map_err(ErrorCode::from)
@@ -342,9 +342,9 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
             self.apps
                 .enter(appid, |app, _| {
                     app.callback
-                        .schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
+                        .schedule(From::from(Ok(())), result as usize, 0);
                     app.waiting = None;
-                    ReturnCode::SUCCESS
+                    Ok(())
                 })
                 .unwrap_or_else(|err| err.into());
             self.serve_waiting_apps();

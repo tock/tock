@@ -19,6 +19,7 @@ use kernel::common::registers::register_bitfields;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 use crate::deferred_call_tasks::DeferredCallTask;
@@ -475,7 +476,7 @@ impl Flash {
 
     pub fn erase_page(&self, page_number: usize) -> ReturnCode {
         if page_number > 127 {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         if self.is_locked() {
@@ -492,7 +493,7 @@ impl Flash {
             .write(Address::FAR.val((PAGE_START + page_number * PAGE_SIZE) as u32));
         self.registers.cr.modify(Control::STRT::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     pub fn erase_all(&self) -> ReturnCode {
@@ -507,7 +508,7 @@ impl Flash {
         self.registers.cr.modify(Control::MER::SET);
         self.registers.cr.modify(Control::STRT::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     pub fn write_page(
@@ -516,7 +517,7 @@ impl Flash {
         buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
         if page_number > 127 {
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((Err(ErrorCode::INVAL), buffer));
         }
 
         if self.is_locked() {
@@ -542,7 +543,7 @@ impl Flash {
         buffer: &'static mut StmF303Page,
     ) -> Result<(), (ReturnCode, &'static mut StmF303Page)> {
         if page_number > 127 {
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((Err(ErrorCode::INVAL), buffer));
         }
 
         let mut byte: *const u8 = (PAGE_START + page_number * PAGE_SIZE) as *const u8;
@@ -564,7 +565,7 @@ impl Flash {
     /// 0: RDP, 1: USER, 2: DATA0, 3:DATA1, 4. WRP0, 5: WRP1, 6.WRP2, 7. WRP3
     pub fn write_option(&self, byte_number: usize, value: u8) -> ReturnCode {
         if byte_number > 7 {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         if self.is_locked() {
@@ -583,7 +584,7 @@ impl Flash {
         let halfword: u16 = value as u16;
         location.set(halfword);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     pub fn erase_option(&self) -> ReturnCode {
@@ -599,7 +600,7 @@ impl Flash {
         self.registers.cr.modify(Control::OPTER::SET);
         self.registers.cr.modify(Control::STRT::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 

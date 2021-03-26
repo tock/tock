@@ -357,7 +357,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
-            return ReturnCode::ENODEVICE;
+            return Err(ErrorCode::NODEVICE);
         }
         self.chip_select.map(|cs| cs.clear());
 
@@ -387,7 +387,7 @@ impl hil::spi::SpiMaster for SPIM {
         // Start the transfer
         self.busy.set(true);
         self.registers.tasks_start.write(TASK::TASK::SET);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn write_byte(&self, _val: u8) {

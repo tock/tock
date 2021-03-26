@@ -160,7 +160,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                 self.state.set(State::WriteEnable);
                 let res = self.spi.read_write_bytes(txbuffer, None, 1);
                 match res {
-                    ReturnCode::SUCCESS => Ok(()),
+                    Ok(()) => Ok(()),
                     rc => Err(rc.try_into().unwrap()),
                 }
             })
@@ -189,7 +189,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                             .spi
                             .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
                         match res {
-                            ReturnCode::SUCCESS => Ok(()),
+                            Ok(()) => Ok(()),
                             rc => Err(rc.try_into().unwrap()),
                         }
                     })
@@ -289,17 +289,17 @@ impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         txbuffer[0] = Opcodes::ReadStatusRegister as u8;
 
                         // Use 4 bytes instead of the required 2 because that works better
                         // with DMA for some reason.
                         self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
                         self.state.set(State::ReadStatus);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     })
             })
     }

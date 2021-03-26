@@ -4,6 +4,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// ADC Mux
@@ -108,17 +109,17 @@ impl<A: hil::adc::Adc> hil::adc::AdcChannel for AdcDevice<'_, A> {
     fn sample(&self) -> ReturnCode {
         self.operation.set(Operation::OneSample);
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop_sampling(&self) -> ReturnCode {
         self.operation.clear();
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn sample_continuous(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn get_resolution_bits(&self) -> usize {

@@ -395,7 +395,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
                 cortexm7::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

@@ -257,12 +257,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn sample(&self, channel: usize) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         // convert channel index
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         let chan = self.channels[channel];
 
@@ -273,7 +273,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
         // start a single sample
         let res = self.adc.sample(chan);
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
@@ -281,7 +281,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             return res;
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Collect repeated single analog samples on a channel.
@@ -291,12 +291,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn sample_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         // convert channel index
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         let chan = self.channels[channel];
 
@@ -307,7 +307,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
         // start a single sample
         let res = self.adc.sample_continuous(chan, frequency);
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
@@ -315,7 +315,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             return res;
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Collect a buffer-full of analog samples.
@@ -328,12 +328,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn sample_buffer(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         // convert channel index
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         let chan = self.channels[channel];
 
@@ -355,53 +355,55 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                 .unwrap_or(false)
         });
         if !exists {
-            return ReturnCode::ENOMEM;
+            return Err(ErrorCode::NOMEM);
         }
 
         // save state for callback
         self.active.set(true);
         self.mode.set(AdcMode::SingleBuffer);
-        let ret = self.appid.map_or(ReturnCode::ENOMEM, |id| {
+        let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
-                    let res = self.adc_buf1.take().map_or(ReturnCode::EBUSY, |buf1| {
-                        self.adc_buf2.take().map_or(ReturnCode::EBUSY, move |buf2| {
-                            // determine request length
-                            let request_len = app_buf_length / 2;
-                            let len1;
-                            let len2;
-                            if request_len <= buf1.len() {
-                                len1 = app_buf_length / 2;
-                                len2 = 0;
-                            } else if request_len <= (buf1.len() + buf2.len()) {
-                                len1 = buf1.len();
-                                len2 = request_len - buf1.len();
-                            } else {
-                                len1 = buf1.len();
-                                len2 = buf2.len();
-                            }
+                    let res = self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
+                        self.adc_buf2
+                            .take()
+                            .map_or(Err(ErrorCode::BUSY), move |buf2| {
+                                // determine request length
+                                let request_len = app_buf_length / 2;
+                                let len1;
+                                let len2;
+                                if request_len <= buf1.len() {
+                                    len1 = app_buf_length / 2;
+                                    len2 = 0;
+                                } else if request_len <= (buf1.len() + buf2.len()) {
+                                    len1 = buf1.len();
+                                    len2 = request_len - buf1.len();
+                                } else {
+                                    len1 = buf1.len();
+                                    len2 = buf2.len();
+                                }
 
-                            // begin sampling
-                            app.using_app_buf1.set(true);
-                            app.samples_remaining.set(request_len - len1 - len2);
-                            app.samples_outstanding.set(len1 + len2);
-                            let (rc, retbuf1, retbuf2) = self
-                                .adc
-                                .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
-                            if rc != ReturnCode::SUCCESS {
-                                // store buffers again
-                                retbuf1.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
-                                retbuf2.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
-                            }
-                            rc
-                        })
+                                // begin sampling
+                                app.using_app_buf1.set(true);
+                                app.samples_remaining.set(request_len - len1 - len2);
+                                app.samples_outstanding.set(len1 + len2);
+                                let (rc, retbuf1, retbuf2) = self
+                                    .adc
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                                if rc != Ok(()) {
+                                    // store buffers again
+                                    retbuf1.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                    retbuf2.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                }
+                                rc
+                            })
                     });
                     res
                 })
@@ -412,9 +414,9 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                         self.appid.clear();
                     }
                 })
-                .unwrap_or(ReturnCode::ENOMEM)
+                .unwrap_or(Err(ErrorCode::NOMEM))
         });
-        if ret != ReturnCode::SUCCESS {
+        if ret != Ok(()) {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
@@ -447,12 +449,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn sample_buffer_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         // convert channel index
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         let chan = self.channels[channel];
 
@@ -476,68 +478,70 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                 .unwrap_or(false)
         });
         if !exists {
-            return ReturnCode::ENOMEM;
+            return Err(ErrorCode::NOMEM);
         }
 
         // save state for callback
         self.active.set(true);
         self.mode.set(AdcMode::ContinuousBuffer);
 
-        let ret = self.appid.map_or(ReturnCode::ENOMEM, |id| {
+        let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
-                    self.adc_buf1.take().map_or(ReturnCode::EBUSY, |buf1| {
-                        self.adc_buf2.take().map_or(ReturnCode::EBUSY, move |buf2| {
-                            // determine request lengths
-                            let samples_needed = app_buf_length / 2;
-                            let next_samples_needed = next_app_buf_length / 2;
+                    self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
+                        self.adc_buf2
+                            .take()
+                            .map_or(Err(ErrorCode::BUSY), move |buf2| {
+                                // determine request lengths
+                                let samples_needed = app_buf_length / 2;
+                                let next_samples_needed = next_app_buf_length / 2;
 
-                            // determine request lengths
-                            let len1;
-                            let len2;
-                            if samples_needed <= buf1.len() {
-                                // we can fit the entire app_buffer request in the first
-                                // buffer. The second buffer will be used for the next
-                                // app_buffer
-                                len1 = samples_needed;
-                                len2 = cmp::min(next_samples_needed, buf2.len());
-                                app.samples_remaining.set(0);
-                                app.samples_outstanding.set(len1);
-                            } else if samples_needed <= (buf1.len() + buf2.len()) {
-                                // we can fit the entire app_buffer request between the two
-                                // buffers
-                                len1 = buf1.len();
-                                len2 = samples_needed - buf1.len();
-                                app.samples_remaining.set(0);
-                                app.samples_outstanding.set(len1 + len2);
-                            } else {
-                                // the app_buffer is larger than both buffers, so just
-                                // request max lengths
-                                len1 = buf1.len();
-                                len2 = buf2.len();
-                                app.samples_remaining.set(samples_needed - len1 - len2);
-                                app.samples_outstanding.set(len1 + len2);
-                            }
+                                // determine request lengths
+                                let len1;
+                                let len2;
+                                if samples_needed <= buf1.len() {
+                                    // we can fit the entire app_buffer request in the first
+                                    // buffer. The second buffer will be used for the next
+                                    // app_buffer
+                                    len1 = samples_needed;
+                                    len2 = cmp::min(next_samples_needed, buf2.len());
+                                    app.samples_remaining.set(0);
+                                    app.samples_outstanding.set(len1);
+                                } else if samples_needed <= (buf1.len() + buf2.len()) {
+                                    // we can fit the entire app_buffer request between the two
+                                    // buffers
+                                    len1 = buf1.len();
+                                    len2 = samples_needed - buf1.len();
+                                    app.samples_remaining.set(0);
+                                    app.samples_outstanding.set(len1 + len2);
+                                } else {
+                                    // the app_buffer is larger than both buffers, so just
+                                    // request max lengths
+                                    len1 = buf1.len();
+                                    len2 = buf2.len();
+                                    app.samples_remaining.set(samples_needed - len1 - len2);
+                                    app.samples_outstanding.set(len1 + len2);
+                                }
 
-                            // begin sampling
-                            app.using_app_buf1.set(true);
-                            let (rc, retbuf1, retbuf2) = self
-                                .adc
-                                .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
-                            if rc != ReturnCode::SUCCESS {
-                                // store buffers again
-                                retbuf1.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
-                                retbuf2.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
-                            }
-                            rc
-                        })
+                                // begin sampling
+                                app.using_app_buf1.set(true);
+                                let (rc, retbuf1, retbuf2) = self
+                                    .adc
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                                if rc != Ok(()) {
+                                    // store buffers again
+                                    retbuf1.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                    retbuf2.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                }
+                                rc
+                            })
                     })
                 })
                 .map_err(|err| {
@@ -547,9 +551,9 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                         self.appid.clear();
                     }
                 })
-                .unwrap_or(ReturnCode::ENOMEM)
+                .unwrap_or(Err(ErrorCode::NOMEM))
         });
-        if ret != ReturnCode::SUCCESS {
+        if ret != Ok(()) {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
@@ -578,11 +582,11 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     fn stop_sampling(&self) -> ReturnCode {
         if !self.active.get() || self.mode.get() == AdcMode::NoMode {
             // already inactive!
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
 
         // clean up state
-        self.appid.map_or(ReturnCode::FAIL, |id| {
+        self.appid.map_or(Err(ErrorCode::FAIL), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     self.active.set(false);
@@ -591,7 +595,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
                     // actually cancel the operation
                     let rc = self.adc.stop_sampling();
-                    if rc != ReturnCode::SUCCESS {
+                    if rc != Ok(()) {
                         return rc;
                     }
 
@@ -616,7 +620,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                         self.appid.clear();
                     }
                 })
-                .unwrap_or(ReturnCode::FAIL)
+                .unwrap_or(Err(ErrorCode::FAIL))
         })
     }
 
@@ -653,24 +657,24 @@ impl<'a> AdcVirtualized<'a> {
                     if self.current_app.is_none() {
                         self.current_app.set(appid);
                         let value = self.call_driver(command, channel);
-                        if value != ReturnCode::SUCCESS {
+                        if value != Ok(()) {
                             self.current_app.clear();
                         }
                         value
                     } else {
                         if app.pending_command == true {
-                            ReturnCode::EBUSY
+                            Err(ErrorCode::BUSY)
                         } else {
                             app.pending_command = true;
                             app.command.set(command);
                             app.channel = channel;
-                            ReturnCode::SUCCESS
+                            Ok(())
                         }
                     }
                 })
                 .unwrap_or_else(|err| err.into())
         } else {
-            ReturnCode::ENODEVICE
+            Err(ErrorCode::NODEVICE)
         }
     }
 
@@ -857,7 +861,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                             app.next_samples_outstanding.set(request_len);
                                             let (res, retbuf) =
                                                 self.adc.provide_buffer(adc_buf, request_len);
-                                            if res != ReturnCode::SUCCESS {
+                                            if res != Ok(()) {
                                                 retbuf.map(|buf| {
                                                     self.replace_buffer(buf);
                                                 });
@@ -879,7 +883,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                                 .set(app.samples_outstanding.get() + request_len);
                                             let (res, retbuf) =
                                                 self.adc.provide_buffer(adc_buf, request_len);
-                                            if res != ReturnCode::SUCCESS {
+                                            if res != Ok(()) {
                                                 retbuf.map(|buf| {
                                                     self.replace_buffer(buf);
                                                 });
@@ -909,7 +913,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                         app.next_samples_outstanding.set(request_len);
                                         let (res, retbuf) =
                                             self.adc.provide_buffer(adc_buf, request_len);
-                                        if res != ReturnCode::SUCCESS {
+                                        if res != Ok(()) {
                                             retbuf.map(|buf| {
                                                 self.replace_buffer(buf);
                                             });
@@ -930,7 +934,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 app.samples_outstanding
                                     .set(app.samples_outstanding.get() + request_len);
                                 let (res, retbuf) = self.adc.provide_buffer(adc_buf, request_len);
-                                if res != ReturnCode::SUCCESS {
+                                if res != Ok(()) {
                                     retbuf.map(|buf| {
                                         self.replace_buffer(buf);
                                     });
@@ -1267,7 +1271,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Single sample on channel
             1 => match self.sample(channel) {
-                ReturnCode::SUCCESS => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1277,7 +1281,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Repeated single samples on a channel
             2 => match self.sample_continuous(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1287,7 +1291,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Multiple sample on a channel
             3 => match self.sample_buffer(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1297,7 +1301,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Continuous buffered sampling on a channel
             4 => match self.sample_buffer_continuous(channel, frequency as u32) {
-                ReturnCode::SUCCESS => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1307,7 +1311,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
 
             // Stop sampling
             5 => match self.stop_sampling() {
-                ReturnCode::SUCCESS => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 e => CommandReturn::failure(if let Ok(err) = ErrorCode::try_from(e) {
                     err
                 } else {
@@ -1377,7 +1381,7 @@ impl Driver for AdcVirtualized<'_> {
             // Single sample.
             1 => {
                 let res = self.enqueue_command(Operation::OneSample, channel, appid);
-                if res == ReturnCode::SUCCESS {
+                if res == Ok(()) {
                     CommandReturn::success()
                 } else {
                     match ErrorCode::try_from(res) {

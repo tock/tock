@@ -41,7 +41,7 @@
 //!     .ok()
 //!     .map(|frame| {
 //!         let rval = frame.append_payload(&mut SOME_DATA[..10]);
-//!         if rval == ReturnCode::SUCCESS {
+//!         if rval == Ok(()) {
 //!             let (rval, _) = mac_device.transmit(frame);
 //!             rval
 //!         } else {
@@ -82,6 +82,7 @@ use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
@@ -132,13 +133,13 @@ impl Frame {
     /// Appends payload bytes into the frame if possible
     pub fn append_payload(&mut self, payload: &[u8]) -> ReturnCode {
         if payload.len() > self.remaining_data_capacity() {
-            return ReturnCode::ENOMEM;
+            return Err(ErrorCode::NOMEM);
         }
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         self.info.data_len += payload.len();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -474,27 +475,27 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     fn step_transmit_state(&self) -> (ReturnCode, Option<&'static mut [u8]>) {
         self.tx_state
             .take()
-            .map_or((ReturnCode::FAIL, None), |state| {
+            .map_or((Err(ErrorCode::FAIL), None), |state| {
                 // This mechanism is a little more clunky, but makes it
                 // difficult to forget to replace `tx_state`.
                 let (next_state, result) = match state {
-                    TxState::Idle => (TxState::Idle, (ReturnCode::SUCCESS, None)),
+                    TxState::Idle => (TxState::Idle, (Ok(()), None)),
                     TxState::ReadyToEncrypt(info, buf) => {
                         match info.security_params {
                             None => {
                                 // `ReadyToEncrypt` should only be entered when
                                 // `security_params` is not `None`.
-                                (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
+                                (TxState::Idle, (Err(ErrorCode::FAIL), Some(buf)))
                             }
                             Some((level, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) =
                                     (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                    || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                                if self.aes_ccm.set_key(&key) != Ok(())
+                                    || self.aes_ccm.set_nonce(&nonce) != Ok(())
                                 {
-                                    (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
+                                    (TxState::Idle, (Err(ErrorCode::FAIL), Some(buf)))
                                 } else {
                                     let (res, opt_buf) = self.aes_ccm.crypt(
                                         buf,
@@ -506,18 +507,13 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         true,
                                     );
                                     match res {
-                                        ReturnCode::SUCCESS => {
-                                            (TxState::Encrypting(info), (res, None))
-                                        }
-                                        ReturnCode::EBUSY => {
+                                        Ok(()) => (TxState::Encrypting(info), (res, None)),
+                                        Err(ErrorCode::BUSY) => {
                                             let buf = match opt_buf {
                                                 Some(buf) => buf,
                                                 None => panic!("aes_ccm did not return the buffer"),
                                             };
-                                            (
-                                                TxState::ReadyToEncrypt(info, buf),
-                                                (ReturnCode::SUCCESS, None),
-                                            )
+                                            (TxState::ReadyToEncrypt(info, buf), (Ok(()), None))
                                         }
                                         _ => (TxState::Idle, (res, opt_buf)),
                                     }
@@ -528,7 +524,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                     TxState::Encrypting(info) => {
                         // This state should be advanced only by the hardware
                         // encryption callback.
-                        (TxState::Encrypting(info), (ReturnCode::SUCCESS, None))
+                        (TxState::Encrypting(info), (Ok(()), None))
                     }
                     TxState::ReadyToTransmit(info, buf) => {
                         let (rval, buf) = self.mac.transmit(buf, info.secured_length());
@@ -536,16 +532,15 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                             // If the radio is busy, just wait for either a
                             // transmit_done or config_done callback to trigger
                             // this state transition again
-                            ReturnCode::EBUSY => {
+                            Err(ErrorCode::BUSY) => {
                                 match buf {
                                     None => {
                                         // The radio forgot to return the buffer.
-                                        (TxState::Idle, (ReturnCode::FAIL, None))
+                                        (TxState::Idle, (Err(ErrorCode::FAIL), None))
                                     }
-                                    Some(buf) => (
-                                        TxState::ReadyToTransmit(info, buf),
-                                        (ReturnCode::SUCCESS, None),
-                                    ),
+                                    Some(buf) => {
+                                        (TxState::ReadyToTransmit(info, buf), (Ok(()), None))
+                                    }
                                 }
                             }
                             _ => (TxState::Idle, (rval, buf)),
@@ -573,8 +568,8 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                             let (m_off, m_len) = info.ccm_encrypt_ranges();
                             let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                            if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                            if self.aes_ccm.set_key(&key) != Ok(())
+                                || self.aes_ccm.set_nonce(&nonce) != Ok(())
                             {
                                 (RxState::Idle, Some(buf))
                             } else {
@@ -588,8 +583,8 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                                     true,
                                 );
                                 match res {
-                                    ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
-                                    ReturnCode::EBUSY => {
+                                    Ok(()) => (RxState::Decrypting(info), None),
+                                    Err(ErrorCode::BUSY) => {
                                         let buf = match opt_buf {
                                             Some(buf) => buf,
                                             None => panic!("aes_ccm did not return the buffer"),
@@ -769,7 +764,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         let Frame { buf, info } = frame;
         let state = match self.tx_state.take() {
             None => {
-                return (ReturnCode::FAIL, Some(buf));
+                return (Err(ErrorCode::FAIL), Some(buf));
             }
             Some(state) => state,
         };
@@ -781,7 +776,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             }
             other_state => {
                 self.tx_state.replace(other_state);
-                (ReturnCode::EBUSY, Some(buf))
+                (Err(ErrorCode::BUSY), Some(buf))
             }
         }
     }
@@ -850,7 +845,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
         let opt_buf = if let Some(state) = self.tx_state.take() {
             match state {
                 TxState::Encrypting(info) => {
-                    let (rval, opt_buf) = if res != ReturnCode::SUCCESS {
+                    let (rval, opt_buf) = if res != Ok(()) {
                         self.tx_state.replace(TxState::Idle);
                         (res, Some(buf))
                     } else {

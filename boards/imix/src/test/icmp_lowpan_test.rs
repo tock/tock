@@ -160,7 +160,7 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 {
     fn send_done(&self, result: ReturnCode) {
         match result {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 debug!("ICMP Echo Request Packet Sent!");
                 match self.test_counter.get() {
                     2 => debug!("Test completed successfully."),

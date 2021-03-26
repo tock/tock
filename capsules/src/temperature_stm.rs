@@ -4,6 +4,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::hil::adc;
 use kernel::hil::sensors;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 use crate::driver;
@@ -58,9 +59,9 @@ impl<'a> sensors::TemperatureDriver<'a> for TemperatureSTM<'a> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Read);
             self.adc.sample();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

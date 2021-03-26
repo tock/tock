@@ -97,7 +97,7 @@ impl<'a> Console<'a> {
         app.write_len = cmp::min(len, app.write_buffer.len());
         app.write_remaining = app.write_len;
         self.send(app_id, app);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Internal helper function for continuing a previously set up transaction
@@ -149,14 +149,14 @@ impl<'a> Console<'a> {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         let read_len = cmp::min(len, app.read_buffer.len());
         if read_len > self.rx_buffer.map_or(0, |buf| buf.len()) {
             // For simplicity, impose a small maximum receive length
             // instead of doing incremental reads
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             // Note: We have ensured above that rx_buffer is present
             app.read_len = read_len;
@@ -164,7 +164,7 @@ impl<'a> Console<'a> {
                 self.rx_in_progress.set(app_id);
                 let (_err, _opt) = self.uart.receive_buffer(buffer, app.read_len);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -276,7 +276,7 @@ impl Driver for Console<'_> {
     ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
         let res = match cmd_num {
-            0 => Ok(ReturnCode::SUCCESS),
+            0 => Ok(Ok(())),
             1 => {
                 // putstr
                 let len = arg1;
@@ -294,7 +294,7 @@ impl Driver for Console<'_> {
             3 => {
                 // Abort RX
                 self.uart.receive_abort();
-                Ok(ReturnCode::SUCCESS)
+                Ok(Ok(()))
             }
             _ => Err(ErrorCode::NOSUPPORT),
         };
@@ -415,7 +415,7 @@ impl uart::ReceiveClient for Console<'_> {
                                 // If count < 0 this means the buffer
                                 // disappeared: return ENOMEM.
                                 let (ret, received_length) = if count < 0 {
-                                    (ReturnCode::ENOMEM, 0)
+                                    (Err(ErrorCode::NOMEM), 0)
                                 } else if rx_len > app.read_buffer.len() {
                                     // Return `ESIZE` indicating that
                                     // some received bytes were dropped.
@@ -424,7 +424,7 @@ impl uart::ReceiveClient for Console<'_> {
                                     // but also indicate that there was
                                     // an issue in the kernel with the
                                     // receive.
-                                    (ReturnCode::ESIZE, app.read_buffer.len())
+                                    (Err(ErrorCode::SIZE), app.read_buffer.len())
                                 } else {
                                     // This is the normal and expected
                                     // case.
@@ -437,7 +437,7 @@ impl uart::ReceiveClient for Console<'_> {
                             _ => {
                                 // Some UART error occurred
                                 app.read_callback
-                                    .schedule(From::from(ReturnCode::FAIL), 0, 0);
+                                    .schedule(From::from(Err(ErrorCode::FAIL)), 0, 0);
                             }
                         }
                     })

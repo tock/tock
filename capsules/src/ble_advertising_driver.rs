@@ -243,34 +243,37 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data.map_or(ReturnCode::FAIL, |adv_data| {
-            ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
-                let adv_data_len = cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
-                let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                {
-                    let (header, payload) = kernel_tx.split_at_mut(2);
-                    header[0] = self.pdu_type;
-                    match self.pdu_type {
-                        ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                            // Set TxAdd because AdvA field is going to be a "random"
-                            // address
-                            header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+        self.adv_data.map_or(Err(ErrorCode::FAIL), |adv_data| {
+            ble.kernel_tx
+                .take()
+                .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
+                    let adv_data_len =
+                        cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                    let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                    let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                    {
+                        let (header, payload) = kernel_tx.split_at_mut(2);
+                        header[0] = self.pdu_type;
+                        match self.pdu_type {
+                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                // Set TxAdd because AdvA field is going to be a "random"
+                                // address
+                                header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+                            }
+                            _ => {}
                         }
-                        _ => {}
-                    }
-                    // The LENGTH field is 6-bits wide, so make sure to truncate it
-                    header[1] = (payload_len & 0x3f) as u8;
+                        // The LENGTH field is 6-bits wide, so make sure to truncate it
+                        header[1] = (payload_len & 0x3f) as u8;
 
-                    let (adva, data) = payload.split_at_mut(6);
-                    adva.copy_from_slice(&self.address);
-                    data[..adv_data_len].copy_from_slice(adv_data_corrected);
-                }
-                let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                ble.radio
-                    .transmit_advertisement(kernel_tx, total_len, channel);
-                ReturnCode::SUCCESS
-            })
+                        let (adva, data) = payload.split_at_mut(6);
+                        adva.copy_from_slice(&self.address);
+                        data[..adv_data_len].copy_from_slice(adv_data_corrected);
+                    }
+                    let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                    ble.radio
+                        .transmit_advertisement(kernel_tx, total_len, channel);
+                    Ok(())
+                })
         })
     }
 
@@ -454,7 +457,7 @@ where
                 // Packets that are bigger than 39 bytes are likely `Channel PDUs` which should
                 // only be sent on the other 37 RadioChannel channels.
 
-                if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
+                if len <= PACKET_LENGTH as u8 && result == Ok(()) {
                     // write to buffer in userland
                     let success = app.scan_buffer.mut_map_or(false, |userland| {
                         userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
@@ -616,7 +619,7 @@ where
                                 tx_power @ 0..=10 | tx_power @ 0xec..=0xff => {
                                     // query the underlying chip if the power level is supported
                                     let status = self.radio.set_tx_power(tx_power);
-                                    if let ReturnCode::SUCCESS = status {
+                                    if let Ok(()) = status {
                                         app.tx_power = tx_power;
                                     }
                                     status.into()

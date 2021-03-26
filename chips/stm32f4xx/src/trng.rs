@@ -97,7 +97,7 @@ impl<'a> Trng<'a> {
         }
 
         self.client.map(|client| {
-            let res = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
+            let res = client.entropy_available(&mut TrngIter(self), Ok(()));
             if let Continue::Done = res {
                 self.registers.cr.modify(Control::IE::CLEAR);
                 self.registers.cr.modify(Control::RNGEN::CLEAR);
@@ -143,14 +143,14 @@ impl<'a> hil::entropy::Entropy32<'a> for Trng<'a> {
         self.registers.cr.modify(Control::IE::SET);
         self.registers.cr.modify(Control::RNGEN::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn cancel(&self) -> ReturnCode {
         self.registers.cr.modify(Control::RNGEN::CLEAR);
         self.registers.cr.modify(Control::IE::CLEAR);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_client(&'a self, client: &'a dyn hil::entropy::Client32) {

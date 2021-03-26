@@ -131,7 +131,7 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    if ret == ReturnCode::SUCCESS {
+                    if ret == Ok(()) {
                         app.callback.schedule(sound_val.into(), 0, 0);
                     }
                 }

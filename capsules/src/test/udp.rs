@@ -14,6 +14,7 @@ use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::ErrorCode;
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -162,17 +163,17 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     dgram,
                     self.net_cap.get(),
                 ) {
-                    Ok(_) => ReturnCode::SUCCESS,
+                    Ok(_) => Ok(()),
                     Err(mut buf) => {
                         buf.reset();
                         self.udp_dgram.replace(buf);
-                        ReturnCode::ERESERVE
+                        Err(ErrorCode::RESERVE)
                     }
                 }
             }
             None => {
                 debug!("ERROR: udp_dgram not present.");
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             }
         }
     }

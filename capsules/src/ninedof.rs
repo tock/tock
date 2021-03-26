@@ -78,7 +78,7 @@ impl<'a> NineDof<'a> {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
                     let value = self.call_driver(command, arg1);
-                    if value != ReturnCode::SUCCESS {
+                    if value != Ok(()) {
                         self.current_app.clear();
                     }
                     CommandReturn::from(value)
@@ -102,36 +102,36 @@ impl<'a> NineDof<'a> {
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
         match command {
             NineDofCommand::ReadAccelerometer => {
-                let mut data = ReturnCode::ENODEVICE;
+                let mut data = Err(ErrorCode::NODEVICE);
                 for driver in self.drivers.iter() {
                     data = driver.read_accelerometer();
-                    if data == ReturnCode::SUCCESS {
+                    if data == Ok(()) {
                         break;
                     }
                 }
                 data
             }
             NineDofCommand::ReadMagnetometer => {
-                let mut data = ReturnCode::ENODEVICE;
+                let mut data = Err(ErrorCode::NODEVICE);
                 for driver in self.drivers.iter() {
                     data = driver.read_magnetometer();
-                    if data == ReturnCode::SUCCESS {
+                    if data == Ok(()) {
                         break;
                     }
                 }
                 data
             }
             NineDofCommand::ReadGyroscope => {
-                let mut data = ReturnCode::ENODEVICE;
+                let mut data = Err(ErrorCode::NODEVICE);
                 for driver in self.drivers.iter() {
                     data = driver.read_gyroscope();
-                    if data == ReturnCode::SUCCESS {
+                    if data == Ok(()) {
                         break;
                     }
                 }
                 data
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -186,7 +186,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                 } else if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
-                    self.call_driver(app.command, app.arg1) == ReturnCode::SUCCESS
+                    self.call_driver(app.command, app.arg1) == Ok(())
                 } else {
                     false
                 }

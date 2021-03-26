@@ -818,7 +818,7 @@ impl<'p> Radio<'p> {
             } else {
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
-                let result = ReturnCode::EBUSY;
+                let result = Err(ErrorCode::BUSY);
                 //TODO: Acked is flagged as false until I get around to fixing it.
                 self.tx_client
                     .map(|client| {
@@ -837,9 +837,9 @@ impl<'p> Radio<'p> {
             self.registers.event_end.write(Event::READY::CLEAR);
 
             let result = if self.registers.crcstatus.is_set(Event::READY) {
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             };
 
             match self.registers.state.get() {
@@ -849,7 +849,7 @@ impl<'p> Radio<'p> {
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.transmitting.set(false);
                     //if we are transmitting, the CRCstatus check is always going to be an error
-                    let result = ReturnCode::SUCCESS;
+                    let result = Ok(());
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     self.tx_client
                         .map(|client|{
@@ -996,7 +996,7 @@ impl<'p> Radio<'p> {
 
     pub fn startup(&self) -> ReturnCode {
         self.radio_initialize();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -1024,7 +1024,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         _reg_read: &'static mut [u8],
     ) -> ReturnCode {
         self.radio_initialize();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_power_client(&self, _client: &'static dyn PowerClient) {
@@ -1033,15 +1033,15 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
 
     fn reset(&self) -> ReturnCode {
         self.radio_on();
-        ReturnCode::SUCCESS
+        Ok(())
     }
     fn start(&self) -> ReturnCode {
         self.reset();
-        ReturnCode::SUCCESS
+        Ok(())
     }
     fn stop(&self) -> ReturnCode {
         self.radio_off();
-        ReturnCode::SUCCESS
+        Ok(())
     }
     fn is_on(&self) -> bool {
         true
@@ -1111,10 +1111,10 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
 
     fn set_channel(&self, chan: u8) -> ReturnCode {
         match RadioChannel::try_from(chan) {
-            Err(_) => ReturnCode::ENOSUPPORT,
+            Err(_) => Err(ErrorCode::NOSUPPORT),
             Ok(res) => {
                 self.channel.set(res);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -1123,11 +1123,11 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
-            Err(_) => ReturnCode::ENOSUPPORT,
+            Err(_) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -1153,10 +1153,10 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.tx_buf.is_some() || self.transmitting.get() {
-            return (ReturnCode::EBUSY, Some(buf));
+            return (Err(ErrorCode::BUSY), Some(buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
             // Not enough room for CRC
-            return (ReturnCode::ESIZE, Some(buf));
+            return (Err(ErrorCode::SIZE), Some(buf));
         }
 
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
@@ -1169,6 +1169,6 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
 
         self.radio_off();
         self.radio_initialize();
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 }

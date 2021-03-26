@@ -249,7 +249,7 @@ impl<'a, F: Flash> flash::Client<F> for TicKVStore<'a, F> {
                     self.operation.set(Operation::None);
                     self.client.map(|cb| {
                         cb.get_value_complete(
-                            Err(ReturnCode::FAIL),
+                            Err(Err(ErrorCode::FAIL)),
                             self.key_buffer.take().unwrap(),
                             self.ret_buffer.take().unwrap(),
                         );
@@ -379,7 +379,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, value, ReturnCode::FAIL)),
+                        _ => Err((key, value, Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -393,7 +393,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, ReturnCode::EBUSY))
+                Err((key, value, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -417,7 +417,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, buf.unwrap(), ReturnCode::FAIL)),
+                        _ => Err((key, buf.unwrap(), Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -431,7 +431,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, ret_buf, ReturnCode::EBUSY))
+                Err((key, ret_buf, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -454,7 +454,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, ReturnCode::FAIL)),
+                        _ => Err((key, Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -467,7 +467,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, ReturnCode::EBUSY))
+                Err((key, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -481,7 +481,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                     Ok(freed) => Ok(freed),
                     Err(e) => match e {
                         ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => Ok(0),
-                        _ => Err(ReturnCode::FAIL),
+                        _ => Err(Err(ErrorCode::FAIL)),
                     },
                 }
             }
@@ -493,7 +493,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err(ReturnCode::EBUSY)
+                Err(Err(ErrorCode::BUSY))
             }
         }
     }

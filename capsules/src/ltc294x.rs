@@ -164,14 +164,14 @@ impl<'a> LTC294X<'a> {
     }
 
     pub fn read_status(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Address pointer automatically resets to the status register.
             self.i2c.read(buffer, 1);
             self.state.set(State::ReadStatus);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -181,7 +181,7 @@ impl<'a> LTC294X<'a> {
         prescaler: u8,
         vbat_alert: VBatAlert,
     ) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::Control as u8;
@@ -190,13 +190,13 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Set the accumulated charge to 0
     fn reset_charge(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::AccumulatedChargeMSB as u8;
@@ -206,12 +206,12 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn set_high_threshold(&self, threshold: u16) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::ChargeThresholdHighMSB as u8;
@@ -221,12 +221,12 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn set_low_threshold(&self, threshold: u16) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::ChargeThresholdLowMSB as u8;
@@ -236,13 +236,13 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Get the cumulative charge as measured by the LTC2941.
     fn get_charge(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Read all of the first four registers rather than wasting
@@ -250,7 +250,7 @@ impl<'a> LTC294X<'a> {
             self.i2c.read(buffer, 4);
             self.state.set(State::ReadCharge);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -259,16 +259,16 @@ impl<'a> LTC294X<'a> {
         // Not supported on all versions
         match self.model.get() {
             ChipModel::LTC2942 | ChipModel::LTC2943 => {
-                self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+                self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.i2c.enable();
 
                     self.i2c.read(buffer, 10);
                     self.state.set(State::ReadVoltage);
 
-                    ReturnCode::SUCCESS
+                    Ok(())
                 })
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -276,21 +276,21 @@ impl<'a> LTC294X<'a> {
     fn get_current(&self) -> ReturnCode {
         // Not supported on all versions
         match self.model.get() {
-            ChipModel::LTC2943 => self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            ChipModel::LTC2943 => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 self.i2c.enable();
 
                 self.i2c.read(buffer, 16);
                 self.state.set(State::ReadCurrent);
 
-                ReturnCode::SUCCESS
+                Ok(())
             }),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
     /// Put the LTC294X in a low power state.
     fn shutdown(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Read both the status and control register rather than
@@ -298,7 +298,7 @@ impl<'a> LTC294X<'a> {
             self.i2c.read(buffer, 2);
             self.state.set(State::ReadShutdown);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -307,17 +307,17 @@ impl<'a> LTC294X<'a> {
         match model_num {
             1 => {
                 self.model.set(ChipModel::LTC2941);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             2 => {
                 self.model.set(ChipModel::LTC2942);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             3 => {
                 self.model.set(ChipModel::LTC2943);
-                ReturnCode::SUCCESS
+                Ok(())
             }
-            _ => ReturnCode::ENODEVICE,
+            _ => Err(ErrorCode::NODEVICE),
         }
     }
 }

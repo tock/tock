@@ -10,6 +10,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub static BASE_ADDR: u8 = 0x44;
@@ -99,28 +100,28 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
 
     fn read_humidity(&self) -> ReturnCode {
         if self.read_hum.get() == true {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             if self.state.get() == State::Idle {
                 self.read_hum.set(true);
                 self.read_temp_hum()
             } else {
                 self.read_hum.set(true);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
 
     fn read_temperature(&self) -> ReturnCode {
         if self.read_temp.get() == true {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             if self.state.get() == State::Idle {
                 self.read_temp.set(true);
                 self.read_temp_hum()
             } else {
                 self.read_temp.set(true);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -137,7 +138,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
 
                 self.i2c.write(buffer, 2);
 
-                ReturnCode::SUCCESS
+                Ok(())
             },
         )
     }

@@ -27,6 +27,7 @@ use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
@@ -53,7 +54,7 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
         self.add_client(caller);
-        let mut ret = ReturnCode::SUCCESS;
+        let mut ret = Ok(());
         // If list empty, initiate send immediately, and return result.
         // Otherwise, packet is queued.
         if list_empty {
@@ -67,7 +68,7 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
                 }
                 None => {
                     debug!("No buffer available to take.");
-                    ReturnCode::FAIL
+                    Err(ErrorCode::FAIL)
                 }
             }
         } else {
@@ -117,27 +118,27 @@ impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                                     net_cap,
                                 );
                                 next_sender.tx_buffer.replace(buf);
-                                if ret != ReturnCode::SUCCESS {
+                                if ret != Ok(()) {
                                     debug!("IP send_to failed: {:?}", ret);
                                 }
                                 ret
                             }
-                            None => ReturnCode::FAIL,
+                            None => Err(ErrorCode::FAIL),
                         },
                         None => {
                             debug!("Missing transport header.");
-                            ReturnCode::FAIL
+                            Err(ErrorCode::FAIL)
                         }
                     },
                     None => {
                         debug!("No buffer available to take.");
-                        ReturnCode::FAIL
+                        Err(ErrorCode::FAIL)
                     }
                 }
             }
-            None => ReturnCode::SUCCESS, //No more packets queued.
+            None => Ok(()), //No more packets queued.
         };
-        if success != ReturnCode::SUCCESS {
+        if success != Ok(()) {
             debug!("Error in udp_send send_done() callback.");
         }
     }
@@ -323,7 +324,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
             .udp_mux_sender
             .send_to(dest, transport_header, &self, net_cap)
         {
-            ReturnCode::SUCCESS => Ok(()),
+            Ok(()) => Ok(()),
             _ => Err(self.tx_buffer.take().unwrap()),
         }
     }

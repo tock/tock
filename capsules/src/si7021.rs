@@ -40,6 +40,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
@@ -244,22 +245,22 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7
         // can put this request "on deck" and it will happen after the
         // temperature measurement has finished.
         if self.state.get() == State::Idle {
-            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+            self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                 // turn on i2c to send commands
                 self.i2c.enable();
 
                 buffer[0] = Registers::MeasTemperatureNoHoldMode as u8;
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeTempMeasurementInit);
-                ReturnCode::SUCCESS
+                Ok(())
             })
         } else {
             // Queue this request if nothing else queued.
             if self.on_deck.get() == OnDeck::Nothing {
                 self.on_deck.set(OnDeck::Temperature);
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::EBUSY
+                Err(ErrorCode::BUSY)
             }
         }
     }
@@ -276,23 +277,23 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SI7021
         // can put this request "on deck" and it will happen after the
         // temperature measurement has finished.
         if self.state.get() == State::Idle {
-            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+            self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                 // turn on i2c to send commands
                 self.i2c.enable();
 
                 buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeRhMeasurementInit);
-                ReturnCode::SUCCESS
+                Ok(())
             })
         } else {
             // Not idle, so queue this request if nothing else is queued. If we have already
             // queued a request return an error.
             if self.on_deck.get() == OnDeck::Nothing {
                 self.on_deck.set(OnDeck::Humidity);
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::EBUSY
+                Err(ErrorCode::BUSY)
             }
         }
     }

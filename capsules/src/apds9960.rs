@@ -383,12 +383,12 @@ impl gpio::Client for APDS9960<'_> {
 impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
     fn read_proximity(&self) -> kernel::ReturnCode {
         self.take_measurement();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> kernel::ReturnCode {
         self.take_measurement_on_interrupt(low, high);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::ProximityClient) {

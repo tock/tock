@@ -134,19 +134,19 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
         self.registers.prescaler.write(Prescaler::PRESCALER.val(0));
         self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enabled.set(true);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         //self.registers.cc[0].write(Counter::VALUE.val(0));
         self.registers.tasks_stop.write(Task::ENABLE::SET);
         self.enabled.set(false);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
         self.registers.tasks_clear.write(Task::ENABLE::SET);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -186,7 +186,7 @@ impl<'a> Alarm<'a> for Rtc<'a> {
         let regs = &*self.registers;
         regs.intenclr.write(Inte::COMPARE0::SET);
         regs.events_compare[0].write(Event::READY::CLEAR);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

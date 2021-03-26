@@ -671,12 +671,12 @@ pub enum Error {
 impl From<Error> for ReturnCode {
     fn from(err: Error) -> ReturnCode {
         match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-            Error::InactiveApp => ReturnCode::FAIL,
-            Error::KernelError => ReturnCode::FAIL,
-            Error::AlreadyInUse => ReturnCode::FAIL,
+            Error::OutOfMemory => Err(ErrorCode::NOMEM),
+            Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
+            Error::NoSuchApp => Err(ErrorCode::INVAL),
+            Error::InactiveApp => Err(ErrorCode::FAIL),
+            Error::KernelError => Err(ErrorCode::FAIL),
+            Error::AlreadyInUse => Err(ErrorCode::FAIL),
         }
     }
 }

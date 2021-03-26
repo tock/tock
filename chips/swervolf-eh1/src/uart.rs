@@ -9,6 +9,7 @@ use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 register_structs! {
@@ -68,7 +69,7 @@ impl<'a> Uart<'a> {
             // Signal client write done
             self.tx_client.map(|client| {
                 self.buffer.take().map(|buffer| {
-                    client.transmitted_buffer(buffer, self.len.get(), ReturnCode::SUCCESS);
+                    client.transmitted_buffer(buffer, self.len.get(), Ok(()));
                 });
             });
         } else {
@@ -100,10 +101,10 @@ impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
 
         // Set DLAB in LCR
@@ -121,7 +122,7 @@ impl hil::uart::Configure for Uart<'_> {
 
         self.enable_interrupts();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -136,7 +137,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if tx_len == 0 {
-            return (ReturnCode::ESIZE, Some(tx_data));
+            return (Err(ErrorCode::SIZE), Some(tx_data));
         }
 
         // Fill the TX buffer until it reports full.
@@ -155,15 +156,15 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         self.buffer.replace(tx_data);
         self.len.set(tx_len);
 
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -177,14 +178,14 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         _rx_buffer: &'static mut [u8],
         _rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+        (Err(ErrorCode::FAIL), None)
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }

@@ -76,6 +76,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// Globally declare entry ID type.
@@ -172,7 +173,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             buffer: TakeCell::empty(),
             length: Cell::new(0),
             records_lost: Cell::new(false),
-            error: Cell::new(ReturnCode::ENODEVICE),
+            error: Cell::new(Err(ErrorCode::NODEVICE)),
         };
 
         log.reconstruct();
@@ -317,7 +318,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     fn get_next_entry(&self) -> Result<EntryID, ReturnCode> {
         self.pagebuffer
             .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
+            .map_or(Err(Err(ErrorCode::RESERVE)), move |pagebuffer| {
                 let mut entry_id = self.read_entry_id.get();
 
                 // Skip page header if at start of page or skip padded bytes if at end of page.
@@ -330,7 +331,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                 // Check if end of log was reached and return.
                 self.pagebuffer.replace(pagebuffer);
                 if entry_id >= self.append_entry_id.get() {
-                    Err(ReturnCode::FAIL)
+                    Err(Err(ErrorCode::FAIL))
                 } else {
                     Ok(entry_id)
                 }
@@ -345,7 +346,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     fn read_entry_header(&self, entry_id: EntryID) -> Result<usize, ReturnCode> {
         self.pagebuffer
             .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
+            .map_or(Err(Err(ErrorCode::RESERVE)), move |pagebuffer| {
                 // Get length.
                 const LENGTH_SIZE: usize = size_of::<usize>();
                 let length_bytes = self.get_bytes(entry_id, LENGTH_SIZE, pagebuffer);
@@ -355,7 +356,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                 // Return length of next entry.
                 self.pagebuffer.replace(pagebuffer);
                 if length == 0 || length > self.page_size - PAGE_HEADER_SIZE - ENTRY_HEADER_SIZE {
-                    Err(ReturnCode::FAIL)
+                    Err(Err(ErrorCode::FAIL))
                 } else {
                     Ok(length)
                 }
@@ -376,11 +377,11 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         // Read entry into buffer.
         self.pagebuffer
             .take()
-            .map_or(Err(ReturnCode::ERESERVE), move |pagebuffer| {
+            .map_or(Err(Err(ErrorCode::RESERVE)), move |pagebuffer| {
                 // Ensure buffer is large enough to hold log entry.
                 if entry_length > length {
                     self.pagebuffer.replace(pagebuffer);
-                    return Err(ReturnCode::ESIZE);
+                    return Err(Err(ErrorCode::SIZE));
                 }
                 let entry_id = entry_id + ENTRY_HEADER_SIZE;
 
@@ -437,7 +438,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         self.buffer.replace(buffer);
         self.records_lost
             .set(self.oldest_entry_id.get() != PAGE_HEADER_SIZE);
-        self.error.set(ReturnCode::SUCCESS);
+        self.error.set(Ok(()));
         self.client_callback();
     }
 
@@ -477,7 +478,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
         // Sync page to flash.
         match self.driver.write_page(page_number, pagebuffer) {
-            Ok(()) => ReturnCode::SUCCESS,
+            Ok(()) => Ok(()),
             Err((return_code, pagebuffer)) => {
                 self.pagebuffer.replace(pagebuffer);
                 return_code
@@ -610,17 +611,17 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try reading again later.
-            return Err((ReturnCode::EBUSY, Some(buffer)));
+            return Err((Err(ErrorCode::BUSY), Some(buffer)));
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
-            return Err((ReturnCode::EINVAL, Some(buffer)));
+            return Err((Err(ErrorCode::INVAL), Some(buffer)));
         } else if self.read_entry_id.get() > self.append_entry_id.get() {
             // Read entry ID beyond append entry ID, must be invalid.
             self.read_entry_id.set(self.oldest_entry_id.get());
-            return Err((ReturnCode::ECANCEL, Some(buffer)));
+            return Err((Err(ErrorCode::CANCEL), Some(buffer)));
         } else if self.read_client.is_none() {
             // No client for callback.
-            return Err((ReturnCode::ERESERVE, Some(buffer)));
+            return Err((Err(ErrorCode::RESERVE), Some(buffer)));
         }
 
         // Try reading next entry.
@@ -629,7 +630,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
                 self.state.set(State::Read);
                 self.buffer.replace(buffer);
                 self.length.set(bytes_read);
-                self.error.set(ReturnCode::SUCCESS);
+                self.error.set(Ok(()));
                 self.deferred_client_callback();
                 Ok(())
             }
@@ -663,11 +664,11 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
             self.read_entry_id.set(entry_id);
 
             self.state.set(State::Seek);
-            self.error.set(ReturnCode::SUCCESS);
+            self.error.set(Ok(()));
             self.deferred_client_callback();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -709,16 +710,16 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
-            return Err((ReturnCode::EBUSY, Some(buffer)));
+            return Err((Err(ErrorCode::BUSY), Some(buffer)));
         } else if length == 0 || buffer.len() < length {
             // Invalid length provided.
-            return Err((ReturnCode::EINVAL, Some(buffer)));
+            return Err((Err(ErrorCode::INVAL), Some(buffer)));
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
             // Entry too big, won't fit within a single page.
-            return Err((ReturnCode::ESIZE, Some(buffer)));
+            return Err((Err(ErrorCode::SIZE), Some(buffer)));
         } else if !self.circular && self.append_entry_id.get() + entry_size > self.volume.len() {
             // End of non-circular log has been reached.
-            return Err((ReturnCode::FAIL, Some(buffer)));
+            return Err((Err(ErrorCode::FAIL), Some(buffer)));
         }
 
         // Perform append.
@@ -740,7 +741,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
                     // Need to sync pagebuffer first, then append to new page.
                     self.buffer.replace(buffer);
                     let return_code = self.flush_pagebuffer(pagebuffer);
-                    if return_code == ReturnCode::SUCCESS {
+                    if return_code == Ok(()) {
                         Ok(())
                     } else {
                         self.state.set(State::Idle);
@@ -752,7 +753,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
                     }
                 }
             }
-            None => Err((ReturnCode::ERESERVE, Some(buffer))),
+            None => Err((Err(ErrorCode::RESERVE), Some(buffer))),
         }
     }
 
@@ -768,18 +769,18 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     fn sync(&self) -> ReturnCode {
         if self.append_entry_id.get() % self.page_size == PAGE_HEADER_SIZE {
             // Pagebuffer empty, don't need to flush.
-            return ReturnCode::SUCCESS;
+            return Ok(());
         } else if self.state.get() != State::Idle {
             // Log busy, try appending again later.
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.pagebuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
+            .map_or(Err(ErrorCode::RESERVE), move |pagebuffer| {
                 self.state.set(State::Sync);
                 let return_code = self.flush_pagebuffer(pagebuffer);
-                if return_code != ReturnCode::SUCCESS {
+                if return_code != Ok(()) {
                     self.state.set(State::Idle);
                 }
                 return_code
@@ -796,7 +797,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     fn erase(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.state.set(State::Erase);
@@ -829,7 +830,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                             self.pagebuffer.replace(pagebuffer);
                             self.length.set(0);
                             self.records_lost.set(false);
-                            self.error.set(ReturnCode::ECANCEL);
+                            self.error.set(Err(ErrorCode::CANCEL));
                             self.client_callback();
                         }
                     }
@@ -840,7 +841,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                         }
 
                         self.pagebuffer.replace(pagebuffer);
-                        self.error.set(ReturnCode::SUCCESS);
+                        self.error.set(Ok(()));
                         self.client_callback();
                     }
                     _ => unreachable!(),
@@ -853,11 +854,11 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     State::Append => {
                         self.length.set(0);
                         self.records_lost.set(false);
-                        self.error.set(ReturnCode::FAIL);
+                        self.error.set(Err(ErrorCode::FAIL));
                         self.client_callback();
                     }
                     State::Sync => {
-                        self.error.set(ReturnCode::FAIL);
+                        self.error.set(Err(ErrorCode::FAIL));
                         self.client_callback();
                     }
                     _ => unreachable!(),
@@ -875,9 +876,9 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                 if oldest_entry_id >= self.append_entry_id.get() - self.page_size {
                     // Erased all pages. Reset state and callback client.
                     if self.reset() {
-                        self.error.set(ReturnCode::SUCCESS);
+                        self.error.set(Ok(()));
                     } else {
-                        self.error.set(ReturnCode::ERESERVE);
+                        self.error.set(Err(ErrorCode::RESERVE));
                     }
                     self.client_callback();
                 } else {
@@ -886,16 +887,16 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     let status = self.erase_page();
 
                     // Abort and alert client if flash driver is busy.
-                    if status == ReturnCode::EBUSY {
+                    if status == Err(ErrorCode::BUSY) {
                         self.read_entry_id
                             .set(core::cmp::max(self.read_entry_id.get(), oldest_entry_id));
-                        self.error.set(ReturnCode::EBUSY);
+                        self.error.set(Err(ErrorCode::BUSY));
                         self.client_callback();
                     }
                 }
             }
             flash::Error::FlashError => {
-                self.error.set(ReturnCode::FAIL);
+                self.error.set(Err(ErrorCode::FAIL));
                 self.client_callback();
             }
         }

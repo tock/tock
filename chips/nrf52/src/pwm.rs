@@ -238,13 +238,13 @@ impl Pwm {
         // Start
         self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop_pwm(&self, _pin: &nrf5x::pinmux::Pinmux) -> ReturnCode {
         self.registers.tasks_stop.write(TASK::TASK::SET);
         self.registers.enable.write(ENABLE::ENABLE::CLEAR);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 

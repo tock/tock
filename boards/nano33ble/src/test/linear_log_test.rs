@@ -173,7 +173,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     Err((return_code, Some(buffer))) => {
                         self.buffer.replace(buffer);
                         match return_code {
-                            ReturnCode::FAIL => {
+                            Err(ErrorCode::FAIL) => {
                                 // No more entries, start writing again.
                                 debug_verbose!(
                                     "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
@@ -183,7 +183,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                                 self.op_index.increment();
                                 self.run();
                             }
-                            ReturnCode::EBUSY => {
+                            Err(ErrorCode::BUSY) => {
                                 debug_verbose!("Flash busy, waiting before reattempting read");
                                 self.wait();
                             }
@@ -216,7 +216,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
 
                     match error {
-                        ReturnCode::FAIL =>
+                        Err(ErrorCode::FAIL) =>
                             if expect_write_fail {
                                 debug_verbose!(
                                     "Write failed on {} byte write, as expected",
@@ -232,7 +232,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                                     self.log.log_end()
                                 );
                             }
-                        ReturnCode::EBUSY => self.wait(),
+                        Err(ErrorCode::BUSY) => self.wait(),
                         _ => panic!("WRITE FAILED: {:?}", error),
                     }
                 } else if expect_write_fail {
@@ -249,7 +249,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 
     fn sync(&self) {
         match self.log.sync() {
-            ReturnCode::SUCCESS => (),
+            Ok(()) => (),
             error => panic!("Sync failed: {:?}", error),
         }
     }
@@ -264,7 +264,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         match error {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 // Verify correct value was read.
                 assert!(length > 0);
                 for i in 0..length {
@@ -301,7 +301,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
     ) {
         assert!(!records_lost);
         match error {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 debug_verbose!("Write succeeded on {} byte write, as expected", length);
 
                 self.buffer.replace(buffer);
@@ -313,7 +313,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
     }
 
     fn sync_done(&self, error: ReturnCode) {
-        if error == ReturnCode::SUCCESS {
+        if error == Ok(()) {
             debug_verbose!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
                 self.log.next_read_entry_id(),

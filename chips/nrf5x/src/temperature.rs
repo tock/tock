@@ -149,7 +149,7 @@ impl<'a> kernel::hil::sensors::TemperatureDriver<'a> for Temp<'a> {
         self.enable_interrupts();
         self.registers.event_datardy.write(Event::READY::CLEAR);
         self.registers.task_start.write(Task::ENABLE::SET);
-        kernel::ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {

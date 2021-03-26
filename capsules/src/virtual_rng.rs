@@ -3,6 +3,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::rng::{Client, Continue, Rng};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -41,7 +42,7 @@ impl<'a> MuxRngMaster<'a> {
                         let success_code = self.rng.get();
 
                         // Only set inflight to node if we successfully initiated rng
-                        if success_code == ReturnCode::SUCCESS {
+                        if success_code == Ok(()) {
                             self.inflight.set(node);
                         }
                         success_code
@@ -58,10 +59,10 @@ impl<'a> MuxRngMaster<'a> {
             if let Some(r) = return_code {
                 r
             } else {
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             }
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -134,14 +135,14 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
         self.mux.inflight.map_or_else(
             || {
                 // If no node inflight, just set node to idle and return
-                ReturnCode::SUCCESS
+                Ok(())
             },
             |current_node| {
                 // Find if current device is the one in flight or not
                 if *current_node == self {
                     self.mux.rng.cancel()
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
             },
         )

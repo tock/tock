@@ -19,6 +19,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 use crate::rf233_const::CSMA_SEED_1;
@@ -789,9 +790,9 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 if status == ExternalState::RX_AACK_ON as u8 {
                     let return_code = if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE
                     {
-                        ReturnCode::FAIL
+                        Err(ErrorCode::FAIL)
                     } else {
-                        ReturnCode::SUCCESS
+                        Ok(())
                     };
 
                     self.transmitting.set(false);
@@ -909,7 +910,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 self.rx_client.map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
                     let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
-                    client.receive(rbuf, frame_len, self.crc_valid.get(), ReturnCode::SUCCESS);
+                    client.receive(rbuf, frame_len, self.crc_valid.get(), Ok(()));
                 });
             }
 
@@ -1010,7 +1011,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 self.config_pending.set(false);
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
                 self.cfg_client.map(|c| {
-                    c.config_done(ReturnCode::SUCCESS);
+                    c.config_done(Ok(()));
                 });
             }
         }
@@ -1099,7 +1100,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
 
     fn register_write(&self, reg: RF233Register, val: u8) -> ReturnCode {
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
         let wbuf = self.spi_tx.take().unwrap();
         let rbuf = self.spi_rx.take().unwrap();
@@ -1108,12 +1109,12 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn register_read(&self, reg: RF233Register) -> ReturnCode {
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         let wbuf = self.spi_tx.take().unwrap();
@@ -1123,24 +1124,24 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn frame_write(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         buf[0] = RF233BusCommand::FRAME_WRITE as u8;
         self.spi.read_write_bytes(buf, self.spi_buf.take(), buf_len);
         self.spi_busy.set(true);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn frame_read(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
@@ -1148,7 +1149,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         wbuf[0] = RF233BusCommand::FRAME_READ as u8;
         self.spi.read_write_bytes(wbuf, Some(buf), buf_len);
         self.spi_busy.set(true);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn state_transition_write(&self, reg: RF233Register, val: u8, state: InternalState) {
@@ -1172,12 +1173,12 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         reg_read: &'static mut [u8],
     ) -> ReturnCode {
         if (buf.len() < radio::MAX_BUF_SIZE || reg_read.len() != 2 || reg_write.len() != 2) {
-            return ReturnCode::ESIZE;
+            return Err(ErrorCode::SIZE);
         }
         self.spi_buf.replace(buf);
         self.spi_rx.replace(reg_read);
         self.spi_tx.replace(reg_write);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
@@ -1194,14 +1195,14 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         self.reset_pin.set();
         self.sleep_pin.clear();
         self.transmitting.set(false);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn start(&self) -> ReturnCode {
         self.sleep_pending.set(false);
 
         if self.state.get() != InternalState::START && self.state.get() != InternalState::SLEEP {
-            return ReturnCode::EALREADY;
+            return Err(ErrorCode::ALREADY);
         }
 
         if self.state.get() == InternalState::SLEEP {
@@ -1212,14 +1213,14 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
             self.register_read(RF233Register::PART_NUM);
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         if self.state.get() == InternalState::SLEEP
             || self.state.get() == InternalState::SLEEP_TRX_OFF
         {
-            return ReturnCode::EALREADY;
+            return Err(ErrorCode::ALREADY);
         }
 
         match self.state.get() {
@@ -1236,7 +1237,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_on(&self) -> bool {
@@ -1269,19 +1270,19 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
 
     fn set_tx_power(&self, power: i8) -> ReturnCode {
         if (power > 4 || power < -17) {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             self.tx_power.set(power);
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
     fn set_channel(&self, chan: u8) -> ReturnCode {
         if chan >= 11 && chan <= 26 {
             self.channel.set(chan);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -1353,12 +1354,12 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
         let frame_len = frame_len + radio::MFR_SIZE;
 
         if !self.radio_on.get() {
-            return (ReturnCode::EOFF, Some(spi_buf));
+            return (Err(ErrorCode::OFF), Some(spi_buf));
         } else if self.tx_buf.is_some() || self.transmitting.get() {
-            return (ReturnCode::EBUSY, Some(spi_buf));
+            return (Err(ErrorCode::BUSY), Some(spi_buf));
         } else if radio::PSDU_OFFSET + frame_len >= spi_buf.len() {
             // Not enough room for CRC
-            return (ReturnCode::ESIZE, Some(spi_buf));
+            return (Err(ErrorCode::SIZE), Some(spi_buf));
         }
 
         // Set PHY header to be the frame length
@@ -1373,6 +1374,6 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
                 InternalState::TX_STATUS_PRECHECK1,
             );
         }
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 }

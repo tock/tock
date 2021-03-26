@@ -5,6 +5,7 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
+use kernel::ErrorCode;
 use kernel::{ClockInterface, ReturnCode};
 
 use crate::deferred_calls::DeferredCallTask;
@@ -297,9 +298,9 @@ impl Bus8080<'static> for Fsmc<'_> {
             BusWidth::Bits8 => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
                 DEFERRED_CALL.set();
-                ReturnCode::SUCCESS
+                Ok(())
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -323,9 +324,9 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.bus_width.set(bytes);
             self.len.set(len);
             DEFERRED_CALL.set();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 
@@ -342,16 +343,16 @@ impl Bus8080<'static> for Fsmc<'_> {
                             }] = (data >> (8 * byte)) as u8;
                     }
                 } else {
-                    return ReturnCode::ENOMEM;
+                    return Err(ErrorCode::NOMEM);
                 }
             }
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
             DEFERRED_CALL.set();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 

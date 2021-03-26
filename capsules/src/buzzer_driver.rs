@@ -112,11 +112,11 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                     if app.pending_command.is_some() {
                         // No more room in the queue, nowhere to store this
                         // request.
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     } else {
                         // We can store this, so lets do it.
                         app.pending_command = Some(command);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 })
                 .unwrap_or_else(|err| err.into())
@@ -134,7 +134,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                 let ret = self
                     .pwm_pin
                     .start(frequency_hz, self.pwm_pin.get_maximum_duty_cycle() / 2);
-                if ret != ReturnCode::SUCCESS {
+                if ret != Ok(()) {
                     return ret;
                 }
 
@@ -142,7 +142,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                 let interval = (duration_ms as u32) * <A::Frequency>::frequency() / 1000;
                 self.alarm
                     .set_alarm(self.alarm.now(), A::Ticks::from(interval));
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -155,7 +155,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                     // Mark this driver as being in use.
                     self.active_app.set(app.appid());
                     // Actually make the buzz happen.
-                    self.buzz(command) == ReturnCode::SUCCESS
+                    self.buzz(command) == Ok(())
                 })
             });
             if started_command {

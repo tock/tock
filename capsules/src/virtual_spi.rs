@@ -160,7 +160,7 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {

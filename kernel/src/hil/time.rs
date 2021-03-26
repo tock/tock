@@ -122,19 +122,19 @@ pub trait Counter<'a>: Time {
     fn set_overflow_client(&'a self, client: &'a dyn OverflowClient);
 
     /// Starts the free-running hardware counter. Valid `ReturnCode` values are:
-    ///   - `ReturnCode::SUCCESS`: the counter is now running
-    ///   - `ReturnCode::EOFF`: underlying clocks or other hardware resources
+    ///   - `Ok(())`: the counter is now running
+    ///   - `Err(ErrorCode::OFF)`: underlying clocks or other hardware resources
     ///   are not on, such that the counter cannot start.
-    ///   - `ReturnCode::FAIL`: unidentified failure, counter is not running.
+    ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is not running.
     /// After a successful call to `start`, `is_running` MUST return true.    
     fn start(&self) -> ReturnCode;
 
     /// Stops the free-running hardware counter. Valid `ReturnCode` values are:
-    ///   - `ReturnCode::SUCCESS`: the counter is now stopped. No further
+    ///   - `Ok(())`: the counter is now stopped. No further
     ///   overflow callbacks will be invoked.
-    ///   - `ReturnCode::EBUSY`: the counter is in use in a way that means it
+    ///   - `Err(ErrorCode::BUSY)`: the counter is in use in a way that means it
     ///   cannot be stopped and is busy.
-    ///   - `ReturnCode::FAIL`: unidentified failure, counter is running.
+    ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is running.
     /// After a successful call to `stop`, `is_running` MUST return false.        
     fn stop(&self) -> ReturnCode;
 
@@ -143,8 +143,8 @@ pub trait Counter<'a>: Time {
     /// If a client needs to reset and clear pending callbacks it should
     /// call `stop` before `reset`.
     /// Valid `ReturnCode` values are:
-    ///    - `ReturnCode::SUCCESS`: the counter was reset to 0.
-    ///    - `ReturnCode::FAIL`: the counter was not reset to 0.    
+    ///    - `Ok(())`: the counter was reset to 0.
+    ///    - `Err(ErrorCode::FAIL)`: the counter was not reset to 0.    
     fn reset(&self) -> ReturnCode;
 
     /// Returns whether the counter is currently running.
@@ -191,9 +191,9 @@ pub trait Alarm<'a>: Time {
 
     /// Disable the alarm and stop it from firing in the future.
     /// Valid `ReturnCode` codes are:
-    ///   - `ReturnCode::SUCCESS` the alarm has been disarmed and will not invoke
+    ///   - `Ok(())` the alarm has been disarmed and will not invoke
     ///   the callback in the future    
-    ///   - `ReturnCode::FAIL` the alarm could not be disarmed and will invoke
+    ///   - `Err(ErrorCode::FAIL)` the alarm could not be disarmed and will invoke
     ///   the callback in the future    
     fn disarm(&self) -> ReturnCode;
 
@@ -267,8 +267,8 @@ pub trait Timer<'a>: Time {
     fn is_enabled(&self) -> bool;
 
     /// Cancel the current timer, if any. Value `ReturnCode` values are:
-    ///  - `ReturnCode::SUCCESS`: no callback will be invoked in the future.
-    ///  - `ReturnCode::FAIL`: the timer could not be cancelled and a callback
+    ///  - `Ok(())`: no callback will be invoked in the future.
+    ///  - `Err(ErrorCode::FAIL)`: the timer could not be cancelled and a callback
     ///  will be invoked in the future.
     fn cancel(&self) -> ReturnCode;
 }

@@ -11,6 +11,7 @@ use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 const MAX_LENGTH: usize = 128;
@@ -231,7 +232,7 @@ impl<'a> Aes<'a> {
         }
 
         if key.len() != AES128_KEY_SIZE {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         for i in 0..4 {
@@ -253,7 +254,7 @@ impl<'a> Aes<'a> {
         regs.key5.set(0);
         regs.key6.set(0);
         regs.key7.set(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn do_crypt(&self, start_index: usize, stop_index: usize, wr_start_index: usize) {
@@ -290,7 +291,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
     fn set_iv(&self, _iv: &[u8]) -> ReturnCode {
         // nothing because this is ECB
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn start_message(&self) {}
@@ -307,13 +308,13 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         stop_index: usize,
     ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         match stop_index.checked_sub(start_index) {
-            None => return Some((ReturnCode::EINVAL, source, dest)),
+            None => return Some((Err(ErrorCode::INVAL), source, dest)),
             Some(s) => {
                 if s > MAX_LENGTH {
-                    return Some((ReturnCode::EINVAL, source, dest));
+                    return Some((Err(ErrorCode::INVAL), source, dest));
                 }
                 if s % AES128_BLOCK_SIZE != 0 {
-                    return Some((ReturnCode::EINVAL, source, dest));
+                    return Some((Err(ErrorCode::INVAL), source, dest));
                 }
             }
         }

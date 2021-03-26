@@ -79,7 +79,7 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
     spi.set_baud_rate(200000);
 
     let len = BUF2.len();
-    if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != ReturnCode::SUCCESS {
+    if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != Ok(()) {
         loop {
             spi.write_byte(0xA5);
         }

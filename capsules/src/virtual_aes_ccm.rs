@@ -93,6 +93,7 @@ use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
 };
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -195,7 +196,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
 
                 // notice that we didn't put the parameters back...
                 // because it's already eaten
-                if res != ReturnCode::SUCCESS {
+                if res != Ok(()) {
                     if node.crypt_client.is_none() {
                         debug!(
                             "virtual_aes_ccm: no crypt_client is registered in VirtualAES128CCM"
@@ -306,15 +307,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         a_data: &[u8],
         m_data: &[u8],
     ) -> ReturnCode {
-        self.crypt_buf.map_or(ReturnCode::ENOMEM, |cbuf| {
+        self.crypt_buf.map_or(Err(ErrorCode::NOMEM), |cbuf| {
             let (auth_len, enc_len) =
                 match Self::encode_ccm_buffer(cbuf, nonce, mic_len, a_data, m_data) {
                     SResult::Done(_, out) => out,
                     SResult::Needed(_) => {
-                        return ReturnCode::ENOMEM;
+                        return Err(ErrorCode::NOMEM);
                     }
                     SResult::Error(_) => {
-                        return ReturnCode::FAIL;
+                        return Err(ErrorCode::FAIL);
                     }
                 };
             // debug!("auth: ({})", auth_len);
@@ -328,7 +329,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
 
             self.crypt_auth_len.set(auth_len);
             self.crypt_enc_len.set(enc_len);
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -418,11 +419,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
 
         let iv = [0u8; AES128_BLOCK_SIZE];
         let res = self.aes.set_iv(&iv);
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             return res;
         }
         let res = self.aes.set_key(&self.key.get());
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             return res;
         }
 
@@ -444,7 +445,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         match self.aes.crypt(None, crypt_buf, 0, auth_end) {
             None => {
                 self.state.set(CCMState::Auth);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             Some((res, _, crypt_buf)) => {
                 // Request failed
@@ -458,7 +459,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         if !(self.state.get() == CCMState::Auth)
             && !(self.state.get() == CCMState::Idle && self.reversed())
         {
-            return ReturnCode::FAIL;
+            return Err(ErrorCode::FAIL);
         }
         self.state.set(CCMState::Idle); // default to fail
 
@@ -475,7 +476,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         iv[0] = 1;
         iv[1..1 + CCM_NONCE_LENGTH].copy_from_slice(&self.nonce.get());
         let res = self.aes.set_iv(&iv);
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             return res;
         }
 
@@ -494,7 +495,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         ) {
             None => {
                 self.state.set(CCMState::Encrypt);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             Some((res, _, crypt_buf)) => {
                 self.crypt_buf.replace(crypt_buf);
@@ -539,7 +540,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.mux.do_next_op();
         self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
-                client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
+                client.crypt_done(buf, Ok(()), tag_valid);
             });
         });
     }
@@ -577,7 +578,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.mux.do_next_op();
         self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
-                client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
+                client.crypt_done(buf, Ok(()), tag_valid);
             });
         });
     }
@@ -622,10 +623,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         let encrypting: bool = parameter.encrypting;
         //
         if self.state.get() != CCMState::Idle {
-            return (ReturnCode::EBUSY, Some(buf));
+            return (Err(ErrorCode::BUSY), Some(buf));
         }
         if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
-            return (ReturnCode::EINVAL, Some(buf));
+            return (Err(ErrorCode::INVAL), Some(buf));
         }
 
         self.confidential.set(confidential);
@@ -637,7 +638,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             &buf[a_off..m_off],
             &buf[m_off..m_off + m_len],
         );
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             return (res, Some(buf));
         }
 
@@ -650,12 +651,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             self.start_ccm_encrypt()
         };
 
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             (res, Some(buf))
         } else {
             self.buf.replace(buf);
             self.pos.set((a_off, m_off, m_len, mic_len));
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         }
     }
 
@@ -674,23 +675,23 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
         if key.len() < AES128_KEY_SIZE {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             let mut new_key = [0u8; AES128_KEY_SIZE];
             new_key.copy_from_slice(key);
             self.key.set(new_key);
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
     fn set_nonce(&self, nonce: &[u8]) -> ReturnCode {
         if nonce.len() < CCM_NONCE_LENGTH {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             let mut new_nonce = [0u8; CCM_NONCE_LENGTH];
             new_nonce.copy_from_slice(nonce);
             self.nonce.set(new_nonce);
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
     /// Try to begin the encryption/decryption process
@@ -705,13 +706,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
         encrypting: bool,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.queued_up.is_some() {
-            return (ReturnCode::EBUSY, Some(buf));
+            return (Err(ErrorCode::BUSY), Some(buf));
         }
         if self.state.get() != CCMState::Idle {
-            return (ReturnCode::EBUSY, Some(buf));
+            return (Err(ErrorCode::BUSY), Some(buf));
         }
         if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
-            return (ReturnCode::EINVAL, Some(buf));
+            return (Err(ErrorCode::INVAL), Some(buf));
         }
 
         self.queued_up.set(CryptFunctionParameters::new(
@@ -724,7 +725,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
             encrypting,
         ));
         self.mux.do_next_op_async();
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 }
 
@@ -763,7 +764,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     }
 
                     let res = self.start_ccm_encrypt();
-                    if res != ReturnCode::SUCCESS {
+                    if res != Ok(()) {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
                             self.crypt_client.map(move |client| {
@@ -799,7 +800,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                             .for_each(|b| *b = 0);
                     });
                     let res = self.start_ccm_auth();
-                    if res != ReturnCode::SUCCESS {
+                    if res != Ok(()) {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
                             self.crypt_client.map(move |client| {

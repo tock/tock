@@ -6,6 +6,7 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite,
 use kernel::common::StaticRef;
 use kernel::hil::time;
 use kernel::hil::time::{Ticks, Ticks64, Time};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 const PRESCALE: u16 = ((CONFIG.cpu_freq / 10_000) - 1) as u16; // 10Khz
@@ -116,17 +117,17 @@ impl<'a> time::Counter<'a> for RvTimer<'a> {
     }
 
     fn start(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         // RISCV counter can't be stopped...
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 
     fn reset(&self) -> ReturnCode {
         // RISCV counter can't be reset
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -180,7 +181,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         // the interrupt is sufficient. Calling set_alarm will clear the
         // pending interrupt before re-enabling. -pal 8/6/20
         self.registers.intr_enable.write(intr::timer0::CLEAR);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

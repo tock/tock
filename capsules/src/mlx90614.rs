@@ -210,6 +210,6 @@ impl<'a> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a> {
 
     fn read_temperature(&self) -> ReturnCode {
         self.read_object_temperature();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

@@ -213,6 +213,6 @@ impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'_, F> {
     fn erase_page(&self, page_number: usize) -> ReturnCode {
         self.operation.set(Op::Erase(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

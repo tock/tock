@@ -337,11 +337,11 @@ impl<'a> hil::sensors::NineDof<'a> for Fxos8700cq<'a> {
 
     fn read_accelerometer(&self) -> ReturnCode {
         self.start_read_accel();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn read_magnetometer(&self) -> ReturnCode {
         self.start_read_magnetometer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

@@ -375,18 +375,18 @@ impl<'a> Counter<'a> for Tim2<'a> {
     // starts the timer
     fn start(&self) -> ReturnCode {
         self.start();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         self.registers.cr1.modify(CR1::CEN::CLEAR);
         self.registers.sr.modify(SR::CC1IF::CLEAR);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
         self.registers.cnt.set(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -427,7 +427,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
                 cortexm4::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

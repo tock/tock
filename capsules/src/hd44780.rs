@@ -53,6 +53,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// commands
@@ -235,18 +236,18 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     self.command_to_finish
                         .replace(LCD_DISPLAYCONTROL | self.display_control.get());
                     self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
 
                 2 => {
                     self.lcd_clear(LCDStatus::Idle);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
 
-                _ => ReturnCode::EINVAL,
+                _ => Err(ErrorCode::INVAL),
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -262,7 +263,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             buffer[2] = row2;
             buffer[3] = row3;
         });
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// `pulse()` function starts executing the toggle needed by the device after
@@ -332,7 +333,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     if self.begin_done.get() {
                         self.begin_done.set(false);
                         self.initialized.set(true);
-                        client.command_complete(ReturnCode::SUCCESS);
+                        client.command_complete(Ok(()));
                     } else if self.write_len.get() > 0 {
                         self.write_character();
                     } else if self.done_printing.get() {
@@ -342,12 +343,12 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                                 client.write_complete(
                                     buffer,
                                     self.write_buffer_len.get() as usize,
-                                    ReturnCode::SUCCESS,
+                                    Ok(()),
                                 )
                             });
                         }
                     } else {
-                        client.command_complete(ReturnCode::SUCCESS);
+                        client.command_complete(Ok(()));
                     }
                 });
             }
@@ -612,7 +613,7 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
             self.write_character();
             Ok(())
         } else {
-            Err((ReturnCode::EBUSY, buffer))
+            Err((Err(ErrorCode::BUSY), buffer))
         }
     }
 
@@ -628,9 +629,9 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
             }
 
             self.set_cursor(x_position as u8, line_number);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -654,9 +655,9 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         if !self.initialized.get() {
             if self.lcd_status.get() == LCDStatus::Idle {
                 self.set_delay(10, LCDStatus::Begin0);
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::EBUSY
+                Err(ErrorCode::BUSY)
             }
         } else {
             self.screen_command(1, 0, LCD_DISPLAYON)

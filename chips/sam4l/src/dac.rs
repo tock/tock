@@ -10,6 +10,7 @@ use core::cell::Cell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[repr(C)]
@@ -157,23 +158,23 @@ impl hil::dac::DacChannel for Dac {
                 + Mode::DACEN::SET;
             self.registers.mr.write(mr);
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_value(&self, value: usize) -> ReturnCode {
         if !self.enabled.get() {
-            ReturnCode::EOFF
+            Err(ErrorCode::OFF)
         } else {
             // Check if ready to write to CDR
             if !self.registers.isr.is_set(InterruptStatus::TXRDY) {
-                return ReturnCode::EBUSY;
+                return Err(ErrorCode::BUSY);
             }
 
             // Write to CDR
             self.registers
                 .cdr
                 .write(ConversionData::DATA.val(value as u32));
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }

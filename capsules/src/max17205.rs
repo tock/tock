@@ -129,7 +129,7 @@ impl<'a> MAX17205<'a> {
     }
 
     fn setup_read_status(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             buffer[0] = Registers::Status as u8;
@@ -137,12 +137,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 2);
             self.state.set(State::SetupReadStatus);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn setup_read_soc(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get SOC mAh and percentage
@@ -151,12 +151,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadSOC);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn setup_read_curvolt(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get current and voltage
@@ -165,12 +165,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadVolt);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn setup_read_coulomb(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get raw coulomb count.
@@ -179,19 +179,19 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadCoulomb);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     fn setup_read_romid(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_upper.enable();
 
             buffer[0] = Registers::NRomID as u8;
             self.i2c_upper.write(buffer, 1);
             self.state.set(State::SetupReadRomID);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 }
@@ -208,9 +208,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| client.status(status, error));
@@ -252,9 +252,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| {
@@ -275,9 +275,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| {
@@ -318,9 +318,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client
@@ -344,9 +344,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 self.buffer.replace(buffer);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| client.romid(rid, error));

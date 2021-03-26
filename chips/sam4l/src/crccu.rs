@@ -54,6 +54,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
@@ -339,13 +340,13 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
 
         if self.get_tcr().interrupt_enabled() {
             // A computation is already in progress
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         if data.len() > 2usize.pow(16) - 1 {
             // Buffer too long
             // TODO: Chain CRCCU computations to handle large buffers
-            return ReturnCode::ESIZE;
+            return Err(ErrorCode::SIZE);
         }
 
         self.enable();
@@ -385,7 +386,7 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
         // Enable DMA channel
         self.registers.dmaen.write(DmaEnable::DMAEN::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn disable(&self) {

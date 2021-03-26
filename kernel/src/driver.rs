@@ -152,7 +152,7 @@ impl CommandReturn {
 impl From<ReturnCode> for CommandReturn {
     fn from(rc: ReturnCode) -> Self {
         match rc {
-            ReturnCode::SUCCESS => CommandReturn::success(),
+            Ok(()) => CommandReturn::success(),
             _ => CommandReturn::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }

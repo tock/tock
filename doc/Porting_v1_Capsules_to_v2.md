@@ -155,7 +155,7 @@ Here is a slightly more complex implementation of `command`, from the
 ```rust
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult{
         let res = match cmd_num {
-            0 => Ok(ReturnCode::SUCCESS),
+            0 => Ok(Ok(())),
             1 => { // putstr
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
@@ -170,7 +170,7 @@ Here is a slightly more complex implementation of `command`, from the
             },
             3 => { // Abort RX
                 self.uart.receive_abort();
-                Ok(ReturnCode::SUCCESS)
+                Ok(Ok(()))
             }
             _ => Err(ErrorCode::NOSUPPORT)
         };

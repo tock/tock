@@ -1,5 +1,6 @@
 //! Interfaces for environment sensors
 
+use crate::errorcode::ErrorCode;
 use crate::returncode::ReturnCode;
 
 /// A basic interface for a temperature sensor
@@ -62,7 +63,7 @@ pub trait AmbientLight<'a> {
 
     /// Get a single instantaneous reading of the ambient light intensity.
     fn read_light_intensity(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 }
 
@@ -90,19 +91,19 @@ pub trait NineDof<'a> {
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.
     fn read_accelerometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the magnetometer in all
     /// three directions.
     fn read_magnetometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the gyroscope of the rotation
     /// around all three axes.
     fn read_gyroscope(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 }
 

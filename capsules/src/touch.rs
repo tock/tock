@@ -107,7 +107,7 @@ impl<'a> Touch<'a> {
                 break;
             }
         }
-        self.touch.map_or(ReturnCode::ENODEVICE, |touch| {
+        self.touch.map_or(Err(ErrorCode::NODEVICE), |touch| {
             if enabled {
                 touch.enable()
             } else {
@@ -125,7 +125,7 @@ impl<'a> Touch<'a> {
             }
         }
         self.multi_touch
-            .map_or(ReturnCode::ENODEVICE, |multi_touch| {
+            .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
                 if enabled {
                     multi_touch.enable()
                 } else {

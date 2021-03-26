@@ -17,6 +17,7 @@ use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 #[allow(dead_code)]
@@ -414,7 +415,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
         if key.len() != AES128_KEY_SIZE {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         for i in 0..4 {
@@ -431,12 +432,12 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
         if iv.len() != AES128_BLOCK_SIZE {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         // Set the initial value from the array.
@@ -454,7 +455,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn start_message(&self) {
@@ -474,7 +475,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         stop_index: usize,
     ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         if self.busy() {
-            Some((ReturnCode::EBUSY, source, dest))
+            Some((Err(ErrorCode::BUSY), source, dest))
         } else {
             self.source.put(source);
             self.dest.replace(dest);
@@ -483,7 +484,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
                 None
             } else {
                 Some((
-                    ReturnCode::EINVAL,
+                    Err(ErrorCode::INVAL),
                     self.source.take(),
                     self.dest.take().unwrap(),
                 ))

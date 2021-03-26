@@ -44,7 +44,7 @@
 //!         let peripheral = &PeripheralManager::new(self);
 //!         peripheral.registers.control.set(0x0);
 //!         //         ^^^^^^^^^-- This is type &PeripheralRegisters
-//!         ReturnCode::SUCCESS
+//!         Ok(())
 //!     }
 //! }
 //! # use kernel::common::peripherals::PeripheralManagement;

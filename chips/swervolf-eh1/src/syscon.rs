@@ -5,6 +5,7 @@ use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time;
 use kernel::hil::time::{Ticks, Ticks64, Time};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// 100Hz `Frequency`
@@ -120,17 +121,17 @@ impl<'a> time::Counter<'a> for SysCon<'a> {
     }
 
     fn start(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         // RISCV counter can't be stopped...
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 
     fn reset(&self) -> ReturnCode {
         // RISCV counter can't be reset
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -181,7 +182,7 @@ impl<'a> time::Alarm<'a> for SysCon<'a> {
         // set it to the future.
         self.registers.mtimecmp_low.set(0xFFFF_FFFF);
         self.registers.mtimecmp_high.set(0xFFFF_FFFF);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

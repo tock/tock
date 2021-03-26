@@ -420,7 +420,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                                 // TODO: Handle err (not just debug statement)
                                 let (retcode, _opt) = self.radio.transmit(frame);
                                 match retcode {
-                                    ReturnCode::SUCCESS => {}
+                                    Ok(()) => {}
                                     _ => debug!("Error in radio transmit"),
                                 }
                             }
@@ -455,7 +455,7 @@ static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between fr
 impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
         match result {
-            ReturnCode::SUCCESS => {}
+            Ok(()) => {}
             _ => debug!("sendDone indicates error"),
         }
         unsafe {

@@ -28,7 +28,7 @@ impl<'a> TestRng<'a> {
 
     pub fn get_random_nums(&self) {
         match self.device.get() {
-            ReturnCode::SUCCESS => debug!("Virtual RNG device {}: get SUCCESS", self.device_id),
+            Ok(()) => debug!("Virtual RNG device {}: get SUCCESS", self.device_id),
             _ => panic!("Virtual RNG test: unable to get random numbers"),
         }
     }
@@ -41,7 +41,7 @@ impl<'a> Client for TestRng<'a> {
         error: ReturnCode,
     ) -> Continue {
         let val = randomness.next();
-        if error != ReturnCode::SUCCESS {
+        if error != Ok(()) {
             panic!(
                 "Virtual RNG device {}: randomness_available called with error {:?}",
                 self.device_id, error

@@ -55,7 +55,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
             0 => hil::gpio::FloatingState::PullNone,
             1 => hil::gpio::FloatingState::PullUp,
             2 => hil::gpio::FloatingState::PullDown,
-            _ => return ReturnCode::EINVAL,
+            _ => return Err(ErrorCode::INVAL),
         };
         ports[port].make_input(pin, mode)
     }
@@ -66,7 +66,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
             0 => hil::gpio::InterruptEdge::EitherEdge,
             1 => hil::gpio::InterruptEdge::RisingEdge,
             2 => hil::gpio::InterruptEdge::FallingEdge,
-            _ => return ReturnCode::EINVAL,
+            _ => return Err(ErrorCode::INVAL),
         };
         ports[port].enable_interrupt(pin, mode)
     }

@@ -301,11 +301,7 @@ impl<'a> Uarte<'a> {
                 // Signal client write done
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
-                        client.transmitted_buffer(
-                            tx_buffer,
-                            self.tx_len.get(),
-                            ReturnCode::SUCCESS,
-                        );
+                        client.transmitted_buffer(tx_buffer, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
@@ -339,7 +335,7 @@ impl<'a> Uarte<'a> {
                         client.received_buffer(
                             rx_buffer,
                             self.offset.get() + rx_bytes,
-                            ReturnCode::ECANCEL,
+                            Err(ErrorCode::CANCEL),
                             uart::Error::None,
                         );
                     });
@@ -362,7 +358,7 @@ impl<'a> Uarte<'a> {
                             client.received_buffer(
                                 rx_buffer,
                                 self.offset.get(),
-                                ReturnCode::SUCCESS,
+                                Ok(()),
                                 uart::Error::None,
                             );
                         });
@@ -453,21 +449,21 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (ReturnCode::ESIZE, Some(tx_data))
+            (Err(ErrorCode::SIZE), Some(tx_data))
         } else if self.tx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            (Err(ErrorCode::BUSY), Some(tx_data))
         } else {
             self.setup_buffer_transmit(tx_data, tx_len);
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         }
     }
 
     fn transmit_word(&self, _data: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -476,18 +472,18 @@ impl<'a> uart::Configure for Uarte<'a> {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != uart::StopBits::One {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.parity != uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
 
         self.set_baud_rate(params.baud_rate);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -502,7 +498,7 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
-            return (ReturnCode::EBUSY, Some(rx_buf));
+            return (Err(ErrorCode::BUSY), Some(rx_buf));
         }
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
@@ -521,21 +517,21 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         self.registers.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn receive_abort(&self) -> ReturnCode {
         // Trigger the STOPRX event to cancel the current receive call.
         if self.rx_buffer.is_none() {
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             self.rx_abort_in_progress.set(true);
             self.registers.task_stoprx.write(Task::ENABLE::SET);
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

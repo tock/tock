@@ -243,8 +243,8 @@ impl<A: Alarm<'static>> LogTest<A> {
 
     fn erase(&self) {
         match self.log.erase() {
-            ReturnCode::SUCCESS => (),
-            ReturnCode::EBUSY => {
+            Ok(()) => (),
+            Err(ErrorCode::BUSY) => {
                 self.wait();
             }
             _ => panic!("Could not erase log storage!"),
@@ -276,7 +276,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     self.buffer
                         .replace(original_buffer.expect("No buffer returned in error!"));
                     match error {
-                        ReturnCode::FAIL => {
+                        Err(ErrorCode::FAIL) => {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
@@ -286,7 +286,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                             self.next_op();
                             self.run();
                         }
-                        ReturnCode::EBUSY => {
+                        Err(ErrorCode::BUSY) => {
                             debug!("Flash busy, waiting before reattempting read");
                             self.wait();
                         }
@@ -307,7 +307,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     Err((error, original_buffer)) => {
                         self.buffer
                             .replace(original_buffer.expect("No buffer returned in error!"));
-                        assert_eq!(error, ReturnCode::EINVAL);
+                        assert_eq!(error, Err(ErrorCode::INVAL));
                     }
                 },
             )
@@ -322,9 +322,9 @@ impl<A: Alarm<'static>> LogTest<A> {
                     self.buffer
                         .replace(original_buffer.expect("No buffer returned in error!"));
                     if self.read_val.get() == self.write_val.get() {
-                        assert_eq!(error, ReturnCode::FAIL);
+                        assert_eq!(error, Err(ErrorCode::FAIL));
                     } else {
-                        assert_eq!(error, ReturnCode::ESIZE);
+                        assert_eq!(error, Err(ErrorCode::SIZE));
                     }
                 }
             })
@@ -346,7 +346,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                         .replace(original_buffer.expect("No buffer returned in error!"));
 
                     match error {
-                        ReturnCode::EBUSY => self.wait(),
+                        Err(ErrorCode::BUSY) => self.wait(),
                         _ => panic!("WRITE FAILED: {:?}", error),
                     }
                 }
@@ -365,7 +365,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 Err((error, original_buffer)) => {
                     self.buffer
                         .replace(original_buffer.expect("No buffer returned in error!"));
-                    assert_eq!(error, ReturnCode::EINVAL);
+                    assert_eq!(error, Err(ErrorCode::INVAL));
                 }
             })
             .unwrap();
@@ -379,7 +379,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     Err((error, original_buffer)) => {
                         self.buffer
                             .replace(original_buffer.expect("No buffer returned in error!"));
-                        assert_eq!(error, ReturnCode::EINVAL);
+                        assert_eq!(error, Err(ErrorCode::INVAL));
                     }
                 },
             )
@@ -389,7 +389,7 @@ impl<A: Alarm<'static>> LogTest<A> {
         unsafe {
             match self.log.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
                 Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                Err((error, _original_buffer)) => assert_eq!(error, ReturnCode::ESIZE),
+                Err((error, _original_buffer)) => assert_eq!(error, Err(ErrorCode::SIZE)),
             }
         }
 
@@ -401,7 +401,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 
     fn sync(&self) {
         match self.log.sync() {
-            ReturnCode::SUCCESS => (),
+            Ok(()) => (),
             error => panic!("Sync failed: {:?}", error),
         }
     }
@@ -409,7 +409,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     fn seek_beginning(&self) {
         let entry_id = self.log.log_start();
         match self.log.seek(entry_id) {
-            ReturnCode::SUCCESS => debug!("Seeking to {:?}...", entry_id),
+            Ok(()) => debug!("Seeking to {:?}...", entry_id),
             error => panic!("Seek failed: {:?}", error),
         }
     }
@@ -418,8 +418,8 @@ impl<A: Alarm<'static>> LogTest<A> {
         // Make sure seek fails with EINVAL.
         let original_offset = self.log.next_read_entry_id();
         match self.log.seek(entry_id) {
-            ReturnCode::EINVAL => (),
-            ReturnCode::SUCCESS => panic!(
+            Err(ErrorCode::INVAL) => (),
+            Ok(()) => panic!(
                 "Seek to invalid entry ID {:?} succeeded unexpectedly!",
                 entry_id
             ),
@@ -445,7 +445,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
         match error {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 // Verify correct number of bytes were read.
                 if length != BUFFER_LEN {
                     panic!(
@@ -484,7 +484,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
     }
 
     fn seek_done(&self, error: ReturnCode) {
-        if error == ReturnCode::SUCCESS {
+        if error == Ok(()) {
             debug!("Seeked");
             self.read_val
                 .set(entry_id_to_test_value(self.log.next_read_entry_id()));
@@ -511,7 +511,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         self.op_start.set(false);
 
         match error {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 if length != BUFFER_LEN {
                     panic!(
                         "Appended {} bytes, expected {} (write #{}, offset {:?})!",
@@ -544,7 +544,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 
                 self.write_val.set(self.write_val.get() + 1);
             }
-            ReturnCode::FAIL => {
+            Err(ErrorCode::FAIL) => {
                 assert_eq!(length, 0);
                 assert!(!records_lost);
                 debug!("Append failed due to flash error, retrying...");
@@ -556,7 +556,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
     }
 
     fn sync_done(&self, error: ReturnCode) {
-        if error == ReturnCode::SUCCESS {
+        if error == Ok(()) {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
                 self.log.next_read_entry_id(),
@@ -572,7 +572,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 
     fn erase_done(&self, error: ReturnCode) {
         match error {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 // Reset test state.
                 self.op_index.set(0);
                 self.op_start.set(true);
@@ -597,8 +597,8 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                         self.buffer
                             .replace(original_buffer.expect("No buffer returned in error!"));
                         match error {
-                            ReturnCode::FAIL => (),
-                            ReturnCode::EBUSY => {
+                            Err(ErrorCode::FAIL) => (),
+                            Err(ErrorCode::BUSY) => {
                                 self.wait();
                             }
                             _ => panic!("Read on empty log did not fail as expected: {:?}", error),
@@ -613,7 +613,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                 self.state.set(TestState::Operate);
                 self.run();
             }
-            ReturnCode::EBUSY => {
+            Err(ErrorCode::BUSY) => {
                 // Flash busy, try again.
                 self.wait();
             }

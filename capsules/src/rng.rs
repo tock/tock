@@ -268,15 +268,13 @@ impl entropy::Client32 for Entropy32ToRandom<'_> {
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 match client.randomness_available(&mut Entropy32ToRandomIter(entropy), error) {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
             } else {
-                match client
-                    .randomness_available(&mut Entropy32ToRandomIter(entropy), ReturnCode::SUCCESS)
-                {
+                match client.randomness_available(&mut Entropy32ToRandomIter(entropy), Ok(())) {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
@@ -343,7 +341,7 @@ impl entropy::Client8 for Entropy8To32<'_> {
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 client.entropy_available(&mut Entropy8To32Iter(self), error)
             } else {
                 let mut count = self.count.get();
@@ -367,8 +365,7 @@ impl entropy::Client8 for Entropy8To32<'_> {
                         }
                     }
                 }
-                let rval =
-                    client.entropy_available(&mut Entropy8To32Iter(self), ReturnCode::SUCCESS);
+                let rval = client.entropy_available(&mut Entropy8To32Iter(self), Ok(()));
                 self.bytes.set(0);
                 rval
             }
@@ -440,7 +437,7 @@ impl entropy::Client32 for Entropy32To8<'_> {
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 client.entropy_available(&mut Entropy32To8Iter(self), error)
             } else {
                 let r = entropy.next();
@@ -451,7 +448,7 @@ impl entropy::Client32 for Entropy32To8<'_> {
                         self.bytes_consumed.set(0);
                     }
                 }
-                client.entropy_available(&mut Entropy32To8Iter(self), ReturnCode::SUCCESS)
+                client.entropy_available(&mut Entropy32To8Iter(self), Ok(()))
             }
         })
     }

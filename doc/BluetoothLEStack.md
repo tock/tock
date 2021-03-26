@@ -98,19 +98,19 @@ cases to meet timing constraints.
 pub trait BleRadio {
     /// Sets the channel on which to transmit or receive packets.
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
     /// receiving, otherwise ReturnCode::Success.
     fn set_channel(&self, channel: RadioChannel) -> ReturnCode;
 
     /// Sets the transmit power
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
     /// receiving, otherwise ReturnCode::Success.
     fn set_tx_power(&self, power: u8) -> ReturnCode;
 
     /// Transmits a packet over the radio
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
     /// receiving, otherwise ReturnCode::Success.
     fn transmit_packet(
         &self,
@@ -119,7 +119,7 @@ pub trait BleRadio {
 
     /// Receives a packet of at most `buf.len()` size
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
     /// receiving, otherwise ReturnCode::Success.
     fn receive_packet(&self, buf: &'static mut [u8]) -> ReturnCode;
 
@@ -138,7 +138,7 @@ pub trait BleRadio {
 
     // Disable periodic advertisements
     //
-    // Returns always ReturnCode::SUCCESS because it does not respect whether
+    // Returns always Ok(()) because it does not respect whether
     // the driver is actively advertising or not
     fn disable(&self) -> ReturnCode;
 }

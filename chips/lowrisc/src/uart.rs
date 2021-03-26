@@ -1,6 +1,7 @@
 //! UART driver.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -217,7 +218,7 @@ impl<'a> Uart<'a> {
                 // interrupt callback we can issue the callback.
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buf| {
-                        client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                        client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
@@ -230,7 +231,7 @@ impl<'a> Uart<'a> {
             self.rx_client.map(|client| {
                 self.rx_buffer.take().map(|rx_buf| {
                     let mut len = 0;
-                    let mut return_code = ReturnCode::SUCCESS;
+                    let mut return_code = Ok(());
 
                     for i in 0..self.rx_len.get() {
                         rx_buf[i] = regs.rdata.get() as u8;
@@ -238,7 +239,7 @@ impl<'a> Uart<'a> {
 
                         if regs.status.is_set(status::rxempty) {
                             /* RX is empty */
-                            return_code = ReturnCode::ESIZE;
+                            return_code = Err(ErrorCode::SIZE);
                             break;
                         }
                     }
@@ -273,7 +274,7 @@ impl hil::uart::Configure for Uart<'_> {
         // Disable all interrupts for now
         regs.intr_enable.set(0 as u32);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -288,9 +289,9 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (ReturnCode::ESIZE, Some(tx_data))
+            (Err(ErrorCode::SIZE), Some(tx_data))
         } else if self.tx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            (Err(ErrorCode::BUSY), Some(tx_data))
         } else {
             // Save the buffer so we can keep sending it.
             self.tx_buffer.replace(tx_data);
@@ -298,16 +299,16 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_index.set(0);
 
             self.tx_progress();
-            (ReturnCode::SUCCESS, None)
+            (Ok(()), None)
         }
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -323,7 +324,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         rx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if rx_len == 0 || rx_len > rx_buffer.len() {
-            return (ReturnCode::ESIZE, Some(rx_buffer));
+            return (Err(ErrorCode::SIZE), Some(rx_buffer));
         }
 
         self.enable_rx_interrupt();
@@ -331,14 +332,14 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
 
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 }

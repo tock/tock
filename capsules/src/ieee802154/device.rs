@@ -86,7 +86,7 @@ pub trait TxClient {
     /// - `spi_buf`: The buffer used to contain the transmitted frame is
     /// returned to the client here.
     /// - `acked`: Whether the transmission was acknowledged.
-    /// - `result`: This is `ReturnCode::SUCCESS` if the frame was transmitted,
+    /// - `result`: This is `Ok(())` if the frame was transmitted,
     /// otherwise an error occured in the transmission pipeline.
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
 }

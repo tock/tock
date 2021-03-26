@@ -101,7 +101,7 @@ impl<'a> time::Alarm<'a> for MachineTimer<'a> {
 
     fn disarm(&self) -> ReturnCode {
         self.disable_machine_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

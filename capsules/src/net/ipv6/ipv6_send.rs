@@ -27,6 +27,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 /// This trait must be implemented by upper layers in order to receive
@@ -133,7 +134,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
         if !net_cap.remote_addr_valid(dst, self.ip_vis) {
-            return ReturnCode::FAIL;
+            return Err(ErrorCode::FAIL);
         }
         self.sixlowpan.init(
             self.src_mac_addr,
@@ -211,8 +212,8 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
                         Ok((is_done, frame)) => {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
-                                //self.send_completed(ReturnCode::SUCCESS);
-                                (ReturnCode::SUCCESS, true)
+                                //self.send_completed(Ok(()));
+                                (Ok(()), true)
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
                                 (err, false)
@@ -227,13 +228,13 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
                 }
                 None => {
                     debug!("Missing tx_buf");
-                    (ReturnCode::EBUSY, false)
+                    (Err(ErrorCode::BUSY), false)
                 }
             })
-            .unwrap_or((ReturnCode::ENOMEM, false));
+            .unwrap_or((Err(ErrorCode::NOMEM), false));
         if call_send_complete {
             self.send_completed(ret);
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
         ret
     }
@@ -248,7 +249,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
 impl<'a, A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
     fn alarm(&self) {
         let result = self.send_next_fragment();
-        if result != ReturnCode::SUCCESS {
+        if result != Ok(()) {
             self.send_completed(result);
         }
     }
@@ -257,7 +258,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
 impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
-        if result != ReturnCode::SUCCESS {
+        if result != Ok(()) {
             debug!("Send Failed: {:?}, acked: {}", result, acked);
             self.client.map(move |client| {
                 client.send_done(result);

@@ -87,7 +87,7 @@ impl<'a, R: radio::Radio> AwakeMac<'a, R> {
 impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_on(&self) -> bool {

@@ -49,7 +49,7 @@ impl<'a> TestRng<'a> {
 
     pub fn run(&self) {
         match self.rng.get() {
-            ReturnCode::SUCCESS => debug!("RNG test: first get SUCCESS"),
+            Ok(()) => debug!("RNG test: first get SUCCESS"),
             _ => panic!("RNG test: unable to get random numbers"),
         }
     }
@@ -62,7 +62,7 @@ impl<'a> rng::Client for TestRng<'a> {
         error: ReturnCode,
     ) -> rng::Continue {
         let mut val = randomness.next();
-        if error != ReturnCode::SUCCESS {
+        if error != Ok(()) {
             panic!(
                 "RNG test: randomness_available called with error {:?}",
                 error
@@ -112,7 +112,7 @@ impl<'a> TestEntropy32<'a> {
 
     pub fn run(&self) {
         match self.egen.get() {
-            ReturnCode::SUCCESS => debug!("Entropy32 test: first get SUCCESS"),
+            Ok(()) => debug!("Entropy32 test: first get SUCCESS"),
             _ => panic!("Entropy32 test: unable to get entropy"),
         }
     }
@@ -125,7 +125,7 @@ impl<'a> entropy::Client32 for TestEntropy32<'a> {
         error: ReturnCode,
     ) -> entropy::Continue {
         let mut val = entropy.next();
-        if error != ReturnCode::SUCCESS {
+        if error != Ok(()) {
             panic!(
                 "RNG test: randomness_available called with error {:?}",
                 error
@@ -175,7 +175,7 @@ impl<'a> TestEntropy8<'a> {
 
     pub fn run(&self) {
         match self.egen.get() {
-            ReturnCode::SUCCESS => debug!("Entropy8 test: first get SUCCESS"),
+            Ok(()) => debug!("Entropy8 test: first get SUCCESS"),
             _ => panic!("RNG test: unable to get random numbers"),
         }
     }
@@ -188,7 +188,7 @@ impl<'a> entropy::Client8 for TestEntropy8<'a> {
         error: ReturnCode,
     ) -> entropy::Continue {
         let mut val = entropy.next();
-        if error != ReturnCode::SUCCESS {
+        if error != Ok(()) {
             panic!(
                 "Entropy8 test: entropy_available called with error {:?}",
                 error

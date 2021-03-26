@@ -36,6 +36,7 @@ use kernel::common::cells::TakeCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 // DMA buffer that the aes chip will mutate during encryption
@@ -261,27 +262,27 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
         if key.len() != symmetric_encryption::AES128_KEY_SIZE {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             for (i, c) in key.iter().enumerate() {
                 unsafe {
                     ECB_DATA[i] = *c;
                 }
             }
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
         if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             for (i, c) in iv.iter().enumerate() {
                 unsafe {
                     ECB_DATA[i + PLAINTEXT_START] = *c;
                 }
             }
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
@@ -300,7 +301,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         stop_index: usize,
     ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         match source {
-            None => Some((ReturnCode::EINVAL, source, dest)),
+            None => Some((Err(ErrorCode::INVAL), source, dest)),
             Some(src) => {
                 if stop_index - start_index <= MAX_LENGTH {
                     // replace buffers
@@ -316,7 +317,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
                     self.crypt();
                     None
                 } else {
-                    Some((ReturnCode::ESIZE, Some(src), dest))
+                    Some((Err(ErrorCode::SIZE), Some(src), dest))
                 }
             }
         }
@@ -342,12 +343,12 @@ impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
 
     /// Set the key to be used for CCM encryption
     fn set_key(&self, _key: &[u8]) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
     fn set_nonce(&self, _nonce: &[u8]) -> ReturnCode {
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Try to begin the encryption/decryption process
@@ -361,6 +362,6 @@ impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
         _confidential: bool,
         _encrypting: bool,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 }

@@ -7,6 +7,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
@@ -654,9 +655,9 @@ impl<'a> Adc<'a> {
             self.registers.ier.modify(IER::EOCIE::SET);
             self.registers.ier.modify(IER::EOSMPIE::SET);
             self.registers.cr.modify(CR::ADSTART::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -685,7 +686,7 @@ impl hil::adc::Adc for Adc<'_> {
             self.requested.set(ADCStatus::OneSample);
             self.requested_channel.set(*channel as u32);
             self.enable();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             self.sample_u32(*channel as u32)
         }
@@ -693,7 +694,7 @@ impl hil::adc::Adc for Adc<'_> {
 
     fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
         // Has to be implementer with timers because the frequency is too high
-        ReturnCode::ENOSUPPORT
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn stop_sampling(&self) -> ReturnCode {
@@ -702,9 +703,9 @@ impl hil::adc::Adc for Adc<'_> {
             if self.registers.cfgr.is_set(CFGR::CONT) {
                 self.registers.cfgr.modify(CFGR::CONT::CLEAR);
             }
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -749,7 +750,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
-        (ReturnCode::ENOSUPPORT, None, None)
+        (Err(ErrorCode::NOSUPPORT), None, None)
     }
 
     /// Provide a new buffer to send on-going buffered continuous samples to.
@@ -762,7 +763,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         _buf: &'static mut [u16],
         _length: usize,
     ) -> (ReturnCode, Option<&'static mut [u16]>) {
-        (ReturnCode::ENOSUPPORT, None)
+        (Err(ErrorCode::NOSUPPORT), None)
     }
 
     /// Reclaim buffers after the ADC is stopped.
@@ -774,6 +775,6 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
-        (ReturnCode::ENOSUPPORT, None, None)
+        (Err(ErrorCode::NOSUPPORT), None, None)
     }
 }

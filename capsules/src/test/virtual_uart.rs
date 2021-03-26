@@ -25,7 +25,7 @@ impl TestVirtualUartReceive {
         let len = buf.len();
         debug!("Starting receive of length {}", len);
         let (err, _opt) = self.device.receive_buffer(buf, len);
-        if err != ReturnCode::SUCCESS {
+        if err != Ok(()) {
             panic!(
                 "Calling receive_buffer() in virtual_uart test failed: {:?}",
                 err
@@ -48,7 +48,7 @@ impl uart::ReceiveClient for TestVirtualUartReceive {
         }
         debug!("Starting receive of length {}", rx_len);
         let (err, _opt) = self.device.receive_buffer(rx_buffer, rx_len);
-        if err != ReturnCode::SUCCESS {
+        if err != Ok(()) {
             panic!(
                 "Calling receive_buffer() in virtual_uart test failed: {:?}",
                 err

@@ -320,17 +320,17 @@ impl<'a> time::Counter<'a> for Ast<'a> {
 
     fn start(&self) -> ReturnCode {
         self.enable();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         self.disable();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
         self.set_counter(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -381,7 +381,7 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         // status register, the NVIC bit is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

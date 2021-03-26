@@ -204,7 +204,7 @@ impl<'a> ProximitySensor<'a> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn find_thresholds(&self) -> Thresholds {

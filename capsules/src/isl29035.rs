@@ -96,7 +96,7 @@ impl<'a, A: time::Alarm<'a>> AmbientLight<'a> for Isl29035<'a, A> {
 
     fn read_light_intensity(&self) -> ReturnCode {
         self.start_read_lux();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 

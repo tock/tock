@@ -20,19 +20,19 @@ pub trait NineDof<'a> {
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.
     fn read_accelerometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the magnetometer in all
     /// three directions.
     fn read_magnetometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the gyroscope of the rotation
     /// around all three axes.
     fn read_gyroscope(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+        Err(ErrorCode::NODEVICE)
     }
 }
 

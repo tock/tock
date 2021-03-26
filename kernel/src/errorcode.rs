@@ -56,20 +56,20 @@ impl TryFrom<ReturnCode> for ErrorCode {
 
     fn try_from(rc: ReturnCode) -> Result<Self, Self::Error> {
         match rc {
-            ReturnCode::SUCCESS => Err(()),
-            ReturnCode::FAIL => Ok(ErrorCode::FAIL),
-            ReturnCode::EBUSY => Ok(ErrorCode::BUSY),
-            ReturnCode::EALREADY => Ok(ErrorCode::ALREADY),
-            ReturnCode::EOFF => Ok(ErrorCode::OFF),
-            ReturnCode::ERESERVE => Ok(ErrorCode::RESERVE),
-            ReturnCode::EINVAL => Ok(ErrorCode::INVAL),
-            ReturnCode::ESIZE => Ok(ErrorCode::SIZE),
-            ReturnCode::ECANCEL => Ok(ErrorCode::CANCEL),
-            ReturnCode::ENOMEM => Ok(ErrorCode::NOMEM),
-            ReturnCode::ENOSUPPORT => Ok(ErrorCode::NOSUPPORT),
-            ReturnCode::ENODEVICE => Ok(ErrorCode::NODEVICE),
-            ReturnCode::EUNINSTALLED => Ok(ErrorCode::UNINSTALLED),
-            ReturnCode::ENOACK => Ok(ErrorCode::NOACK),
+            Ok(()) => Err(()),
+            Err(ErrorCode::FAIL) => Ok(ErrorCode::FAIL),
+            Err(ErrorCode::BUSY) => Ok(ErrorCode::BUSY),
+            Err(ErrorCode::ALREADY) => Ok(ErrorCode::ALREADY),
+            Err(ErrorCode::OFF) => Ok(ErrorCode::OFF),
+            Err(ErrorCode::RESERVE) => Ok(ErrorCode::RESERVE),
+            Err(ErrorCode::INVAL) => Ok(ErrorCode::INVAL),
+            Err(ErrorCode::SIZE) => Ok(ErrorCode::SIZE),
+            Err(ErrorCode::CANCEL) => Ok(ErrorCode::CANCEL),
+            Err(ErrorCode::NOMEM) => Ok(ErrorCode::NOMEM),
+            Err(ErrorCode::NOSUPPORT) => Ok(ErrorCode::NOSUPPORT),
+            Err(ErrorCode::NODEVICE) => Ok(ErrorCode::NODEVICE),
+            Err(ErrorCode::UNINSTALLED) => Ok(ErrorCode::UNINSTALLED),
+            Err(ErrorCode::NOACK) => Ok(ErrorCode::NOACK),
         }
     }
 }
@@ -77,19 +77,19 @@ impl TryFrom<ReturnCode> for ErrorCode {
 impl From<ErrorCode> for ReturnCode {
     fn from(ec: ErrorCode) -> Self {
         match ec {
-            ErrorCode::FAIL => ReturnCode::FAIL,
-            ErrorCode::BUSY => ReturnCode::EBUSY,
-            ErrorCode::ALREADY => ReturnCode::EALREADY,
-            ErrorCode::OFF => ReturnCode::EOFF,
-            ErrorCode::RESERVE => ReturnCode::ERESERVE,
-            ErrorCode::INVAL => ReturnCode::EINVAL,
-            ErrorCode::SIZE => ReturnCode::ESIZE,
-            ErrorCode::CANCEL => ReturnCode::ECANCEL,
-            ErrorCode::NOMEM => ReturnCode::ENOMEM,
-            ErrorCode::NOSUPPORT => ReturnCode::ENOSUPPORT,
-            ErrorCode::NODEVICE => ReturnCode::ENODEVICE,
-            ErrorCode::UNINSTALLED => ReturnCode::EUNINSTALLED,
-            ErrorCode::NOACK => ReturnCode::ENOACK,
+            ErrorCode::FAIL => Err(ErrorCode::FAIL),
+            ErrorCode::BUSY => Err(ErrorCode::BUSY),
+            ErrorCode::ALREADY => Err(ErrorCode::ALREADY),
+            ErrorCode::OFF => Err(ErrorCode::OFF),
+            ErrorCode::RESERVE => Err(ErrorCode::RESERVE),
+            ErrorCode::INVAL => Err(ErrorCode::INVAL),
+            ErrorCode::SIZE => Err(ErrorCode::SIZE),
+            ErrorCode::CANCEL => Err(ErrorCode::CANCEL),
+            ErrorCode::NOMEM => Err(ErrorCode::NOMEM),
+            ErrorCode::NOSUPPORT => Err(ErrorCode::NOSUPPORT),
+            ErrorCode::NODEVICE => Err(ErrorCode::NODEVICE),
+            ErrorCode::UNINSTALLED => Err(ErrorCode::UNINSTALLED),
+            ErrorCode::NOACK => Err(ErrorCode::NOACK),
         }
     }
 }

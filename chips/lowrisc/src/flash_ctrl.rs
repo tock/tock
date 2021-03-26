@@ -522,6 +522,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
                 + CONTROL::START::SET,
         );
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

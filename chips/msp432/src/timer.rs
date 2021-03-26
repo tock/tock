@@ -7,6 +7,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
 };
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
@@ -339,17 +340,17 @@ impl<'a> Counter<'a> for TimerA<'a> {
 
     fn start(&self) -> ReturnCode {
         self.setup_for_alarm();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
         self.stop_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
         self.registers.cnt.set(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -397,7 +398,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Stop the timer completely
         //self.stop_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -408,11 +409,11 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 impl<'a> InternalTimer for TimerA<'a> {
     fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> kernel::ReturnCode {
         if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
-            return kernel::ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         if frequency_hz > crate::cs::SMCLK_HZ {
-            return kernel::ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         // Stop timer if a different frequency was configured before
@@ -456,7 +457,7 @@ impl<'a> InternalTimer for TimerA<'a> {
         cctl_reg.modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
 
         self.mode.set(TimerMode::InternalTimer);
-        kernel::ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) {

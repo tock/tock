@@ -15,7 +15,7 @@
 //!
 //!   * Since much of a node's time is spent sleeping, transmission latency is
 //!     much higher than using a radio that is always powered on.
-//!   * ReturnCode::ENOACKs may be generated when transmitting, if the
+//!   * Err(ErrorCode::NOACK)s may be generated when transmitting, if the
 //!     destination node cannot acknowledge within the maximum retry interval.
 //!   * Since X-MAC relies on proper sleep/wake behavior for all nodes, any
 //!     node with this implementation will not be able to communicate correctly
@@ -85,6 +85,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, Ticks};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 // Time the radio will remain awake listening for packets before sleeping.
@@ -219,7 +220,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     }
 
     fn transmit_preamble(&self) {
-        let mut result: (ReturnCode, Option<&'static mut [u8]>) = (ReturnCode::SUCCESS, None);
+        let mut result: (ReturnCode, Option<&'static mut [u8]>) = (Ok(()), None);
         let buf = self.tx_preamble_buf.take().unwrap();
         let tx_header = self.tx_header.get().unwrap();
 
@@ -256,14 +257,18 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
                 }
                 None => {
                     self.tx_preamble_buf.replace(buf);
-                    self.call_tx_client(self.tx_payload.take().unwrap(), false, ReturnCode::FAIL);
+                    self.call_tx_client(
+                        self.tx_payload.take().unwrap(),
+                        false,
+                        Err(ErrorCode::FAIL),
+                    );
                     return;
                 }
             }
         }
 
         // If the transmission fails, callback directly back into the client
-        if result.0 != ReturnCode::SUCCESS {
+        if result.0 != Ok(()) {
             self.call_tx_client(result.1.unwrap(), false, result.0);
         }
     }
@@ -277,7 +282,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
 
             result = self.radio.transmit(tx_buf, self.tx_len.get());
 
-            if result.0 != ReturnCode::SUCCESS {
+            if result.0 != Ok(()) {
                 self.call_tx_client(result.1.unwrap(), false, result.0);
             }
         }
@@ -344,7 +349,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
     fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode {
         self.tx_preamble_buf.replace(mac_buf);
         self.state.set(XMacState::STARTUP);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     // Always lie and say the radio is on when sleeping, as XMAC will wake up
@@ -410,9 +415,9 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         // (and waking up the radio).
         let frame_len = frame_len + radio::MFR_SIZE;
         if self.radio.busy() || self.tx_payload.is_some() {
-            return (ReturnCode::EBUSY, Some(full_mac_frame));
+            return (Err(ErrorCode::BUSY), Some(full_mac_frame));
         } else if radio::PSDU_OFFSET + frame_len >= full_mac_frame.len() {
-            return (ReturnCode::ESIZE, Some(full_mac_frame));
+            return (Err(ErrorCode::SIZE), Some(full_mac_frame));
         }
 
         match Header::decode(&full_mac_frame[radio::PSDU_OFFSET..], false).done() {
@@ -435,7 +440,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
                 self.tx_payload.replace(full_mac_frame);
             }
             None => {
-                return (ReturnCode::FAIL, Some(full_mac_frame));
+                return (Err(ErrorCode::FAIL), Some(full_mac_frame));
             }
         }
 
@@ -455,7 +460,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
             self.radio.start();
         }
 
-        (ReturnCode::SUCCESS, None)
+        (Ok(()), None)
     }
 }
 
@@ -489,7 +494,11 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
             // any node in the network, then our destination is non-responsive;
             // return ENOACK to the client.
             XMacState::TX_PREAMBLE => {
-                self.call_tx_client(self.tx_payload.take().unwrap(), false, ReturnCode::ENOACK);
+                self.call_tx_client(
+                    self.tx_payload.take().unwrap(),
+                    false,
+                    Err(ErrorCode::NOACK),
+                );
             }
             // After a randomized backoff period, transmit the data directly.
             XMacState::TX_DELAY => {

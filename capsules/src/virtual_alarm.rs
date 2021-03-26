@@ -69,7 +69,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
     fn disarm(&self) -> ReturnCode {
         if !self.armed.get() {
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
 
         self.armed.set(false);
@@ -82,7 +82,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         if enabled == 0 {
             self.mux.alarm.disarm();
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

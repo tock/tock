@@ -167,7 +167,7 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn perform_tx_async(&self, appid: AppId) {
         let result = self.perform_tx_sync(appid);
-        if result != ReturnCode::SUCCESS {
+        if result != Ok(()) {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback.schedule(result.into(), 0, 0);
             });
@@ -183,7 +183,7 @@ impl<'a> UDPDriver<'a> {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
-                    return ReturnCode::SUCCESS;
+                    return Ok(());
                 }
             };
             let dst_addr = addr_ports[1].addr;
@@ -192,12 +192,12 @@ impl<'a> UDPDriver<'a> {
 
             // Send UDP payload. Copy payload into packet buffer held by this driver, then queue
             // it on the udp_mux.
-            let result = app.app_write.map_or(ReturnCode::ENOMEM, |payload| {
+            let result = app.app_write.map_or(Err(ErrorCode::NOMEM), |payload| {
                 self.kernel_buffer
                     .take()
-                    .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
+                    .map_or(Err(ErrorCode::NOMEM), |mut kernel_buffer| {
                         if payload.len() > kernel_buffer.len() {
-                            return ReturnCode::ESIZE;
+                            return Err(ErrorCode::SIZE);
                         }
                         kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                         kernel_buffer.slice(0..payload.len());
@@ -209,16 +209,16 @@ impl<'a> UDPDriver<'a> {
                             self.driver_send_cap,
                             self.net_cap,
                         ) {
-                            Ok(_) => ReturnCode::SUCCESS,
+                            Ok(_) => Ok(()),
                             Err(mut buf) => {
                                 buf.reset();
                                 self.kernel_buffer.replace(buf);
-                                ReturnCode::FAIL
+                                Err(ErrorCode::FAIL)
                             }
                         }
                     })
             });
-            if result == ReturnCode::SUCCESS {
+            if result == Ok(()) {
                 self.current_app.set(Some(appid));
             }
             result
@@ -244,7 +244,7 @@ impl<'a> UDPDriver<'a> {
         self.get_next_tx_if_idle().map_or(Ok(0), |appid| {
             if appid == new_appid {
                 let sync_result = self.perform_tx_sync(appid);
-                if sync_result == ReturnCode::SUCCESS {
+                if sync_result == Ok(()) {
                     Ok(1) //Indicates packet passed to radio
                 } else {
                     Err(ErrorCode::try_from(sync_result).unwrap())
@@ -541,7 +541,7 @@ impl<'a> Driver for UDPDriver<'a> {
                                 None
                             }
                         });
-                        requested_addr_opt.map_or(Err(ReturnCode::EINVAL), |requested_addr| {
+                        requested_addr_opt.map_or(Err(Err(ErrorCode::INVAL)), |requested_addr| {
                             // If zero address, close any already bound socket
                             if requested_addr.is_zero() {
                                 app.bound_port = None;
@@ -555,7 +555,7 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             }
                             if !requested_is_local {
-                                return Err(ReturnCode::EINVAL);
+                                return Err(Err(ErrorCode::INVAL));
                             }
                             Ok(Some(requested_addr))
                         })
@@ -644,12 +644,12 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                         };
                         app.rx_callback.schedule(len, 0, 0);
                         let cfg_len = 2 * size_of::<UDPEndpoint>();
-                        app.app_rx_cfg.mut_map_or(ReturnCode::EINVAL, |cfg| {
+                        app.app_rx_cfg.mut_map_or(Err(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != cfg_len {
-                                return ReturnCode::EINVAL;
+                                return Err(ErrorCode::INVAL);
                             }
                             sender_addr.encode(cfg, 0);
-                            ReturnCode::SUCCESS
+                            Ok(())
                         });
                     }
                 }

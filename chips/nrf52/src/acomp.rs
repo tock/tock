@@ -294,7 +294,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
         // Enable only up interrupt (If VIN+ crosses VIN-)
         self.registers.inten.write(InterruptEnable::UP::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Stops comparing and disables comparator
@@ -305,7 +305,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
         self.registers.tasks_stop.set(1);
 
         self.disable();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Performs a single comparison between VIN+ and VIN-

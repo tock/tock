@@ -65,7 +65,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
                         self.tx.put(Transaction { app_id, read_len });
 
                         match command {
-                            Cmd::Ping => (), // Unexpected, shouldn't get here (was ReturnCode::EINVAL)
+                            Cmd::Ping => (), // Unexpected, shouldn't get here (was Err(ErrorCode::INVAL))
                             Cmd::Write => self.i2c.write(addr, buffer, wlen),
                             Cmd::Read => self.i2c.read(addr, buffer, rlen),
                             Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),

@@ -1,4 +1,5 @@
 use crate::common::cells::OptionalCell;
+use crate::ErrorCode;
 use crate::ReturnCode;
 
 use core::cell::Cell;
@@ -294,7 +295,7 @@ impl<'a, IP: InterruptPin<'a>> InterruptWithValue<'a> for InterruptValueWrapper<
 
     fn enable_interrupts(&self, edge: InterruptEdge) -> ReturnCode {
         self.source.enable_interrupts(edge);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn disable_interrupts(&self) {

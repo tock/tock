@@ -334,7 +334,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
         // Clear any previous event
         self.registers.ev().clear_event(EVENT_MANAGER_INDEX);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -471,7 +471,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
         self.timer.cancel();
         self.alarm_time.clear();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
