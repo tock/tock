@@ -149,8 +149,8 @@ pub unsafe fn main() {
     peripherals.resets.unreset_all_except(&[], true);
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
-    for pin in &[26..30] {
-        let gpio = RPGpioPin::new (RPGpio::from_usize (0).unwrap());
+    for pin in 26..30 {
+        let gpio = RPGpioPin::new (RPGpio::from_usize (pin).unwrap());
         gpio.deactivate_pads ();
     }
 
