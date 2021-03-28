@@ -28,7 +28,7 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         for &c in buf {
-            hprint!("{}", c as char).unwrap_or_else (|_| {});
+            hprint!("{}", c as char).unwrap_or_else(|_| {});
         }
     }
 }

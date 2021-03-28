@@ -282,18 +282,41 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         xpsr: *faulting_stack.offset(7),
     };
 
+    panic!(
+        "Kernel HardFault.\r\n\
+         \tKernel version {}\r\n\
+         \tr0  0x{:x}\r\n\
+         \tr1  0x{:x}\r\n\
+         \tr2  0x{:x}\r\n\
+         \tr3  0x{:x}\r\n\
+         \tr12  0x{:x}\r\n\
+         \tlr  0x{:x}\r\n\
+         \tpc  0x{:x}\r\n\
+         \txpsr  0x{:x}\r\n\
+         ",
+        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
+        hardfault_stacked_registers.r0,
+        hardfault_stacked_registers.r1,
+        hardfault_stacked_registers.r2,
+        hardfault_stacked_registers.r3,
+        hardfault_stacked_registers.r12,
+        hardfault_stacked_registers.lr,
+        hardfault_stacked_registers.pc,
+        hardfault_stacked_registers.xpsr
+    );
+
     // NOTE: Unlike Cortex-M3, `panic!` does not seem to work
     //       here. `panic!` seems to be producing wrong `PanicInfo`
     //       value. Therefore as a workaround, capture the stacked
     //       registers and invoke a breakpoint.
     //
-    asm!(
-        "
-         bkpt
-1:
-         b 1b
-         "
-    );
+    //     asm!(
+    //         "
+    //          bkpt
+    // 1:
+    //          b 1b
+    //          "
+    //     );
 }
 
 // Mock implementation for tests on Travis-CI.

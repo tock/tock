@@ -7,10 +7,16 @@ use kernel::InterruptService;
 
 use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
-use crate::resets::Resets;
-use crate::xosc::Xosc;
 use crate::gpio::SIO;
 use crate::interrupts;
+use crate::resets::Resets;
+use crate::xosc::Xosc;
+
+#[repr(u8)]
+pub enum Processor {
+    Processor0 = 0,
+    Processor1 = 1,
+}
 
 pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm0p::mpu::MPU,
@@ -44,10 +50,15 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
                         panic!("unhandled deferred call");
                     }
                 } else if let Some(interrupt) = cortexm0p::nvic::next_pending() {
+                    // ignore SIO_IRQ_PROC1 as it is intended for processor 1
+                    // not able to unset its pending status
+                    // probably only processor 1 can unset the pending by reading the fifo
+                    if interrupt == interrupts::SIO_IRQ_PROC1 {
+                        break;
+                    }
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
-                    panic! ("fired {}", interrupt);
                     let n = cortexm0p::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
@@ -59,7 +70,14 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm0p::nvic::has_pending() || deferred_call::has_tasks() }
+        // ignore SIO_IRQ_PROC1 as it is intended for processor 1
+        // not able to unset its pending status
+        // probably only processor 1 can unset the pending by reading the fifo
+        unsafe {
+            (cortexm0p::nvic::has_pending()
+                && cortexm0p::nvic::next_pending() != Some(interrupts::SIO_IRQ_PROC1))
+                || deferred_call::has_tasks()
+        }
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -107,7 +125,7 @@ impl Rp2040DefaultPeripherals {
     pub const fn new() -> Self {
         Self {
             resets: Resets::new(),
-            sio: SIO::new (),
+            sio: SIO::new(),
             clocks: Clocks::new(),
             xosc: Xosc::new(),
         }
@@ -118,11 +136,11 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::SIO_IRQ_PROC0 => {
-                self.sio.handle_proc_interrupt (0);
+                self.sio.handle_proc_interrupt(Processor::Processor0);
                 true
             }
             interrupts::SIO_IRQ_PROC1 => {
-                self.sio.handle_proc_interrupt (1);
+                self.sio.handle_proc_interrupt(Processor::Processor1);
                 true
             }
             _ => false,

@@ -3,15 +3,15 @@
 //! ### Author
 //! * Ioana Culic <ioana.culic@wyliodrin.com>
 
+// use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use core::cell::Cell;
 
-use crate::interrupts;
+use crate::chip::Processor;
 
 struct GpioPin {
     status: ReadOnly<u32, GPIOx_STATUS::Register>,
@@ -68,7 +68,7 @@ register_structs! {
     /// SIO Control Registers
     SIORegisters {
         /// Not used
-        (0x000 => _reserved0),
+        (0x000 => cpuid: ReadOnly<u32, CPUID::Register>),
 
         /// Input value for GPIO pins
         (0x004 => gpio_in: ReadWrite<u32, GPIO_IN::Register>),
@@ -378,6 +378,9 @@ register_bitfields![u32,
         ///Perform an atomic bit-clear on GPIO_OE
         OE OFFSET(0) NUMBITS(30) []
     ],
+    CPUID [
+        VALUE OFFSET(0) NUMBITS (32)
+    ],
     FIFO_ST [
         /// FIFO read when empy
         ROE OFFSET(3) NUMBITS(1) [],
@@ -625,32 +628,48 @@ impl hil::gpio::Input for RPGpioPin<'_> {
 }
 
 pub struct SIO {
-    interrupts: Cell<usize>,
-    registers: StaticRef<SIORegisters>
+    // interrupt_proc_0: Cell<usize>,
+    // interrupt_proc_1: Cell<usize>,
+    registers: StaticRef<SIORegisters>,
 }
 
 impl SIO {
-    pub const fn new () -> Self {
+    pub const fn new() -> Self {
         Self {
-            interrupts: Cell::new (0),
-            registers: SIO_BASE
+            // interrupt_proc_0: Cell::new (0),
+            // interrupt_proc_1: Cell::new (0),
+            registers: SIO_BASE,
         }
     }
 
-    pub fn handle_proc_interrupt (&self, proc: usize) {
-        if proc == 1 {
-            panic! ("Kernel should not run on PROC 1");
+    pub fn handle_proc_interrupt(&self, for_processor: Processor) {
+        match for_processor {
+            Processor::Processor0 => {
+                // read data from the fifo
+                self.registers.fifo_rd.get();
+                self.registers.fifo_st.set(0xff);
+                // self.interrupt_proc_0.set (self.interrupt_proc_0.get()+1);
+            }
+            Processor::Processor1 => {
+                if self.registers.cpuid.get() == 1 {
+                    panic!("Kernel should not run on processor 1");
+                } else {
+                    panic!("SIO_PROC1_IRQ should be ignored for processor 1");
+                }
+                // self.interrupt_proc_1.set (self.interrupt_proc_1.get()+1);
+            }
         }
+        // if (self.interrupt_proc_0.get () > 10000 || self.interrupt_proc_1.get () > 10000) {
+        //     panic! ("interrupts proc 0: {} proc 1: {} ispr: {:b}", self.interrupt_proc_0.get(), self.interrupt_proc_1.get (), cortexm0p::nvic::get_ispr());
+        // }
     }
 
-    pub unsafe fn disable_fifo (&self, proc: usize) {
-        let interrupt = match proc {
-            0 => interrupts::SIO_IRQ_PROC0,
-            1 => interrupts::SIO_IRQ_PROC1,
-            _ => panic! ("Proc {} does not exist, must be 0 or 1", proc)
-        };
-        let n = cortexm0p::nvic::Nvic::new(interrupt);
-        n.clear_pending();
-        n.disable ();
+    pub fn get_processor(&self) -> Processor {
+        let proc_id = self.registers.cpuid.get();
+        match proc_id {
+            0 => Processor::Processor0,
+            1 => Processor::Processor1,
+            _ => panic!("SIO CPUID cannot be {}", proc_id),
+        }
     }
 }

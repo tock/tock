@@ -150,12 +150,9 @@ pub unsafe fn main() {
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
-        let gpio = RPGpioPin::new (RPGpio::from_usize (pin).unwrap());
-        gpio.deactivate_pads ();
+        let gpio = RPGpioPin::new(RPGpio::from_usize(pin).unwrap());
+        gpio.deactivate_pads();
     }
-
-    // disable FIFO interrupt
-    peripherals.sio.disable_fifo (0);
 
     // use kernel::hil::gpio::{Configure, Output};
 
@@ -177,6 +174,7 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
     board_kernel.kernel_loop(
         &raspberry_pi_pico,
         chip,
