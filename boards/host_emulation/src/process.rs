@@ -12,10 +12,10 @@ use crate::ipc_syscalls as ipc;
 use kernel::capabilities::{ExternalProcessCapability, ProcessManagementCapability};
 use kernel::mpu;
 use kernel::procs::{
-    Error, FaultResponse, FunctionCall, FunctionCallSource, ProcessLoadError, ProcessType, State,
-    Task,
+    Error, FaultResponse, FunctionCall, FunctionCallSource, ProcessLoadError, ProcessState,
+    ProcessType, State, Task,
 };
-use kernel::syscall::{self, Syscall, UserspaceKernelBoundary};
+use kernel::syscall::{self, SerializedStoredState, Syscall, UserspaceKernelBoundary};
 use kernel::AppId;
 use kernel::AppSlice;
 use kernel::CallbackId;
@@ -481,6 +481,9 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
         }
     }
 
+    unsafe fn get_memory_map(&self) -> ProcessState {
+        get_dummy_process_state()
+    }
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         let res = self.stored_state.map(|stored_state| {
             self.chip
@@ -514,6 +517,14 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
     fn debug_timeslice_expired(&self) {
         self.debug
             .map(|debug| debug.timeslice_expiration_count += 1);
+    }
+
+    unsafe fn get_stored_state(&self) -> std::result::Result<SerializedStoredState, ReturnCode> {
+        Ok(SerializedStoredState {
+            major: 0,
+            minor: 0,
+            data: [0; 64],
+        })
     }
 
     fn debug_syscall_called(&self, last_syscall: Syscall) {
@@ -570,4 +581,29 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
     fn update_stack_start_pointer(&self, _stack_pointer: *const u8) {}
 
     fn update_heap_start_pointer(&self, _heap_pointer: *const u8) {}
+}
+
+fn get_dummy_process_state() -> ProcessState {
+    ProcessState {
+        flash_end: Default::default(),
+        flash_start: Default::default(),
+        flash_protected_size: Default::default(),
+        flash_app_start: Default::default(),
+        flash_app_size: Default::default(),
+        sram_end: Default::default(),
+        sram_grant_start: Default::default(),
+        sram_heap_end: Default::default(),
+        sram_heap_start: None,
+        sram_stack_start: None,
+        sram_stack_bottom: Default::default(),
+        sram_start: Default::default(),
+        sram_grant_size: Default::default(),
+        sram_grant_allocated: Default::default(),
+        events_queued: Default::default(),
+        syscall_count: Default::default(),
+        last_syscall: None,
+        dropped_callback_count: Default::default(),
+        restart_count: Default::default(),
+        state: State::Running,
+    }
 }

@@ -1,7 +1,7 @@
 use core::fmt::Write;
 
 use kernel;
-use kernel::syscall::ContextSwitchReason;
+use kernel::syscall::{ContextSwitchReason, SerializedStoredState};
 
 use crate::process::UnixProcess;
 use crate::syscall_transport::SyscallTransport;
@@ -159,5 +159,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _state: &Self::StoredState,
         _writer: &mut dyn Write,
     ) {
+    }
+
+    unsafe fn store_context(
+        &self,
+        _: *const usize,
+        _: &<Self as kernel::syscall::UserspaceKernelBoundary>::StoredState,
+    ) -> SerializedStoredState {
+        SerializedStoredState {
+            major: 0,
+            minor: 0,
+            data: [0; 64],
+        }
     }
 }
