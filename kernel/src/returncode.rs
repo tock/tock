@@ -1,7 +1,7 @@
 use crate::errorcode::ErrorCode;
 pub type ReturnCode = Result<(), ErrorCode>;
-pub fn return_code_to_isize(original: ReturnCode) -> isize {
-    match original {
+pub fn retcode_into_usize(original: ReturnCode) -> usize {
+    let out = match original {
         Ok(()) => 0,
         Err(e) => match e {
             ErrorCode::FAIL => -1,
@@ -18,5 +18,6 @@ pub fn return_code_to_isize(original: ReturnCode) -> isize {
             ErrorCode::UNINSTALLED => -12,
             ErrorCode::NOACK => -13,
         },
-    }
+    };
+    out as usize
 }
