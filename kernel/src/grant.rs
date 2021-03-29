@@ -16,23 +16,13 @@ use crate::upcall::AppId;
 pub struct Borrowed<'a, T: 'a + ?Sized> {
     /// The mutable reference to the actual object type stored in the grant.
     data: &'a mut T,
-
-    /// Copy of the process identifier for capsule convenience.
-    appid: AppId,
 }
 
 impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
     /// Create a `Borrowed` object to provide to a capsule. Only one can be
     /// created at a time.
-    fn new(data: &'a mut T, appid: AppId) -> Borrowed<'a, T> {
-        Borrowed {
-            data: data,
-            appid: appid,
-        }
-    }
-
-    pub fn appid(&self) -> AppId {
-        self.appid
+    fn new(data: &'a mut T) -> Borrowed<'a, T> {
+        Borrowed { data: data }
     }
 }
 
@@ -186,6 +176,11 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
             // Process is invalid.
             None
         }
+    }
+
+    /// Return the AppId of the process this AppliedGrant is applied for.
+    pub fn appid(&self) -> AppId {
+        self.process.appid()
     }
 
     /// Run a function with access to the contents of the grant region.
@@ -377,7 +372,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         };
 
         // Create a wrapped object that is passed to the capsule.
-        let mut root = Borrowed::new(grant, self.process.appid());
+        let mut root = Borrowed::new(grant);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut root, &mut allocator);
@@ -460,7 +455,7 @@ impl<T> DynamicGrant<T> {
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
                 let dynamic_grant = unsafe { &mut *(grant_ptr as *mut T) };
-                let borrowed = Borrowed::new(dynamic_grant, self.appid);
+                let borrowed = Borrowed::new(dynamic_grant);
                 Ok(fun(borrowed))
             })
     }
@@ -652,13 +647,14 @@ impl<T: Default> Grant<T> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(&mut Borrowed<T>),
+        F: Fn(AppId, &mut Borrowed<T>),
     {
         // Create a the iterator across `AppliedGrant`s for each process.
         for ag in self.iter() {
+            let appid = ag.appid();
             // Since we iterating, there is no return value we need to worry
             // about.
-            ag.enter(|borrowed, _| fun(borrowed));
+            ag.enter(|borrowed, _| fun(appid, borrowed));
         }
     }
 

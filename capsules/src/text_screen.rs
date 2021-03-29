@@ -175,11 +175,12 @@ impl<'a> TextScreen<'a> {
     fn run_next_command(&self) {
         // Check for pending events.
         for app in self.apps.iter() {
+            let appid = app.appid();
             let current_command = app.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
-                    let r = self.do_command(app.command, app.data1, app.data2, app.appid());
+                    self.current_app.set(appid);
+                    let r = self.do_command(app.command, app.data1, app.data2, appid);
                     if r != Ok(()) {
                         self.current_app.clear();
                     }

@@ -191,7 +191,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
-                    self.apps.each(|cntr| {
+                    self.apps.each(|_, cntr| {
                         if cntr.1 & (1 << data) != 0 {
                             interrupt_count.set(interrupt_count.get() + 1);
                         }
@@ -229,7 +229,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
-        self.apps.each(|cntr| {
+        self.apps.each(|_, cntr| {
             if cntr.1 & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 cntr.0.schedule(pin_num as usize, button_state as usize, 0);

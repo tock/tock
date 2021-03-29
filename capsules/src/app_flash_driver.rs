@@ -126,10 +126,11 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
+            let appid = cntr.appid();
             let started_command = cntr.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
+                    self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
                     app.buffer.map_or(false, |app_buffer| {

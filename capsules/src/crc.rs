@@ -128,6 +128,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
+            let appid = app.appid();
             app.enter(|app, _| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
@@ -136,7 +137,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
 
                     if rcode == Ok(()) {
                         // The unit is now computing a CRC for this app
-                        self.serving_app.set(app.appid());
+                        self.serving_app.set(appid);
                         found = true;
                     } else {
                         // The app's request failed

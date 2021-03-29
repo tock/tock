@@ -348,10 +348,11 @@ impl uart::TransmitClient for Console<'_> {
         // see if any other applications have pending messages.
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
+                let appid = cntr.appid();
                 let started_tx = cntr.enter(|app, _| {
                     if app.pending_write {
                         app.pending_write = false;
-                        match self.send_continue(app.appid(), app) {
+                        match self.send_continue(appid, app) {
                             Ok(more_to_send) => more_to_send,
                             Err(return_code) => {
                                 // XXX This shouldn't ever happen?

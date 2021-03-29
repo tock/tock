@@ -392,7 +392,7 @@ where
     fn alarm(&self) {
         let now = self.alarm.now();
 
-        self.app.each(|app| {
+        self.app.each(|appid, app| {
             if let Expiration::Enabled(reference, dt) = app.alarm_data.expiration {
                 let exp = A::Ticks::from(reference.wrapping_add(dt));
                 let t0 = A::Ticks::from(reference);
@@ -403,7 +403,7 @@ where
                         // operation at the appropriate time. Instead, reschedule the
                         // operation for later. This is _kind_ of simulating actual
                         // on-air interference. 3 seems like a small number of ticks.
-                        debug!("BLE: operation delayed for app {:?}", app.appid());
+                        debug!("BLE: operation delayed for app {:?}", appid);
                         app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                         return;
                     }
@@ -415,7 +415,7 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
-                            self.sending_app.set(app.appid());
+                            self.sending_app.set(appid);
                             let _ = self.radio.set_tx_power(app.tx_power);
                             let _ =
                                 app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
@@ -424,16 +424,12 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
-                            self.receiving_app.set(app.appid());
+                            self.receiving_app.set(appid);
                             let _ = self.radio.set_tx_power(app.tx_power);
                             self.radio
                                 .receive_advertisement(RadioChannel::AdvertisingChannel37);
                         }
-                        _ => debug!(
-                            "app: {:?} \t invalid state {:?}",
-                            app.appid(),
-                            app.process_status
-                        ),
+                        _ => debug!("app: {:?} \t invalid state {:?}", appid, app.process_status),
                     }
                 }
             }
@@ -480,7 +476,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        self.receiving_app.set(app.appid());
+                        self.receiving_app.set(*appid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel38);
@@ -488,7 +484,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
-                        self.receiving_app.set(app.appid());
+                        self.receiving_app.set(*appid);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
@@ -522,7 +518,7 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        self.sending_app.set(app.appid());
+                        self.sending_app.set(*appid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
                     }
@@ -530,7 +526,7 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
-                        self.sending_app.set(app.appid());
+                        self.sending_app.set(*appid);
                         let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
                     }
 

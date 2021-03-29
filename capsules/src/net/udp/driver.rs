@@ -148,9 +148,10 @@ impl<'a> UDPDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
+            let appid = app.appid();
             app.enter(|app, _| {
                 if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
+                    pending_app = Some(appid);
                 }
             });
             if pending_app.is_some() {
@@ -620,7 +621,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        self.apps.each(|app| {
+        self.apps.each(|_, app| {
             if app.bound_port.is_some() {
                 let mut for_me = false;
                 app.bound_port.as_ref().map(|requested_addr| {

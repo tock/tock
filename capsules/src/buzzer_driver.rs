@@ -149,11 +149,12 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
+            let appid = appiter.appid();
             let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {
                     // Mark this driver as being in use.
-                    self.active_app.set(app.appid());
+                    self.active_app.set(appid);
                     // Actually make the buzz happen.
                     self.buzz(command) == Ok(())
                 })

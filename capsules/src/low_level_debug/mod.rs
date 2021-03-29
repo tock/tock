@@ -77,12 +77,10 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         }
 
         for applied_grant in self.grant.iter() {
+            let appid = applied_grant.appid();
             let (app_num, first_entry) = applied_grant.enter(|owned_app_data, _| {
                 owned_app_data.queue.rotate_left(1);
-                (
-                    owned_app_data.appid().id(),
-                    owned_app_data.queue[QUEUE_SIZE - 1].take(),
-                )
+                (appid.id(), owned_app_data.queue[QUEUE_SIZE - 1].take())
             });
             let to_print = match first_entry {
                 None => continue,

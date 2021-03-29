@@ -121,7 +121,7 @@ impl Driver for AmbientLight<'_> {
 impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
-        self.apps.each(|app| {
+        self.apps.each(|_, app| {
             if app.pending {
                 app.pending = false;
                 app.callback.schedule(lux, 0, 0);
