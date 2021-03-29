@@ -7,6 +7,7 @@ pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod interrupts;
 pub mod resets;
+pub mod timer;
 pub mod xosc;
 
 use cortexm0p::{

@@ -23,6 +23,7 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
+use rp2040::timer::RPAlarm;
 mod io;
 
 mod flash_bootloader;
@@ -191,11 +192,22 @@ pub unsafe fn main() {
         gpio.deactivate_pads();
     }
 
-    // use kernel::hil::gpio::{Configure, Output};
+    //use kernel::hil::gpio::{Configure, Output};
+    use kernel::hil::time::{Alarm, Time};
+
+    // fn off (){
+    //     let pin = RPGpioPin::new(RPGpio::GPIO25);
+    //     pin.make_output();
+    //     pin.clear();
+    // }
 
     // let pin = RPGpioPin::new(RPGpio::GPIO25);
     // pin.make_output();
     // pin.set();
+
+    let a = RPAlarm::new();
+    //  a.set_alarm_client(off);
+    a.set_alarm(a.now(), <RPAlarm as Time>::Ticks::from(100));
 
     let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals));
 
