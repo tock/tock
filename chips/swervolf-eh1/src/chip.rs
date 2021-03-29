@@ -2,8 +2,8 @@
 
 use core::fmt::Write;
 use kernel;
+use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
-use kernel::hil::time::Alarm;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::syscall::SysCall;
@@ -14,22 +14,32 @@ pub const PIC_BASE: StaticRef<PicRegisters> =
 
 pub static mut PIC: Pic = Pic::new(PIC_BASE);
 
-pub struct SweRVolf<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
+static mut TIMER0_IRQ: VolatileCell<bool> = VolatileCell::new(false);
+static mut TIMER1_IRQ: VolatileCell<bool> = VolatileCell::new(false);
+
+/// The UART interrupt line
+pub const IRQ_UART: u32 = 1;
+/// This is a fake value used to indicate a timer1 interrupt
+pub const IRQ_TIMER1: u32 = 0xFFFF_FFFF;
+
+pub struct SweRVolf<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pic: &'a Pic,
-    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
-    timer: &'static crate::syscon::SysCon<'static>,
+    scheduler_timer: swerv::eh1_timer::Timer<'static>,
+    mtimer: &'static crate::syscon::SysCon<'static>,
     pic_interrupt_service: &'a I,
 }
 
 pub struct SweRVolfDefaultPeripherals<'a> {
     pub uart: crate::uart::Uart<'a>,
+    pub timer1: swerv::eh1_timer::Timer<'a>,
 }
 
 impl<'a> SweRVolfDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             uart: crate::uart::Uart::new(crate::uart::UART_BASE),
+            timer1: swerv::eh1_timer::Timer::new(swerv::eh1_timer::TimerNumber::ONE),
         }
     }
 }
@@ -37,8 +47,13 @@ impl<'a> SweRVolfDefaultPeripherals<'a> {
 impl<'a> InterruptService<()> for SweRVolfDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            1 => {
+            IRQ_UART => {
                 self.uart.handle_interrupt();
+            }
+            IRQ_TIMER1 => {
+                // This is a fake value to indiate a timer1
+                // interrupt occured.
+                self.timer1.handle_interrupt();
             }
             _ => return false,
         }
@@ -50,17 +65,16 @@ impl<'a> InterruptService<()> for SweRVolfDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> SweRVolf<'a, A, I> {
+impl<'a, I: InterruptService<()> + 'a> SweRVolf<'a, I> {
     pub unsafe fn new(
-        virtual_alarm: &'static A,
         pic_interrupt_service: &'a I,
-        timer: &'static crate::syscon::SysCon,
+        mtimer: &'static crate::syscon::SysCon,
     ) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pic: &PIC,
-            scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
-            timer,
+            scheduler_timer: swerv::eh1_timer::Timer::new(swerv::eh1_timer::TimerNumber::ZERO),
+            mtimer,
             pic_interrupt_service,
         }
     }
@@ -82,12 +96,10 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> SweRVolf<'a,
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
-    for SweRVolf<'a, A, I>
-{
+impl<'a, I: InterruptService<()> + 'a> kernel::Chip for SweRVolf<'a, I> {
     type MPU = ();
     type UserspaceKernelBoundary = SysCall;
-    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
+    type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
@@ -110,28 +122,55 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
         loop {
             let mip = CSR.mip.extract();
 
+            // Check if the timer interrupt is pending
             if mip.is_set(mip::mtimer) {
-                self.timer.handle_interrupt();
+                self.mtimer.handle_interrupt();
             }
+            // timer0/timer1 pending bits in MIP are NOT sticky
+            // This means Tock never sees the pending bits in MIP.
+            // Instead we have mutable statics that tell us.
+            if unsafe { TIMER0_IRQ.get() } {
+                // timer0
+                self.scheduler_timer.handle_interrupt();
+                unsafe {
+                    TIMER0_IRQ.set(false);
+                }
+            }
+            if unsafe { TIMER1_IRQ.get() } {
+                // timer1
+                unsafe {
+                    self.pic_interrupt_service.service_interrupt(IRQ_TIMER1);
+                    TIMER1_IRQ.set(false);
+                }
+            }
+
             if self.pic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_pic_interrupts();
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET) && self.pic.get_saved_interrupts().is_none() {
+            if !mip.matches_any(mip::mtimer::SET)
+                && !unsafe { TIMER0_IRQ.get() }
+                && !unsafe { TIMER1_IRQ.get() }
+                && self.pic.get_saved_interrupts().is_none()
+            {
                 break;
             }
         }
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        CSR.mie
+            .modify(mie::mext::SET + mie::mtimer::SET + mie::BIT28::SET + mie::BIT29::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
         let mip = CSR.mip.extract();
-        self.pic.get_saved_interrupts().is_some() || mip.matches_any(mip::mtimer::SET)
+        self.pic.get_saved_interrupts().is_some()
+            || mip.matches_any(mip::mtimer::SET)
+            || unsafe { TIMER0_IRQ.get() }
+            || unsafe { TIMER1_IRQ.get() }
     }
 
     fn sleep(&self) {
@@ -218,6 +257,17 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
+            if CSR.mcause.get() == 0x8000_001D {
+                // Timer0
+                CSR.mie.modify(mie::BIT29::CLEAR);
+                TIMER0_IRQ.set(true);
+                return;
+            } else if CSR.mcause.get() == 0x8000_001C {
+                // Timer1
+                CSR.mie.modify(mie::BIT28::CLEAR);
+                TIMER1_IRQ.set(true);
+                return;
+            }
             panic!("interrupt of unknown cause");
         }
     }

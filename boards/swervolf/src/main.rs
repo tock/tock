@@ -13,13 +13,10 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
-use swervolf_eh1::chip::SweRVolfDefaultPeripherals;
-
-use kernel::hil::time::Alarm;
-use kernel::Chip;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
+use swervolf_eh1::chip::SweRVolfDefaultPeripherals;
 
 pub mod io;
 
@@ -31,12 +28,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
     [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<
-    &'static swervolf_eh1::chip::SweRVolf<
-        VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
-        SweRVolfDefaultPeripherals,
-    >,
-> = None;
+static mut CHIP: Option<&'static swervolf_eh1::chip::SweRVolf<SweRVolfDefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -108,7 +100,7 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    let hardware_timer = static_init!(
+    let mtimer = static_init!(
         swervolf_eh1::syscon::SysCon,
         swervolf_eh1::syscon::SysCon::new()
     );
@@ -117,16 +109,12 @@ pub unsafe fn main() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
-        MuxAlarm::new(hardware_timer)
+        MuxAlarm::new(mtimer)
     );
-    hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
+    hil::time::Alarm::set_alarm_client(mtimer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
         VirtualMuxAlarm::new(mux_alarm)
     );
@@ -144,21 +132,23 @@ pub unsafe fn main() {
 
     let chip = static_init!(
         swervolf_eh1::chip::SweRVolf<
-            VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
             SweRVolfDefaultPeripherals,
         >,
-        swervolf_eh1::chip::SweRVolf::new(systick_virtual_alarm, peripherals, hardware_timer)
+        swervolf_eh1::chip::SweRVolf::new(peripherals, mtimer)
     );
-    systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_pic_interrupts();
 
-    // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+    // enable interrupts globally, including timer0 (bit 29) and timer1 (bit 28)
+    csr::CSR.mie.modify(
+        csr::mie::mie::mext::SET
+            + csr::mie::mie::msoft::SET
+            + csr::mie::mie::mtimer::SET
+            + csr::mie::mie::BIT28::SET
+            + csr::mie::mie::BIT29::SET,
+    );
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
