@@ -5,12 +5,12 @@
 //! - Date: September 17, 2020
 
 use crate::pm::{self, PBDClock};
-use kernel::ErrorCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
+use kernel::ErrorCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///

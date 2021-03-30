@@ -49,11 +49,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::marker::PhantomData;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::kv_system::{self, KVSystem, KeyType};
+use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
 enum CurrentState {

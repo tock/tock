@@ -1,6 +1,6 @@
 use core::fmt::Write;
-use kernel::ErrorCode;
 use core::panic::PanicInfo;
+use kernel::ErrorCode;
 
 use cortexm4;
 use kernel::debug;

@@ -22,11 +22,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
 

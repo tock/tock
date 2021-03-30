@@ -3,7 +3,6 @@
 //! Used in order read and write to internal flash.
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -12,6 +11,7 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 
 use crate::deferred_call_tasks::DeferredCallTask;
 

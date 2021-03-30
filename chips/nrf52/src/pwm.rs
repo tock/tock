@@ -1,10 +1,10 @@
 //! PWM driver for nRF52.
 
 use kernel::common::cells::VolatileCell;
-use kernel::ErrorCode;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 use nrf5x;
 
 #[repr(C)]

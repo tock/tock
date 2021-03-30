@@ -21,13 +21,13 @@
 #![allow(non_camel_case_types)]
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
+use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,

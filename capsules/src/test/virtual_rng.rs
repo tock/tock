@@ -3,10 +3,10 @@
 //! Full test harness for this can be found in nano33ble/test/virtual_rng_test
 
 use crate::virtual_rng::VirtualRngMasterDevice;
-use kernel::ErrorCode;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::rng::{Client, Continue, Rng};
+use kernel::ErrorCode;
 
 const NUM_REQUESTS: usize = 2;
 

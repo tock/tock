@@ -11,8 +11,8 @@
 //! peripherals can represent the actual hardware units an translate
 //! into these more general ones.
 
-use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use crate::ErrorCode;
+use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
 
 /// An integer type defining the width of a time value, which allows

@@ -1,13 +1,13 @@
 //! True random number generator
 
 use crate::rcc;
-use kernel::ErrorCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::ClockInterface;
+use kernel::ErrorCode;
 
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x5006_0800 as *const RngRegisters) };

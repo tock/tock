@@ -1,5 +1,4 @@
 use cortexm4;
-use kernel::ErrorCode;
 use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
@@ -8,6 +7,7 @@ use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
 use kernel::ClockInterface;
+use kernel::ErrorCode;
 
 use crate::nvic;
 use crate::rcc;

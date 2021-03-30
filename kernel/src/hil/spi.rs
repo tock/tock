@@ -1,7 +1,7 @@
 //! Interfaces for SPI master and slave communication.
 
-use core::option::Option;
 use crate::ErrorCode;
+use core::option::Option;
 
 /// Values for the ordering of bits
 #[derive(Copy, Clone, Debug)]

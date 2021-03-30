@@ -23,11 +23,11 @@
 //! * Date: August 18, 2016
 
 use kernel::common::cells::OptionalCell;
-use kernel::ErrorCode;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Time};
+use kernel::ErrorCode;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [

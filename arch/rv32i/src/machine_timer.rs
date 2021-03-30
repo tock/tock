@@ -1,10 +1,10 @@
 //! Create a timer using the Machine Timer registers.
 
 use kernel::common::cells::OptionalCell;
-use kernel::ErrorCode;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::ErrorCode;
 
 register_structs! {
     pub MachineTimerRegisters {

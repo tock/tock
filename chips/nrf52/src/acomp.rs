@@ -21,12 +21,12 @@
 //! - Event generation on output changes
 
 use kernel::common::cells::OptionalCell;
-use kernel::ErrorCode;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::hil::analog_comparator;
+use kernel::ErrorCode;
 
 /// The nrf52840 only has one analog comparator, so it does need channels
 /// However, the HIL was designed to support having multiple comparators, each

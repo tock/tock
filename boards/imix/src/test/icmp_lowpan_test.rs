@@ -11,7 +11,6 @@
 //! ```
 
 use capsules::ieee802154::device::MacDevice;
-use kernel::ErrorCode;
 use capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
 use capsules::net::icmpv6::{ICMP6Header, ICMP6Type};
 use capsules::net::ieee802154::MacAddress;
@@ -23,6 +22,7 @@ use capsules::net::network_capabilities::{
 };
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
+use kernel::ErrorCode;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;

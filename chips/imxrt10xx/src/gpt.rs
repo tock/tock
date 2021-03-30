@@ -1,5 +1,4 @@
 use core::sync::atomic::{AtomicU32, Ordering};
-use kernel::ErrorCode;
 use cortexm7;
 use cortexm7::support::atomic;
 use kernel::common::cells::OptionalCell;
@@ -8,6 +7,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Ticks, Ticks32, Time};
 use kernel::ClockInterface;
+use kernel::ErrorCode;
 
 use crate::ccm;
 use crate::nvic;

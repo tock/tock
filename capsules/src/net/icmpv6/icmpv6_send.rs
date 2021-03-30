@@ -8,13 +8,13 @@
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
 use crate::net::icmpv6::ICMP6Header;
-use kernel::ErrorCode;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::NetworkCapability;
 use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::ErrorCode;
 
 /// A trait for a client of an `ICMP6Sender`.
 pub trait ICMP6SendClient {

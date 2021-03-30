@@ -21,9 +21,9 @@
 //! ```
 
 use kernel::common::cells::OptionalCell;
-use kernel::ErrorCode;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::ErrorCode;
 
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     pwm: &'a P,

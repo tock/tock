@@ -12,8 +12,8 @@
 //! procedure in hardware, as opposed to requiring a software implementation.
 
 use crate::ieee802154::framer::Frame;
-use kernel::ErrorCode;
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
+use kernel::ErrorCode;
 
 pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device

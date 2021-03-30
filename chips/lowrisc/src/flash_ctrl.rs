@@ -1,7 +1,6 @@
 //! Flash Controller
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -10,6 +9,7 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ErrorCode;
 
 register_structs! {
     pub FlashCtrlRegisters {

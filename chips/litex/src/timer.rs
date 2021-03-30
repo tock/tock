@@ -4,13 +4,13 @@
 //! [`litex/soc/cores/timer.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/timer.py).
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
+use kernel::ErrorCode;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{

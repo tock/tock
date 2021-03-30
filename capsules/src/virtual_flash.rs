@@ -27,10 +27,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::ErrorCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there

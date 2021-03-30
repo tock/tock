@@ -6,10 +6,10 @@
 //! for ELEMENTS random numbers and print them in hex to console.
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::entropy;
 use kernel::hil::rng;
+use kernel::ErrorCode;
 
 const ELEMENTS: usize = 8;
 

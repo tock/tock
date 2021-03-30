@@ -1,6 +1,6 @@
 //! Interface for screens and displays.
-use core::ops::Add;
 use crate::ErrorCode;
+use core::ops::Add;
 use core::ops::Sub;
 
 #[derive(Copy, Clone, PartialEq)]
