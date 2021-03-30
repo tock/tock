@@ -8,6 +8,7 @@
 //!
 //! use kernel::hil;
 //! use kernel::ReturnCode;
+//! use kernel::ErrorCode;
 //!
 //! // Size in bytes
 //! const PAGE_SIZE: u32 = 1024;
