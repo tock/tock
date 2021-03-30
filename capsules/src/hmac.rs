@@ -220,8 +220,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                         self.hmac.clear_data();
                         self.appid.clear();
 
-                        app.callback
-                            .schedule(usize::from(ReturnCode::from(e.0)), 0, 0);
+                        app.callback.schedule(
+                            kernel::retcode_into_usize(ReturnCode::from(e.0)),
+                            0,
+                            0,
+                        );
 
                         self.check_queue();
                         return;
@@ -253,7 +256,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                     match result {
                         Ok(_) => app.callback.schedule(0, pointer as usize, 0),
                         Err(e) => app.callback.schedule(
-                            usize::from(ReturnCode::from(e)),
+                            kernel::retcode_into_usize(ReturnCode::from(e)),
                             pointer as usize,
                             0,
                         ),

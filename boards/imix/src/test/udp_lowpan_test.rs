@@ -116,6 +116,7 @@
 //! ```
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
+use kernel::ErrorCode;
 use super::super::imix_components::test::mock_udp2::MockUDPComponent2;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;

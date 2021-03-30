@@ -332,8 +332,8 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_len = 0;
                         app.write_remaining = 0;
                         app.pending_write = false;
-                        let r0 = isize::from(return_code) as usize;
-                        app.write_callback.schedule(r0, 0, 0);
+                        app.write_callback
+                            .schedule(kernel::retcode_into_usize(return_code), 0, 0);
                     }
                 }
             })
@@ -353,8 +353,11 @@ impl uart::TransmitClient for Console<'_> {
                                 app.write_len = 0;
                                 app.write_remaining = 0;
                                 app.pending_write = false;
-                                let r0 = isize::from(return_code) as usize;
-                                app.write_callback.schedule(r0, 0, 0);
+                                app.write_callback.schedule(
+                                    kernel::retcode_into_usize(return_code),
+                                    0,
+                                    0,
+                                );
                                 false
                             }
                         }
@@ -431,13 +434,19 @@ impl uart::ReceiveClient for Console<'_> {
                                     (rcode, rx_len)
                                 };
 
-                                app.read_callback
-                                    .schedule(From::from(ret), received_length, 0);
+                                app.read_callback.schedule(
+                                    kernel::retcode_into_usize(ret),
+                                    received_length,
+                                    0,
+                                );
                             }
                             _ => {
                                 // Some UART error occurred
-                                app.read_callback
-                                    .schedule(From::from(Err(ErrorCode::FAIL)), 0, 0);
+                                app.read_callback.schedule(
+                                    kernel::retcode_into_usize(Err(ErrorCode::FAIL)),
+                                    0,
+                                    0,
+                                );
                             }
                         }
                     })

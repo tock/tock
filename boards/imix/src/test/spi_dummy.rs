@@ -2,7 +2,6 @@
 
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
-use kernel::ReturnCode;
 
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {

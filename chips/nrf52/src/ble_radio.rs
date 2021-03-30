@@ -34,6 +34,7 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;

@@ -14,6 +14,7 @@
 //! respectively.
 
 use capsules::log;
+use kernel::ErrorCode;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::common::cells::{NumericCellExt, TakeCell};

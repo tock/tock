@@ -466,7 +466,7 @@ where
 
                     if success {
                         app.scan_callback
-                            .schedule(usize::from(result), len as usize, 0);
+                            .schedule(kernel::retcode_into_usize(result), len as usize, 0);
                     }
                 }
 

@@ -30,6 +30,7 @@
 //! * Date: Sep 10, 2017
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use core::{cmp, ptr};
 use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};

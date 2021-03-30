@@ -34,8 +34,9 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::kv_system::{self, KVSystem};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
-use tickv::{self, AsyncTicKV, ErrorCode};
+use tickv::{self, AsyncTicKV};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Operation {
@@ -375,7 +376,8 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
@@ -413,7 +415,8 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err((buf, e)) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
@@ -450,7 +453,8 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
@@ -480,7 +484,8 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                 match self.tickv.garbage_collect() {
                     Ok(freed) => Ok(freed),
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => Ok(0),
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => Ok(0),
                         _ => Err(Err(ErrorCode::FAIL)),
                     },
                 }

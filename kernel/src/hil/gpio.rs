@@ -1,5 +1,4 @@
 use crate::common::cells::OptionalCell;
-use crate::ErrorCode;
 use crate::ReturnCode;
 
 use core::cell::Cell;

@@ -7,6 +7,7 @@
 //! * Date: March 10 2018
 
 use core;
+use kernel::ErrorCode;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::OptionalCell;

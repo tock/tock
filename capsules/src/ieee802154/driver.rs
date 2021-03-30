@@ -465,8 +465,11 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
         let _ = self
             .apps
             .enter(self.saved_appid.expect("missing appid"), |app, _| {
-                app.tx_callback
-                    .schedule(self.saved_result.expect("missing result").into(), 0, 0);
+                app.tx_callback.schedule(
+                    kernel::retcode_into_usize(self.saved_result.expect("missing result")),
+                    0,
+                    0,
+                );
             });
     }
 }
@@ -871,7 +874,8 @@ impl device::TxClient for RadioDriver<'_> {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.schedule(result.into(), acked as usize, 0);
+                app.tx_callback
+                    .schedule(kernel::retcode_into_usize(result), acked as usize, 0);
             });
         });
         self.do_next_tx_async();

@@ -1,6 +1,7 @@
 //! IEEE 802.15.4 radio driver for nRF52
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};

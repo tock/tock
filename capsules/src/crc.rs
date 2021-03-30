@@ -72,7 +72,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
-use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
+use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -140,7 +140,8 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback.schedule(From::from(rcode), 0, 0);
+                        app.callback
+                            .schedule(kernel::retcode_into_usize(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -315,7 +316,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
                                 Err(ErrorCode::BUSY)
                             } else {
                                 app.waiting = Some(alg);
-                                Ok(Ok(()))
+                                Ok(())
                             }
                         })
                         .map_err(ErrorCode::from)
@@ -342,7 +343,7 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
             self.apps
                 .enter(appid, |app, _| {
                     app.callback
-                        .schedule(From::from(Ok(())), result as usize, 0);
+                        .schedule(kernel::retcode_into_usize(Ok(())), result as usize, 0);
                     app.waiting = None;
                     Ok(())
                 })
