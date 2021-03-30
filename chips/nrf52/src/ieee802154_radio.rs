@@ -1,7 +1,6 @@
 //! IEEE 802.15.4 radio driver for nRF52
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -9,6 +8,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
 use kernel::hil::time::Alarm;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 use crate::ppi;

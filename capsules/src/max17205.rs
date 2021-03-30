@@ -390,8 +390,13 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 
     fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(kernel::retcode_into_usize(error), voltage as usize, current as usize));
+        self.callback.map(|cb| {
+            cb.schedule(
+                kernel::retcode_into_usize(error),
+                voltage as usize,
+                current as usize,
+            )
+        });
     }
 
     fn coulomb(&self, coulomb: u16, error: ReturnCode) {

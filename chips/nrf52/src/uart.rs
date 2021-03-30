@@ -7,13 +7,13 @@
 //! * Date: March 10 2018
 
 use core;
-use kernel::ErrorCode;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::uart;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 use nrf5x::pinmux;
 

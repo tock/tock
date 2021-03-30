@@ -116,7 +116,6 @@
 //! ```
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
-use kernel::ErrorCode;
 use super::super::imix_components::test::mock_udp2::MockUDPComponent2;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
@@ -135,6 +134,7 @@ use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;

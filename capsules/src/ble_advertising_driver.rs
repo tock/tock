@@ -465,8 +465,11 @@ where
                     });
 
                     if success {
-                        app.scan_callback
-                            .schedule(kernel::retcode_into_usize(result), len as usize, 0);
+                        app.scan_callback.schedule(
+                            kernel::retcode_into_usize(result),
+                            len as usize,
+                            0,
+                        );
                     }
                 }
 

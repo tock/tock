@@ -34,7 +34,6 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
-use kernel::ErrorCode;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -42,7 +41,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =

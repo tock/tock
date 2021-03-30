@@ -20,7 +20,6 @@
 //! respectively.
 
 use capsules::log;
-use kernel::ErrorCode;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::common::cells::{NumericCellExt, TakeCell};
@@ -31,6 +30,7 @@ use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::static_init;
 use kernel::storage_volume;
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 use nrf52840::{
     nvmc::{NrfPage, Nvmc},

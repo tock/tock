@@ -169,7 +169,8 @@ impl<'a> UDPDriver<'a> {
         let result = self.perform_tx_sync(appid);
         if result != Ok(()) {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.schedule(kernel::retcode_into_usize(result), 0, 0);
+                app.tx_callback
+                    .schedule(kernel::retcode_into_usize(result), 0, 0);
             });
         }
     }
@@ -601,7 +602,8 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.schedule(kernel::retcode_into_usize(result), 0, 0);
+                app.tx_callback
+                    .schedule(kernel::retcode_into_usize(result), 0, 0);
             });
         });
         self.current_app.set(None);
