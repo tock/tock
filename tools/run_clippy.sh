@@ -27,6 +27,7 @@ CLIPPY_ARGS="
 -A clippy::perf
 -A clippy::cargo
 -A clippy::restriction
+-A unused_must_use
 
 -A clippy::if_same_then_else
 
