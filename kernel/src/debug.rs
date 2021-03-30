@@ -49,6 +49,7 @@
 //! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
 
+use crate::ErrorCode;
 use core::cell::Cell;
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
@@ -61,7 +62,6 @@ use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::process::ProcessType;
 use crate::Chip;
-use crate::ReturnCode;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
@@ -422,7 +422,12 @@ impl DebugWriter {
 }
 
 impl hil::uart::TransmitClient for DebugWriter {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: core::result::Result<(), ErrorCode>,
+    ) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
@@ -431,7 +436,7 @@ impl hil::uart::TransmitClient for DebugWriter {
             self.publish_bytes();
         }
     }
-    fn transmitted_word(&self, _rcode: ReturnCode) {}
+    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
 }
 
 /// Pass through functions.

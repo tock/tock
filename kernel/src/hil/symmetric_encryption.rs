@@ -2,7 +2,7 @@
 //!
 //! see boards/imix/src/aes_test.rs for example usage
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks from an `AES128`
 /// instance.
@@ -28,11 +28,11 @@ pub trait AES128<'a> {
 
     /// Set the encryption key.
     /// Returns `EINVAL` if length is not `AES128_KEY_SIZE`
-    fn set_key(&self, key: &[u8]) -> ReturnCode;
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the IV (or initial counter).
     /// Returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
-    fn set_iv(&self, iv: &[u8]) -> ReturnCode;
+    fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode>;
 
     /// Begin a new message (with the configured IV) when `crypt()` is
     /// next called.  Multiple calls to `crypt()` may be made between
@@ -83,7 +83,7 @@ pub trait AES128<'a> {
         dest: &'a mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])>;
+    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])>;
 }
 
 pub trait AES128Ctr {
@@ -108,7 +108,7 @@ pub trait CCMClient {
     /// If we are encrypting: `tag_is_valid` is `true` iff `res` is SUCCESS.
     /// If we are decrypting: `tag_is_valid` is `true` iff `res` is SUCCESS and the
     /// message authentication tag is valid.
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool);
+    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool);
 }
 
 pub const CCM_NONCE_LENGTH: usize = 13;
@@ -118,10 +118,10 @@ pub trait AES128CCM<'a> {
     fn set_client(&'a self, client: &'a dyn CCMClient);
 
     /// Set the key to be used for CCM encryption
-    fn set_key(&self, key: &[u8]) -> ReturnCode;
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
-    fn set_nonce(&self, nonce: &[u8]) -> ReturnCode;
+    fn set_nonce(&self, nonce: &[u8]) -> Result<(), ErrorCode>;
 
     /// Try to begin the encryption/decryption process
     fn crypt(
@@ -133,5 +133,5 @@ pub trait AES128CCM<'a> {
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>);
 }

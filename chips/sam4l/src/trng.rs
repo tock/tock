@@ -7,7 +7,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[repr(C)]
 struct TrngRegisters {
@@ -94,7 +93,7 @@ impl Iterator for TrngIter<'_, '_> {
 }
 
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         self.regs
@@ -104,7 +103,7 @@ impl<'a> entropy::Entropy32<'a> for Trng<'a> {
         Ok(())
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 

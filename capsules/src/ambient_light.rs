@@ -16,7 +16,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -44,7 +44,7 @@ impl<'a> AmbientLight<'a> {
         }
     }
 
-    fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_sensor_reading(&self, appid: AppId) -> Result<(), ErrorCode> {
         self.apps
             .enter(appid, |app, _| {
                 if app.pending {

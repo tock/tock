@@ -4,7 +4,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::rng::{Client, Continue, Rng};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
@@ -28,7 +27,7 @@ impl<'a> MuxRngMaster<'a> {
         }
     }
 
-    fn do_next_op(&self) -> ReturnCode {
+    fn do_next_op(&self) -> Result<(), ErrorCode> {
         if self.inflight.is_none() {
             let mnode = self
                 .devices
@@ -71,7 +70,7 @@ impl<'a> Client for MuxRngMaster<'a> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> Continue {
         // Try find if randomness is available, or return done
         self.inflight.take().map_or(Continue::Done, |device| {
@@ -123,12 +122,12 @@ impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
 }
 
 impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.operation.set(Op::Get);
         self.mux.do_next_op()
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         // Set current device to idle
         self.operation.set(Op::Idle);
 
@@ -163,7 +162,7 @@ impl<'a> Client for VirtualRngMasterDevice<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue {
         self.client.map_or(Continue::Done, move |client| {
             client.randomness_available(randomness, error)

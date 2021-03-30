@@ -1,4 +1,5 @@
 use core::fmt::Write;
+use kernel::ErrorCode;
 use core::panic::PanicInfo;
 
 use cortexm4;
@@ -38,7 +39,7 @@ struct DummyUsbClient {
 }
 
 impl uart::TransmitClient for DummyUsbClient {
-    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: kernel::ReturnCode) {
+    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: Result<(), ErrorCode>) {
         self.fired.set(true);
     }
 }

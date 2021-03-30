@@ -21,8 +21,8 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
+use kernel::ClockInterface;
 use kernel::ErrorCode;
-use kernel::{ClockInterface, ReturnCode};
 
 #[repr(C)]
 pub struct SpiRegisters {
@@ -449,7 +449,7 @@ impl SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if write_buffer.is_none() && read_buffer.is_none() {
             return Err(ErrorCode::INVAL);
         }
@@ -570,7 +570,7 @@ impl spi::SpiMaster for SpiHw {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // If busy, don't start.
         if self.is_busy() {
             return Err(ErrorCode::BUSY);
@@ -659,7 +659,7 @@ impl spi::SpiSlave for SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 

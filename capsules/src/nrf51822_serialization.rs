@@ -27,7 +27,7 @@ use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
     AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode, Upcall,
+    ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -254,7 +254,12 @@ impl Driver for Nrf51822Serialization<'_> {
 // Callbacks from the underlying UART driver.
 impl uart::TransmitClient for Nrf51822Serialization<'_> {
     // Called when the UART TX has finished.
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
@@ -265,7 +270,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         });
     }
 
-    fn transmitted_word(&self, _rcode: ReturnCode) {}
+    fn transmitted_word(&self, _rcode: Result<(), ErrorCode>) {}
 }
 
 impl uart::ReceiveClient for Nrf51822Serialization<'_> {
@@ -274,7 +279,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
-        _rcode: ReturnCode,
+        _rcode: Result<(), ErrorCode>,
         _error: uart::Error,
     ) {
         self.rx_buffer.replace(buffer);
@@ -311,5 +316,5 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         });
     }
 
-    fn received_word(&self, _word: u32, _rcode: ReturnCode, _err: uart::Error) {}
+    fn received_word(&self, _word: u32, _rcode: Result<(), ErrorCode>, _err: uart::Error) {}
 }

@@ -34,7 +34,6 @@ use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying
@@ -46,7 +45,7 @@ pub struct MuxMac<'a> {
 }
 
 impl device::TxClient for MuxMac<'_> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.inflight.take().map(move |user| {
             user.send_done(spi_buf, acked, result);
         });
@@ -124,7 +123,7 @@ impl<'a> MuxMac<'a> {
         &self,
         node: &'a MacUser<'a>,
         op: Op,
-    ) -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Option<(Result<(), ErrorCode>, Option<&'static mut [u8]>)> {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
             if result == Ok(()) {
@@ -159,7 +158,7 @@ impl<'a> MuxMac<'a> {
     fn do_next_op_sync(
         &self,
         new_node: &MacUser<'a>,
-    ) -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
+    ) -> Option<(Result<(), ErrorCode>, Option<&'static mut [u8]>)> {
         self.get_next_op_if_idle().and_then(|(node, op)| {
             if node as *const _ == new_node as *const _ {
                 // The new node's operation is the one being scheduled, so the
@@ -209,7 +208,7 @@ impl<'a> MacUser<'a> {
 }
 
 impl MacUser<'_> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.tx_client
             .get()
             .map(move |client| client.send_done(spi_buf, acked, result));
@@ -283,7 +282,7 @@ impl<'a> device::MacDevice<'a> for MacUser<'a> {
             .prepare_data_frame(buf, dst_pan, dst_addr, src_pan, src_addr, security_needed)
     }
 
-    fn transmit(&self, frame: framer::Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit(&self, frame: framer::Frame) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // If the muxer is idle, immediately transmit the frame, otherwise
         // attempt to queue the transmission request. However, each MAC user can
         // only have one pending transmission request, so if there already is a

@@ -8,7 +8,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
-use kernel::{ClockInterface, ReturnCode};
+use kernel::ClockInterface;
 
 use crate::rcc;
 
@@ -349,7 +349,7 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if write_buffer.is_none() && read_buffer.is_none() {
             return Err(ErrorCode::INVAL);
         }
@@ -464,7 +464,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // If busy, don't start
         if self.is_busy() {
             return Err(ErrorCode::BUSY);

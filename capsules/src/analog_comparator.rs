@@ -39,7 +39,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -78,7 +78,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 
     // Start comparing on a channel
-    fn start_comparing(&self, channel: usize) -> ReturnCode {
+    fn start_comparing(&self, channel: usize) -> Result<(), ErrorCode> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
@@ -90,7 +90,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 
     // Stop comparing on a channel
-    fn stop_comparing(&self, channel: usize) -> ReturnCode {
+    fn stop_comparing(&self, channel: usize) -> Result<(), ErrorCode> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }

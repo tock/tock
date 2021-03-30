@@ -21,9 +21,9 @@
 //! ```
 
 use kernel::common::cells::OptionalCell;
+use kernel::ErrorCode;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
-use kernel::ReturnCode;
 
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     pwm: &'a P,
@@ -133,7 +133,7 @@ impl<'a, P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P>
 }
 
 impl<P: hil::pwm::Pwm> hil::pwm::PwmPin for PwmPinUser<'_, P> {
-    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> ReturnCode {
+    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         self.operation.set(Operation::Simple {
             frequency_hz,
             duty_cycle,
@@ -142,7 +142,7 @@ impl<P: hil::pwm::Pwm> hil::pwm::PwmPin for PwmPinUser<'_, P> {
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.operation.set(Operation::Stop);
         self.mux.do_next_op();
         Ok(())

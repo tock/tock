@@ -5,7 +5,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil::adc;
 use kernel::hil::sensors;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
@@ -55,7 +54,7 @@ impl<'a> sensors::TemperatureDriver<'a> for TemperatureSTM<'a> {
         self.temperature_client.replace(temperature_client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Read);
             self.adc.sample();

@@ -125,7 +125,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                         self.pagebuffer.replace(pagebuffer);
                         Err(return_code
                             .try_into()
-                            .expect("ReturnCode success variant in error case"))
+                            .expect("Result<(), ErrorCode> success variant in error case"))
                     }
                 }
             })
@@ -169,7 +169,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                             self.pagebuffer.replace(pagebuffer);
                             Err(return_code
                                 .try_into()
-                                .expect("ReturnCode success variant in error case"))
+                                .expect("Result<(), ErrorCode> success variant in error case"))
                         }
                     }
                 } else {
@@ -185,7 +185,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
                             self.pagebuffer.replace(pagebuffer);
                             Err(return_code
                                 .try_into()
-                                .expect("ReturnCode success variant in error case"))
+                                .expect("Result<(), ErrorCode> success variant in error case"))
                         }
                     }
                 }

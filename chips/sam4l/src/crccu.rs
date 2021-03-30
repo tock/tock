@@ -55,7 +55,6 @@ use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWr
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 const BASE_ADDRESS: StaticRef<CrccuRegisters> =
@@ -335,7 +334,7 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
         self.client.set(client);
     }
 
-    fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
+    fn compute(&self, data: &[u8], alg: CrcAlg) -> Result<(), ErrorCode> {
         self.init();
 
         if self.get_tcr().interrupt_enabled() {

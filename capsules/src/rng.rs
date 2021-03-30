@@ -28,8 +28,7 @@ use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, ReturnCode,
-    Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -64,7 +63,7 @@ impl rng::Client for RngDriver<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
@@ -247,11 +246,11 @@ impl<'a> Entropy32ToRandom<'a> {
 }
 
 impl<'a> Rng<'a> for Entropy32ToRandom<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -265,7 +264,7 @@ impl entropy::Client32 for Entropy32ToRandom<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
             if error != Ok(()) {
@@ -312,7 +311,7 @@ impl<'a> Entropy8To32<'a> {
 }
 
 impl<'a> Entropy32<'a> for Entropy8To32<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
@@ -324,7 +323,7 @@ impl<'a> Entropy32<'a> for Entropy8To32<'a> {
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -338,7 +337,7 @@ impl entropy::Client8 for Entropy8To32<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
             if error != Ok(()) {
@@ -408,7 +407,7 @@ impl<'a> Entropy32To8<'a> {
 }
 
 impl<'a> Entropy8<'a> for Entropy32To8<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
@@ -420,7 +419,7 @@ impl<'a> Entropy8<'a> for Entropy32To8<'a> {
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -434,7 +433,7 @@ impl entropy::Client32 for Entropy32To8<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
             if error != Ok(()) {
@@ -520,7 +519,7 @@ impl Client for SynchronousRandom<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> Continue {
         match randomness.next() {
             None => Continue::More,

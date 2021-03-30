@@ -198,9 +198,8 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// result of a CRC computation.  The signature of the callback is
     ///
     /// ```
-    /// # use kernel::ReturnCode;
     ///
-    /// fn callback(status: ReturnCode, result: usize) {}
+    /// fn callback(status: Result<(), ErrorCode>, result: usize) {}
     /// ```
     ///
     /// where

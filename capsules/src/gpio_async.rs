@@ -28,7 +28,7 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, ErrorCode, Upcall};
-use kernel::{CommandReturn, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver};
 
 /// Syscall driver number.
 use crate::driver;
@@ -49,7 +49,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
         }
     }
 
-    fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
+    fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
         let ports = self.ports.as_ref();
         let mode = match config {
             0 => hil::gpio::FloatingState::PullNone,
@@ -60,7 +60,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
         ports[port].make_input(pin, mode)
     }
 
-    fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
+    fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
         let ports = self.ports.as_ref();
         let mode = match config {
             0 => hil::gpio::InterruptEdge::EitherEdge,

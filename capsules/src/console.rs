@@ -43,7 +43,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, ErrorCode, Grant, Upcall};
-use kernel::{CommandReturn, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -93,7 +93,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         app.write_len = cmp::min(len, app.write_buffer.len());
         app.write_remaining = app.write_len;
         self.send(app_id, app);
@@ -102,7 +102,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
+    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, Result<(), ErrorCode>> {
         if app.write_remaining > 0 {
             self.send(app_id, app);
             Ok(true)
@@ -145,7 +145,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for starting a receive operation
-    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
@@ -312,7 +312,12 @@ impl Driver for Console<'_> {
 }
 
 impl uart::TransmitClient for Console<'_> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -378,7 +383,7 @@ impl uart::ReceiveClient for Console<'_> {
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         self.rx_in_progress

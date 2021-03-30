@@ -54,7 +54,6 @@ use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// commands
 static LCD_CLEARDISPLAY: u8 = 0x01;
@@ -223,7 +222,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
     }
 
-    pub fn screen_command(&self, command: usize, op: usize, value: u8) -> ReturnCode {
+    pub fn screen_command(&self, command: usize, op: usize, value: u8) -> Result<(), ErrorCode> {
         if self.lcd_status.get() == LCDStatus::Idle {
             match command {
                 1 => {
@@ -256,7 +255,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     /// Example:
     ///  self.set_rows(0x00, 0x40, 0x00+col, 0x40+col);
     ///
-    fn set_rows(&self, row0: u8, row1: u8, row2: u8, row3: u8) -> ReturnCode {
+    fn set_rows(&self, row0: u8, row1: u8, row2: u8, row3: u8) -> Result<(), ErrorCode> {
         self.row_offsets.map(|buffer| {
             buffer[0] = row0;
             buffer[1] = row1;
@@ -604,7 +603,7 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         &self,
         buffer: &'static mut [u8],
         len: usize,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut [u8])> {
         if self.lcd_status.get() == LCDStatus::Idle {
             self.write_buffer.replace(buffer);
             self.write_len.replace(len as u8);
@@ -617,7 +616,7 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         }
     }
 
-    fn set_cursor(&self, x_position: usize, y_position: usize) -> ReturnCode {
+    fn set_cursor(&self, x_position: usize, y_position: usize) -> Result<(), ErrorCode> {
         if self.lcd_status.get() == LCDStatus::Idle {
             let mut line_number: u8 = y_position as u8;
             if line_number >= 4 {
@@ -635,23 +634,23 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         }
     }
 
-    fn hide_cursor(&self) -> ReturnCode {
+    fn hide_cursor(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_CURSORON)
     }
 
-    fn show_cursor(&self) -> ReturnCode {
+    fn show_cursor(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 0, LCD_CURSORON)
     }
 
-    fn blink_cursor_on(&self) -> ReturnCode {
+    fn blink_cursor_on(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 0, LCD_BLINKON)
     }
 
-    fn blink_cursor_off(&self) -> ReturnCode {
+    fn blink_cursor_off(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_BLINKON)
     }
 
-    fn display_on(&self) -> ReturnCode {
+    fn display_on(&self) -> Result<(), ErrorCode> {
         if !self.initialized.get() {
             if self.lcd_status.get() == LCDStatus::Idle {
                 self.set_delay(10, LCDStatus::Begin0);
@@ -664,11 +663,11 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         }
     }
 
-    fn display_off(&self) -> ReturnCode {
+    fn display_off(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_DISPLAYON)
     }
 
-    fn clear(&self) -> ReturnCode {
+    fn clear(&self) -> Result<(), ErrorCode> {
         self.screen_command(2, 0, 0)
     }
 

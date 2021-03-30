@@ -45,7 +45,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
     }
 
     fn operation(&self, app_id: AppId, app: &mut App, command: Cmd, addr: u8, wlen: u8, rlen: u8) {
-        // TODO(alevy) this function used to try and return ReturnCodes, but would always return
+        // TODO(alevy) this function used to try and return Result<(), ErrorCode>s, but would always return
         // ENOSUPPORT and all call-sites simply ignore the return value. Nonetheless, some error
         // handling is probably useful. Comments inline where there used to be non-success results.
         self.apps

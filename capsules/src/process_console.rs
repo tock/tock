@@ -121,7 +121,6 @@ use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::ErrorCode;
 use kernel::Kernel;
-use kernel::ReturnCode;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
@@ -177,7 +176,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    pub fn start(&self) -> ReturnCode {
+    pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
@@ -305,7 +304,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         self.command_index.set(0);
     }
 
-    fn write_byte(&self, byte: u8) -> ReturnCode {
+    fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
             Err(ErrorCode::BUSY)
         } else {
@@ -318,7 +317,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
+    fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
             Err(ErrorCode::BUSY)
         } else {
@@ -335,7 +334,12 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
 
@@ -352,7 +356,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         &self,
         read_buf: &'static mut [u8],
         rx_len: usize,
-        _rcode: ReturnCode,
+        _rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         if error == uart::Error::None {

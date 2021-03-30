@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -88,11 +88,17 @@ enum State {
 }
 
 pub trait MAX17205Client {
-    fn status(&self, status: u16, error: ReturnCode);
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode);
-    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode);
-    fn coulomb(&self, coulomb: u16, error: ReturnCode);
-    fn romid(&self, rid: u64, error: ReturnCode);
+    fn status(&self, status: u16, error: Result<(), ErrorCode>);
+    fn state_of_charge(
+        &self,
+        percent: u16,
+        capacity: u16,
+        full_capacity: u16,
+        error: Result<(), ErrorCode>,
+    );
+    fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>);
+    fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>);
+    fn romid(&self, rid: u64, error: Result<(), ErrorCode>);
 }
 
 pub struct MAX17205<'a> {
@@ -128,7 +134,7 @@ impl<'a> MAX17205<'a> {
         self.client.set(client);
     }
 
-    fn setup_read_status(&self) -> ReturnCode {
+    fn setup_read_status(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
@@ -141,7 +147,7 @@ impl<'a> MAX17205<'a> {
         })
     }
 
-    fn setup_read_soc(&self) -> ReturnCode {
+    fn setup_read_soc(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
@@ -155,7 +161,7 @@ impl<'a> MAX17205<'a> {
         })
     }
 
-    fn setup_read_curvolt(&self) -> ReturnCode {
+    fn setup_read_curvolt(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
@@ -169,7 +175,7 @@ impl<'a> MAX17205<'a> {
         })
     }
 
-    fn setup_read_coulomb(&self) -> ReturnCode {
+    fn setup_read_coulomb(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
@@ -183,7 +189,7 @@ impl<'a> MAX17205<'a> {
         })
     }
 
-    fn setup_read_romid(&self) -> ReturnCode {
+    fn setup_read_romid(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_upper.enable();
 
@@ -374,12 +380,18 @@ impl<'a> MAX17205Driver<'a> {
 }
 
 impl MAX17205Client for MAX17205Driver<'_> {
-    fn status(&self, status: u16, error: ReturnCode) {
+    fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.callback
             .map(|cb| cb.schedule(kernel::retcode_into_usize(error), status as usize, 0));
     }
 
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode) {
+    fn state_of_charge(
+        &self,
+        percent: u16,
+        capacity: u16,
+        full_capacity: u16,
+        error: Result<(), ErrorCode>,
+    ) {
         self.callback.map(|cb| {
             cb.schedule(
                 kernel::retcode_into_usize(error),
@@ -389,7 +401,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
         });
     }
 
-    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
+    fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
                 kernel::retcode_into_usize(error),
@@ -399,12 +411,12 @@ impl MAX17205Client for MAX17205Driver<'_> {
         });
     }
 
-    fn coulomb(&self, coulomb: u16, error: ReturnCode) {
+    fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.callback
             .map(|cb| cb.schedule(kernel::retcode_into_usize(error), coulomb as usize, 0));
     }
 
-    fn romid(&self, rid: u64, error: ReturnCode) {
+    fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
                 kernel::retcode_into_usize(error),

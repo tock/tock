@@ -25,7 +25,6 @@ use kernel::hil;
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
-use kernel::ReturnCode;
 
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.
@@ -607,7 +606,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Configure for CdcAcm<'a, U, A> {
-    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+    fn configure(&self, _parameters: uart::Parameters) -> Result<(), ErrorCode> {
         // Since this is not a real UART, we don't need to consider these
         // parameters.
         Ok(())
@@ -625,7 +624,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.tx_buffer.is_some() {
             // We are already handling a transmission, we cannot queue another
             // request.
@@ -659,11 +658,11 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
         }
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -677,7 +676,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (Err(ErrorCode::BUSY), Some(rx_buffer))
         } else if rx_len > rx_buffer.len() {
@@ -691,7 +690,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
         }
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_buffer.is_none() {
             // If we have nothing pending then aborting is very easy.
             Ok(())
@@ -704,7 +703,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

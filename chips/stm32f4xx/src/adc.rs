@@ -6,7 +6,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
 impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
@@ -387,7 +386,7 @@ impl ClockInterface for AdcClock<'_> {
 impl hil::adc::Adc for Adc<'_> {
     type Channel = Channel;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         if self.status.get() == ADCStatus::Off {
             self.enable();
         }
@@ -406,11 +405,15 @@ impl hil::adc::Adc for Adc<'_> {
         }
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+    fn sample_continuous(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+    ) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
 
@@ -451,7 +454,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         _buffer2: &'static mut [u16],
         _length2: usize,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
@@ -467,7 +470,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         &self,
         _buf: &'static mut [u16],
         _length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
         (Err(ErrorCode::NOSUPPORT), None)
     }
 
@@ -476,7 +479,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     fn retrieve_buffers(
         &self,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {

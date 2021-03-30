@@ -135,7 +135,6 @@ use kernel::debug;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
@@ -545,7 +544,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         &self,
         net_cap1: &'static NetworkCapability,
         net_cap2: &'static NetworkCapability,
-    ) -> (ReturnCode, ReturnCode) {
+    ) -> (Result<(), ErrorCode>, Result<(), ErrorCode>) {
         // from capsule send_test
         self.mock_udp1.update_capability(net_cap1);
         self.mock_udp1.bind(14000);

@@ -9,6 +9,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::ErrorCode;
 
 const BLE_BASE: StaticRef<BleRegisters> =
     unsafe { StaticRef::new(0x5000_C000 as *const BleRegisters) };
@@ -476,7 +477,7 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
 }
 
 impl ble_advertising::BleConfig for Ble<'_> {
-    fn set_tx_power(&self, _tx_power: u8) -> kernel::ReturnCode {
+    fn set_tx_power(&self, _tx_power: u8) -> Result<(), ErrorCode> {
         Ok(())
     }
 }

@@ -106,7 +106,6 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::driver;
@@ -506,7 +505,7 @@ impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
         self.nine_dof_client.replace(nine_dof_client);
     }
 
-    fn read_gyroscope(&self) -> ReturnCode {
+    fn read_gyroscope(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_xyz();
             Ok(())
@@ -521,7 +520,7 @@ impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
         self.temperature_client.replace(temperature_client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_temperature();
             Ok(())

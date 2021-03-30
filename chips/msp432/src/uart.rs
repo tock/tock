@@ -8,7 +8,6 @@ use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
@@ -146,7 +145,7 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl<'a> hil::uart::Configure for Uart<'a> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // Disable module
         let regs = self.registers;
         regs.ctlw0.modify(usci::UCAxCTLW0::UCSWRST::SET);
@@ -248,7 +247,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if (tx_len == 0) || (tx_len > tx_buffer.len()) {
             return (Err(ErrorCode::SIZE), Some(tx_buffer));
         }
@@ -263,11 +262,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if !self.tx_busy.get() {
             return Ok(());
         }
@@ -295,7 +294,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if (rx_len == 0) || (rx_len > rx_buffer.len()) {
             return (Err(ErrorCode::SIZE), Some(rx_buffer));
         }
@@ -311,11 +310,11 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if !self.rx_busy.get() {
             return Ok(());
         }

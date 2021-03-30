@@ -54,8 +54,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, ReturnCode,
-    Upcall,
+    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -254,7 +253,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// Collect a single analog sample on a channel.
     ///
     /// - `channel` - index into `channels` array, which channel to sample
-    fn sample(&self, channel: usize) -> ReturnCode {
+    fn sample(&self, channel: usize) -> Result<(), ErrorCode> {
         // only one sample at a time
         if self.active.get() {
             return Err(ErrorCode::BUSY);
@@ -288,7 +287,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     ///
     /// - `channel` - index into `channels` array, which channel to sample
     /// - `frequency` - number of samples per second to collect
-    fn sample_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
+    fn sample_continuous(&self, channel: usize, frequency: u32) -> Result<(), ErrorCode> {
         // only one sample at a time
         if self.active.get() {
             return Err(ErrorCode::BUSY);
@@ -325,7 +324,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     ///
     /// - `channel` - index into `channels` array, which channel to sample
     /// - `frequency` - number of samples per second to collect
-    fn sample_buffer(&self, channel: usize, frequency: u32) -> ReturnCode {
+    fn sample_buffer(&self, channel: usize, frequency: u32) -> Result<(), ErrorCode> {
         // only one sample at a time
         if self.active.get() {
             return Err(ErrorCode::BUSY);
@@ -446,7 +445,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     ///
     /// - `channel` - index into `channels` array, which channel to sample
     /// - `frequency` - number of samples per second to collect
-    fn sample_buffer_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
+    fn sample_buffer_continuous(&self, channel: usize, frequency: u32) -> Result<(), ErrorCode> {
         // only one sample at a time
         if self.active.get() {
             return Err(ErrorCode::BUSY);
@@ -579,7 +578,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     ///
     /// Any active operation by the ADC is canceled. No additional callbacks
     /// will occur. Also retrieves buffers from the ADC (if any).
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         if !self.active.get() || self.mode.get() == AdcMode::NoMode {
             // already inactive!
             return Ok(());
@@ -650,7 +649,12 @@ impl<'a> AdcVirtualized<'a> {
     }
 
     /// Enqueue the command to be executed when the ADC is available.
-    fn enqueue_command(&self, command: Operation, channel: usize, appid: AppId) -> ReturnCode {
+    fn enqueue_command(
+        &self,
+        command: Operation,
+        channel: usize,
+        appid: AppId,
+    ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
             self.apps
                 .enter(appid, |app, _| {
@@ -679,7 +683,7 @@ impl<'a> AdcVirtualized<'a> {
     }
 
     /// Request the sample from the specified channel
-    fn call_driver(&self, command: Operation, channel: usize) -> ReturnCode {
+    fn call_driver(&self, command: Operation, channel: usize) -> Result<(), ErrorCode> {
         match command {
             Operation::OneSample => self.drivers[channel].sample(),
         }

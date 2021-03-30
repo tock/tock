@@ -14,7 +14,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::uart;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -448,7 +447,7 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if tx_len == 0 || tx_len > tx_data.len() {
             (Err(ErrorCode::SIZE), Some(tx_data))
         } else if self.tx_buffer.is_some() {
@@ -459,17 +458,17 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
         }
     }
 
-    fn transmit_word(&self, _data: u32) -> ReturnCode {
+    fn transmit_word(&self, _data: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
 
 impl<'a> uart::Configure for Uarte<'a> {
-    fn configure(&self, params: uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != uart::StopBits::One {
@@ -497,7 +496,7 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         &self,
         rx_buf: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             return (Err(ErrorCode::BUSY), Some(rx_buf));
         }
@@ -521,11 +520,11 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         (Ok(()), None)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         // Trigger the STOPRX event to cancel the current receive call.
         if self.rx_buffer.is_none() {
             Ok(())

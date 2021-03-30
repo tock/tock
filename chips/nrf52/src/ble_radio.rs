@@ -813,7 +813,7 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
 impl ble_advertising::BleConfig for Radio<'_> {
     // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
     // underlying chip must validate if the current `tx_power` is supported as well
-    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
+    fn set_tx_power(&self, tx_power: u8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error

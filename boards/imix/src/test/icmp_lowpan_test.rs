@@ -11,6 +11,7 @@
 //! ```
 
 use capsules::ieee802154::device::MacDevice;
+use kernel::ErrorCode;
 use capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
 use capsules::net::icmpv6::{ICMP6Header, ICMP6Type};
 use capsules::net::ieee802154::MacAddress;
@@ -31,7 +32,6 @@ use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
-use kernel::ReturnCode;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -158,7 +158,7 @@ pub unsafe fn run(
 impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     for LowpanICMPTest<'a, A>
 {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: Result<(), ErrorCode>) {
         match result {
             Ok(()) => {
                 debug!("ICMP Echo Request Packet Sent!");

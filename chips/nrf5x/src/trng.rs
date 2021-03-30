@@ -26,7 +26,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
@@ -201,12 +200,12 @@ impl Iterator for TrngIter<'_, '_> {
 }
 
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.start_rng();
         Ok(())
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 

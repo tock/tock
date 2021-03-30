@@ -13,9 +13,9 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::ErrorCode;
-use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
@@ -151,7 +151,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     }
 
     // Sends a packet containing a single 2 byte number.
-    pub fn send(&self, value: u16) -> ReturnCode {
+    pub fn send(&self, value: u16) -> Result<(), ErrorCode> {
         match self.udp_dgram.take() {
             Some(mut dgram) => {
                 dgram[0] = (value >> 8) as u8;
@@ -188,7 +188,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
-    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
+    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableBuffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);

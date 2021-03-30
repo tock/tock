@@ -4,13 +4,13 @@
 //! [`litex/soc/cores/timer.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/timer.py).
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
-use kernel::ReturnCode;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
@@ -324,7 +324,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
         ReadRegWrapper::wrap(&self.registers.en).is_set(en::enable)
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         // Prevent the event source from generating new interrupts
         self.registers.ev().disable_event(EVENT_MANAGER_INDEX);
 
@@ -467,7 +467,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
         self.alarm_time.is_some()
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         self.timer.cancel();
         self.alarm_time.clear();
 

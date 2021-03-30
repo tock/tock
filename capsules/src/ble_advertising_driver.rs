@@ -109,9 +109,7 @@ use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::{
-    CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
-};
+use kernel::{CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -238,7 +236,11 @@ impl App {
         Ok(())
     }
 
-    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
+    fn send_advertisement<'a, B, A>(
+        &self,
+        ble: &BLE<'a, B, A>,
+        channel: RadioChannel,
+    ) -> Result<(), ErrorCode>
     where
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
@@ -445,7 +447,7 @@ where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
         self.receiving_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
@@ -509,9 +511,9 @@ where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
-    // The ReturnCode indicates valid CRC or not, not used yet but could be used for
+    // The Result<(), ErrorCode> indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
-    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: ReturnCode) {
+    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {

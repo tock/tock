@@ -5,7 +5,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[repr(C)]
 struct AdcRegisters {
@@ -373,7 +372,7 @@ impl Adc {
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannelSetup;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         // Positive goes to the channel passed in, negative not connected.
         self.registers.ch[0]
             .pselp
@@ -419,11 +418,15 @@ impl hil::adc::Adc for Adc {
         Ok(())
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+    fn sample_continuous(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+    ) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 

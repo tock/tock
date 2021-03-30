@@ -44,7 +44,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -99,7 +99,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending
     // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId) -> Result<(), ErrorCode> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
@@ -123,7 +123,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         }
     }
 
-    fn buzz(&self, command: BuzzerCommand) -> ReturnCode {
+    fn buzz(&self, command: BuzzerCommand) -> Result<(), ErrorCode> {
         match command {
             BuzzerCommand::Buzz {
                 frequency_hz,

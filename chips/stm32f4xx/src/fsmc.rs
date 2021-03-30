@@ -5,8 +5,8 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
+use kernel::ClockInterface;
 use kernel::ErrorCode;
-use kernel::{ClockInterface, ReturnCode};
 
 use crate::deferred_calls::DeferredCallTask;
 
@@ -293,7 +293,7 @@ impl ClockInterface for FsmcClock<'_> {
 }
 
 impl Bus8080<'static> for Fsmc<'_> {
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode {
+    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
         match addr_width {
             BusWidth::Bits8 => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
@@ -304,7 +304,12 @@ impl Bus8080<'static> for Fsmc<'_> {
         }
     }
 
-    fn write(&self, data_width: BusWidth, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write(
+        &self,
+        data_width: BusWidth,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), ErrorCode> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
@@ -330,7 +335,12 @@ impl Bus8080<'static> for Fsmc<'_> {
         }
     }
 
-    fn read(&self, data_width: BusWidth, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn read(
+        &self,
+        data_width: BusWidth,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), ErrorCode> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {

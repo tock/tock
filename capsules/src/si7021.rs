@@ -238,7 +238,7 @@ impl<'a, A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7021<'a, A> {
-    fn read_temperature(&self) -> kernel::ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         // This chip handles both humidity and temperature measurements. We can
         // only start a new measurement if the chip is idle. If it isn't then we
         // can put this request "on deck" and it will happen after the
@@ -270,7 +270,7 @@ impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SI7
 }
 
 impl<'a, A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SI7021<'a, A> {
-    fn read_humidity(&self) -> kernel::ReturnCode {
+    fn read_humidity(&self) -> Result<(), ErrorCode> {
         // This chip handles both humidity and temperature measurements. We can
         // only start a new measurement if the chip is idle. If it isn't then we
         // can put this request "on deck" and it will happen after the

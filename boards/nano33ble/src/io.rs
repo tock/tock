@@ -6,6 +6,7 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self};
+use kernel::ErrorCode;
 use nrf52840::gpio::Pin;
 
 use crate::CHIP;
@@ -38,7 +39,7 @@ struct DummyUsbClient {
 }
 
 impl uart::TransmitClient for DummyUsbClient {
-    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: kernel::ReturnCode) {
+    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: Result<(), ErrorCode>) {
         self.fired.set(true);
     }
 }

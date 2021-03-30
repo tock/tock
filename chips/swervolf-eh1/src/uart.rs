@@ -10,7 +10,6 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite}
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 register_structs! {
     pub UartRegisters {
@@ -98,7 +97,7 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
             return Err(ErrorCode::NOSUPPORT);
@@ -135,7 +134,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if tx_len == 0 {
             return (Err(ErrorCode::SIZE), Some(tx_data));
         }
@@ -159,11 +158,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         (Ok(()), None)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -177,15 +176,15 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         &self,
         _rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         (Err(ErrorCode::FAIL), None)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

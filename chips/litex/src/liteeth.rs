@@ -12,7 +12,6 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // Both events have the same index since they are located on different
 // event manager instances
@@ -82,7 +81,7 @@ impl<R: LiteXSoCRegisterConfiguration> LiteEthMacRegisters<R> {
 }
 
 pub trait LiteEthClient {
-    fn tx_done(&self, rc: ReturnCode, packet_buffer: &'static mut [u8]);
+    fn tx_done(&self, rc: Result<(), ErrorCode>, packet_buffer: &'static mut [u8]);
     fn rx_packet(&self, packet: &'static mut [u8], len: usize);
 }
 
@@ -242,7 +241,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         &self,
         packet: &'static mut [u8],
         len: usize,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut [u8])> {
         if packet.len() < len || len > u16::MAX as usize {
             return Err((Err(ErrorCode::INVAL), packet));
         }

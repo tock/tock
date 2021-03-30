@@ -1,13 +1,13 @@
 //! True random number generator
 
 use crate::rcc;
+use kernel::ErrorCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::ClockInterface;
-use kernel::ReturnCode;
 
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x5006_0800 as *const RngRegisters) };
@@ -138,7 +138,7 @@ impl Iterator for TrngIter<'_, '_> {
 }
 
 impl<'a> hil::entropy::Entropy32<'a> for Trng<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         // Enable interrupts.
         self.registers.cr.modify(Control::IE::SET);
         self.registers.cr.modify(Control::RNGEN::SET);
@@ -146,7 +146,7 @@ impl<'a> hil::entropy::Entropy32<'a> for Trng<'a> {
         Ok(())
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.registers.cr.modify(Control::RNGEN::CLEAR);
         self.registers.cr.modify(Control::IE::CLEAR);
 

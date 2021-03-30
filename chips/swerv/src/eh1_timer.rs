@@ -5,7 +5,6 @@ use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
 use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
 /// 50MHz `Frequency`
@@ -89,7 +88,7 @@ impl<'a> Counter<'a> for Timer<'a> {
         // We have no way to know when this happens
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         match self.number {
             TimerNumber::ZERO => self.mitctl0.modify(MITCTL::ENABLE::SET),
             TimerNumber::ONE => self.mitctl1.modify(MITCTL::ENABLE::SET),
@@ -98,7 +97,7 @@ impl<'a> Counter<'a> for Timer<'a> {
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         match self.number {
             TimerNumber::ZERO => self.mitctl0.modify(MITCTL::ENABLE::CLEAR),
             TimerNumber::ONE => self.mitctl1.modify(MITCTL::ENABLE::CLEAR),
@@ -107,7 +106,7 @@ impl<'a> Counter<'a> for Timer<'a> {
         Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         // A counter is only cleared when it is equal or greater then
         // mitb.
         Err(ErrorCode::FAIL)
@@ -159,7 +158,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
         }
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         match self.number {
             TimerNumber::ZERO => self.mitb0.write(MITB::BOUND.val(0xFFFF_FFFF)),
             TimerNumber::ONE => self.mitb1.write(MITB::BOUND.val(0xFFFF_FFFF)),

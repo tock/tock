@@ -16,7 +16,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::{
     AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode, Upcall,
+    ReadWriteAppSlice, Upcall,
 };
 
 const MAX_NEIGHBORS: usize = 4;
@@ -195,7 +195,7 @@ pub struct RadioDriver<'a> {
     saved_appid: OptionalCell<AppId>,
 
     /// Used to save result for passing a callback from a deferred call.
-    saved_result: OptionalCell<ReturnCode>,
+    saved_result: OptionalCell<Result<(), ErrorCode>>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -310,7 +310,7 @@ impl<'a> RadioDriver<'a> {
     /// `Ok(())`. Otherwise, returns `Err(ErrorCode::INVAL)`.  Ensures
     /// that the `keys` list is compact by shifting forward any elements
     /// after the index.
-    fn remove_key(&self, index: usize) -> ReturnCode {
+    fn remove_key(&self, index: usize) -> Result<(), ErrorCode> {
         let num_keys = self.num_keys.get();
         if index < num_keys {
             self.keys.map(|keys| {
@@ -337,9 +337,9 @@ impl<'a> RadioDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: AppId, closure: F) -> Result<(), ErrorCode>
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -384,7 +384,7 @@ impl<'a> RadioDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: AppId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -448,7 +448,7 @@ impl<'a> RadioDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
+    fn do_next_tx_sync(&self, new_appid: AppId) -> Result<(), ErrorCode> {
         self.get_next_tx_if_idle().map_or(Ok(()), |appid| {
             if appid == new_appid {
                 self.perform_tx_sync(appid)
@@ -870,7 +870,7 @@ impl Driver for RadioDriver<'_> {
 }
 
 impl device::TxClient for RadioDriver<'_> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {

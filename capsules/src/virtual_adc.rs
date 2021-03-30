@@ -5,7 +5,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// ADC Mux
 pub struct MuxAdc<'a, A: hil::adc::Adc> {
@@ -106,19 +105,19 @@ impl<'a, A: hil::adc::Adc> ListNode<'a, AdcDevice<'a, A>> for AdcDevice<'a, A> {
 }
 
 impl<A: hil::adc::Adc> hil::adc::AdcChannel for AdcDevice<'_, A> {
-    fn sample(&self) -> ReturnCode {
+    fn sample(&self) -> Result<(), ErrorCode> {
         self.operation.set(Operation::OneSample);
         self.mux.do_next_op();
         Ok(())
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         self.operation.clear();
         self.mux.do_next_op();
         Ok(())
     }
 
-    fn sample_continuous(&self) -> ReturnCode {
+    fn sample_continuous(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
 

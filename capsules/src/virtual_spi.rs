@@ -1,10 +1,10 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
-use kernel::ReturnCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
@@ -155,7 +155,7 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
@@ -239,7 +239,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.spi.read_write_bytes(write_buffer, read_buffer, len)
     }
 

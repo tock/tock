@@ -35,7 +35,6 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 use tickv::{self, AsyncTicKV};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -357,7 +356,14 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         _unhashed_key: &'static mut [u8],
         _key_buf: &'static mut Self::K,
-    ) -> Result<(), (&'static mut [u8], &'static mut Self::K, ReturnCode)> {
+    ) -> Result<
+        (),
+        (
+            &'static mut [u8],
+            &'static mut Self::K,
+            Result<(), ErrorCode>,
+        ),
+    > {
         unimplemented!()
     }
 
@@ -365,7 +371,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         key: &'static mut Self::K,
         value: &'static [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static [u8], ReturnCode)> {
+    ) -> Result<(), (&'static mut Self::K, &'static [u8], Result<(), ErrorCode>)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
@@ -404,7 +410,14 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         key: &'static mut Self::K,
         ret_buf: &'static mut [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static mut [u8], ReturnCode)> {
+    ) -> Result<
+        (),
+        (
+            &'static mut Self::K,
+            &'static mut [u8],
+            Result<(), ErrorCode>,
+        ),
+    > {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GetKey);
@@ -442,7 +455,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, ReturnCode)> {
+    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::InvalidateKey);
@@ -476,7 +489,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         }
     }
 
-    fn garbage_collect(&self) -> Result<usize, ReturnCode> {
+    fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);

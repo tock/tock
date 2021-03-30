@@ -5,7 +5,7 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, CommandReturn, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, ErrorCode, Grant};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -54,7 +54,12 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
 }
 
 impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], _tx_len: usize, _rval: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rval: Result<(), ErrorCode>,
+    ) {
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
 

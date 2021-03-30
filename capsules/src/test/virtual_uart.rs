@@ -1,11 +1,11 @@
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
 use crate::virtual_uart::UartDevice;
+use kernel::ErrorCode;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::hil::uart::Receive;
-use kernel::ReturnCode;
 
 pub struct TestVirtualUartReceive {
     device: &'static UartDevice<'static>,
@@ -39,7 +39,7 @@ impl uart::ReceiveClient for TestVirtualUartReceive {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         _error: uart::Error,
     ) {
         debug!("Virtual uart read complete: {:?}: ", rcode);

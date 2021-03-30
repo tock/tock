@@ -11,7 +11,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[repr(C)]
 pub struct DacRegisters {
@@ -135,7 +134,7 @@ impl Dac {
 }
 
 impl hil::dac::DacChannel for Dac {
-    fn initialize(&self) -> ReturnCode {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
             self.enabled.set(true);
 
@@ -161,7 +160,7 @@ impl hil::dac::DacChannel for Dac {
         Ok(())
     }
 
-    fn set_value(&self, value: usize) -> ReturnCode {
+    fn set_value(&self, value: usize) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
             Err(ErrorCode::OFF)
         } else {

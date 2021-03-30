@@ -2,10 +2,10 @@
 //! alarm hardware peripheral.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
-use kernel::ReturnCode;
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
 /// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.
@@ -67,7 +67,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         self.client.set(client);
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         if !self.armed.get() {
             return Ok(());
         }

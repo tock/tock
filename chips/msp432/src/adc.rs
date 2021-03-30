@@ -10,7 +10,6 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 const ADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x4001_2000 as *const AdcRegisters) };
@@ -762,7 +761,7 @@ impl dma::DmaClient for Adc<'_> {
 impl hil::adc::Adc for Adc<'_> {
     type Channel = Channel;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         if !self.is_enabled() {
             self.setup();
         }
@@ -797,7 +796,7 @@ impl hil::adc::Adc for Adc<'_> {
         Ok(())
     }
 
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode> {
         if !self.is_enabled() {
             self.setup();
         }
@@ -842,7 +841,7 @@ impl hil::adc::Adc for Adc<'_> {
         Ok(())
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         let mode = self.mode.get();
 
         if mode == AdcMode::Disabled {
@@ -899,7 +898,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         buffer2: &'static mut [u16],
         length2: usize,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
@@ -968,7 +967,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         &self,
         buffer: &'static mut [u16],
         length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
         if self.mode.get() != AdcMode::Highspeed {
             panic!("ADC: cannot provide buffers in a different mode than Highspeed!");
         }
@@ -982,7 +981,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     fn retrieve_buffers(
         &self,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {

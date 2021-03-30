@@ -36,7 +36,6 @@ use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
 
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
@@ -350,7 +349,7 @@ impl hil::spi::SpiMaster for SPIM {
         tx_buf: &'static mut [u8],
         rx_buf: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());

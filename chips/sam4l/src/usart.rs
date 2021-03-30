@@ -12,7 +12,6 @@ use kernel::hil;
 use kernel::hil::spi;
 use kernel::hil::uart;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::dma;
 use crate::pm;
@@ -515,7 +514,7 @@ impl<'a> USART<'a> {
         self.usart_tx_state.set(USARTStateTX::Idle);
     }
 
-    fn abort_rx(&self, usart: &USARTRegManager, rcode: ReturnCode, error: uart::Error) {
+    fn abort_rx(&self, usart: &USARTRegManager, rcode: Result<(), ErrorCode>, error: uart::Error) {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
             self.disable_rx_interrupts(usart);
             self.disable_rx(usart);
@@ -542,7 +541,7 @@ impl<'a> USART<'a> {
         }
     }
 
-    fn abort_tx(&self, usart: &USARTRegManager, rcode: ReturnCode) {
+    fn abort_tx(&self, usart: &USARTRegManager, rcode: Result<(), ErrorCode>) {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
             self.disable_tx_interrupts(usart);
             self.disable_tx(usart);
@@ -851,7 +850,7 @@ impl<'a> uart::Receive<'a> for USART<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if rx_len > rx_buffer.len() {
             return (Err(ErrorCode::SIZE), Some(rx_buffer));
         }
@@ -872,14 +871,14 @@ impl<'a> uart::Receive<'a> for USART<'a> {
         }
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         self.disable_rx_timeout(usart);
         self.abort_rx(usart, Err(ErrorCode::CANCEL), uart::Error::Aborted);
         Err(ErrorCode::BUSY)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -889,7 +888,7 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             (Err(ErrorCode::BUSY), Some(tx_buffer))
         } else {
@@ -915,7 +914,7 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
         }
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             let usart = &USARTRegManager::new(&self);
             self.abort_tx(usart, Err(ErrorCode::CANCEL));
@@ -933,7 +932,7 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -942,7 +941,7 @@ impl<'a> uart::UartAdvanced<'a> for USART<'a> {}
 impl<'a> uart::Uart<'a> for USART<'a> {}
 
 impl uart::Configure for USART<'_> {
-    fn configure(&self, parameters: uart::Parameters) -> ReturnCode {
+    fn configure(&self, parameters: uart::Parameters) -> Result<(), ErrorCode> {
         if self.usart_mode.get() != UsartMode::Uart {
             return Err(ErrorCode::OFF);
         }
@@ -984,7 +983,7 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
         rx_buffer: &'static mut [u8],
         len: usize,
         interbyte_timeout: u8,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
             (Err(ErrorCode::BUSY), Some(rx_buffer))
         } else {
@@ -1049,7 +1048,7 @@ impl spi::SpiMaster for USART<'_> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
 
         self.enable_tx(usart);

@@ -3,7 +3,6 @@ use crate::net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // To provide some context for the entire rx chain:
 /*
@@ -60,7 +59,7 @@ impl<'a> IP6RecvStruct<'a> {
 }
 
 impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
-    fn receive(&self, buf: &[u8], len: usize, result: ReturnCode) {
+    fn receive(&self, buf: &[u8], len: usize, result: Result<(), ErrorCode>) {
         // TODO: Drop here?
         if len > buf.len() || result != Ok(()) {
             return;

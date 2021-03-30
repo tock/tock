@@ -9,7 +9,6 @@ use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
 use kernel::hil::time::Alarm;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::ppi;
 use nrf5x;
@@ -995,7 +994,7 @@ impl<'p> Radio<'p> {
         self.set_tx_power();
     }
 
-    pub fn startup(&self) -> ReturnCode {
+    pub fn startup(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
         Ok(())
     }
@@ -1023,7 +1022,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         _spi_buf: &'static mut [u8],
         _reg_write: &'static mut [u8],
         _reg_read: &'static mut [u8],
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.radio_initialize();
         Ok(())
     }
@@ -1032,15 +1031,15 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         //
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.radio_on();
         Ok(())
     }
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.reset();
         Ok(())
     }
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
         Ok(())
     }
@@ -1110,7 +1109,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         self.pan.set(id);
     }
 
-    fn set_channel(&self, chan: u8) -> ReturnCode {
+    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
         match RadioChannel::try_from(chan) {
             Err(_) => Err(ErrorCode::NOSUPPORT),
             Ok(res) => {
@@ -1120,7 +1119,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         }
     }
 
-    fn set_tx_power(&self, tx_power: i8) -> ReturnCode {
+    fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
@@ -1152,7 +1151,7 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.tx_buf.is_some() || self.transmitting.get() {
             return (Err(ErrorCode::BUSY), Some(buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {

@@ -5,7 +5,6 @@ use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
@@ -55,7 +54,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
 }
 
 impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
-    fn read_sound_pressure(&self) -> ReturnCode {
+    fn read_sound_pressure(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             // self.enable_pin.map (|pin| pin.set ());
             self.state.set(State::ReadingSPL);
@@ -71,12 +70,12 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
         self.spl_client.set(client);
     }
 
-    fn enable(&self) -> ReturnCode {
+    fn enable(&self) -> Result<(), ErrorCode> {
         self.enable_pin.map(|pin| pin.set());
         Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) -> Result<(), ErrorCode> {
         self.enable_pin.map(|pin| pin.clear());
         Ok(())
     }

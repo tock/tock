@@ -20,7 +20,6 @@ use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::rf233_const::CSMA_SEED_1;
 use crate::rf233_const::IRQ_MASK;
@@ -1098,7 +1097,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         }
     }
 
-    fn register_write(&self, reg: RF233Register, val: u8) -> ReturnCode {
+    fn register_write(&self, reg: RF233Register, val: u8) -> Result<(), ErrorCode> {
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
             return Err(ErrorCode::BUSY);
         }
@@ -1112,7 +1111,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         Ok(())
     }
 
-    fn register_read(&self, reg: RF233Register) -> ReturnCode {
+    fn register_read(&self, reg: RF233Register) -> Result<(), ErrorCode> {
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
             return Err(ErrorCode::BUSY);
         }
@@ -1127,7 +1126,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         Ok(())
     }
 
-    fn frame_write(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
+    fn frame_write(&self, buf: &'static mut [u8], frame_len: u8) -> Result<(), ErrorCode> {
         if self.spi_busy.get() {
             return Err(ErrorCode::BUSY);
         }
@@ -1139,7 +1138,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         Ok(())
     }
 
-    fn frame_read(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
+    fn frame_read(&self, buf: &'static mut [u8], frame_len: u8) -> Result<(), ErrorCode> {
         if self.spi_busy.get() {
             return Err(ErrorCode::BUSY);
         }
@@ -1171,7 +1170,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         buf: &'static mut [u8],
         reg_write: &'static mut [u8],
         reg_read: &'static mut [u8],
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if (buf.len() < radio::MAX_BUF_SIZE || reg_read.len() != 2 || reg_write.len() != 2) {
             return Err(ErrorCode::SIZE);
         }
@@ -1181,7 +1180,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.spi.configure(
             spi::ClockPolarity::IdleLow,
             spi::ClockPhase::SampleLeading,
@@ -1198,7 +1197,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         Ok(())
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.sleep_pending.set(false);
 
         if self.state.get() != InternalState::START && self.state.get() != InternalState::SLEEP {
@@ -1216,7 +1215,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         if self.state.get() == InternalState::SLEEP
             || self.state.get() == InternalState::SLEEP_TRX_OFF
         {
@@ -1268,7 +1267,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         self.pan.set(id);
     }
 
-    fn set_tx_power(&self, power: i8) -> ReturnCode {
+    fn set_tx_power(&self, power: i8) -> Result<(), ErrorCode> {
         if (power > 4 || power < -17) {
             Err(ErrorCode::INVAL)
         } else {
@@ -1277,7 +1276,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         }
     }
 
-    fn set_channel(&self, chan: u8) -> ReturnCode {
+    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
         if chan >= 11 && chan <= 26 {
             self.channel.set(chan);
             Ok(())
@@ -1349,7 +1348,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
         &self,
         spi_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         let state = self.state.get();
         let frame_len = frame_len + radio::MFR_SIZE;
 

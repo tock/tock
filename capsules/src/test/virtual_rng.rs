@@ -3,10 +3,10 @@
 //! Full test harness for this can be found in nano33ble/test/virtual_rng_test
 
 use crate::virtual_rng::VirtualRngMasterDevice;
+use kernel::ErrorCode;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::rng::{Client, Continue, Rng};
-use kernel::ReturnCode;
 
 const NUM_REQUESTS: usize = 2;
 
@@ -38,7 +38,7 @@ impl<'a> Client for TestRng<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue {
         let val = randomness.next();
         if error != Ok(()) {

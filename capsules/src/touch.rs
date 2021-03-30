@@ -16,7 +16,6 @@ use core::mem;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
 use kernel::{
     AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
 };
@@ -99,7 +98,7 @@ impl<'a> Touch<'a> {
         self.screen_rotation_offset.set(screen_rotation_offset);
     }
 
-    fn touch_enable(&self) -> ReturnCode {
+    fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| if app.touch_enable { true } else { false }) {
@@ -116,7 +115,7 @@ impl<'a> Touch<'a> {
         })
     }
 
-    fn multi_touch_enable(&self) -> ReturnCode {
+    fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {

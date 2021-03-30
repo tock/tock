@@ -15,7 +15,6 @@ use core::convert::From;
 use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
@@ -127,7 +126,7 @@ impl<'a> TextScreen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
@@ -293,12 +292,12 @@ impl<'a> Driver for TextScreen<'a> {
 }
 
 impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.schedule_callback(kernel::retcode_into_usize(r), 0, 0);
         self.run_next_command();
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: ReturnCode) {
+    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
         self.schedule_callback(kernel::retcode_into_usize(r), len, 0);
         self.run_next_command();

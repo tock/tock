@@ -46,8 +46,8 @@ use core::mem;
 
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::ErrorCode;
 use kernel::{AppId, CommandReturn, Driver, Upcall};
-use kernel::{ErrorCode, ReturnCode};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -1231,7 +1231,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         }
     }
 
-    pub fn read_blocks(&self, buffer: &'static mut [u8], sector: u32, count: u32) -> ReturnCode {
+    pub fn read_blocks(
+        &self,
+        buffer: &'static mut [u8],
+        sector: u32,
+        count: u32,
+    ) -> Result<(), ErrorCode> {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
@@ -1285,7 +1290,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         }
     }
 
-    pub fn write_blocks(&self, buffer: &'static mut [u8], sector: u32, count: u32) -> ReturnCode {
+    pub fn write_blocks(
+        &self,
+        buffer: &'static mut [u8],
+        sector: u32,
+        count: u32,
+    ) -> Result<(), ErrorCode> {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
@@ -1566,7 +1576,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
 
             // write_block
             4 => {
-                let result: ReturnCode = self.app.map_or(Err(ErrorCode::NOMEM), |app| {
+                let result: Result<(), ErrorCode> = self.app.map_or(Err(ErrorCode::NOMEM), |app| {
                     app.write_buffer
                         .map_or(Err(ErrorCode::NOMEM), |write_buffer| {
                             self.kernel_buf

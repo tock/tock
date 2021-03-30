@@ -21,12 +21,12 @@
 //! - Event generation on output changes
 
 use kernel::common::cells::OptionalCell;
+use kernel::ErrorCode;
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::hil::analog_comparator;
-use kernel::ReturnCode;
 
 /// The nrf52840 only has one analog comparator, so it does need channels
 /// However, the HIL was designed to support having multiple comparators, each
@@ -288,7 +288,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
 
     /// Starts comparison on only channel
     /// This enables comparator and interrupts
-    fn start_comparing(&self, _: &Self::Channel) -> ReturnCode {
+    fn start_comparing(&self, _: &Self::Channel) -> Result<(), ErrorCode> {
         self.enable();
 
         // Enable only up interrupt (If VIN+ crosses VIN-)
@@ -298,7 +298,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
     }
 
     /// Stops comparing and disables comparator
-    fn stop_comparing(&self, _: &Self::Channel) -> ReturnCode {
+    fn stop_comparing(&self, _: &Self::Channel) -> Result<(), ErrorCode> {
         // Disables interrupts
         self.registers.inten.set(0);
         // Stops comparison

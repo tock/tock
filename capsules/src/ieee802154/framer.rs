@@ -83,7 +83,6 @@ use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for
@@ -131,7 +130,7 @@ impl Frame {
     }
 
     /// Appends payload bytes into the frame if possible
-    pub fn append_payload(&mut self, payload: &[u8]) -> ReturnCode {
+    pub fn append_payload(&mut self, payload: &[u8]) -> Result<(), ErrorCode> {
         if payload.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
@@ -472,7 +471,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// Advances the transmission pipeline if it can be advanced.
-    fn step_transmit_state(&self) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn step_transmit_state(&self) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         self.tx_state
             .take()
             .map_or((Err(ErrorCode::FAIL), None), |state| {
@@ -760,7 +759,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         }
     }
 
-    fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit(&self, frame: Frame) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         let Frame { buf, info } = frame;
         let state = match self.tx_state.take() {
             None => {
@@ -783,7 +782,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 }
 
 impl<'a, M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.map(move |client| {
             client.send_done(buf, acked, result);
@@ -792,7 +791,13 @@ impl<'a, M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
 }
 
 impl<'a, M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
-    fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
+    fn receive(
+        &self,
+        buf: &'static mut [u8],
+        frame_len: usize,
+        crc_valid: bool,
+        _: Result<(), ErrorCode>,
+    ) {
         // Drop all frames with invalid CRC
         if !crc_valid {
             self.mac.set_receive_buffer(buf);
@@ -822,7 +827,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
 }
 
 impl<'a, M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
-    fn config_done(&self, _: ReturnCode) {
+    fn config_done(&self, _: Result<(), ErrorCode>) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
         // advancing.
@@ -837,7 +842,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
 }
 
 impl<'a, M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         let mut tx_waiting = false;
         let mut rx_waiting = false;
 

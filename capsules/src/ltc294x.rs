@@ -49,7 +49,6 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
@@ -163,7 +162,7 @@ impl<'a> LTC294X<'a> {
         });
     }
 
-    pub fn read_status(&self) -> ReturnCode {
+    pub fn read_status(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -180,7 +179,7 @@ impl<'a> LTC294X<'a> {
         int_pin_conf: InterruptPinConf,
         prescaler: u8,
         vbat_alert: VBatAlert,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -195,7 +194,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Set the accumulated charge to 0
-    fn reset_charge(&self) -> ReturnCode {
+    fn reset_charge(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -210,7 +209,7 @@ impl<'a> LTC294X<'a> {
         })
     }
 
-    fn set_high_threshold(&self, threshold: u16) -> ReturnCode {
+    fn set_high_threshold(&self, threshold: u16) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -225,7 +224,7 @@ impl<'a> LTC294X<'a> {
         })
     }
 
-    fn set_low_threshold(&self, threshold: u16) -> ReturnCode {
+    fn set_low_threshold(&self, threshold: u16) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -241,7 +240,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Get the cumulative charge as measured by the LTC2941.
-    fn get_charge(&self) -> ReturnCode {
+    fn get_charge(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -255,7 +254,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Get the voltage at sense+
-    fn get_voltage(&self) -> ReturnCode {
+    fn get_voltage(&self) -> Result<(), ErrorCode> {
         // Not supported on all versions
         match self.model.get() {
             ChipModel::LTC2942 | ChipModel::LTC2943 => {
@@ -273,7 +272,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Get the current sensed by the resistor
-    fn get_current(&self) -> ReturnCode {
+    fn get_current(&self) -> Result<(), ErrorCode> {
         // Not supported on all versions
         match self.model.get() {
             ChipModel::LTC2943 => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -289,7 +288,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Put the LTC294X in a low power state.
-    fn shutdown(&self) -> ReturnCode {
+    fn shutdown(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
@@ -303,7 +302,7 @@ impl<'a> LTC294X<'a> {
     }
 
     /// Set the LTC294X model actually on the board.
-    fn set_model(&self, model_num: usize) -> ReturnCode {
+    fn set_model(&self, model_num: usize) -> Result<(), ErrorCode> {
         match model_num {
             1 => {
                 self.model.set(ChipModel::LTC2941);

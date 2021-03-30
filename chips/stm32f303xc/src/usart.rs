@@ -6,7 +6,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::rcc;
 
@@ -509,7 +508,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.tx_status.get() == USARTStateTX::Idle {
             if tx_len <= tx_data.len() {
                 self.tx_buffer.put(Some(tx_data));
@@ -526,11 +525,11 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.tx_status.get() != USARTStateTX::Idle {
             self.tx_status.set(USARTStateTX::AbortRequested);
             Err(ErrorCode::BUSY)
@@ -541,7 +540,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 }
 
 impl hil::uart::Configure for Usart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
@@ -593,7 +592,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));
@@ -610,11 +609,11 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_status.get() != USARTStateRX::Idle {
             self.rx_status.set(USARTStateRX::AbortRequested);
             Err(ErrorCode::BUSY)

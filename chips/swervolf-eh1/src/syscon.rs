@@ -6,7 +6,6 @@ use kernel::common::StaticRef;
 use kernel::hil::time;
 use kernel::hil::time::{Ticks, Ticks64, Time};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// 100Hz `Frequency`
 #[derive(Debug)]
@@ -120,16 +119,16 @@ impl<'a> time::Counter<'a> for SysCon<'a> {
         self.overflow_client.set(client);
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be stopped...
         Err(ErrorCode::BUSY)
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be reset
         Err(ErrorCode::FAIL)
     }
@@ -177,7 +176,7 @@ impl<'a> time::Alarm<'a> for SysCon<'a> {
         Ticks64::from(val)
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         // We don't appear to be able to disarm the alarm, so just
         // set it to the future.
         self.registers.mtimecmp_low.set(0xFFFF_FFFF);

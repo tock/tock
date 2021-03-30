@@ -6,10 +6,10 @@
 //! for ELEMENTS random numbers and print them in hex to console.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::entropy;
 use kernel::hil::rng;
-use kernel::ReturnCode;
 
 const ELEMENTS: usize = 8;
 
@@ -59,7 +59,7 @@ impl<'a> rng::Client for TestRng<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> rng::Continue {
         let mut val = randomness.next();
         if error != Ok(()) {
@@ -122,7 +122,7 @@ impl<'a> entropy::Client32 for TestEntropy32<'a> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         let mut val = entropy.next();
         if error != Ok(()) {
@@ -185,7 +185,7 @@ impl<'a> entropy::Client8 for TestEntropy8<'a> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         let mut val = entropy.next();
         if error != Ok(()) {

@@ -30,7 +30,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
 #[repr(C)]
@@ -824,7 +823,7 @@ impl FLASHCALW {
         address: usize,
         size: usize,
         buffer: &'static mut Sam4lPage,
-    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Sam4lPage)> {
         if self.current_state.get() == FlashState::Unconfigured {
             self.configure();
         }
@@ -867,7 +866,7 @@ impl FLASHCALW {
         &self,
         page_num: i32,
         data: &'static mut Sam4lPage,
-    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Sam4lPage)> {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
@@ -887,7 +886,7 @@ impl FLASHCALW {
         Ok(())
     }
 
-    fn erase_page(&self, page_num: i32) -> ReturnCode {
+    fn erase_page(&self, page_num: i32) -> Result<(), ErrorCode> {
         // Enable AHB clock (in case it was off).
         pm::enable_clock(self.ahb_clock);
 
@@ -918,7 +917,7 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
         self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
     }
 
@@ -926,11 +925,11 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
         self.write_page(page_number as i32, buf)
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.erase_page(page_number as i32)
     }
 }

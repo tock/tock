@@ -37,7 +37,6 @@ use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key
@@ -260,7 +259,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         self.client.set(client);
     }
 
-    fn set_key(&self, key: &[u8]) -> ReturnCode {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         if key.len() != symmetric_encryption::AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
@@ -273,7 +272,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         }
     }
 
-    fn set_iv(&self, iv: &[u8]) -> ReturnCode {
+    fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
         if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
             Err(ErrorCode::INVAL)
         } else {
@@ -299,7 +298,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         dest: &'a mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
         match source {
             None => Some((Err(ErrorCode::INVAL), source, dest)),
             Some(src) => {
@@ -342,12 +341,12 @@ impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
     fn set_client(&'a self, _client: &'a dyn kernel::hil::symmetric_encryption::CCMClient) {}
 
     /// Set the key to be used for CCM encryption
-    fn set_key(&self, _key: &[u8]) -> ReturnCode {
+    fn set_key(&self, _key: &[u8]) -> Result<(), ErrorCode> {
         Ok(())
     }
 
     /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
-    fn set_nonce(&self, _nonce: &[u8]) -> ReturnCode {
+    fn set_nonce(&self, _nonce: &[u8]) -> Result<(), ErrorCode> {
         Ok(())
     }
 
@@ -361,7 +360,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
         _mic_len: usize,
         _confidential: bool,
         _encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         (Ok(()), None)
     }
 }

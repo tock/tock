@@ -1,6 +1,6 @@
 //! The 8080 Bus Interface (used for LCD)
 
-use crate::ReturnCode;
+use crate::ErrorCode;
 
 /// Bus width used for address width and data width
 pub enum BusWidth {
@@ -20,13 +20,19 @@ impl BusWidth {
 
 pub trait Bus8080<'a> {
     /// Set the address to write to
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode;
+    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode>;
 
     /// Write data items to the previously set address
-    fn write(&self, data_width: BusWidth, buffer: &'a mut [u8], len: usize) -> ReturnCode;
+    fn write(
+        &self,
+        data_width: BusWidth,
+        buffer: &'a mut [u8],
+        len: usize,
+    ) -> Result<(), ErrorCode>;
 
     /// Read data items from the previously set address
-    fn read(&self, data_width: BusWidth, buffer: &'a mut [u8], len: usize) -> ReturnCode;
+    fn read(&self, data_width: BusWidth, buffer: &'a mut [u8], len: usize)
+        -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn Client);
 }

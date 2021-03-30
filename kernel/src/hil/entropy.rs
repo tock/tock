@@ -44,7 +44,6 @@
 //! use kernel::hil::time::Alarm;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::AlarmClient;
-//! use kernel::ReturnCode;
 //!
 //! struct EntropyTest<'a, A: 'a + Alarm<'a>> {
 //!     entropy: &'a Entropy32 <'a>,
@@ -68,7 +67,7 @@
 //! impl<'a, A: Alarm<'a>> Client32 for EntropyTest<'a, A> {
 //!     fn entropy_available(&self,
 //!                          entropy: &mut Iterator<Item = u32>,
-//!                          error: ReturnCode) -> hil::entropy::Continue {
+//!                          error: Result<(), ErrorCode>) -> hil::entropy::Continue {
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
@@ -83,7 +82,8 @@
 //! }
 //! ```
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
+
 /// Denotes whether the [Client](trait.Client.html) wants to be notified when
 /// `More` randomness is available or if they are `Done`
 #[derive(Debug, Eq, PartialEq)]
@@ -110,7 +110,7 @@ pub trait Entropy32<'a> {
     ///   - EOFF: a `entropy_available` callback will not be called in
     ///     the future, because the random number generator is off/not
     ///     powered.
-    fn get(&self) -> ReturnCode;
+    fn get(&self) -> Result<(), ErrorCode>;
 
     /// Cancel acquisition of entropy.
     ///
@@ -120,7 +120,7 @@ pub trait Entropy32<'a> {
     ///     callback will be issued.
     ///   - FAIL: There will be a `entropy_available` callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode;
+    fn cancel(&self) -> Result<(), ErrorCode>;
 
     /// Set the client to receive `entropy_available` callbacks.
     fn set_client(&'a self, _: &'a dyn Client32);
@@ -151,7 +151,7 @@ pub trait Client32 {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue;
 }
 
@@ -171,7 +171,7 @@ pub trait Entropy8<'a> {
     ///   - EOFF: a `entropy_available` callback will not be called in
     ///     the future, because the entropy generator is off/not
     ///     powered.
-    fn get(&self) -> ReturnCode;
+    fn get(&self) -> Result<(), ErrorCode>;
 
     /// Cancel acquisition of entropy.
     ///
@@ -181,7 +181,7 @@ pub trait Entropy8<'a> {
     ///     callback will be issued.
     ///   - FAIL:: There will be a `entropy_available` callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode;
+    fn cancel(&self) -> Result<(), ErrorCode>;
 
     /// Set the client to receive `entropy_available` callbacks.
     fn set_client(&'a self, _: &'a dyn Client8);
@@ -212,6 +212,6 @@ pub trait Client8 {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue;
 }

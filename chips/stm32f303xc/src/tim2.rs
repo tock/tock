@@ -1,4 +1,5 @@
 use cortexm4;
+use kernel::ErrorCode;
 use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
@@ -7,7 +8,6 @@ use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
 use kernel::ClockInterface;
-use kernel::ReturnCode;
 
 use crate::nvic;
 use crate::rcc;
@@ -375,19 +375,19 @@ impl<'a> Counter<'a> for Tim2<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
 
     // starts the timer
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.start_counter();
 
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.registers.cr1.modify(CR1::CEN::CLEAR);
         self.registers.sr.modify(SR::CC1IF::CLEAR);
         Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.registers.cnt.set(0);
         Ok(())
     }
@@ -422,7 +422,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
         Self::Ticks::from(self.registers.ccr1.get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         unsafe {
             atomic(|| {
                 // Disable counter

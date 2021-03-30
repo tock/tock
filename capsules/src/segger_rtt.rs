@@ -91,7 +91,6 @@ use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;
@@ -213,7 +212,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.up_buffer.is_some() && self.config.is_some() {
             self.up_buffer.map(|buffer| {
                 self.config.map(move |config| {
@@ -250,11 +249,11 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 }
@@ -272,7 +271,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
 // Dummy implementation so this can act as the underlying UART for a
 // virtualized UART MUX. -pal 1/10/19
 impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
-    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+    fn configure(&self, _parameters: uart::Parameters) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -286,15 +285,15 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
         &self,
         buffer: &'static mut [u8],
         _len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         (Err(ErrorCode::FAIL), Some(buffer))
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 }

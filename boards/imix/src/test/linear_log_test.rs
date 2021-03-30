@@ -25,7 +25,6 @@ use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::static_init;
 use kernel::storage_volume;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 use sam4l::ast::Ast;
 use sam4l::flashcalw;
 
@@ -246,7 +245,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 }
 
 impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode) {
+    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: Result<(), ErrorCode>) {
         match error {
             Ok(()) => {
                 // Verify correct value was read.
@@ -270,7 +269,7 @@ impl<A: Alarm<'static>> LogReadClient for LogTest<A> {
         }
     }
 
-    fn seek_done(&self, _error: ReturnCode) {
+    fn seek_done(&self, _error: Result<(), ErrorCode>) {
         unreachable!();
     }
 }
@@ -281,7 +280,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         buffer: &'static mut [u8],
         length: usize,
         records_lost: bool,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) {
         assert!(!records_lost);
         match error {
@@ -296,7 +295,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         }
     }
 
-    fn sync_done(&self, error: ReturnCode) {
+    fn sync_done(&self, error: Result<(), ErrorCode>) {
         if error == Ok(()) {
             debug!(
                 "SYNC DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
@@ -311,7 +310,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
         self.run();
     }
 
-    fn erase_done(&self, _error: ReturnCode) {
+    fn erase_done(&self, _error: Result<(), ErrorCode>) {
         unreachable!();
     }
 }

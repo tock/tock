@@ -1,6 +1,6 @@
 //! Interfaces for analog to digital converter peripherals.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 // *** Interfaces for low-speed, single-sample ADCs ***
 
@@ -12,7 +12,7 @@ pub trait Adc {
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
     /// All ADC samples will be the raw ADC value left-justified in the u16.
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode;
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 
     /// Request repeated ADC samples on a particular channel.
     /// Callbacks will occur at the given frequency with low jitter and can be
@@ -20,12 +20,12 @@ pub trait Adc {
     /// callbacks may be limited based on how quickly the system can service
     /// individual samples, leading to missed samples at high frequencies.
     /// All ADC samples will be the raw ADC value left-justified in the u16.
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode;
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode>;
 
     /// Stop a sampling operation.
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
-    fn stop_sampling(&self) -> ReturnCode;
+    fn stop_sampling(&self) -> Result<(), ErrorCode>;
 
     /// Function to ask the ADC how many bits of resolution are in the samples
     /// it is returning.
@@ -70,7 +70,7 @@ pub trait AdcHighSpeed: Adc {
         buffer2: &'static mut [u16],
         length2: usize,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     );
@@ -88,7 +88,7 @@ pub trait AdcHighSpeed: Adc {
         &self,
         buf: &'static mut [u16],
         length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>);
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>);
 
     /// Reclaim ownership of buffers.
     /// Can only be called when the ADC is inactive, which occurs after a
@@ -101,7 +101,7 @@ pub trait AdcHighSpeed: Adc {
     fn retrieve_buffers(
         &self,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     );
@@ -120,7 +120,7 @@ pub trait AdcChannel {
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
     /// All ADC samples will be the raw ADC value left-justified in the u16.
-    fn sample(&self) -> ReturnCode;
+    fn sample(&self) -> Result<(), ErrorCode>;
 
     /// Request repeated ADC samples on a particular channel.
     /// Callbacks will occur at the given frequency with low jitter and can be
@@ -128,12 +128,12 @@ pub trait AdcChannel {
     /// callbacks may be limited based on how quickly the system can service
     /// individual samples, leading to missed samples at high frequencies.
     /// All ADC samples will be the raw ADC value left-justified in the u16.
-    fn sample_continuous(&self) -> ReturnCode;
+    fn sample_continuous(&self) -> Result<(), ErrorCode>;
 
     /// Stop a sampling operation.
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
-    fn stop_sampling(&self) -> ReturnCode;
+    fn stop_sampling(&self) -> Result<(), ErrorCode>;
 
     /// Function to ask the ADC how many bits of resolution are in the samples
     /// it is returning.

@@ -1,12 +1,12 @@
 //! Provide multiple Timers on top of a single underlying Alarm.
 
 use crate::virtual_alarm::VirtualMuxAlarm;
+use kernel::ErrorCode;
 use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{NumericCellExt, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
-use kernel::ReturnCode;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Mode {
@@ -96,7 +96,7 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
         self.client.set(client);
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         match self.mode.get() {
             Mode::Uninserted | Mode::Disabled => Ok(()),
             Mode::OneShot | Mode::Repeating => {

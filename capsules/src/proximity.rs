@@ -51,7 +51,6 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -172,7 +171,7 @@ impl<'a> ProximitySensor<'a> {
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
-    fn run_next_command(&self) -> ReturnCode {
+    fn run_next_command(&self) -> Result<(), ErrorCode> {
         let mut break_flag: bool = false;
 
         // Find thresholds before entering any grant regions

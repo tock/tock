@@ -2,11 +2,9 @@
 
 use core::convert::TryFrom;
 
-use crate::ReturnCode;
-
 /// Standard errors in Tock.
 ///
-/// In contrast to [`ReturnCode`](crate::ReturnCode) this does not
+/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this does not
 /// feature any success cases and is therefore more approriate for the
 /// Tock 2.0 system call interface, where success payloads and errors
 /// are not packed into the same 32-bit wide register.
@@ -51,10 +49,10 @@ impl From<ErrorCode> for usize {
     }
 }
 
-impl TryFrom<ReturnCode> for ErrorCode {
+impl TryFrom<Result<(), ErrorCode>> for ErrorCode {
     type Error = ();
 
-    fn try_from(rc: ReturnCode) -> Result<Self, Self::Error> {
+    fn try_from(rc: Result<(), ErrorCode>) -> Result<Self, Self::Error> {
         match rc {
             Ok(()) => Err(()),
             Err(ErrorCode::FAIL) => Ok(ErrorCode::FAIL),
@@ -74,7 +72,7 @@ impl TryFrom<ReturnCode> for ErrorCode {
     }
 }
 
-impl From<ErrorCode> for ReturnCode {
+impl From<ErrorCode> for Result<(), ErrorCode> {
     fn from(ec: ErrorCode) -> Self {
         match ec {
             ErrorCode::FAIL => Err(ErrorCode::FAIL),
@@ -92,4 +90,26 @@ impl From<ErrorCode> for ReturnCode {
             ErrorCode::NOACK => Err(ErrorCode::NOACK),
         }
     }
+}
+
+pub fn retcode_into_usize(original: Result<(), ErrorCode>) -> usize {
+    let out = match original {
+        Ok(()) => 0,
+        Err(e) => match e {
+            ErrorCode::FAIL => -1,
+            ErrorCode::BUSY => -2,
+            ErrorCode::ALREADY => -3,
+            ErrorCode::OFF => -4,
+            ErrorCode::RESERVE => -5,
+            ErrorCode::INVAL => -6,
+            ErrorCode::SIZE => -7,
+            ErrorCode::CANCEL => -8,
+            ErrorCode::NOMEM => -9,
+            ErrorCode::NOSUPPORT => -10,
+            ErrorCode::NODEVICE => -11,
+            ErrorCode::UNINSTALLED => -12,
+            ErrorCode::NOACK => -13,
+        },
+    };
+    out as usize
 }

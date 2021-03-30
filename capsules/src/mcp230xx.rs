@@ -69,7 +69,6 @@ use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::gpio_async;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 7] = [0; 7];
@@ -171,7 +170,7 @@ impl<'a> MCP230xx<'a> {
         self.client.set(client);
     }
 
-    fn enable_host_interrupt(&self) -> ReturnCode {
+    fn enable_host_interrupt(&self) -> Result<(), ErrorCode> {
         // We configure the MCP230xx to use an active high interrupt.
         // If we don't have an interrupt pin mapped to this driver then we
         // obviously can't do interrupts.
@@ -214,7 +213,7 @@ impl<'a> MCP230xx<'a> {
         }
     }
 
-    fn set_direction(&self, pin_number: u8, direction: Direction) -> ReturnCode {
+    fn set_direction(&self, pin_number: u8, direction: Direction) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -227,7 +226,7 @@ impl<'a> MCP230xx<'a> {
     }
 
     /// Set the pull-up on the pin also configure it to be an input.
-    fn configure_pullup(&self, pin_number: u8, enabled: bool) -> ReturnCode {
+    fn configure_pullup(&self, pin_number: u8, enabled: bool) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -240,7 +239,7 @@ impl<'a> MCP230xx<'a> {
         })
     }
 
-    fn set_pin(&self, pin_number: u8, value: PinState) -> ReturnCode {
+    fn set_pin(&self, pin_number: u8, value: PinState) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -252,7 +251,7 @@ impl<'a> MCP230xx<'a> {
         })
     }
 
-    fn toggle_pin(&self, pin_number: u8) -> ReturnCode {
+    fn toggle_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -264,7 +263,7 @@ impl<'a> MCP230xx<'a> {
         })
     }
 
-    fn read_pin(&self, pin_number: u8) -> ReturnCode {
+    fn read_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -276,7 +275,11 @@ impl<'a> MCP230xx<'a> {
         })
     }
 
-    fn enable_interrupt_pin(&self, pin_number: u8, direction: gpio::InterruptEdge) -> ReturnCode {
+    fn enable_interrupt_pin(
+        &self,
+        pin_number: u8,
+        direction: gpio::InterruptEdge,
+    ) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -306,7 +309,7 @@ impl<'a> MCP230xx<'a> {
         })
     }
 
-    fn disable_interrupt_pin(&self, pin_number: u8) -> ReturnCode {
+    fn disable_interrupt_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
@@ -547,19 +550,19 @@ impl gpio::ClientWithValue for MCP230xx<'_> {
 }
 
 impl gpio_async::Port for MCP230xx<'_> {
-    fn disable(&self, pin: usize) -> ReturnCode {
+    fn disable(&self, pin: usize) -> Result<(), ErrorCode> {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)
     }
 
-    fn make_output(&self, pin: usize) -> ReturnCode {
+    fn make_output(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
         self.set_direction(pin as u8, Direction::Output)
     }
 
-    fn make_input(&self, pin: usize, mode: gpio::FloatingState) -> ReturnCode {
+    fn make_input(&self, pin: usize, mode: gpio::FloatingState) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
@@ -573,35 +576,35 @@ impl gpio_async::Port for MCP230xx<'_> {
         }
     }
 
-    fn read(&self, pin: usize) -> ReturnCode {
+    fn read(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
         self.read_pin(pin as u8)
     }
 
-    fn toggle(&self, pin: usize) -> ReturnCode {
+    fn toggle(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
         self.toggle_pin(pin as u8)
     }
 
-    fn set(&self, pin: usize) -> ReturnCode {
+    fn set(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
         self.set_pin(pin as u8, PinState::High)
     }
 
-    fn clear(&self, pin: usize) -> ReturnCode {
+    fn clear(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
         self.set_pin(pin as u8, PinState::Low)
     }
 
-    fn enable_interrupt(&self, pin: usize, mode: gpio::InterruptEdge) -> ReturnCode {
+    fn enable_interrupt(&self, pin: usize, mode: gpio::InterruptEdge) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }
@@ -612,7 +615,7 @@ impl gpio_async::Port for MCP230xx<'_> {
         }
     }
 
-    fn disable_interrupt(&self, pin: usize) -> ReturnCode {
+    fn disable_interrupt(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return Err(ErrorCode::INVAL);
         }

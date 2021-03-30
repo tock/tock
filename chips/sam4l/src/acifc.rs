@@ -32,7 +32,6 @@ use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil::analog_comparator;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// Representation of an AC channel on the SAM4L.
 pub struct AcChannel {
@@ -472,7 +471,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
     }
 
     /// Start interrupt-based comparisons
-    fn start_comparing(&self, channel: &Self::Channel) -> ReturnCode {
+    fn start_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         self.enable();
         let regs = ACIFC_BASE;
 
@@ -501,7 +500,7 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
     }
 
     /// Stop interrupt-based comparisons
-    fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode {
+    fn stop_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         let regs = ACIFC_BASE;
 
         if channel.chan_num == 0 {

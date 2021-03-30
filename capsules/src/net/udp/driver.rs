@@ -25,7 +25,7 @@ use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{
     debug, AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode, Upcall,
+    ReadWriteAppSlice, Upcall,
 };
 
 use crate::driver;
@@ -130,9 +130,9 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: AppId, closure: F) -> Result<(), ErrorCode>
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -179,7 +179,7 @@ impl<'a> UDPDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: AppId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -596,7 +596,7 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
+    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableBuffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

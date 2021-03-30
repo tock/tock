@@ -8,7 +8,6 @@ use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
 };
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };
@@ -251,7 +250,7 @@ pub trait InternalTimer {
     /// SUCCESS: timer started successfully
     /// EINVAL: frequency too high or too low
     /// EBUSY: timer already in use
-    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> kernel::ReturnCode;
+    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> Result<(), ErrorCode>;
 
     /// Stop the timer
     fn stop(&self);
@@ -338,17 +337,17 @@ impl<'a> Time for TimerA<'a> {
 impl<'a> Counter<'a> for TimerA<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.setup_for_alarm();
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.stop_timer();
         Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.registers.cnt.set(0);
         Ok(())
     }
@@ -393,7 +392,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
         (self.mode.get() == TimerMode::Alarm) && int_enabled
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         // Disable the capture/compare interrupt
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Stop the timer completely
@@ -407,7 +406,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 }
 
 impl<'a> InternalTimer for TimerA<'a> {
-    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> kernel::ReturnCode {
+    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> Result<(), ErrorCode> {
         if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
             return Err(ErrorCode::BUSY);
         }

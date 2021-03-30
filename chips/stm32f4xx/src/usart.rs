@@ -5,7 +5,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::dma1;
 use crate::dma1::Dma1Peripheral;
@@ -315,7 +314,7 @@ impl<'a> Usart<'a> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
     }
 
-    fn abort_tx(&self, rcode: ReturnCode) {
+    fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
         self.disable_tx();
         self.usart_tx_state.set(USARTStateTX::Idle);
 
@@ -338,7 +337,7 @@ impl<'a> Usart<'a> {
         });
     }
 
-    fn abort_rx(&self, rcode: ReturnCode, error: hil::uart::Error) {
+    fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
         self.disable_rx();
         self.usart_rx_state.set(USARTStateRX::Idle);
 
@@ -383,7 +382,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // In virtual_uart.rs, transmit is only called when inflight is None. So
         // if the state machine is working correctly, transmit should never
         // abort.
@@ -406,11 +405,11 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         (Ok(()), None)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             self.abort_tx(Err(ErrorCode::CANCEL));
             Err(ErrorCode::BUSY)
@@ -421,7 +420,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 }
 
 impl<'a> hil::uart::Configure for Usart<'a> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
@@ -472,7 +471,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
             return (Err(ErrorCode::BUSY), Some(rx_buffer));
         }
@@ -494,11 +493,11 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         (Ok(()), None)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
         Err(ErrorCode::BUSY)
     }

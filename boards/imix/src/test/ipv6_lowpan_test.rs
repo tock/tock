@@ -29,6 +29,7 @@
 //! ```
 
 use capsules::ieee802154::device::{MacDevice, TxClient};
+use kernel::ErrorCode;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
@@ -43,7 +44,6 @@ use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
-use kernel::ReturnCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 
@@ -443,7 +443,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
-    fn receive(&self, buf: &[u8], len: usize, retcode: ReturnCode) {
+    fn receive(&self, buf: &[u8], len: usize, retcode: Result<(), ErrorCode>) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
@@ -453,7 +453,7 @@ impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
 
 static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
 impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
-    fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
+    fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: Result<(), ErrorCode>) {
         match result {
             Ok(()) => {}
             _ => debug!("sendDone indicates error"),

@@ -43,7 +43,6 @@ use kernel::hil::screen::{
 };
 use kernel::hil::time::{self, Alarm};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub const BUFFER_SIZE: usize = 24;
 
@@ -279,7 +278,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn send_sequence(&self, sequence: CommandSequence) -> ReturnCode {
+    fn send_sequence(&self, sequence: CommandSequence) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             let error = self.sequence_buffer.map_or_else(
                 || panic!("st77xx: send sequence has no sequence buffer"),
@@ -305,7 +304,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn send_sequence_buffer(&self) -> ReturnCode {
+    fn send_sequence_buffer(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.position_in_sequence.set(0);
             // set status to delay so that do_next_op will send the next item in the sequence
@@ -388,7 +387,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         );
     }
 
-    fn rotation(&self, rotation: ScreenRotation) -> ReturnCode {
+    fn rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             let rotation_bits = match rotation {
                 ScreenRotation::Normal => 0x00,
@@ -422,7 +421,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn display_on(&self) -> ReturnCode {
+    fn display_on(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
                 Err(ErrorCode::OFF)
@@ -436,7 +435,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn display_off(&self) -> ReturnCode {
+    fn display_off(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
                 Err(ErrorCode::OFF)
@@ -450,7 +449,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn display_invert_on(&self) -> ReturnCode {
+    fn display_invert_on(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
                 Err(ErrorCode::OFF)
@@ -469,7 +468,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn display_invert_off(&self) -> ReturnCode {
+    fn display_invert_off(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
                 Err(ErrorCode::OFF)
@@ -617,7 +616,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         sy: usize,
         ex: usize,
         ey: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if sx <= self.width.get()
             && sy <= self.height.get()
             && ex <= self.width.get()
@@ -651,7 +650,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    pub fn init(&self) -> ReturnCode {
+    pub fn init(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Reset1);
             self.do_next_op();
@@ -685,7 +684,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
         }
     }
 
-    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
+    fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
                 self.setup_client
@@ -699,7 +698,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
         }
     }
 
-    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode {
+    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if depth == ScreenPixelFormat::RGB_565 {
                 self.setup_client
@@ -713,7 +712,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
         }
     }
 
-    fn set_rotation(&self, rotation: ScreenRotation) -> ReturnCode {
+    fn set_rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
         self.rotation(rotation)
     }
 
@@ -751,7 +750,13 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         self.current_rotation.get()
     }
 
-    fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode {
+    fn set_write_frame(
+        &self,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             let buffer_len = self.buffer.map_or_else(
@@ -781,7 +786,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             self.write_buffer.replace(buffer);
@@ -808,7 +813,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             self.write_buffer.replace(buffer);
@@ -827,7 +832,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn set_brightness(&self, brightness: usize) -> ReturnCode {
+    fn set_brightness(&self, brightness: usize) -> Result<(), ErrorCode> {
         if brightness > 0 {
             self.display_on()
         } else {
@@ -835,11 +840,11 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn invert_on(&self) -> ReturnCode {
+    fn invert_on(&self) -> Result<(), ErrorCode> {
         self.display_invert_on()
     }
 
-    fn invert_off(&self) -> ReturnCode {
+    fn invert_off(&self) -> Result<(), ErrorCode> {
         self.display_invert_off()
     }
 }

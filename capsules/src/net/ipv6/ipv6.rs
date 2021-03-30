@@ -75,7 +75,6 @@ use crate::net::tcp::TCPHeader;
 use crate::net::udp::UDPHeader;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub const UDP_HDR_LEN: usize = 8;
 pub const ICMP_HDR_LEN: usize = 8;
@@ -262,7 +261,7 @@ impl IP6Header {
     /// Utility function for verifying whether a transport layer checksum of a received
     /// packet is correct. Is called on the assocaite IPv6 Header, and passed the buffer
     /// containing the remainder of the packet.
-    pub fn check_transport_checksum(&self, buf: &[u8]) -> ReturnCode {
+    pub fn check_transport_checksum(&self, buf: &[u8]) -> Result<(), ErrorCode> {
         match self.next_header {
             ip6_nh::UDP => {
                 let mut udp_header: [u8; UDP_HDR_LEN] = [0; UDP_HDR_LEN];

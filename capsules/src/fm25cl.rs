@@ -46,7 +46,6 @@ use core::convert::TryInto;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];
@@ -82,7 +81,7 @@ enum State {
 }
 
 pub trait FM25CLCustom {
-    fn read_status(&self) -> ReturnCode;
+    fn read_status(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait FM25CLClient {
@@ -284,7 +283,7 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
 
 // Implement the custom interface that exposes chip-specific commands.
 impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
-    fn read_status(&self) -> ReturnCode {
+    fn read_status(&self) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer

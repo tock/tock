@@ -9,8 +9,6 @@ use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
 
-use kernel::ReturnCode;
-
 const STIMER_BASE: StaticRef<STimerRegisters> =
     unsafe { StaticRef::new(0x4000_8000 as *const STimerRegisters) };
 
@@ -137,17 +135,17 @@ impl<'a> Counter<'a> for STimer<'a> {
         //self.overflow_client.set(client);
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         // Set the clock source
         self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::BUSY)
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
@@ -199,7 +197,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
         Self::Ticks::from(regs.scmpr[0].get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         regs.stcfg.modify(

@@ -7,7 +7,6 @@ use kernel::common::StaticRef;
 use kernel::hil::time;
 use kernel::hil::time::{Ticks, Ticks64, Time};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 const PRESCALE: u16 = ((CONFIG.cpu_freq / 10_000) - 1) as u16; // 10Khz
 
@@ -116,16 +115,16 @@ impl<'a> time::Counter<'a> for RvTimer<'a> {
         self.overflow_client.set(client);
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be stopped...
         Err(ErrorCode::BUSY)
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be reset
         Err(ErrorCode::FAIL)
     }
@@ -174,7 +173,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         Ticks64::from(val)
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         // You clear the RISCV mtime interrupt by writing to the compare
         // registers. Since the only way to do so is to set a new alarm,
         // and this is also the only way to re-enable the interrupt, disabling

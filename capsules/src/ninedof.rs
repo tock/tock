@@ -21,7 +21,6 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -94,12 +93,12 @@ impl<'a> NineDof<'a> {
                 }
             })
             .unwrap_or_else(|err| {
-                let rcode: ReturnCode = err.into();
+                let rcode: Result<(), ErrorCode> = err.into();
                 CommandReturn::from(rcode)
             })
     }
 
-    fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
+    fn call_driver(&self, command: NineDofCommand, _: usize) -> Result<(), ErrorCode> {
         match command {
             NineDofCommand::ReadAccelerometer => {
                 let mut data = Err(ErrorCode::NODEVICE);

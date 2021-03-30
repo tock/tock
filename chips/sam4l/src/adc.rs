@@ -27,7 +27,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// Representation of an ADC channel on the SAM4L.
 #[derive(PartialEq)]
@@ -436,7 +435,7 @@ impl Adc {
     // the desired frequency and enables the ADC. Subsequent calls with the same frequency
     // value have no effect. Using the slowest clock also ensures efficient discrete
     // sampling.
-    fn config_and_enable(&self, frequency: u32) -> ReturnCode {
+    fn config_and_enable(&self, frequency: u32) -> Result<(), ErrorCode> {
         if self.active.get() {
             // disallow reconfiguration during sampling
             Err(ErrorCode::BUSY)
@@ -609,7 +608,7 @@ impl hil::adc::Adc for Adc {
     /// Returns an error if the ADC is already sampling.
     ///
     /// - `channel`: the ADC channel to sample
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         // always configure to 1KHz to get the slowest clock with single sampling
         let res = self.config_and_enable(1000);
 
@@ -658,7 +657,7 @@ impl hil::adc::Adc for Adc {
     ///
     /// - `channel`: the ADC channel to sample
     /// - `frequency`: the number of samples per second to collect
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode> {
         let res = self.config_and_enable(frequency);
 
         if res != Ok(()) {
@@ -752,7 +751,7 @@ impl hil::adc::Adc for Adc {
     /// This is expected to be called to stop continuous sampling operations,
     /// but can be called to abort any currently running operation. The buffer,
     /// if any, will be returned via the `samples_ready` callback.
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
             Err(ErrorCode::OFF)
         } else if !self.active.get() {
@@ -844,7 +843,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         buffer2: &'static mut [u16],
         length2: usize,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {
@@ -944,7 +943,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         &self,
         buf: &'static mut [u16],
         length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
         if !self.enabled.get() {
             (Err(ErrorCode::OFF), Some(buf))
         } else if !self.active.get() {
@@ -970,7 +969,7 @@ impl hil::adc::AdcHighSpeed for Adc {
     fn retrieve_buffers(
         &self,
     ) -> (
-        ReturnCode,
+        Result<(), ErrorCode>,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
     ) {

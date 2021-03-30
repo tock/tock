@@ -11,7 +11,6 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub static BASE_ADDR: u8 = 0x44;
 
@@ -98,7 +97,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    fn read_humidity(&self) -> ReturnCode {
+    fn read_humidity(&self) -> Result<(), ErrorCode> {
         if self.read_hum.get() == true {
             Err(ErrorCode::BUSY)
         } else {
@@ -112,7 +111,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.read_temp.get() == true {
             Err(ErrorCode::BUSY)
         } else {
@@ -126,7 +125,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
         }
     }
 
-    fn read_temp_hum(&self) -> ReturnCode {
+    fn read_temp_hum(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or_else(
             || panic!("SHT3x No buffer available!"),
             |buffer| {
@@ -230,7 +229,7 @@ impl<'a, A: Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SHT3x<'a, A>
         self.humidity_client.set(client);
     }
 
-    fn read_humidity(&self) -> ReturnCode {
+    fn read_humidity(&self) -> Result<(), ErrorCode> {
         self.read_humidity()
     }
 }
@@ -240,7 +239,7 @@ impl<'a, A: Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SHT3x<'a,
         self.temperature_client.set(client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         self.read_temperature()
     }
 }

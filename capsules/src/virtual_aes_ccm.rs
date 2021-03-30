@@ -94,7 +94,6 @@ use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
 };
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {
@@ -306,7 +305,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         mic_len: usize,
         a_data: &[u8],
         m_data: &[u8],
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.crypt_buf.map_or(Err(ErrorCode::NOMEM), |cbuf| {
             let (auth_len, enc_len) =
                 match Self::encode_ccm_buffer(cbuf, nonce, mic_len, a_data, m_data) {
@@ -410,7 +409,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
 
     // Assumes that the state is Idle, which means that crypt_buf must be
     // present. Panics if this is not the case.
-    fn start_ccm_auth(&self) -> ReturnCode {
+    fn start_ccm_auth(&self) -> Result<(), ErrorCode> {
         if !(self.state.get() == CCMState::Idle)
             && !(self.state.get() == CCMState::Encrypt && self.reversed())
         {
@@ -455,7 +454,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         }
     }
 
-    fn start_ccm_encrypt(&self) -> ReturnCode {
+    fn start_ccm_encrypt(&self) -> Result<(), ErrorCode> {
         if !(self.state.get() == CCMState::Auth)
             && !(self.state.get() == CCMState::Idle && self.reversed())
         {
@@ -612,7 +611,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
     fn crypt_r(
         &self,
         parameter: CryptFunctionParameters,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // just expanding the parameters......
         let buf: &'static mut [u8] = parameter.buf;
         let a_off: usize = parameter.a_off;
@@ -673,7 +672,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
         self.crypt_client.set(client);
     }
 
-    fn set_key(&self, key: &[u8]) -> ReturnCode {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         if key.len() < AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
@@ -684,7 +683,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
         }
     }
 
-    fn set_nonce(&self, nonce: &[u8]) -> ReturnCode {
+    fn set_nonce(&self, nonce: &[u8]) -> Result<(), ErrorCode> {
         if nonce.len() < CCM_NONCE_LENGTH {
             Err(ErrorCode::INVAL)
         } else {
@@ -704,7 +703,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.queued_up.is_some() {
             return (Err(ErrorCode::BUSY), Some(buf));
         }

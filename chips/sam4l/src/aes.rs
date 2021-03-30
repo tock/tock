@@ -18,7 +18,6 @@ use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
@@ -413,7 +412,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         self.client.set(client);
     }
 
-    fn set_key(&self, key: &[u8]) -> ReturnCode {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         if key.len() != AES128_KEY_SIZE {
             return Err(ErrorCode::INVAL);
         }
@@ -435,7 +434,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         Ok(())
     }
 
-    fn set_iv(&self, iv: &[u8]) -> ReturnCode {
+    fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
         if iv.len() != AES128_BLOCK_SIZE {
             return Err(ErrorCode::INVAL);
         }
@@ -473,7 +472,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         dest: &'a mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
         if self.busy() {
             Some((Err(ErrorCode::BUSY), source, dest))
         } else {

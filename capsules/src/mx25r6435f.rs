@@ -55,7 +55,6 @@ use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
 pub static mut RXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
@@ -220,7 +219,7 @@ impl<
         );
     }
 
-    pub fn read_identification(&self) -> ReturnCode {
+    pub fn read_identification(&self) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer
@@ -237,7 +236,7 @@ impl<
             })
     }
 
-    fn enable_write(&self) -> ReturnCode {
+    fn enable_write(&self) -> Result<(), ErrorCode> {
         self.write_protect_pin.map(|pin| {
             pin.set();
         });
@@ -249,7 +248,7 @@ impl<
             })
     }
 
-    fn erase_sector(&self, sector_index: u32) -> ReturnCode {
+    fn erase_sector(&self, sector_index: u32) -> Result<(), ErrorCode> {
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -262,7 +261,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
 
         let retval = self
@@ -303,7 +302,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -576,7 +575,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
         self.read_sector(page_number as u32, buf)
     }
 
@@ -584,11 +583,11 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
         self.write_sector(page_number as u32, buf)
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.erase_sector(page_number as u32)
     }
 }

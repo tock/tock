@@ -16,9 +16,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
-use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReturnCode, Upcall,
-};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -184,7 +182,7 @@ impl<'a> Screen<'a> {
         data1: usize,
         data2: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         match command {
             ScreenCommand::SetBrightness => self.screen.set_brightness(data1),
             ScreenCommand::InvertOn => self.screen.invert_on(),
@@ -474,11 +472,11 @@ impl<'a> Screen<'a> {
 }
 
 impl<'a> hil::screen::ScreenClient for Screen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::retcode_into_usize(r), 0, 0);
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode) {
+    fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>) {
         let len = self.fill_next_buffer_for_write(buffer);
 
         if r == Ok(()) && len > 0 {
@@ -495,7 +493,7 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
 }
 
 impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::retcode_into_usize(r), 0, 0);
     }
 }

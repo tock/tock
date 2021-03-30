@@ -28,14 +28,13 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
 /// layer must then call `IP6Sender.set_client` in order to receive this
 /// callback.
 pub trait IP6SendClient {
-    fn send_done(&self, result: ReturnCode);
+    fn send_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// This trait provides a basic IPv6 sending interface. It exposes basic
@@ -86,7 +85,7 @@ pub trait IP6Sender<'a> {
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
         net_cap: &'static NetworkCapability,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
 }
 
 /// This struct is a specific implementation of the `IP6Sender` trait. This
@@ -132,7 +131,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
         net_cap: &'static NetworkCapability,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if !net_cap.remote_addr_valid(dst, self.ip_vis) {
             return Err(ErrorCode::FAIL);
         }
@@ -195,7 +194,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     }
 
     // Returns EBUSY if the tx_buf is not there
-    fn send_next_fragment(&self) -> ReturnCode {
+    fn send_next_fragment(&self) -> Result<(), ErrorCode> {
         // Originally send_complete() was called within the below closure.
         // However, this led to a race condition where when multiple apps transmitted
         // simultaneously, it was possible for send_complete to trigger another
@@ -239,7 +238,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         ret
     }
 
-    fn send_completed(&self, result: ReturnCode) {
+    fn send_completed(&self, result: Result<(), ErrorCode>) {
         self.client.map(move |client| {
             client.send_done(result);
         });
@@ -256,7 +255,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
-    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.tx_buf.replace(tx_buf);
         if result != Ok(()) {
             debug!("Send Failed: {:?}, acked: {}", result, acked);

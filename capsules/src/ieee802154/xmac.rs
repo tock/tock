@@ -86,7 +86,6 @@ use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, Ticks};
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 // Time the radio will remain awake listening for packets before sleeping.
 // Observing the RF233, receive callbacks for preambles are generated only after
@@ -220,7 +219,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     }
 
     fn transmit_preamble(&self) {
-        let mut result: (ReturnCode, Option<&'static mut [u8]>) = (Ok(()), None);
+        let mut result: (Result<(), ErrorCode>, Option<&'static mut [u8]>) = (Ok(()), None);
         let buf = self.tx_preamble_buf.take().unwrap();
         let tx_header = self.tx_header.get().unwrap();
 
@@ -277,7 +276,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
         // If we have actual data to transmit, send it and report errors to
         // client.
         if self.tx_payload.is_some() {
-            let result: (ReturnCode, Option<&'static mut [u8]>);
+            let result: (Result<(), ErrorCode>, Option<&'static mut [u8]>);
             let tx_buf = self.tx_payload.take().unwrap();
 
             result = self.radio.transmit(tx_buf, self.tx_len.get());
@@ -290,7 +289,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
 
     // Reports back to client that transmission is complete, radio can turn off
     // if not kept awake by other portions of the protocol.
-    fn call_tx_client(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn call_tx_client(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.state.set(XMacState::AWAKE);
         self.sleep();
         self.tx_client.map(move |c| {
@@ -305,7 +304,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
         buf: &'static mut [u8],
         len: usize,
         crc_valid: bool,
-        result: ReturnCode,
+        result: Result<(), ErrorCode>,
     ) {
         self.delay_sleep.set(true);
         self.sleep();
@@ -320,7 +319,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> rng::Continue {
         match randomness.next() {
             Some(random) => {
@@ -346,7 +345,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
 
 // The vast majority of these calls pass through to the underlying radio driver.
 impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode {
+    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
         self.tx_preamble_buf.replace(mac_buf);
         self.state.set(XMacState::STARTUP);
         Ok(())
@@ -409,7 +408,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // If the radio is busy, we already have data to transmit, or the buffer
         // size is wrong, fail before attempting to send any preamble packets
         // (and waking up the radio).
@@ -532,7 +531,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> radio::PowerClient for XMac<'a, R, A> {
 }
 
 impl<'a, R: radio::Radio, A: Alarm<'a>> radio::TxClient for XMac<'a, R, A> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         match self.state.get() {
             // Completed a data transmission to the destination node
             XMacState::TX => {
@@ -571,7 +570,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
         buf: &'static mut [u8],
         frame_len: usize,
         crc_valid: bool,
-        result: ReturnCode,
+        result: Result<(), ErrorCode>,
     ) {
         let mut data_received: bool = false;
         let mut continue_sleep: bool = true;

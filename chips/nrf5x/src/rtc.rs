@@ -1,11 +1,11 @@
 //! RTC driver, nRF5X-family
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Ticks, Time};
-use kernel::ReturnCode;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
@@ -130,21 +130,21 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
         self.registers.intenset.write(Inte::OVRFLW::SET);
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.registers.prescaler.write(Prescaler::PRESCALER.val(0));
         self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enabled.set(true);
         Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         //self.registers.cc[0].write(Counter::VALUE.val(0));
         self.registers.tasks_stop.write(Task::ENABLE::SET);
         self.enabled.set(false);
         Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.registers.tasks_clear.write(Task::ENABLE::SET);
         Ok(())
     }
@@ -182,7 +182,7 @@ impl<'a> Alarm<'a> for Rtc<'a> {
         Self::Ticks::from(self.registers.cc[0].read(Counter::VALUE))
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         let regs = &*self.registers;
         regs.intenclr.write(Inte::COMPARE0::SET);
         regs.events_compare[0].write(Event::READY::CLEAR);

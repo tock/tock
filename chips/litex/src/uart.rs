@@ -11,7 +11,6 @@ use kernel::common::dynamic_deferred_call::{
 use kernel::common::StaticRef;
 use kernel::hil::uart;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
@@ -284,7 +283,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
-    fn configure(&self, params: uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         // LiteX UART supports only
         // - a fixed with of 8 bits
         // - no parity
@@ -324,7 +323,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
@@ -384,14 +383,14 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         (Ok(()), None)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         // Disable TX events
         //
         // A deferred call might still be pending from the started
@@ -425,7 +424,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
@@ -473,13 +472,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
         (Ok(()), None)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 

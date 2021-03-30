@@ -36,11 +36,10 @@
 //! # use kernel::common::peripherals::PeripheralManager;
 //! # use kernel::common::StaticRef;
 //! # use kernel::hil;
-//! # use kernel::ReturnCode;
 //! # struct PeripheralRegisters { control: VolatileCell<u32> };
 //! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 //! impl hil::uart::Configure for PeripheralHardware {
-//!     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+//!     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
 //!         let peripheral = &PeripheralManager::new(self);
 //!         peripheral.registers.control.set(0x0);
 //!         //         ^^^^^^^^^-- This is type &PeripheralRegisters

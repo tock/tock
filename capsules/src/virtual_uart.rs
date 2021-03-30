@@ -51,7 +51,6 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::uart;
-use kernel::ReturnCode;
 
 const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
@@ -68,7 +67,12 @@ pub struct MuxUart<'a> {
 }
 
 impl<'a> uart::TransmitClient for MuxUart<'a> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+        rcode: Result<(), ErrorCode>,
+    ) {
         self.inflight.map(move |device| {
             self.inflight.clear();
             device.transmitted_buffer(tx_buffer, tx_len, rcode);
@@ -82,7 +86,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         // Likely we will issue another receive in response to the previous one
@@ -360,14 +364,19 @@ impl<'a> UartDevice<'a> {
 }
 
 impl<'a> uart::TransmitClient for UartDevice<'a> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+        rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
     }
 
-    fn transmitted_word(&self, rcode: ReturnCode) {
+    fn transmitted_word(&self, rcode: Result<(), ErrorCode>) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_word(rcode);
@@ -379,7 +388,7 @@ impl<'a> uart::ReceiveClient for UartDevice<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         self.rx_client.map(move |client| {
@@ -400,7 +409,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         self.tx_client.set(client);
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
@@ -409,7 +418,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.transmitting.get() {
             (Err(ErrorCode::BUSY), Some(tx_data))
         } else {
@@ -421,7 +430,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         }
     }
 
-    fn transmit_word(&self, word: u32) -> ReturnCode {
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
         if self.transmitting.get() {
             Err(ErrorCode::BUSY)
         } else {
@@ -443,7 +452,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (Err(ErrorCode::BUSY), Some(rx_buffer))
         } else if rx_len > rx_buffer.len() {
@@ -461,13 +470,13 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
 
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         self.state.set(UartDeviceReceiveState::Aborting);
         self.mux.uart.receive_abort();
         Err(ErrorCode::BUSY)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

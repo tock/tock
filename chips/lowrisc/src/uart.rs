@@ -11,7 +11,6 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::ReturnCode;
 
 register_structs! {
     pub UartRegisters {
@@ -263,7 +262,7 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         let regs = self.registers;
         // We can set the baud rate.
         self.set_baud_rate(params.baud_rate);
@@ -287,7 +286,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if tx_len == 0 || tx_len > tx_data.len() {
             (Err(ErrorCode::SIZE), Some(tx_data))
         } else if self.tx_buffer.is_some() {
@@ -303,11 +302,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -322,7 +321,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
         if rx_len == 0 || rx_len > rx_buffer.len() {
             return (Err(ErrorCode::SIZE), Some(rx_buffer));
         }
@@ -335,11 +334,11 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         (Ok(()), None)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

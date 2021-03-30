@@ -1,4 +1,5 @@
 use core::sync::atomic::{AtomicU32, Ordering};
+use kernel::ErrorCode;
 use cortexm7;
 use cortexm7::support::atomic;
 use kernel::common::cells::OptionalCell;
@@ -7,7 +8,6 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Ticks, Ticks32, Time};
 use kernel::ClockInterface;
-use kernel::ReturnCode;
 
 use crate::ccm;
 use crate::nvic;
@@ -387,7 +387,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
         Self::Ticks::from(self.registers.ocr1.get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         unsafe {
             atomic(|| {
                 // Disable counter

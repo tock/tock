@@ -1,6 +1,6 @@
 //! Interface for CRC computation.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// CRC algorithms
 ///
@@ -29,7 +29,7 @@ pub trait CRC<'a> {
     fn set_client(&self, client: &'a dyn Client);
 
     /// Initiate a CRC calculation
-    fn compute(&self, data: &[u8], _: CrcAlg) -> ReturnCode;
+    fn compute(&self, data: &[u8], _: CrcAlg) -> Result<(), ErrorCode>;
 
     /// Disable the CRC unit until compute() is next called
     fn disable(&self);

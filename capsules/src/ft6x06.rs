@@ -21,13 +21,13 @@
 #![allow(non_camel_case_types)]
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,
@@ -180,11 +180,11 @@ impl<'a> gpio::Client for Ft6x06<'a> {
 }
 
 impl<'a> touch::Touch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
+    fn enable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
@@ -200,11 +200,11 @@ impl<'a> touch::Gesture<'a> for Ft6x06<'a> {
 }
 
 impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
+    fn enable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 

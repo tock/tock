@@ -56,7 +56,6 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -125,7 +124,7 @@ impl<'a> SoundPressureSensor<'a> {
 }
 
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
-    fn callback(&self, ret: ReturnCode, sound_val: u8) {
+    fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.subscribed {
