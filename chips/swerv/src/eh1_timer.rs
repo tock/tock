@@ -4,6 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
 use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
+use kernel::ErrorCode;
 use kernel::ReturnCode;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
@@ -94,7 +95,7 @@ impl<'a> Counter<'a> for Timer<'a> {
             TimerNumber::ONE => self.mitctl1.modify(MITCTL::ENABLE::SET),
         };
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) -> ReturnCode {
@@ -103,13 +104,13 @@ impl<'a> Counter<'a> for Timer<'a> {
             TimerNumber::ONE => self.mitctl1.modify(MITCTL::ENABLE::CLEAR),
         };
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn reset(&self) -> ReturnCode {
         // A counter is only cleared when it is equal or greater then
         // mitb.
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -164,7 +165,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
             TimerNumber::ONE => self.mitb1.write(MITB::BOUND.val(0xFFFF_FFFF)),
         };
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {
