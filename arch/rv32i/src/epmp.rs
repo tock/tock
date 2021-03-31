@@ -414,9 +414,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
     fn enable_app_mpu(&self) {}
 
     fn disable_app_mpu(&self) {
-        // Enable debug access
-        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::SET);
-
         for i in 0..self.number_total_regions() {
             if self.locked_region_mask.get() & (1 << i) > 0 {
                 continue;
@@ -431,9 +428,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                 _ => break,
             };
         }
-
-        // Disable debug access
-        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
     }
 
     fn number_total_regions(&self) -> usize {
@@ -612,9 +606,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
             .last_configured_for
             .map_or(false, |last_app_id| last_app_id == app_id);
 
-        // Enable debug access
-        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::SET);
-
         if !last_configured_for_this_app || config.is_dirty.get() {
             // We weren't last configured for this app, re-configure everything
             for (x, region) in config.regions.iter().enumerate() {
@@ -689,9 +680,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
 
         config.is_dirty.set(false);
         self.last_configured_for.put(*app_id);
-
-        // Disable debug access
-        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
     }
 }
 
