@@ -4,10 +4,10 @@ use core::convert::TryFrom;
 
 /// Standard errors in Tock.
 ///
-/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this does not
-/// feature any success cases and is therefore more approriate for the
-/// Tock 2.0 system call interface, where success payloads and errors
-/// are not packed into the same 32-bit wide register.
+/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this
+/// does not feature any success cases and is therefore more appropriate for the
+/// Tock 2.0 system call interface, where success payloads and errors are not
+/// packed into the same 32-bit wide register.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(usize)]
 pub enum ErrorCode {
@@ -92,24 +92,19 @@ impl From<ErrorCode> for Result<(), ErrorCode> {
     }
 }
 
-pub fn retcode_into_usize(original: Result<(), ErrorCode>) -> usize {
-    let out = match original {
+/// Convert a `Result<(), ErrorCode>` to a ReturnCode (usize) for userspace.
+///
+/// This helper function converts the Tock and Rust convention for a
+/// success/error type to a usize sufficient to send to userspace via an upcall.
+/// Tock terms this usize value a `ReturnCode`.
+///
+/// The key to this conversion and portability between the kernel and userspace
+/// is that `ErrorCode`, which only expresses errors, is assigned fixed values,
+/// but does not use value 0 by convention. This allows us to use 0 as success
+/// in ReturnCode.
+pub fn into_returncode(r: Result<(), ErrorCode>) -> usize {
+    match r {
         Ok(()) => 0,
-        Err(e) => match e {
-            ErrorCode::FAIL => -1,
-            ErrorCode::BUSY => -2,
-            ErrorCode::ALREADY => -3,
-            ErrorCode::OFF => -4,
-            ErrorCode::RESERVE => -5,
-            ErrorCode::INVAL => -6,
-            ErrorCode::SIZE => -7,
-            ErrorCode::CANCEL => -8,
-            ErrorCode::NOMEM => -9,
-            ErrorCode::NOSUPPORT => -10,
-            ErrorCode::NODEVICE => -11,
-            ErrorCode::UNINSTALLED => -12,
-            ErrorCode::NOACK => -13,
-        },
-    };
-    out as usize
+        Err(e) => e as usize,
+    }
 }

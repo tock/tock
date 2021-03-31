@@ -170,7 +170,7 @@ impl<'a> UDPDriver<'a> {
         if result != Ok(()) {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
-                    .schedule(kernel::retcode_into_usize(result), 0, 0);
+                    .schedule(kernel::into_returncode(result), 0, 0);
             });
         }
     }
@@ -603,7 +603,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
-                    .schedule(kernel::retcode_into_usize(result), 0, 0);
+                    .schedule(kernel::into_returncode(result), 0, 0);
             });
         });
         self.current_app.set(None);

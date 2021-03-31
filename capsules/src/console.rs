@@ -338,7 +338,7 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_remaining = 0;
                         app.pending_write = false;
                         app.write_callback
-                            .schedule(kernel::retcode_into_usize(return_code), 0, 0);
+                            .schedule(kernel::into_returncode(return_code), 0, 0);
                     }
                 }
             })
@@ -359,7 +359,7 @@ impl uart::TransmitClient for Console<'_> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 app.write_callback.schedule(
-                                    kernel::retcode_into_usize(return_code),
+                                    kernel::into_returncode(return_code),
                                     0,
                                     0,
                                 );
@@ -440,7 +440,7 @@ impl uart::ReceiveClient for Console<'_> {
                                 };
 
                                 app.read_callback.schedule(
-                                    kernel::retcode_into_usize(ret),
+                                    kernel::into_returncode(ret),
                                     received_length,
                                     0,
                                 );
@@ -448,7 +448,7 @@ impl uart::ReceiveClient for Console<'_> {
                             _ => {
                                 // Some UART error occurred
                                 app.read_callback.schedule(
-                                    kernel::retcode_into_usize(Err(ErrorCode::FAIL)),
+                                    kernel::into_returncode(Err(ErrorCode::FAIL)),
                                     0,
                                     0,
                                 );
