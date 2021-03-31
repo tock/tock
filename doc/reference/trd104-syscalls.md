@@ -259,11 +259,13 @@ The 6 classes are:
 
 All of the system call classes except Yield and Exit are
 non-blocking. When a userspace process calls a Subscribe, Command,
-Allow, Read-Only Allow, or Memop syscall, the kernel will not put it
-on a wait queue. Instead, it will return immediately upon
-completion. The kernel scheduler may decide to suspend the process due
-to a timeslice expiration or the kernel thread being runnable, but the
-system calls themselves do not block. If an operation is long-running
+Allow, Read-Only Allow, or Memop syscall, the kernel will not put the process
+on a wait queue while handling the syscall. Instead, the kernel will complete the
+syscall and prepare the return value for the syscall immediately.
+The kernel scheduler may not, however, run the process immediately after
+handling the syscall, and may instead decide to suspend the process due
+to a timeslice expiration or the kernel thread being runnable.
+If an operation is long-running
 (e.g., I/O), its completion is signaled by an upcall (see the
 Subscribe call in 4.2).
 
@@ -276,7 +278,7 @@ call driver to invoke. The syscall identifier (which is different than
 the Syscall Class ID in the table above) specifies which instance of
 that system call on that driver to invoke. Both arguments are unsigned
 32-bit integers. For example, the Console system call driver has
-driver identifier `0x1` and a Command to the console driver with
+driver identifier `0x1`, by convention, and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
 If userspace invokes a system call on a peripheral driver that is not 
