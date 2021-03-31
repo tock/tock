@@ -298,9 +298,15 @@ impl kernel::mpu::MPU for PMPConfig {
         let mut start = unallocated_memory_start as usize;
         let mut size = min_region_size;
 
-        // Region start always has to align to 4 bytes
+        // Region start always has to align to 4 bytes, but we can not align
+        // it up because this would cut off some of the address range. An
+        // error needs to be reported in case start value is not 4 bytes
+        // aligned. The kludge below is temorary intil b/183999620 is fixed.
+        //
+        // TODO(b/183999620) return None in case start is misaligned.
         if start % 4 != 0 {
-            start += 4 - (start % 4);
+            size += start % 4;
+            start -= start % 4;
         }
 
         // RISC-V PMP is not inclusive of the final address, while Tock is, increase the size by 1
