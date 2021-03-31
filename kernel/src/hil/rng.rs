@@ -51,6 +51,7 @@
 //! use kernel::hil;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Time;
+//! use kernel::ErrorCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
 //!     rng: &'a hil::rng::Rng<'a>,

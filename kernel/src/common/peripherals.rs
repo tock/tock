@@ -35,6 +35,7 @@
 //! # use kernel::common::cells::VolatileCell;
 //! # use kernel::common::peripherals::PeripheralManager;
 //! # use kernel::common::StaticRef;
+//! # use kernel::ErrorCode;
 //! # use kernel::hil;
 //! # struct PeripheralRegisters { control: VolatileCell<u32> };
 //! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
