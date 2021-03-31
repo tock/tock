@@ -56,23 +56,23 @@ pub trait Adc {
     type Channel;
 
     /// Initialize must be called before taking a sample.
-    fn initialize(&self) -> ReturnCode;
+    fn initialize(&self) -> Result<(), ErrorCode>;
 
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode;
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 
     /// Request repeated ADC samples on a particular channel.
     /// Callbacks will occur at the given frequency with low jitter and can be
     /// set to any frequency supported by the chip implementation. However
     /// callbacks may be limited based on how quickly the system can service
     /// individual samples, leading to missed samples at high frequencies.
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode;
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode>;
 
     /// Stop a sampling operation.
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
-    fn stop_sampling(&self) -> ReturnCode;
+    fn stop_sampling(&self) -> Result<(), ErrorCode>;
 }
 ```
 
@@ -168,7 +168,7 @@ pub trait AdcHighSpeed: Adc {
                         length1: usize,
                         buffer2: &'static mut [u16],
                         length2: usize)
-                        -> (ReturnCode, Option<&'static mut [u16]>,
+                        -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
 
     /// Provide a new buffer to fill with the ongoing `sample_continuous`
@@ -181,7 +181,7 @@ pub trait AdcHighSpeed: Adc {
     fn provide_buffer(&self,
                       buf: &'static mut [u16],
                       length: usize)
-                      -> (ReturnCode, Option<&'static mut [u16]>);
+                      -> (Result<(), ErrorCode>, Option<&'static mut [u16]>);
 
     /// Reclaim ownership of buffers.
     /// Can only be called when the ADC is inactive, which occurs after a
@@ -190,7 +190,7 @@ pub trait AdcHighSpeed: Adc {
     /// there may still be no buffers that are `some` if the driver had already
     /// returned all buffers.
     fn retrieve_buffers(&self)
-                        -> (ReturnCode, Option<&'static mut [u16]>,
+                        -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
 }
 ```

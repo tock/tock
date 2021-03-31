@@ -82,10 +82,10 @@ turn it on/off and configure it.
                   spi_buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
                   reg_read: &'static mut [u8])
-                  -> ReturnCode;
-    fn reset(&self) -> ReturnCode;
-    fn start(&self) -> ReturnCode;
-    fn stop(&self) -> ReturnCode;
+                  -> Result<(), ErrorCode>;
+    fn reset(&self) -> Result<(), ErrorCode>;
+    fn start(&self) -> Result<(), ErrorCode>;
+    fn stop(&self) -> Result<(), ErrorCode>;
 
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
@@ -154,7 +154,7 @@ return EOFF if the radio is off, or may return SUCCESS and hold the
 configuration commit until the radio is turned on again.
 
     fn set_config_client(&self, client: &'static ConfigClient);
-    fn config_commit(&self) -> ReturnCode;
+    fn config_commit(&self) -> Result<(), ErrorCode>;
 
 A caller can configure the 16-bit short address, 64-bit full address,
 PAN (personal area network) identifier, transmit power, and
@@ -171,8 +171,8 @@ not in the range 11-26 and SUCCESS otherwise.
     fn config_set_address(&self, addr: u16);
     fn config_set_address_long(&self, addr: [u8;8]);
     fn config_set_pan(&self, addr: u16);
-    fn config_set_tx_power(&self, power: i8) -> ReturnCode;
-    fn config_set_channel(&self, chan: u8) -> ReturnCode;
+    fn config_set_tx_power(&self, power: i8) -> Result<(), ErrorCode>;
+    fn config_set_channel(&self, chan: u8) -> Result<(), ErrorCode>;
 
 `config_set_tx_power` takes an signed integer, whose units are dBm.
 If the specified value is greater than the maximum supported transmit
@@ -235,13 +235,13 @@ Clients transmit packets by calling `transmit` or `transmit_long`.
                 dest: u16,
                 tx_data: &'static mut [u8],
                 tx_len: u8,
-                source_long: bool) -> ReturnCode;
+                source_long: bool) -> Result<(), ErrorCode>;
 
     fn transmit_long(&self,
                 dest: [u8;8],
                 tx_data: &'static mut [u8],
                 tx_len: u8,
-                source_long: bool) -> ReturnCode;
+                source_long: bool) -> Result<(), ErrorCode>;
 
 The packet sent on the air by a call to `transmit` MUST be formatted
 to have a 16-bit short destination address equal to the `dest`
@@ -278,7 +278,7 @@ configuration has completed, and when the power state of the
 radio has changed.
 
     pub trait TxClient {
-        fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
+        fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>);
     }
 
 The `buf` paramater of `send_done` MUST pass back the same buffer that
@@ -299,7 +299,7 @@ radio stack MUST NOT maintain a reference to the buffer. A client that
 wants to receive another packet MUST call `set_receive_buffer`.
 
     pub trait RxClient {
-        fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+        fn receive(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>);
     }
 
 The `config_done` callback indicates that a radio reconfiguration has
@@ -309,7 +309,7 @@ value that is a valid return value of `config_commit` or FAIL to
 indicate another failure.
 
     pub trait ConfigClient {
-        fn config_done(&self, result: ReturnCode);
+        fn config_done(&self, result: Result<(), ErrorCode>);
     }
 
 The `changed` callback indicates that the power state of the radio

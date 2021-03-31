@@ -25,7 +25,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Argument 1** `as *u8`: Address of the new program break (aka maximum
     accessible value).
 
-    **Returns** `ReturnCode as u32`: `SUCCESS` or `ENOMEM`.
+    **Returns** `Result<(), ErrorCode> as u32`: `SUCCESS` or `ENOMEM`.
 
   * ### Operation type `1`: `sbrk`
 
@@ -117,7 +117,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the stack top.
 
-    **Returns** `ReturnCode as u32`: Always `SUCCESS`.
+    **Returns** `Result<(), ErrorCode> as u32`: Always `SUCCESS`.
 
   * ### Operation type `11`: (debug) Specify heap location
 
@@ -125,4 +125,4 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the heap start.
 
-    **Returns** `ReturnCode as u32`: Always `SUCCESS`.
+    **Returns** `Result<(), ErrorCode> as u32`: Always `SUCCESS`.

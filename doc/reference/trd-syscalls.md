@@ -117,7 +117,7 @@ have to move them between registers.
 For example, `command` has this signature:
 
 ```rust
-fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode
+fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> Result<(), ErrorCode>
 ```
 
 This means that the value which will be passed as `r2` to the command
