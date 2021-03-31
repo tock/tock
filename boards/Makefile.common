@@ -40,7 +40,6 @@ RUSTC_FLAGS ?= \
   -C relocation-model=dynamic-no-pic \
   -C link-arg=-nmagic \
   -C link-arg=-icf=all \
-	-A unused_must_use \
 
 # RISC-V-specific flags.
 ifneq ($(findstring riscv32i, $(TARGET)),)

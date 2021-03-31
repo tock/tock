@@ -45,7 +45,7 @@ impl<'a, A: hil::adc::Adc> MuxAdc<'a, A> {
             mnode.map(|node| {
                 let started = node.operation.map_or(false, |operation| match operation {
                     Operation::OneSample => {
-                        self.adc.sample(&node.channel);
+                        let _ = self.adc.sample(&node.channel);
                         true
                     }
                 });

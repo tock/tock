@@ -202,7 +202,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
 
                 // Completely disable and make sure it doesn't generate
                 // more interrupts until it is started again
-                self.cancel();
+                let _ = self.cancel();
             } else {
                 // Timer is repeating
                 //
@@ -221,7 +221,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
         // If the timer is already enabled, cancel it and disable all
         // interrupts
         if self.is_enabled() {
-            self.cancel();
+            let _ = self.cancel();
         }
 
         if let Some(reload) = repeat_ticks {
@@ -444,7 +444,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         // Cancel any pending alarm
         if self.is_armed() {
-            self.disarm();
+            let _ = self.disarm();
         }
 
         // Store both the reference and alarm time (required for
@@ -468,7 +468,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        self.timer.cancel();
+        let _ = self.timer.cancel();
         self.alarm_time.clear();
 
         Ok(())

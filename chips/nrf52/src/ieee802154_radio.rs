@@ -1036,7 +1036,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         Ok(())
     }
     fn start(&self) -> Result<(), ErrorCode> {
-        self.reset();
+        let _ = self.reset();
         Ok(())
     }
     fn stop(&self) -> Result<(), ErrorCode> {

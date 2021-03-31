@@ -77,7 +77,7 @@ impl<'a> Client for MuxRngMaster<'a> {
             let cont_code = device.randomness_available(_randomness, _error);
 
             if cont_code == Continue::Done {
-                self.do_next_op();
+                let _ = self.do_next_op();
             }
 
             cont_code

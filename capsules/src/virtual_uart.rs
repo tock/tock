@@ -209,7 +209,7 @@ impl<'a> MuxUart<'a> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::Parameters {
+        let _ = self.uart.configure(uart::Parameters {
             baud_rate: self.speed,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
@@ -277,14 +277,14 @@ impl<'a> MuxUart<'a> {
                     // Case (2). Stop the previous read so we can use the
                     // `received_buffer()` handler to recalculate the minimum
                     // length for a read.
-                    self.uart.receive_abort();
+                    let _ = self.uart.receive_abort();
                     true
                 }
             },
             |rxbuf| {
                 // Case (3). No ongoing receive calls, we can start one now.
                 let len = cmp::min(rx_len, rxbuf.len());
-                self.uart.receive_buffer(rxbuf, len);
+                let _ = self.uart.receive_buffer(rxbuf, len);
                 false
             },
         )
@@ -472,7 +472,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     // devices will continue with their reads.
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         self.state.set(UartDeviceReceiveState::Aborting);
-        self.mux.uart.receive_abort();
+        let _ = self.mux.uart.receive_abort();
         Err(ErrorCode::BUSY)
     }
 

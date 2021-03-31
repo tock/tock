@@ -339,7 +339,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         if let Some(dc) = self.dc {
             dc.clear();
         }
-        self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
 
     fn send_command_slice(&self, cmd: &'static Command, len: usize) {
@@ -348,7 +348,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             dc.clear();
         }
         self.status.set(Status::SendCommandSlice(len));
-        self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
 
     fn send_parameters(&self, position: usize, len: usize, repeat: usize) {
@@ -366,7 +366,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     if let Some(dc) = self.dc {
                         dc.set();
                     }
-                    self.bus.write(BusWidth::Bits8, buffer, len);
+                    let _ = self.bus.write(BusWidth::Bits8, buffer, len);
                 },
             );
         } else {
@@ -382,7 +382,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 if let Some(dc) = self.dc {
                     dc.set();
                 }
-                self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
+                let _ = self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
             },
         );
     }
@@ -601,7 +601,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::Init => {
                 self.status.set(Status::Idle);
-                self.send_sequence(&self.screen.init_sequence);
+                let _ = self.send_sequence(&self.screen.init_sequence);
             }
             _ => {
                 panic!("ST77XX status Idle");
@@ -775,7 +775,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
                             self.sequence_len.set(2);
                         },
                     );
-                    self.send_sequence_buffer();
+                    let _ = self.send_sequence_buffer();
                 }
                 err
             } else {
@@ -803,7 +803,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
                         self.sequence_len.set(1);
                     },
                 );
-                self.send_sequence_buffer();
+                let _ = self.send_sequence_buffer();
                 Ok(())
             } else {
                 Err(ErrorCode::NOMEM)

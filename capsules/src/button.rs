@@ -165,7 +165,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                     self.apps
                         .enter(appid, |cntr, _| {
                             cntr.1 |= 1 << data;
-                            pins[data]
+                            let _ = pins[data]
                                 .0
                                 .enable_interrupts(gpio::InterruptEdge::EitherEdge);
                             CommandReturn::success()

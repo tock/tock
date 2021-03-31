@@ -33,7 +33,7 @@ impl spi::SpiMasterClient for DummyCB {
     ) {
         unsafe {
             // do actual stuff
-            self.spi.read_write_bytes(&mut A5, None, A5.len());
+            let _ = self.spi.read_write_bytes(&mut A5, None, A5.len());
 
             // FLOP = !FLOP;
             // let len: usize = BUF1.len();

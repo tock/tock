@@ -211,7 +211,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 let op_index = self.op_index.get();
                 if op_index == self.ops.len() {
                     self.state.set(TestState::CleanUp);
-                    self.log.seek(self.log.log_start());
+                    let _ = self.log.seek(self.log.log_start());
                     return;
                 }
 

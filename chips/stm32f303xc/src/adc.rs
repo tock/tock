@@ -577,7 +577,7 @@ impl<'a> Adc<'a> {
                 self.status.set(ADCStatus::Idle);
                 match self.requested.get() {
                     ADCStatus::OneSample => {
-                        self.sample_u32(self.requested_channel.get());
+                        let _ = self.sample_u32(self.requested_channel.get());
                         return;
                     }
                     _ => {}

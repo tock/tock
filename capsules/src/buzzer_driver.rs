@@ -169,7 +169,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
     fn alarm(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
-        self.pwm_pin.stop();
+        let _ = self.pwm_pin.stop();
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
             let _ = self.apps.enter(app_id, |app, _| {

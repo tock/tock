@@ -135,7 +135,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         if !net_cap.remote_addr_valid(dst, self.ip_vis) {
             return Err(ErrorCode::FAIL);
         }
-        self.sixlowpan.init(
+        let _ = self.sixlowpan.init(
             self.src_mac_addr,
             self.dst_mac_addr,
             self.radio.get_pan(),

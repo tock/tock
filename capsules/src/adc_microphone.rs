@@ -59,7 +59,7 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
             // self.enable_pin.map (|pin| pin.set ());
             self.state.set(State::ReadingSPL);
             self.spl_pos.set(0);
-            self.adc.sample();
+            let _ = self.adc.sample();
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -90,7 +90,7 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
                     self.spl_pos.set(self.spl_pos.get() + 1);
                 }
                 if self.spl_pos.get() < buffer.len() {
-                    self.adc.sample();
+                    let _ = self.adc.sample();
                     false
                 } else {
                     self.state.set(State::Idle);

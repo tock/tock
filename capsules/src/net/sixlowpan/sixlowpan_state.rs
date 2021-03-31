@@ -501,7 +501,7 @@ impl<'a> TxState<'a> {
         // Write the 6lowpan header
         if written <= remaining_capacity {
             // TODO: Check success
-            frame.append_payload(&lowpan_packet[0..written]);
+            let _ = frame.append_payload(&lowpan_packet[0..written]);
             remaining_capacity -= written;
         } else {
             return Err((Err(ErrorCode::SIZE), frame.into_buf()));
@@ -518,7 +518,7 @@ impl<'a> TxState<'a> {
         let (payload_len, consumed) =
             self.write_additional_headers(ip6_packet, &mut frame, consumed, payload_len);
 
-        frame.append_payload(&ip6_packet.get_payload()[0..payload_len]);
+        let _ = frame.append_payload(&ip6_packet.get_payload()[0..payload_len]);
         self.dgram_offset.set(consumed + payload_len);
         Ok(frame)
     }
@@ -546,7 +546,7 @@ impl<'a> TxState<'a> {
 
         if payload_len > 0 {
             let payload_offset = dgram_offset - ip6_packet.get_total_hdr_size();
-            frame.append_payload(
+            let _ = frame.append_payload(
                 &ip6_packet.get_payload()[payload_offset..payload_offset + payload_len],
             );
         }
@@ -576,7 +576,7 @@ impl<'a> TxState<'a> {
             // functionality should be fixed in the future.
             let mut headers = [0 as u8; 60];
             ip6_packet.encode(&mut headers);
-            frame.append_payload(&headers[dgram_offset..dgram_offset + headers_to_write]);
+            let _ = frame.append_payload(&headers[dgram_offset..dgram_offset + headers_to_write]);
             payload_len -= headers_to_write;
             dgram_offset += headers_to_write;
         }
@@ -595,7 +595,7 @@ impl<'a> TxState<'a> {
                 true,
             );
             // TODO: Check success
-            frame.append_payload(&frag_header);
+            let _ = frame.append_payload(&frag_header);
             lowpan_frag::FRAG1_HDR_SIZE
         } else {
             let mut frag_header = [0 as u8; lowpan_frag::FRAGN_HDR_SIZE];
@@ -607,7 +607,7 @@ impl<'a> TxState<'a> {
                 first_frag,
             );
             // TODO: Check success
-            frame.append_payload(&frag_header);
+            let _ = frame.append_payload(&frag_header);
             lowpan_frag::FRAGN_HDR_SIZE
         }
     }

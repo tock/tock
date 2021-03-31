@@ -293,7 +293,7 @@ impl Driver for Console<'_> {
             }
             3 => {
                 // Abort RX
-                self.uart.receive_abort();
+                let _ = self.uart.receive_abort();
                 Ok(Ok(()))
             }
             _ => Err(ErrorCode::NOSUPPORT),

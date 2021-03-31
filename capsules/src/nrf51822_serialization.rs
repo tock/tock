@@ -76,7 +76,7 @@ impl<'a> Nrf51822Serialization<'a> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::Parameters {
+        let _ = self.uart.configure(uart::Parameters {
             baud_rate: 250000,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
@@ -234,7 +234,7 @@ impl Driver for Nrf51822Serialization<'_> {
                     if len > buffer.len() {
                         CommandReturn::failure(ErrorCode::SIZE)
                     } else {
-                        self.uart.receive_automatic(buffer, len, 250);
+                        let _ = self.uart.receive_automatic(buffer, len, 250);
                         CommandReturn::success_u32(len as u32)
                     }
                 })
@@ -312,7 +312,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         // Restart the UART receive.
         self.rx_buffer.take().map(|buffer| {
             let len = buffer.len();
-            self.uart.receive_automatic(buffer, len, 250);
+            let _ = self.uart.receive_automatic(buffer, len, 250);
         });
     }
 

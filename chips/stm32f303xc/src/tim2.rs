@@ -413,7 +413,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.disarm();
+        let _ = self.disarm();
         self.registers.ccr1.set(expire.into_u32());
         self.registers.dier.modify(DIER::CC1IE::SET);
     }

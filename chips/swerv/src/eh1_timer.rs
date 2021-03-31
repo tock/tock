@@ -64,7 +64,7 @@ impl Timer<'_> {
     }
 
     pub fn handle_interrupt(&self) {
-        self.stop();
+        let _ = self.stop();
         self.alarm_client.map(|client| {
             client.alarm();
         });
@@ -128,7 +128,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         // Start the counter
         if !self.is_running() {
-            Counter::start(self);
+            let _ = Counter::start(self);
         }
 
         let now = self.now();
@@ -187,7 +187,7 @@ impl kernel::SchedulerTimer for Timer<'_> {
     }
 
     fn reset(&self) {
-        self.stop();
+        let _ = self.stop();
     }
 
     fn arm(&self) {

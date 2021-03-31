@@ -337,7 +337,7 @@ impl<'a> Driver for Touch<'a> {
                         mem::swap(&mut app.touch_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
-                self.touch_enable();
+                let _ = self.touch_enable();
                 r
             }
 
@@ -349,7 +349,7 @@ impl<'a> Driver for Touch<'a> {
                         mem::swap(&mut app.gesture_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
-                self.touch_enable();
+                let _ = self.touch_enable();
                 r
             }
 
@@ -362,7 +362,7 @@ impl<'a> Driver for Touch<'a> {
                             mem::swap(&mut app.multi_touch_callback, &mut callback);
                         })
                         .map_err(ErrorCode::from);
-                    self.multi_touch_enable();
+                    let _ = self.multi_touch_enable();
                     r
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -399,7 +399,7 @@ impl<'a> Driver for Touch<'a> {
                         app.touch_enable = true;
                     })
                     .unwrap_or(());
-                self.touch_enable();
+                let _ = self.touch_enable();
                 CommandReturn::success()
             }
 
@@ -410,7 +410,7 @@ impl<'a> Driver for Touch<'a> {
                         app.touch_enable = false;
                     })
                     .unwrap_or(());
-                self.touch_enable();
+                let _ = self.touch_enable();
                 CommandReturn::success()
             }
 
@@ -431,7 +431,7 @@ impl<'a> Driver for Touch<'a> {
                         app.multi_touch_enable = true;
                     })
                     .unwrap_or(());
-                self.multi_touch_enable();
+                let _ = self.multi_touch_enable();
                 CommandReturn::success()
             }
 
@@ -442,7 +442,7 @@ impl<'a> Driver for Touch<'a> {
                         app.multi_touch_enable = false;
                     })
                     .unwrap_or(());
-                self.multi_touch_enable();
+                let _ = self.multi_touch_enable();
                 CommandReturn::success()
             }
 

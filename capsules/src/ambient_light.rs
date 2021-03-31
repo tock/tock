@@ -53,7 +53,7 @@ impl<'a> AmbientLight<'a> {
                     app.pending = true;
                     if !self.command_pending.get() {
                         self.command_pending.set(true);
-                        self.sensor.read_light_intensity();
+                        let _ = self.sensor.read_light_intensity();
                     }
                     Ok(())
                 }
@@ -110,7 +110,7 @@ impl Driver for AmbientLight<'_> {
         match command_num {
             0 /* check if present */ => CommandReturn::success(),
             1 => {
-                self.enqueue_sensor_reading(appid);
+                let _ = self.enqueue_sensor_reading(appid);
                 CommandReturn::success()
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)

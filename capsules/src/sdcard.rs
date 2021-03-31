@@ -326,7 +326,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
         // start SPI transaction
         // Length is command bytes (8) plus recv_len
-        self.spi
+        let _ = self
+            .spi
             .read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len);
     }
 
@@ -347,7 +348,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
             *byte = 0xFF;
         }
 
-        self.spi
+        let _ = self
+            .spi
             .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
     }
 
@@ -360,7 +362,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
     ) {
         self.set_spi_fast_mode();
 
-        self.spi
+        let _ = self
+            .spi
             .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
     }
 

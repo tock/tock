@@ -407,10 +407,10 @@ ci-job-collect-artifacts: ci-job-compilation
 .PHONY: ci-job-libraries
 ci-job-libraries:
 	$(call banner,CI-Job: Libraries)
-	@cd libraries/enum_primitive && CI=true RUSTFLAGS="-A unused_must_use -D warnings" cargo test
-	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-A unused_must_use -D warnings" cargo test
-	@cd libraries/tock-cells && CI=true RUSTFLAGS="-A unused_must_use -D warnings" cargo test
-	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-A unused_must_use -D warnings" cargo test
+	@cd libraries/enum_primitive && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-cells && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-job-archs
 ci-job-archs:
@@ -418,20 +418,20 @@ ci-job-archs:
 	@for arch in `./tools/list_archs.sh`;\
 		do echo "$$(tput bold)Test $$arch";\
 		cd arch/$$arch;\
-		CI=true RUSTFLAGS="-A unused_must_use -D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
 .PHONY: ci-job-kernel
 ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
-	@cd kernel && CI=true RUSTFLAGS="-A unused_must_use -D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
 
 .PHONY: ci-job-capsules
 ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules && CI=true RUSTFLAGS="-A unused_must_use -D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
+	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
 
 .PHONY: ci-job-chips
 ci-job-chips:
@@ -439,7 +439,7 @@ ci-job-chips:
 	@for chip in `./tools/list_chips.sh`;\
 		do echo "$$(tput bold)Test $$chip";\
 		cd chips/$$chip;\
-		CI=true RUSTFLAGS="-A unused_must_use -D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
@@ -471,7 +471,7 @@ define ci_job_tools
 	@for tool in `./tools/list_tools.sh`;\
 		do echo "$$(tput bold)Build & Test $$tool";\
 		cd tools/$$tool;\
-		CI=true RUSTFLAGS="-A unused_must_use -D warnings" cargo build --all-targets || exit 1;\
+		CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
 		cd - > /dev/null;\
 		done
 endef

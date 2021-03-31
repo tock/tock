@@ -87,7 +87,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                         // Don't need a buffer for erase.
                         match node.operation.get() {
                             Op::Erase(page_number) => {
-                                self.flash.erase_page(page_number);
+                                let _ = self.flash.erase_page(page_number);
                             }
                             _ => {}
                         };
@@ -105,7 +105,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                                 }
                             }
                             Op::Erase(page_number) => {
-                                self.flash.erase_page(page_number);
+                                let _ = self.flash.erase_page(page_number);
                             }
                             Op::Idle => {} // Can't get here...
                         }

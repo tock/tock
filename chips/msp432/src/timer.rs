@@ -376,7 +376,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.disarm();
+        let _ = self.disarm();
         // Set compare register
         self.registers.ccr0.set(expire.into_u16());
         // Enable capture/compare interrupt

@@ -480,7 +480,7 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
         let len = self.fill_next_buffer_for_write(buffer);
 
         if r == Ok(()) && len > 0 {
-            self.screen.write_continue(buffer, len);
+            let _ = self.screen.write_continue(buffer, len);
         } else {
             self.buffer.replace(buffer);
             self.run_next_command(kernel::retcode_into_usize(r), 0, 0);

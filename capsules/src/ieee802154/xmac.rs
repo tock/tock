@@ -200,7 +200,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
 
             // Otherwise, don't sleep if expecting a data packet or transmitting
             } else if !self.rx_pending.get() {
-                self.radio.stop();
+                let _ = self.radio.stop();
                 self.state.set(XMacState::SLEEP);
                 self.set_timer_ms(self.sleep_time());
             }
@@ -456,7 +456,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         } else {
             self.state.set(XMacState::STARTUP);
             self.tx_preamble_pending.set(true);
-            self.radio.start();
+            let _ = self.radio.start();
         }
 
         (Ok(()), None)
@@ -473,7 +473,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
                 // indicate that the radio is ready
                 if !self.radio.is_on() {
                     self.state.set(XMacState::STARTUP);
-                    self.radio.start();
+                    let _ = self.radio.start();
                 } else {
                     self.set_timer_ms(WAKE_TIME_MS);
                     self.state.set(XMacState::AWAKE);
@@ -596,7 +596,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
                                 // timer for the max and adjust later. As a result, we can't
                                 // backoff for more than the Rng generation time.
                                 self.state.set(XMacState::TX_DELAY);
-                                self.rng.get();
+                                let _ = self.rng.get();
                                 self.set_timer_ms(MAX_TX_BACKOFF_MS);
                                 continue_sleep = false;
                             }

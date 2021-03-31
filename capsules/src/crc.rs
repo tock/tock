@@ -339,7 +339,8 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
 impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
         self.serving_app.take().map(|appid| {
-            self.apps
+            let _ = self
+                .apps
                 .enter(appid, |app, _| {
                     app.callback
                         .schedule(kernel::retcode_into_usize(Ok(())), result as usize, 0);

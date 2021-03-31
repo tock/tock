@@ -115,9 +115,9 @@ impl<'a> SoundPressureSensor<'a> {
                 }
             });
             if enable {
-                self.driver.enable();
+                let _ = self.driver.enable();
             } else {
-                self.driver.disable();
+                let _ = self.driver.disable();
             }
         }
     }

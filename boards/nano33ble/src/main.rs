@@ -244,7 +244,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
@@ -432,7 +432,7 @@ pub unsafe fn main() {
     // );
 
     debug!("Initialization complete. Entering main loop.");
-    platform.pconsole.start();
+    let _ = platform.pconsole.start();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

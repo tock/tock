@@ -57,7 +57,7 @@ impl<'a> sensors::TemperatureDriver<'a> for TemperatureSTM<'a> {
     fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Read);
-            self.adc.sample();
+            let _ = self.adc.sample();
             Ok(())
         } else {
             Err(ErrorCode::BUSY)

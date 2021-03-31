@@ -219,7 +219,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         }
 
         self.num_lines.replace(row);
-        self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
+        let _ = self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
     }
 
     pub fn screen_command(&self, command: usize, op: usize, value: u8) -> Result<(), ErrorCode> {

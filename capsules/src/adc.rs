@@ -755,7 +755,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
 
             // Also make sure that no more samples are taken if we were in
             // continuous mode.
-            self.adc.stop_sampling();
+            let _ = self.adc.stop_sampling();
         }
     }
 }
@@ -1017,7 +1017,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 app.app_buf_offset.set(0);
 
                                 // need to actually stop sampling
-                                self.adc.stop_sampling();
+                                let _ = self.adc.stop_sampling();
 
                                 // reclaim buffers and store them
                                 let (_, buf1, buf2) = self.adc.retrieve_buffers();
@@ -1068,7 +1068,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 
             // Make sure we do not take more samples since we know no app
             // is currently waiting on samples.
-            self.adc.stop_sampling();
+            let _ = self.adc.stop_sampling();
 
             // Also retrieve any buffers we passed to the underlying ADC driver.
             let (_, buf1, buf2) = self.adc.retrieve_buffers();

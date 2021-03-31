@@ -80,7 +80,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            self.mux.alarm.disarm();
+            let _ = self.mux.alarm.disarm();
         }
         Ok(())
     }
@@ -180,7 +180,7 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
 
     pub fn disarm(&self) {
         self.next_tick_vals.set(None);
-        self.alarm.disarm();
+        let _ = self.alarm.disarm();
     }
 }
 

@@ -178,7 +178,7 @@ impl<'a> MCP230xx<'a> {
             .interrupt_pin_a
             .map_or(Err(ErrorCode::FAIL), |interrupt_pin| {
                 interrupt_pin.make_input();
-                interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+                let _ = interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
                 Ok(())
             });
         if first != Ok(()) {
@@ -187,7 +187,7 @@ impl<'a> MCP230xx<'a> {
         // Also do the other interrupt pin if it exists.
         self.interrupt_pin_b.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+            let _ = interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
         });
         Ok(())
     }

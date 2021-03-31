@@ -78,7 +78,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     }
 
     pub fn stop_sending(&self) {
-        self.alarm.disarm();
+        let _ = self.alarm.disarm();
     }
 
     // Binds to passed port. If already bound to a port,
@@ -182,7 +182,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
     fn alarm(&self) {
         if self.send_loop.get() {
-            self.send(self.id);
+            let _ = self.send(self.id);
         }
     }
 }

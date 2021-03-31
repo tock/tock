@@ -220,7 +220,7 @@ impl<'a> Driver for RngDriver<'a> {
                     // result arrives anyways
                     if !self.getting_randomness.get() {
                         self.getting_randomness.set(true);
-                        self.rng.get();
+                        let _ = self.rng.get();
                     }
 
                     CommandReturn::success()
@@ -492,7 +492,7 @@ impl<'a> SynchronousRandom<'a> {
 impl<'a> Random<'a> for SynchronousRandom<'a> {
     fn initialize(&'a self) {
         self.rgen.set_client(self);
-        self.rgen.get();
+        let _ = self.rgen.get();
     }
 
     fn reseed(&self, seed: u32) {

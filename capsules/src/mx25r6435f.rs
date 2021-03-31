@@ -377,7 +377,7 @@ impl<
                                 page_index: page_index + 1,
                             });
                             self.client_sector.replace(sector);
-                            self.spi.read_write_bytes(
+                            let _ = self.spi.read_write_bytes(
                                 write_buffer,
                                 Some(read_buffer),
                                 (PAGE_SIZE + 4) as usize,
@@ -396,7 +396,7 @@ impl<
                 write_buffer[2] = ((sector_index * SECTOR_SIZE) >> 8) as u8;
                 write_buffer[3] = ((sector_index * SECTOR_SIZE) >> 0) as u8;
 
-                self.spi.read_write_bytes(write_buffer, None, 4);
+                let _ = self.spi.read_write_bytes(write_buffer, None, 4);
             }
             State::EraseSectorErase { operation } => {
                 self.state.set(State::EraseSectorCheckDone { operation });
@@ -413,7 +413,8 @@ impl<
                     // Check the status byte to see if the erase is done or not.
                     if status & 0x01 == 0x01 {
                         // Erase is still in progress.
-                        self.spi
+                        let _ = self
+                            .spi
                             .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Erase has finished, so jump to the next state.
@@ -460,7 +461,7 @@ impl<
                     });
                     // Need to write enable before each PP
                     write_buffer[0] = Opcodes::WREN as u8;
-                    self.spi.read_write_bytes(write_buffer, None, 1);
+                    let _ = self.spi.read_write_bytes(write_buffer, None, 1);
                 }
             }
             State::WriteSectorWrite {
@@ -484,7 +485,8 @@ impl<
                     }
                 });
 
-                self.spi
+                let _ = self
+                    .spi
                     .read_write_bytes(write_buffer, None, (PAGE_SIZE + 4) as usize);
             }
             State::WriteSectorCheckDone {
@@ -511,7 +513,8 @@ impl<
                     // Check the status byte to see if the write is done or not.
                     if status & 0x01 == 0x01 {
                         // Write is still in progress.
-                        self.spi
+                        let _ = self
+                            .spi
                             .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Write has finished, so go back to writing.
@@ -542,7 +545,8 @@ impl<
         self.txbuffer.take().map(|write_buffer| {
             self.rxbuffer.take().map(move |read_buffer| {
                 write_buffer[0] = Opcodes::RDSR as u8;
-                self.spi
+                let _ = self
+                    .spi
                     .read_write_bytes(write_buffer, Some(read_buffer), 2);
             });
         });

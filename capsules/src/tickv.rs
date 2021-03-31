@@ -107,7 +107,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<512> for TickFSFlast
     }
 
     fn erase_region(&self, region_number: usize) -> Result<(), tickv::error_codes::ErrorCode> {
-        self.flash.erase_page(self.region_offset + region_number);
+        let _ = self.flash.erase_page(self.region_offset + region_number);
 
         Err(tickv::error_codes::ErrorCode::EraseNotReady(region_number))
     }

@@ -173,7 +173,7 @@ pub unsafe fn main() {
 
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
-    peripherals.stimer.start();
+    let _ = peripherals.stimer.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );

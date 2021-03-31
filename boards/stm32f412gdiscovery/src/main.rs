@@ -642,7 +642,7 @@ pub unsafe fn main() {
         ),
     );
 
-    tft.init();
+    let _ = tft.init();
 
     let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
         .finalize(components::screen_buffer_size!(57600));

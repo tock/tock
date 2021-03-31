@@ -106,7 +106,7 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
                 // If there are not more enabled timers, disable the
                 // underlying alarm.
                 if self.mux.enabled.get() == 0 {
-                    self.mux.alarm.disarm();
+                    let _ = self.mux.alarm.disarm();
                 }
                 Ok(())
             }
@@ -255,7 +255,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxTimer<'a, A> {
             self.alarm
                 .set_alarm(now, valrm.when.get().wrapping_sub(now));
         } else {
-            self.alarm.disarm();
+            let _ = self.alarm.disarm();
         }
     }
 }

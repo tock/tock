@@ -708,7 +708,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     // Something wrong here?
                     self.state.set(InternalState::TX_WRITING_FRAME);
                     let wbuf = self.tx_buf.take().unwrap();
-                    self.frame_write(wbuf, self.tx_len.get());
+                    let _ = self.frame_write(wbuf, self.tx_len.get());
                 }
             }
             InternalState::TX_WRITING_FRAME => {} // Should never get here
@@ -802,7 +802,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                         c.send_done(buf.unwrap(), ack, return_code);
                     });
                 } else {
-                    self.register_read(RF233Register::TRX_STATUS);
+                    let _ = self.register_read(RF233Register::TRX_STATUS);
                 }
             }
 
@@ -838,7 +838,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // A frame read of frame_length 0 results in the received SPI
                 // buffer only containing two bytes, the chip status and the
                 // frame length.
-                self.frame_read(self.rx_buf.take().unwrap(), 0);
+                let _ = self.frame_read(self.rx_buf.take().unwrap(), 0);
             }
 
             InternalState::RX_READING_FRAME_LEN => {} // Should not get this
@@ -855,7 +855,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 {
                     self.state.set(InternalState::RX_READING_FRAME);
                     let rbuf = self.rx_buf.take().unwrap();
-                    self.frame_read(rbuf, frame_len);
+                    let _ = self.frame_read(rbuf, frame_len);
                 } else if self.transmitting.get() {
                     // Packet was too long and a transmission is pending,
                     // start the transmission
@@ -1090,7 +1090,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
                 );
             } else {
                 self.interrupt_handling.set(true);
-                self.register_read(RF233Register::IRQ_STATUS);
+                let _ = self.register_read(RF233Register::IRQ_STATUS);
             }
         } else {
             self.interrupt_pending.set(true);
@@ -1105,7 +1105,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let rbuf = self.spi_rx.take().unwrap();
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_WRITE as u8;
         wbuf[1] = val;
-        self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
+        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
         Ok(())
@@ -1120,7 +1120,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let rbuf = self.spi_rx.take().unwrap();
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_READ as u8;
         wbuf[1] = 0;
-        self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
+        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
         Ok(())
@@ -1133,7 +1133,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         buf[0] = RF233BusCommand::FRAME_WRITE as u8;
-        self.spi.read_write_bytes(buf, self.spi_buf.take(), buf_len);
+        let _ = self.spi.read_write_bytes(buf, self.spi_buf.take(), buf_len);
         self.spi_busy.set(true);
         Ok(())
     }
@@ -1146,19 +1146,19 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         let wbuf = self.spi_buf.take().unwrap();
         wbuf[0] = RF233BusCommand::FRAME_READ as u8;
-        self.spi.read_write_bytes(wbuf, Some(buf), buf_len);
+        let _ = self.spi.read_write_bytes(wbuf, Some(buf), buf_len);
         self.spi_busy.set(true);
         Ok(())
     }
 
     fn state_transition_write(&self, reg: RF233Register, val: u8, state: InternalState) {
         self.state.set(state);
-        self.register_write(reg, val);
+        let _ = self.register_write(reg, val);
     }
 
     fn state_transition_read(&self, reg: RF233Register, state: InternalState) {
         self.state.set(state);
-        self.register_read(reg);
+        let _ = self.register_read(reg);
     }
 }
 
@@ -1209,7 +1209,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
         } else {
             // Delay wakeup until the radio turns all the way off
             self.wake_pending.set(true);
-            self.register_read(RF233Register::PART_NUM);
+            let _ = self.register_read(RF233Register::PART_NUM);
         }
 
         Ok(())

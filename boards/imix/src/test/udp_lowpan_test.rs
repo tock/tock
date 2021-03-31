@@ -440,8 +440,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         self.mock_udp2.set_dst(15001);
         // Send from 2 different capsules in quick succession - second send should execute once
         // first completes!
-        self.mock_udp1.send(22);
-        self.mock_udp2.send(23);
+        let _ = self.mock_udp1.send(22);
+        let _ = self.mock_udp2.send(23);
 
         debug!("send_test executed, look at printed results once callbacks arrive");
     }
@@ -449,7 +449,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     fn capsule_app_send_test(&self) {
         self.mock_udp1.bind(16124);
         self.mock_udp1.set_dst(15000);
-        self.mock_udp1.send(22);
+        let _ = self.mock_udp1.send(22);
 
         debug!("app/kernel send_test executed, look at printed results once callbacks arrive");
     }

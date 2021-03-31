@@ -143,7 +143,7 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                 .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.status.set(BusStatus::SetAddress);
                     buffer[0] = addr as u8;
-                    self.spi.read_write_bytes(buffer, None, 1);
+                    let _ = self.spi.read_write_bytes(buffer, None, 1);
                     Ok(())
                 }),
 
@@ -162,7 +162,7 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
         self.bus_width.set(bytes);
         if buffer.len() >= len * bytes {
             self.status.set(BusStatus::Write);
-            self.spi.read_write_bytes(buffer, None, len * bytes);
+            let _ = self.spi.read_write_bytes(buffer, None, len * bytes);
             Ok(())
         } else {
             Err(ErrorCode::NOMEM)
@@ -186,7 +186,8 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                     && buffer.len() > len * bytes
                 {
                     self.status.set(BusStatus::Read);
-                    self.spi
+                    let _ = self
+                        .spi
                         .read_write_bytes(write_buffer, Some(buffer), len * bytes);
                     Ok(())
                 } else {

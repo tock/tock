@@ -646,7 +646,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                         };
                         app.rx_callback.schedule(len, 0, 0);
                         let cfg_len = 2 * size_of::<UDPEndpoint>();
-                        app.app_rx_cfg.mut_map_or(Err(ErrorCode::INVAL), |cfg| {
+                        let _ = app.app_rx_cfg.mut_map_or(Err(ErrorCode::INVAL), |cfg| {
                             if cfg.len() != cfg_len {
                                 return Err(ErrorCode::INVAL);
                             }

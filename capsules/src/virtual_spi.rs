@@ -62,7 +62,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         self.inflight.set(node);
                         node.txbuffer.take().map(|txbuffer| {
                             let rxbuffer = node.rxbuffer.take();
-                            self.spi.read_write_bytes(txbuffer, rxbuffer, len);
+                            let _ = self.spi.read_write_bytes(txbuffer, rxbuffer, len);
                         });
                     }
                     Op::SetPolarity(pol) => {
