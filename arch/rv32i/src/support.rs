@@ -23,16 +23,24 @@ pub unsafe fn atomic<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let original_mstatus = CSR.mstatus.extract();
-    if original_mstatus.is_set(mstatus::mie) {
-        CSR.mstatus
-            .modify_no_read(original_mstatus, mstatus::mie::CLEAR);
-    }
+    // Read the mstatus MIE field and disable machine mode interrupts
+    // atomically
+    //
+    // The result will be the original value of [`mstatus::mie`],
+    // shifted to the proper position in [`mstatus`].
+    let original_mie: usize = CSR
+        .mstatus
+        .read_and_clear_bits(mstatus::mie.mask << mstatus::mie.shift)
+        & mstatus::mie.mask << mstatus::mie.shift;
+
+    // Machine mode interrupts are disabled, execute the atomic
+    // (uninterruptible) function
     let res = f();
-    if original_mstatus.is_set(mstatus::mie) {
-        CSR.mstatus
-            .modify_no_read(original_mstatus, mstatus::mie::SET);
-    }
+
+    // If [`mstatus::mie`] was set before, set it again. Otherwise,
+    // this function will be a nop.
+    CSR.mstatus.read_and_set_bits(original_mie);
+
     res
 }
 
