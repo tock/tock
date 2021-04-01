@@ -690,13 +690,11 @@ If an exit syscall is successful, it does not return. Therefore, the return
 value of an exit syscall is always `Failure`. `exit-restart` and 
 `exit-terminate` MUST always succeed and so never return. 
 
-5 Userspace Library Methods
+5 libtock-c Userspace Library Methods
 =================================
 
-This section describes the method signatures for system calls and upcalls in C and Rust.
-
-5.1 libtock-c
----------------------------------
+This section describes the method signatures for system calls and upcalls in C, as an example
+of how they appear to application/userspace code..
 
 Because C allows a single return value but Tock system calls can return multiple values,
 they do not easily map to idiomatic C. These low-level APIs are translated into standard C
@@ -709,7 +707,7 @@ registers and invokes the system call, and on return copies the returned data in
 on the stack.
 
 
-5.1.1 Yield
+5.1 Yield
 ---------------------------------
 
 The Yield system calls have these function prototypes:
@@ -721,7 +719,7 @@ void yield(void);
 
 `yield_no_wait` returns 1 if an upcall was invoked and 0 if one was not invoked.
 
-5.1.2 Subscribe
+5.2 Subscribe
 ---------------------------------
 
 The subscribe system call has this function prototype:
@@ -744,8 +742,8 @@ The `success` field indicates whether the call to subscribe succeeded.
 If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined.
 
-5.1.3 Command
----------------------------------
+5.3 Command
+-----------------------------------
 
 The subscribe system call has this function prototype:
 
@@ -763,7 +761,7 @@ mapping of the return registers. `rtype` contains the value of `r0`, while
 `data[0]` contains what was passed in `r1`, `data[1]` contains was passed in `r2`,
 and `data[2]` contains what was passed in `r3`.
 
-5.1.4 Read-Write Allow
+5.4 Read-Write Allow
 ---------------------------------
 
 The read-write allow system call has this function prototype:
@@ -785,7 +783,7 @@ the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
 
-5.1.5 Read-Only Allow
+5.5 Read-Only Allow
 ---------------------------------
 
 The read-only allow system call has this function prototype:
@@ -806,7 +804,7 @@ If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
-5.1.6 Memop
+5.6 Memop
 ---------------------------------
 
 Because the Memop system calls are defined by the kernel and not extensible, they are
@@ -829,7 +827,7 @@ They wrap around an underlying function which uses inline assembly:
 void* memop(uint32_t op_type, int arg1);
 ```
 
-5.1.7 Exit
+5.7 Exit
 ---------------------------------
 
 The Exit system calls have these function prototypes:
@@ -841,11 +839,6 @@ void tock_restart(uint32_t completion_code);
 
 Since these two variants of Exit never return, they have
 no return value.
-
-
-5.2 libtock-rs
----------------------------------
-
 
 
 6 Authors' Address
