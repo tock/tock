@@ -1,6 +1,5 @@
 use core::fmt::Write;
 use kernel::{self, static_init};
-use std::vec::Vec;
 use std::{thread, time};
 
 use crate::syscall::SysCall;
@@ -19,7 +18,7 @@ pub trait Callback {
 pub struct HostChip {
     systick: SysTick,
     syscall: SysCall,
-    service_interrupts_callbacks: Vec<&'static dyn Callback>,
+    service_interrupts_callback: Option<&'static dyn Callback>,
 }
 
 impl HostChip {
@@ -43,7 +42,7 @@ impl HostChip {
         HostChip {
             systick: SysTick::new(),
             syscall: syscall,
-            service_interrupts_callbacks: Vec::new(),
+            service_interrupts_callback: None,
         }
     }
 
@@ -57,8 +56,8 @@ impl HostChip {
         cmd_info.apps()[0].bin_path()
     }
 
-    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
-        self.service_interrupts_callbacks.push(callback);
+    pub fn set_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
+        self.service_interrupts_callback = Some(callback);
     }
 }
 
@@ -80,7 +79,7 @@ impl kernel::Chip for HostChip {
     }
 
     fn service_pending_interrupts(&self) {
-        for callback in &self.service_interrupts_callbacks {
+        if let Some(callback) = &self.service_interrupts_callback {
             callback.execute();
         }
         unsafe {
