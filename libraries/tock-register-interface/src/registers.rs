@@ -518,7 +518,6 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
 /// Specific section of a register.
 ///
 /// For the Field, the mask is unshifted, ie. the LSB should always be set.
-#[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
     pub mask: T,
     pub shift: usize,
@@ -551,6 +550,33 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
         E::try_from(self.read(val))
     }
 }
+
+// #[derive(Copy, Clone)] won't work here because it will use
+// incorrect bounds, as a result of using a PhantomData over the
+// generic R. The PhantomData<R> implements Copy regardless of whether
+// R does, but the #[derive(Copy, Clone)] generates
+//
+//    #[automatically_derived]
+//    #[allow(unused_qualifications)]
+//    impl<T: ::core::marker::Copy + IntLike,
+//         R: ::core::marker::Copy + RegisterLongName>
+//            ::core::marker::Copy for Field<T, R> {}
+//
+// , so Field will only implement Copy if R: Copy.
+//
+// Manually implementing Clone and Copy works around this issue.
+//
+// Relevant Rust issue: https://github.com/rust-lang/rust/issues/26925
+impl<T: IntLike, R: RegisterLongName> Clone for Field<T, R> {
+    fn clone(&self) -> Self {
+        Field {
+            mask: self.mask,
+            shift: self.shift,
+            associated_register: self.associated_register,
+        }
+    }
+}
+impl<T: IntLike, R: RegisterLongName> Copy for Field<T, R> {}
 
 macro_rules! Field_impl_for {
     ($type:ty) => {
