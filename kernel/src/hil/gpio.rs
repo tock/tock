@@ -12,7 +12,7 @@ pub enum FloatingState {
 }
 
 /// Enum for selecting which edge to trigger interrupts on.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum InterruptEdge {
     RisingEdge,
     FallingEdge,
@@ -23,7 +23,7 @@ pub enum InterruptEdge {
 /// so this is a valid option. `Function` means the pin has been configured to
 /// a special function. Determining which function it outside the scope of the HIL,
 /// and should instead use a chip-specific API.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum Configuration {
     /// Cannot be read or written or used; effectively inactive.
     LowPower,
