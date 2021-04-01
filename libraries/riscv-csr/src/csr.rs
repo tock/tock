@@ -327,4 +327,28 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
             bitmask
         )
     }
+
+    /// Atomically read field and set all bits to 1
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_set_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_set_bits(field.mask << field.shift))
+    }
+
+    /// Atomically read field and set all bits to 0
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_clear_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_clear_bits(field.mask << field.shift))
+    }
 }
