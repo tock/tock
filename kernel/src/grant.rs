@@ -1,4 +1,111 @@
-//! Data structure to store a list of userspace applications.
+//! Support for processes granting memory from their allocations to the kernel.
+//!
+//!
+//!
+//! ## Grant Overview
+//!
+//! Grants allow capsules to dynamically allocate memory from a process to hold
+//! state on the process's behalf.
+//!
+//! Each capsule that wishes to do this needs to have a `Grant` type. `Grant`s
+//! are created at boot, and each have a unique ID and a type `T`. This type
+//! only allows the capsule to allocate memory from a process in the future. It
+//! does not initially represent any allocated memory.
+//!
+//! When a capsule does wish to use its `Grant` to allocate memory from a
+//! process, it must "enter" the `Grant` with a specific `ProcessId`. Entering a
+//! `Grant` for a specific process instructs the core kernel to create an object
+//! `T` in the process's memory space and provide the capsule with access to it.
+//! If the `Grant` has not previously been entered for that process, the memory
+//! for object `T` will be allocated from the "grant region" within the
+//! kernel-accessible portion of the process's memory.
+//!
+//! If a `Grant` has never been entered for a process, the object `T` will _not_
+//! be allocated in that process's grant region, even if the `Grant` has been
+//! entered for other processes.
+//!
+//! The type `T` of a `Grant` is fixed in size. That is, when a `Grant` is
+//! entered for a process the resulting allocated object will be the size of
+//! `SizeOf<T>`. If capsules need additional process-specific memory for their
+//! operation, they can use an `Allocator` to request additional memory from
+//! the process's grant region.
+//!
+//! ```
+//!                            ┌──────────────────┐
+//!                            │                  │
+//!                            │ Capsule          │
+//!                            │                  │
+//!                            └─┬────────────────┘
+//!                              │ Capsules hold
+//!                              │ references to
+//!                              │ grants.
+//!                              ▼
+//!                            ┌──────────────────┐
+//!                            │ Grant            │
+//!                            │                  │
+//!  Process Memory            │ Type: T          │
+//! ┌────────────────────────┐ │ Number: 1        │
+//! │  ...                   │ └───┬─────────────┬┘
+//! ├────────────────────────┤     │Each Grant   │
+//! │ Grant       ptr 0      │     │has a pointer│
+//! │ Pointers    ptr 1 ───┐ │ ◄───┘per process. │
+//! │             ...      │ │                   │
+//! │             ptr N    │ │                   │
+//! ├──────────────────────┼─┤                   │
+//! │  ...                 │ │                   │
+//! ├──────────────────────┼─┤                   │
+//! │ Grant Region         │ │     When a Grant  │
+//! │                      │ │     is allocated  │
+//! │ ┌─────────────────┐  │ │     for a process │
+//! │ │ Allocated Grant │  │ │ ◄─────────────────┘
+//! │ │                 │  │ │     it uses memory
+//! │ │  [ SizeOf<T> ]  │  │ │     from the grant
+//! │ │                 │  │ │     region.
+//! │ └─────────────────┘◄─┘ │
+//! │                        │
+//! │ ┌─────────────────┐    │
+//! │ │ Custom Grant    │    │ ◄── Capsules can
+//! │ │                 │    │     allocate extra
+//! │ └─────────────────┘    │     memory if needed.
+//! │                        │
+//! ├─kernel_brk─────────────┤
+//! │                        │
+//! │ ...                    │
+//! └────────────────────────┘
+//! ```
+//!
+//! ## Grant Mechanisms and Types
+//!
+//! Here is an overview of the types used by grant.rs to implement the Grant
+//! functionality in Tock:
+//!
+//! ```
+//!                         ┌──────────────────────────┐
+//!                         │ struct Grant<T> {        │
+//!                         │   number: usize          │
+//!                         │ }                        ├─┐
+//! Entering a Grant for a  └──┬───────────────────────┘ │
+//! process causes the         │                         │
+//! memory for T to be         │ .enter(ProcessId)       │ .enter(ProcessId, fn)
+//! allocated.                 ▼                         │
+//!                         ┌──────────────────────────┐ │ For convenience,
+//! ProcessGrant represents │ struct ProcessGrant<T> { │ │ allocating and getting
+//! a Grant allocated for a │   number: usize          │ │ access to the T object
+//! specific process.       │   process: &Process      │ │ is combined in one
+//!                         │ }                        │ │ .enter() call.
+//! A provided closure      └──┬───────────────────────┘ │
+//! is given access to         │                         │
+//! the underlying memory      │ .enter(fn)              │
+//! where the T is stored.     ▼                         │
+//!                         ┌──────────────────────────┐ │
+//! Borrowed wraps the type │ struct Borrowed<T> {     │◄┘
+//! and provides mutable    │   data: &mut T           │
+//! access.                 │ }                        │
+//!                         └──┬───────────────────────┘
+//! The actual object T can    │
+//! only be accessed inside    │ fn(mem: &Borrowed)
+//! the closure.               ▼
+//! ```
 
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
