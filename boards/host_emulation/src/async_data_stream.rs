@@ -52,7 +52,7 @@ impl AsyncDataStream {
         );
         //spawn worker for stdin
         if use_stdio {
-            Self::spawn_receive_worker(rx_stream, rx_sender, stop_worker);
+            Self::spawn_receive_worker(rx_stream, tx_stream.clone(), rx_sender, stop_worker);
         }
 
         AsyncDataStream {
@@ -86,6 +86,7 @@ impl AsyncDataStream {
                 stop_last_worker = Arc::new(AtomicBool::new(false));
                 Self::spawn_receive_worker(
                     rx_stream.clone(),
+                    tx_stream.clone(),
                     sender.clone(),
                     stop_last_worker.clone(),
                 );
@@ -96,47 +97,58 @@ impl AsyncDataStream {
     // Receiver worker passes bytes from the Read object in rx_stream to the sender.
     // It is needed to achieve non-blocking read in try_recv,
     // which Sender provides and Read does not.
-    fn spawn_receive_worker(rx_stream: Arc<ReadMutex>, sender: Sender<u8>, stop: Arc<AtomicBool>) {
-        thread::spawn(move || loop {
-            let mut stream = (*rx_stream.lock().unwrap()).take();
-            if let Some(stream) = &mut stream {
-                let mut buf: [u8; 1] = [0; 1];
-                let result = stream.read(&mut buf);
-                if stop.load(Ordering::Acquire) {
-                    // Another connection is taking over.
-                    // Note: in unfortunate timing a race can happen and some
-                    // data from current stream will be lost/skipped.
-                    break;
-                }
-                match result {
-                    Ok(1) => {
-                        sender
-                            .send(buf[0])
-                            .expect("Error sending a byte to channel");
-                    }
-                    Ok(0) => {
-                        break; // EOF, exit the thread
-                    }
-                    Ok(_) => assert!(false),
-                    Err(err) => {
-                        println!("Read error, exiting thread: {}", err);
+    // At EOF or stop signal, tx stream associated with the same connection is cleared
+    // so that it's not used in any further write operations.
+    fn spawn_receive_worker(
+        rx_stream: Arc<ReadMutex>,
+        tx_stream: Arc<WriteMutex>,
+        sender: Sender<u8>,
+        stop: Arc<AtomicBool>,
+    ) {
+        thread::spawn(move || {
+            loop {
+                let mut stream = (*rx_stream.lock().unwrap()).take();
+                if let Some(stream) = &mut stream {
+                    let mut buf: [u8; 1] = [0; 1];
+                    let result = stream.read(&mut buf);
+                    if stop.load(Ordering::Acquire) {
+                        // Another connection is taking over, exit the thread.
+                        // Note: in unfortunate timing a race can happen and some
+                        // data from current stream will be lost/skipped.
                         break;
                     }
+                    match result {
+                        Ok(1) => {
+                            sender
+                                .send(buf[0])
+                                .expect("Error sending a byte to channel");
+                        }
+                        Ok(0) => {
+                            break; // EOF, exit the thread
+                        }
+                        Ok(_) => assert!(false),
+                        Err(err) => {
+                            println!("Read error, exiting thread: {}", err);
+                            break;
+                        }
+                    }
+                }
+                // Yield to let the client_listener thread set a new rx stream if it needs so
+                // and then exit this receiver thread (a new receiver thread will take over).
+                // Otherwise set the current stream back and continue receiving.
+                // The functional consequence is that any new connection invalidates the current one
+                // also in the middle of an ongoing transfer.
+                // i.e. only one simultanous connection is supported.
+                thread::yield_now();
+                let stream_new = &mut *rx_stream.lock().unwrap();
+                if stream_new.is_none() {
+                    *stream_new = stream;
+                } else {
+                    break;
                 }
             }
-            // Yield to let the client_listener thread set a new rx stream if it needs so
-            // and then exit this receiver thread (a new receiver thread will take over).
-            // Otherwise set the current stream back and continue receiving.
-            // The functional consequence is that any new connection invalidates the current one
-            // also in the middle of an ongoing transfer.
-            // i.e. only one simultanous connection is supported.
-            thread::yield_now();
-            let stream_new = &mut *rx_stream.lock().unwrap();
-            if stream_new.is_none() {
-                *stream_new = stream;
-            } else {
-                break;
-            }
+            // Clear associated tx stream
+            *tx_stream.lock().unwrap() = None;
         });
     }
 
