@@ -520,7 +520,7 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
 /// For the Field, the mask is unshifted, ie. the LSB should always be set.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
-    mask: T,
+    pub mask: T,
     pub shift: usize,
     associated_register: PhantomData<R>,
 }
