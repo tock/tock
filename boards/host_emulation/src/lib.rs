@@ -32,9 +32,8 @@ impl std::fmt::Display for EmulationError {
     }
 }
 
-pub static mut UART0: uart::UartIO = uart::UartIO::create("0");
+pub static mut UART0: uart::UartIO = uart::UartIO::create();
 
-pub mod async_data_stream;
 pub mod chip;
 pub mod emulation_config;
 pub mod ipc_syscalls;
