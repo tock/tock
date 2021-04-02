@@ -217,7 +217,11 @@ from the caller's standpoint the callback can preempt execution.
 
 Issuing an asynchronous callback requires that the module be invoked again
 later: it needs to return now, and then after that call stack is popped,
-invoke the callback. The standard mechanism to achieve this in Tock is through
+invoke the callback. For callbacks that will be triggered by interrupts,
+this occurs naturally. However, if, such as in the random number generation
+example, the callback is purely from software, the module needs a way to
+make itself be invoked later, but as quickly as possible. The standard mechanism to 
+achieve this in Tock is through
 deferred procedure calls. This mechanism allows a module to tell the Tock
 scheduler to call again later, from the main scheduling loop. For example,
 a caching implementation of `Random` might look like this:
@@ -327,24 +331,267 @@ both makes Tock more in line with standard Rust code and enforces the invariant.
 Rule 4: Always Pass a Mutable Reference to Buffers
 ===============================
 
-Suppose you are desiging a trait to write some text to an LCD screen.
+Suppose you are desiging a trait to write some text to an LCD screen. The trait
+takes a buffer of ASCII characters, which it puts on the LCD:
 
+```rust
+trait LcdTextDisplay {
+  fn display_text(&self, text: &'static [u8]) -> Result<(), ErrorCode>;
+  fn set_client(&self, client: &'static Client);
+}
 
+trait Client {
+  fn text_displayed(&self, text: &'static [u8], result: Result<(), ErrorCode>);
+}
+```
 
-Rule 5: Include an `Option<ErrorCode>` in Completion Callbacks
+Because the text display only needs to read the provided text, the reference
+to the buffer is not mutable.
+
+This is a mistake.
+
+The issue that arises is that because the caller passes the reference to the 
+LCD screen, it loses access to it. Suppose that the caller has a mutable
+reference to a buffer, which it uses to read in data typed from a user before
+displaying it on the screen. Or, more generally, it has a mutable reference 
+so it can create new text to display to the screen.
+
+```rust
+enum State {
+  Idle,
+  Reading,
+  Writing
+}
+
+struct TypeToText {
+  buffer: Option<&'static mut [u8]>
+  uart: &'static dyn uart::Receive<'static>;
+  lcd: &'static dyn LcdTextDisplay;
+  state: Cell<State>;
+}
+
+impl TypeToText {
+  fn display_more(&self) -> Result<(), ErrorCode>{
+    if self.state.get() != State::Idle || self.buffer.is_none() {
+      return Err(ErrorCode::BUSY);
+    }
+    let buffer = self.buffer.take();
+    let uresult = uart.receive_buffer(buffer, buffer.len());
+    match uresult {
+      Ok(()) => {
+        self.state.set(State::Reading);
+        return Ok(());
+      }
+      Err(e) => return Err(e);
+    }
+  }
+}
+
+impl uart::ReceiveClient<'static> for TypeToText {
+  fn received_buffer(&self, buf: &'static mut [u8]) {
+    self.lcd.display_text(buf); // discards mut
+  }
+}
+```
+
+The problem is in this last line. `TypeToText` needs a mutable
+reference so it can read into it. But once it passes the reference
+to `LcdTextDisplay`, it discards mutability and cannot get it back:
+`text_displayed` provdes an immutable reference, which then cannot
+be put back into the `buffer` field of `TypeToText`.
+
+For this reason, split phase operations that take references should
+generally take mutable references, even if they only need read-only
+access. Because the reference will not be returned back until the
+callback, the caller cannot rely on the call stack and scoping to
+retain mutability.
+
+Rule 5: Include an `Result<(), ErrorCode>` in Completion Callbacks
 ===============================
+
+Any error that can occur synchronously can usually occur asynchronously too.
+Therefore, callbacks need to indicate that an error occured and pass that
+back to the caller.
+
+The common case for this is virtualization, where a capsule turns one instance
+of a trait into a set of instances that can be used by many clients, each with
+their own callback. A typical virtualizer queues requests. When a request comes
+in, if the underlying resource is idle, the virtualizer forwards the request and
+marks itself busy. If the request on the underlying resource returns an error,
+the virtualizer returns this error to the client immediately and marks itself idle
+again.
+
+If the underlying resource is busy, then the virtalizer returns an `Ok` to the caller
+and queues the request. Later, when the request is dequeued, the virtualizer
+invokes the underlying resource. If this operation returns an error, then the virtualizer
+issues a callback to the client, passing the error. Because vitualizers queue and
+delay operations, they also delay errors. If a HIL does not pass a `Result` in its
+callback, then there is no way for the virtualizer inform the client that the operation
+failed.
+
+Note that abstractions which can be virtualized concurrently may not need to pass
+a `Result` in their callback. `Alarm`, for example, can be virtualized into many
+alarms. These alarms, however, are not queued in a way that implies future failure.
+A call to `Alarm::set_alarm` cannot fail, so there is no need to return a `Result`
+in the callback.
 
 Rule 6: Always Return the Passed Buffer in a Completion Callback
 ===============================
 
-Rule 7: Separate Control and Datapath Operations into Separate Traits
+If a client passes a buffer to a module for an operation, it needs to be
+able to reclaim it when the operation completes. Rust ownership (and the fact that
+passed references must be mutable, see Rule 4 above) means that the caller must
+pass the reference to the HIL implementation. The HIL needs to pass it back. 
+
+Rule 7: Use Fine-grained Traits That Separate Different Use Cases
 ===============================
 
-Rule 8: Use Fine-grained Traits That Separate Different Use Cases
+Access to a trait gives access to functionality. If several pieces of
+functionality are coupled into a single trait, then a client that needs
+access to only some of them gets all of them. HILs should therefore
+decompose their abstractions into fine-grained traits that separate
+different use cases. For clients that need multiple pieces of functionality,
+the HIL can also define composite traits, such that a single reference can
+provide multiple traits.
+
+Consider, for example, an early version of the `Alarm` trait:
+
+```rust
+pub trait Alarm: Time {
+    fn now(&self) -> u32;
+    fn set_alarm(&self, tics: u32);
+    fn get_alarm(&self) -> u32;
+}
+```
+
+This trait coupled two operations: setting an alarm for a callback and
+being able to get the current time. A module that only needs to be able
+to get the current time (e.g., for a timestamp) must also be able to
+set an alarm, which implies RAM/state allocation somewhere. 
+
+The modern versions of the traits look like this:
+
+```rust
+pub trait Time {
+    type Frequency: Frequency; // The number of ticks per second
+    type Ticks: Ticks; // The width of a time value
+    fn now(&self) -> Self::Ticks;
+}
+
+pub trait Alarm<'a>: Time {
+    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
+    fn get_alarm(&self) -> Self::Ticks;
+
+    fn disarm(&self) -> ReturnCode;
+    fn is_armed(&self) -> bool;
+    fn minimum_dt(&self) -> Self::Ticks;
+}
+```
+
+They decouple getting a timestamp (the `Time` trait) from an alarm
+that issues callbacks at a particular timestamp (the `Alarm` trait).
+
+Separating a HIL into fine-grained traits allows Tock to follow 
+the security principle of least privilege. In the case of GPIO, for
+example, being able to read a pin does not mean a client should be
+able to reconfigure or write it. Similarly, for a UART, being able
+to transmit data does not mean that a client should always also be
+able to read data, or reconfigure the UART parameters.
+
+Rule 8: Separate Control and Datapath Operations into Separate Traits
 ===============================
+
+This rule is a direct corollary for Rule 7, but has some specific
+considerations that make it a rather hard and fast rule. Rule 7
+(separate HILs into fine-grained traits) has a lot of flexibility 
+in design sensibility in terms of what operations *can* be coupled
+together. This rule, however, is more precise and strict.
+
+Many abstractions combine data operations and control operations.
+For example, a SPI bus has data operations for sending and receiving
+data, but it also has control operations for setting its speed,
+polarity, and chip select. An ADC has data operations for sampling a
+pin, but also has control operations for setting the bit width of
+a sample, the reference voltage, and the sampling clock used. Finally,
+a radio has data operations to send and receive packets, but also
+control operations for setting transmit power, frequencies, and
+local addresses.
+
+HILs should separate these operations: control and data operations
+should (almost) never be in the same trait. The major reason is
+security: allowing a capsule to send packets should not also allow
+it to set the local node address. The second major reason is virtualization.
+For example, a UART virtualizer that allows multiple concurrent readers
+cannot allow them to change the speed or UART configuration, as it is
+shared among all of them. A capsule that can read a GPIO pin should
+not always be able to reconfigure the pin (what if other capsules need
+to be able to read it too?).
+
+For example, returning to the UART example, this is an early version
+of the UART trait (v1.3):
+
+```rust
+pub trait UART {
+    fn set_client(&self, client: &'static Client);
+    fn configure(&self, params: UARTParameters) -> ReturnCode;
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+    fn abort_receive(&self);
+}
+```
+
+It breaks both Rule 7 and Rule 8. It couples reception and transmission (Rule 7).
+It also couples configuration with data (Rule 8). This HIL was fine when there
+was only a single user of the UART. However, once the UART was virtualized,
+`configure` could not work for virtualized clients. There were two options:
+have `configure` always return an error for virtual clients, or write a new
+trait for virtual clients that did not have `configure`. Neither is a good 
+solution. The first pushes failures to runtime: a capsule that needs to adjust
+the configuration of the UART can be connected to a virtual UART and compile
+fine, but then fails when it tries to call `configure`. If that occurs
+rarely, then it might be a long time until the problem is discovered. The second
+solution (a new trait) breaks the idea of virtualization: a client has to be 
+bound to either a physical UART or a virtual one, and can't be swapped between
+them even if it never calls `configure`.
+
+The modern UART HIL looks like this:
+
+```rust
+pub trait Configure {
+    fn configure(&self, params: Parameters) -> ReturnCode;
+}
+pub trait Transmit<'a> {
+    fn set_transmit_client(&self, client: &'a dyn TransmitClient);
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn transmit_word(&self, word: u32) -> ReturnCode;
+    fn transmit_abort(&self) -> ReturnCode;
+}
+pub trait Receive<'a> {
+    fn set_receive_client(&self, client: &'a dyn ReceiveClient);
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn receive_word(&self) -> ReturnCode;
+    fn receive_abort(&self) -> ReturnCode;
+}
+pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
+pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
+```
 
 Rule 9: Avoid Blocking APIs
 ===============================
+
+Don't do it. An asynchronous API can wrap around a synchronous operation
+(e.g., using deferred procedure calls), but a synchronous operation can
+only wrap around an asynchronous one with busy waiting.
+
 
 Author Address
 =================================
