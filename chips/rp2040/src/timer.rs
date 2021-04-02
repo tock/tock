@@ -202,7 +202,7 @@ impl<'a> RPAlarm<'a> {
         }
     }
 
-    pub fn handle_interrupt(&self){
+    pub fn handle_interrupt(&self) {
         self.registers.intr.modify(INTR::ALARM_0::SET);
         self.client.map(|client| client.alarm());
     }
@@ -236,8 +236,8 @@ impl<'a> Alarm<'a> for RPAlarm<'a> {
         self.registers.alarm0.set(expire.into_u32());
         self.enable_timer_interrupt();
         self.enable_interrupt();
-        
-        //panic!("{} now {:?}", self.registers.alarm0.get(), self.now());
+
+        // panic!("{} now {:?}", self.registers.alarm0.get(), self.now());
     }
 
     fn get_alarm(&self) -> Self::Ticks {

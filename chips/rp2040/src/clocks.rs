@@ -1024,11 +1024,16 @@ impl Clocks {
         self.frequencies[clock as usize].get()
     }
 
-    fn set_div(&self, clock: Clock, div: u32) {
+    fn set_divider(&self, clock: Clock, div: u32) {
         match clock {
             Clock::GpioOut0 | Clock::GpioOut1 | Clock::GpioOut2 | Clock::GpioOut3 => {
                 self.registers.clk_gpio[clock as usize].div.set(div)
             }
+            Clock::System => self.registers.clk_sys_div.set(div),
+            Clock::Reference => self.registers.clk_ref_div.set(div),
+            Clock::Usb => self.registers.clk_usb_div.set(div),
+            Clock::Adc => self.registers.clk_adc_div.set(div),
+            Clock::Rtc => self.registers.clk_rtc_div.set(div),
             // Clock::Reference
             _ => panic!("failed to set div"),
         }
@@ -1041,15 +1046,6 @@ impl Clocks {
         }
     }
 
-    fn set_divider(&self, clock: Clock, div: u32) {
-        match clock {
-            Clock::GpioOut0 | Clock::GpioOut1 | Clock::GpioOut2 | Clock::GpioOut3 => {
-                self.registers.clk_gpio[clock as usize].div.set(div);
-            }
-            _ => panic!("clock {:?} not implemented", clock),
-        }
-    }
-
     fn get_divider(&self, source_freq: u32, freq: u32) -> u32 {
         // pico-sdk: Div register is 24.8 int.frac divider so multiply by 2^8 (left shift by 8)
         (((source_freq as u64) << 8) / freq as u64) as u32
@@ -1057,14 +1053,16 @@ impl Clocks {
 
     #[inline]
     fn loop_3_cycles(&self, clock: Clock) {
-        let delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
-        unsafe {
-            asm! (
-                "1:",
-                "sub r1, #1",
-                "bne 1b",
-                in ("r1") delay_cyc
-            );
+        if self.get_frequency(clock) > 0 {
+            let delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
+            unsafe {
+                asm! (
+                    "1:",
+                    "subs {0}, #1",
+                    "bne 1b",
+                    in (reg) delay_cyc
+                );
+            }
         }
     }
 
@@ -1114,7 +1112,7 @@ impl Clocks {
                 // pico-sdk:
                 // Now that the source is configured, we can trust that the user-supplied
                 // divisor is a safe value.
-                self.set_div(clock, div);
+                self.set_divider(clock, div);
 
                 self.set_frequency(clock, freq);
             }
@@ -1171,13 +1169,14 @@ impl Clocks {
             .registers
             .clk_sys_selected
             .read(CLK_SYS_SELECTED::VALUE)
-            != 0x1
+            & (1 << (source as u32))
+            == 0x0
         {}
 
         // pico-sdk:
         // Now that the source is configured, we can trust that the user-supplied
         // divisor is a safe value.
-        self.set_div(Clock::System, div);
+        self.set_divider(Clock::System, div);
 
         self.set_frequency(Clock::System, freq);
     }
@@ -1231,15 +1230,16 @@ impl Clocks {
             .registers
             .clk_ref_selected
             .read(CLK_REF_SELECTED::VALUE)
-            != 0x1
+            & (1 << (source as u32))
+            == 0x0
         {}
 
         // pico-sdk:
         // Now that the source is configured, we can trust that the user-supplied
         // divisor is a safe value.
-        self.set_div(Clock::System, div);
+        self.set_divider(Clock::Reference, div);
 
-        self.set_frequency(Clock::System, freq);
+        self.set_frequency(Clock::Reference, freq);
     }
 
     pub fn configure_peripheral(
@@ -1310,7 +1310,7 @@ impl Clocks {
         // pico-sdk:
         // Now that the source is configured, we can trust that the user-supplied
         // divisor is a safe value.
-        self.set_div(Clock::Usb, div);
+        self.set_divider(Clock::Usb, div);
 
         self.set_frequency(Clock::Usb, freq);
     }
@@ -1357,7 +1357,7 @@ impl Clocks {
         // pico-sdk:
         // Now that the source is configured, we can trust that the user-supplied
         // divisor is a safe value.
-        self.set_div(Clock::Adc, div);
+        self.set_divider(Clock::Adc, div);
 
         self.set_frequency(Clock::Adc, freq);
     }
@@ -1404,7 +1404,7 @@ impl Clocks {
         // pico-sdk:
         // Now that the source is configured, we can trust that the user-supplied
         // divisor is a safe value.
-        self.set_div(Clock::Rtc, div);
+        self.set_divider(Clock::Rtc, div);
 
         self.set_frequency(Clock::Rtc, freq);
     }

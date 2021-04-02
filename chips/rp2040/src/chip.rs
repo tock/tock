@@ -10,8 +10,9 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::SIO;
 use crate::interrupts;
 use crate::resets::Resets;
-use crate::xosc::Xosc;
 use crate::timer::RPAlarm;
+use crate::watchdog::Watchdog;
+use crate::xosc::Xosc;
 
 #[repr(u8)]
 pub enum Processor {
@@ -121,6 +122,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub clocks: Clocks,
     pub xosc: Xosc,
     pub alarm: RPAlarm<'a>,
+    pub watchdog: Watchdog,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -131,6 +133,7 @@ impl Rp2040DefaultPeripherals<'_> {
             clocks: Clocks::new(),
             xosc: Xosc::new(),
             alarm: RPAlarm::new(),
+            watchdog: Watchdog::new(),
         }
     }
 }
