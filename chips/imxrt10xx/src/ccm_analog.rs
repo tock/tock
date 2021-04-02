@@ -600,9 +600,6 @@ impl CcmAnalog {
     }
 
     /// Returns the PLL1 `DIV_SEL` value
-    ///
-    /// To understand how this affects the PLL1 output frequency,
-    /// see [`pll1_hz`](fn@pll1_hz).
     pub fn pll1_div_sel(&self) -> u32 {
         self.registers.pll_arm.reg.read(PLL_ARM::DIV_SELECT)
     }
