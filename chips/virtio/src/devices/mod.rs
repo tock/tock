@@ -1,5 +1,6 @@
 use kernel::ErrorCode;
 
+pub mod virtio_net;
 pub mod virtio_rng;
 
 /// VirtIO Device Types.
