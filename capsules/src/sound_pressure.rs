@@ -89,7 +89,7 @@ impl<'a> SoundPressureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -109,7 +109,7 @@ impl<'a> SoundPressureSensor<'a> {
     fn enable(&self) {
         let mut enable = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if app.enable {
                     enable = true;
                 }
@@ -126,7 +126,7 @@ impl<'a> SoundPressureSensor<'a> {
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
@@ -151,7 +151,7 @@ impl Driver for SoundPressureSensor<'_> {
             0 => {
                 let res = self
                     .apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -177,7 +177,7 @@ impl Driver for SoundPressureSensor<'_> {
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.enable = true;
                         CommandReturn::success()
                     })
@@ -194,7 +194,7 @@ impl Driver for SoundPressureSensor<'_> {
             3 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.enable = false;
                         CommandReturn::success()
                     })

@@ -112,7 +112,7 @@ impl<'a> ProximitySensor<'a> {
     ) -> CommandReturn {
         // Enqueue command by saving command type, args, appid within app struct in grant region
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
                     return CommandReturn::failure(ErrorCode::BUSY);
@@ -155,7 +155,7 @@ impl<'a> ProximitySensor<'a> {
                 let mut num_commands: u8 = 0;
 
                 for cntr in self.apps.iter() {
-                    cntr.enter(|app, _| {
+                    cntr.enter(|app| {
                         if app.subscribed {
                             num_commands += 1;
                         }
@@ -178,7 +178,7 @@ impl<'a> ProximitySensor<'a> {
         let t: Thresholds = self.find_thresholds();
         // Find and run another command
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     // run it
                     match app.enqueued_command_type {
@@ -215,7 +215,7 @@ impl<'a> ProximitySensor<'a> {
         let mut lowest_upper_proximity: u8 = 255;
 
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if (app.lower_proximity > highest_lower_proximity)
                     && app.subscribed
                     && app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt
@@ -249,7 +249,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
         // to notice if this reading will fulfill the app's command.
         // The reading is also delivered to any apps waiting on an immediate reading.
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     if app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt {
                         // Case: ReadProximityOnInterrupt
@@ -288,7 +288,7 @@ impl Driver for ProximitySensor<'_> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
+                .enter(app_id, |app| mem::swap(&mut app.callback, &mut callback))
                 .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
         };

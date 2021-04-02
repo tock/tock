@@ -93,7 +93,7 @@ impl Driver for TestGrantDoubleEntry {
                 // Enter the grant for the app.
                 let err = self
                     .grant
-                    .enter(appid, |appgrant, _allocator| {
+                    .enter(appid, |appgrant| {
                         // We can now change the state of the app's grant
                         // region.
                         appgrant.pending = true;
@@ -101,7 +101,7 @@ impl Driver for TestGrantDoubleEntry {
                         // Now, try to iterate all grant regions.
                         for grant in self.grant.iter() {
                             // And, try to enter each grant! This should fail.
-                            grant.enter(|appgrant2, _allocator| {
+                            grant.enter(|appgrant2| {
                                 if appgrant2.pending {
                                     found_pending = true;
                                 }
@@ -127,17 +127,17 @@ impl Driver for TestGrantDoubleEntry {
                 let mut found_pending = false;
 
                 // Make sure the grant is allocated.
-                let _ = self.grant.enter(appid, |appgrant, _| {
+                let _ = self.grant.enter(appid, |appgrant| {
                     appgrant.pending = false;
                 });
 
                 for app in self.grant.iter() {
-                    let _ = self.grant.enter(appid, |appgrant, _| {
+                    let _ = self.grant.enter(appid, |appgrant| {
                         // Mark the field.
                         appgrant.pending = true;
 
                         // Check if we can access this grant twice.
-                        app.enter(|appgrant2, _| {
+                        app.enter(|appgrant2| {
                             if appgrant2.pending {
                                 found_pending = true;
                             }
@@ -161,10 +161,10 @@ impl Driver for TestGrantDoubleEntry {
                 // entered the same grant twice.
                 let mut found_pending = false;
 
-                let _ = self.grant.enter(appid, |appgrant, _| {
+                let _ = self.grant.enter(appid, |appgrant| {
                     appgrant.pending = true;
 
-                    let _ = self.grant.enter(appid, |appgrant2, _| {
+                    let _ = self.grant.enter(appid, |appgrant2| {
                         if appgrant2.pending {
                             found_pending = true;
                         }

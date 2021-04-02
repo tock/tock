@@ -136,7 +136,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     app.recv_buf.mut_map_or((), |dest| {
                         dest.as_mut().copy_from_slice(buffer.as_ref());
                     });
@@ -162,7 +162,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     app.callback.schedule(1, 0, 0);
                 })
                 .map_err(|err| {
@@ -180,7 +180,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         self.appid
             .map(|id| {
                 self.app
-                    .enter(*id, |app, _| app.can_receive.get())
+                    .enter(*id, |app| app.can_receive.get())
                     .unwrap_or(false)
             })
             .unwrap_or(false)
@@ -198,7 +198,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Pass buffer for the recvieved data to be stored in
             0 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.recv_buf);
                     Ok(())
                 })
@@ -207,7 +207,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Pass buffer for the sent data to be stored in
             1 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.send_buf);
                     Ok(())
                 })
@@ -241,7 +241,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             0 => {
                 // set callback
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                         Ok(())
                     })
@@ -282,7 +282,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Send data
             0 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         app.send_buf
@@ -308,7 +308,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Allow receive
             1 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         app.can_receive.set(true);
@@ -331,7 +331,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Cancel send
             2 => self
                 .app
-                .enter(appid, |_app, _| {
+                .enter(appid, |_app| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
@@ -349,7 +349,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Cancel receive
             3 => self
                 .app
-                .enter(appid, |_app, _| {
+                .enter(appid, |_app| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
@@ -380,7 +380,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             //            send buffer.
             4 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if let Some(usb) = self.usb {
                         if app.can_receive.get() {
                             // We are already receiving

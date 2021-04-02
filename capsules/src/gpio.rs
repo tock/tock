@@ -162,7 +162,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // individual pins being configured as interrupts)
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut **app, &mut callback);
                 })
                 .map_err(ErrorCode::from),

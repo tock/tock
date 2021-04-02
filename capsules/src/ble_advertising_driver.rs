@@ -351,7 +351,7 @@ where
         let mut next_dt = u32::max_value();
         let mut next_dist = u32::max_value();
         for app in self.app.iter() {
-            app.enter(|app, _| match app.alarm_data.expiration {
+            app.enter(|app| match app.alarm_data.expiration {
                 Expiration::Enabled(reference, dt) => {
                     let exp = reference.wrapping_add(dt);
                     let t_dist = exp.wrapping_sub(now.into_u32());
@@ -446,7 +446,7 @@ where
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
         self.receiving_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, _| {
+            let _ = self.app.enter(*appid, |app| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
@@ -513,7 +513,7 @@ where
     fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, _| {
+            let _ = self.app.enter(*appid, |app| {
                 match app.process_status {
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
@@ -561,7 +561,7 @@ where
             // Start periodic advertisements
             0 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         if let Some(BLEState::Initialized) = app.process_status {
                             let pdu_type = data as AdvPduType;
                             match pdu_type {
@@ -595,7 +595,7 @@ where
             // Stop periodic advertisements or passive scanning
             1 => self
                 .app
-                .enter(appid, |app, _| match app.process_status {
+                .enter(appid, |app| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
                         app.process_status = Some(BLEState::Initialized);
                         CommandReturn::success()
@@ -613,7 +613,7 @@ where
             // data - Transmitting power in dBm
             2 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         if app.process_status != Some(BLEState::ScanningIdle)
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
@@ -638,7 +638,7 @@ where
             // Passive scanning mode
             5 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         if let Some(BLEState::Initialized) = app.process_status {
                             app.process_status = Some(BLEState::ScanningIdle);
                             app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
@@ -675,7 +675,7 @@ where
             // Advertisement buffer
             0 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.generate_random_address(appid).map(|_| {
                         app.process_status = Some(BLEState::Initialized);
                         mem::swap(&mut app.adv_data, &mut slice);
@@ -703,7 +703,7 @@ where
             // Passive scanning buffer
             0 => self
                 .app
-                .enter(appid, |app, _| match app.process_status {
+                .enter(appid, |app| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
                         mem::swap(&mut app.scan_buffer, &mut slice);
                         app.process_status = Some(BLEState::Initialized);
@@ -733,7 +733,7 @@ where
             // Upcall for scanning
             0 => self
                 .app
-                .enter(app_id, |app, _| match app.process_status {
+                .enter(app_id, |app| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
                         mem::swap(&mut app.scan_callback, &mut callback);
                         Ok(callback)

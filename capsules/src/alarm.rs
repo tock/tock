@@ -63,7 +63,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // are multiple alarms in the past, just store one of them
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
-            alarm.enter(|alarm, _| match alarm.expiration {
+            alarm.enter(|alarm| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
                     // Do this because `reference` shadowed below
                     let current_reference = reference;
@@ -159,7 +159,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         let res: Result<(), ErrorCode> = match subscribe_num {
             0 => self
                 .app_alarms
-                .enter(app_id, |td, _allocator| {
+                .enter(app_id, |td| {
                     mem::swap(&mut callback, &mut td.callback);
                 })
                 .map_err(ErrorCode::from),
@@ -196,7 +196,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         //   - the underlying alarm is currently disabled and we're enabling the first alarm, or
         //   - on an error (i.e. no change to the alarms).
         self.app_alarms
-            .enter(caller_id, |td, _alloc| {
+            .enter(caller_id, |td| {
                 // helper function to rearm alarm
                 let mut rearm = |reference: usize, dt: usize| {
                     if let Expiration::Disabled = td.expiration {

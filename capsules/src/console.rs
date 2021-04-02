@@ -184,7 +184,7 @@ impl Driver for Console<'_> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.read_buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -212,7 +212,7 @@ impl Driver for Console<'_> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.write_buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -240,7 +240,7 @@ impl Driver for Console<'_> {
             1 => {
                 // putstr/write done
                 self.apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.write_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from)
@@ -248,7 +248,7 @@ impl Driver for Console<'_> {
             2 => {
                 // getnstr/read done
                 self.apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.read_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from)
@@ -281,14 +281,14 @@ impl Driver for Console<'_> {
                 // putstr
                 let len = arg1;
                 self.apps
-                    .enter(appid, |app, _| self.send_new(appid, app, len))
+                    .enter(appid, |app| self.send_new(appid, app, len))
                     .map_err(ErrorCode::from)
             }
             2 => {
                 // getnstr
                 let len = arg1;
                 self.apps
-                    .enter(appid, |app, _| self.receive_new(appid, app, len))
+                    .enter(appid, |app| self.receive_new(appid, app, len))
                     .map_err(ErrorCode::from)
             }
             3 => {
@@ -322,7 +322,7 @@ impl uart::TransmitClient for Console<'_> {
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, _| {
+            self.apps.enter(appid, |app| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
                         if !more_to_send {
@@ -349,7 +349,7 @@ impl uart::TransmitClient for Console<'_> {
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
                 let appid = cntr.appid();
-                let started_tx = cntr.enter(|app, _| {
+                let started_tx = cntr.enter(|app| {
                     if app.pending_write {
                         app.pending_write = false;
                         match self.send_continue(appid, app) {
@@ -391,7 +391,7 @@ impl uart::ReceiveClient for Console<'_> {
             .take()
             .map(|appid| {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         // An iterator over the returned buffer yielding only the first `rx_len`
                         // bytes
                         let rx_buffer = buffer.iter().take(rx_len);

@@ -340,7 +340,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut app_buf_length = 0;
         let exists = self.appid.map_or(false, |id| {
             self.apps
-                .enter(*id, |state, _| {
+                .enter(*id, |state| {
                     app_buf_length = state.app_buf1.len();
                     app_buf_length > 0
                 })
@@ -362,7 +362,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         self.mode.set(AdcMode::SingleBuffer);
         let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
@@ -419,7 +419,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.mode.set(AdcMode::NoMode);
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         app.samples_remaining.set(0);
                         app.samples_outstanding.set(0);
                     })
@@ -460,7 +460,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut next_app_buf_length = 0;
         let exists = self.appid.map_or(false, |id| {
             self.apps
-                .enter(*id, |state, _| {
+                .enter(*id, |state| {
                     app_buf_length = state.app_buf1.len();
                     next_app_buf_length = state.app_buf2.len();
                     state.app_buf1.len() > 0 && state.app_buf2.len() > 0
@@ -484,7 +484,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
         let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
@@ -554,7 +554,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.mode.set(AdcMode::NoMode);
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         app.samples_remaining.set(0);
                         app.samples_outstanding.set(0);
                     })
@@ -583,7 +583,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         // clean up state
         self.appid.map_or(Err(ErrorCode::FAIL), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     self.active.set(false);
                     self.mode.set(AdcMode::NoMode);
                     app.app_buf_offset.set(0);
@@ -653,7 +653,7 @@ impl<'a> AdcVirtualized<'a> {
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
             self.apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if self.current_app.is_none() {
                         self.current_app.set(appid);
                         let value = self.call_driver(command, channel);
@@ -704,7 +704,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
 
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         calledback = true;
                         app.callback.schedule(
                             AdcMode::SingleSample as usize,
@@ -726,7 +726,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             // perform callback
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         calledback = true;
                         app.callback.schedule(
                             AdcMode::ContinuousSample as usize,
@@ -784,7 +784,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             // we did expect a buffer. Determine the current application state
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         // determine which app buffer to copy data into and which is
                         // next up if we're in continuous mode
                         let use1 = app.using_app_buf1.get();
@@ -1047,7 +1047,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             self.mode.set(AdcMode::NoMode);
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(*id, |app| {
                         app.app_buf_offset.set(0);
                     })
                     .map_err(|err| {
@@ -1098,7 +1098,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 owning_app == &appid
             } else {
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -1113,7 +1113,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 // set first buffer
                 let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
                     self.apps
-                        .enter(*id, |app, _| {
+                        .enter(*id, |app| {
                             mem::swap(&mut app.app_buf1, &mut slice);
                         })
                         .map_err(|err| {
@@ -1137,7 +1137,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 // set second buffer
                 let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
                     self.apps
-                        .enter(*id, |app, _| {
+                        .enter(*id, |app| {
                             mem::swap(&mut app.app_buf2, &mut slice);
                         })
                         .map_err(|err| {
@@ -1180,7 +1180,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 owning_app == &appid
             } else {
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -1196,7 +1196,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 self.appid.map_or(Err((callback, ErrorCode::FAIL)), |id| {
                     let res = self
                         .apps
-                        .enter(*id, |app, _| {
+                        .enter(*id, |app| {
                             mem::swap(&mut app.callback, &mut callback);
                         })
                         .map_err(|err| {
@@ -1254,7 +1254,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -1352,7 +1352,7 @@ impl Driver for AdcVirtualized<'_> {
             0 => {
                 let res = self
                     .apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -1419,7 +1419,7 @@ impl Driver for AdcVirtualized<'_> {
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.pending_command = false;
                 let channel = app.channel;
                 app.callback
