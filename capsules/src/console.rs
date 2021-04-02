@@ -421,11 +421,11 @@ impl uart::ReceiveClient for Console<'_> {
                                 // something went wrong.
                                 //
                                 // If count < 0 this means the buffer
-                                // disappeared: return ENOMEM.
+                                // disappeared: return NOMEM.
                                 let (ret, received_length) = if count < 0 {
                                     (Err(ErrorCode::NOMEM), 0)
                                 } else if rx_len > app.read_buffer.len() {
-                                    // Return `ESIZE` indicating that
+                                    // Return `SIZE` indicating that
                                     // some received bytes were dropped.
                                     // We report the length that we
                                     // actually copied into the buffer,

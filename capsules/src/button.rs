@@ -142,7 +142,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// `data` is the index of the button in the button array as passed to
     /// `Button::new()`.
     ///
-    /// All commands greater than zero return `EINVAL` if an invalid button
+    /// All commands greater than zero return `INVAL` if an invalid button
     /// number is passed in.
     ///
     /// ### `command_num`

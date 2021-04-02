@@ -193,7 +193,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         );
     }
 
-    // Returns EBUSY if the tx_buf is not there
+    // Returns BUSY if the tx_buf is not there
     fn send_next_fragment(&self) -> Result<(), ErrorCode> {
         // Originally send_complete() was called within the below closure.
         // However, this led to a race condition where when multiple apps transmitted

@@ -21,10 +21,10 @@
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
-//! * SUCCESS: The buffer has successfully been filled
-//! * ENOMEM: No sufficient memory available
-//! * EINVAL: Invalid address of the buffer or other error
-//! * EBUSY: The driver is currently busy with other tasks
+//! * Ok(()): The buffer has successfully been filled
+//! * NOMEM: No sufficient memory available
+//! * INVAL: Invalid address of the buffer or other error
+//! * BUSY: The driver is currently busy with other tasks
 //! * ENOSUPPORT: The operation is not supported
 //! * ERROR: Operation `map` on Option failed
 //!
@@ -38,8 +38,8 @@
 //!
 //! The possible return codes from the `allow` system call indicate the following:
 //!
-//! * ENOMEM:    Not sufficient amount memory
-//! * EINVAL:    Invalid operation
+//! * NOMEM:    Not sufficient amount memory
+//! * INVAL:    Invalid operation
 //!
 //! ### Command system call
 //!
@@ -53,8 +53,8 @@
 //!
 //! The possible return codes from the `command` system call indicate the following:
 //!
-//! * SUCCESS:      The command was successful
-//! * EBUSY:        The driver is currently busy with other tasks
+//! * Ok(()):      The command was successful
+//! * BUSY:        The driver is currently busy with other tasks
 //! * ENOSUPPORT:   The operation is not supported
 //!
 //! Usage

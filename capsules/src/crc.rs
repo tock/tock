@@ -205,11 +205,11 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// where
     ///
     ///   * `status` is indicates whether the computation
-    ///     succeeded. The status `EBUSY` indicates the unit is already
-    ///     busy. The status `ESIZE` indicates the provided buffer is
+    ///     succeeded. The status `BUSY` indicates the unit is already
+    ///     busy. The status `SIZE` indicates the provided buffer is
     ///     too large for the unit to handle.
     ///
-    ///   * `result` is the result of the CRC computation when `status == EBUSY`.
+    ///   * `result` is the result of the CRC computation when `status == BUSY`.
     ///
     fn subscribe(
         &self,
@@ -244,21 +244,21 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     ///   *   `2`: Requests that a CRC be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
-    ///       this command will return `EINVAL`.
+    ///       this command will return `INVAL`.
     ///
     ///       This command's driver-specific argument indicates what CRC
     ///       algorithm to perform, as listed below.  If an invalid
     ///       algorithm specifier is provided, this command will return
-    ///       `EINVAL`.
+    ///       `INVAL`.
     ///
     ///       If a callback was not previously registered with
-    ///       `subscribe`, this command will return `EINVAL`.
+    ///       `subscribe`, this command will return `INVAL`.
     ///
     ///       If a computation has already been requested by this
     ///       application but the callback has not yet been invoked to
-    ///       receive the result, this command will return `EBUSY`.
+    ///       receive the result, this command will return `BUSY`.
     ///
-    ///       When `SUCCESS` is returned, this means the request has been
+    ///       When `Ok(())` is returned, this means the request has been
     ///       queued and the callback will be invoked when the CRC
     ///       computation is complete.
     ///

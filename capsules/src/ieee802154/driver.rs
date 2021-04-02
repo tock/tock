@@ -593,12 +593,12 @@ impl Driver for RadioDriver<'_> {
     /// between kernel space and user space. The expected size of the slice
     /// varies by command, and acts essentially like a custom FFI. That is, the
     /// userspace library MUST `allow()` a buffer of the correct size, otherwise
-    /// the call is EINVAL. When used, the expected format is described below.
+    /// the call is INVAL. When used, the expected format is described below.
     ///
     /// ### `command_num`
     ///
     /// - `0`: Driver check.
-    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
     /// - `3`: Set long MAC address.
     ///        app_cfg (in): 8 bytes: the long MAC address.

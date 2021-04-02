@@ -92,23 +92,23 @@ pub trait ScreenSetup {
     fn set_client(&self, client: Option<&'static dyn ScreenSetupClient>);
 
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
-    /// not supported. The function should return SUCCESS if the request is registered
+    /// not supported. The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
     /// that will return the actual Result<(), ErrorCode> after setting the resolution.
     fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode>;
 
     /// Sets the pixel format. Returns ENOSUPPORT if the pixel format is
-    /// not supported. The function should return SUCCESS if the request is registered
+    /// not supported. The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
     /// that will return the actual Result<(), ErrorCode> after setting the pixel format.
     fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode>;
 
     /// Sets the rotation of the display.
-    /// The function should return SUCCESS if the request is registered
+    /// The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
     /// that will return the actual Result<(), ErrorCode> after setting the rotation.
     ///
     /// Note that in the case of `Rotated90` or `Rotated270`, this will swap the width and height.
@@ -172,9 +172,9 @@ pub trait Screen {
     /// This will generate a `command_complete()` callback when finished.
     ///
     /// Return values:
-    /// - `SUCCESS`: The write frame is valid.
-    /// - `EINVAL`: The parameters of the write frame are not valid.
-    /// - `EBUSY`: Unable to set the write frame on the device.
+    /// - `Ok(())`: The write frame is valid.
+    /// - `INVAL`: The parameters of the write frame are not valid.
+    /// - `BUSY`: Unable to set the write frame on the device.
     fn set_write_frame(
         &self,
         x: usize,
@@ -187,9 +187,9 @@ pub trait Screen {
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: Write is valid and will be sent to the screen.
-    /// - `EINVAL`: Write is invalid or length is wrong.
-    /// - `EBUSY`: Another write is in progress.
+    /// - `Ok(())`: Write is valid and will be sent to the screen.
+    /// - `INVAL`: Write is invalid or length is wrong.
+    /// - `BUSY`: Another write is in progress.
     fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode>;
 
     /// Sends a write command to write data in the selected video memory frame
@@ -199,9 +199,9 @@ pub trait Screen {
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: Write is valid and will be sent to the screen.
-    /// - `EINVAL`: Write is invalid or length is wrong.
-    /// - `EBUSY`: Another write is in progress.
+    /// - `Ok(())`: Write is valid and will be sent to the screen.
+    /// - `INVAL`: Write is invalid or length is wrong.
+    /// - `BUSY`: Another write is in progress.
     fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode>;
 
     /// Set the object to receive the asynchronous command callbacks.

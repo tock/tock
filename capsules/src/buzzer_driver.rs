@@ -213,7 +213,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return SUCCESS if this driver is included on the platform.
+    /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Buzz the buzzer. `data1` is used for the frequency in hertz, and
     ///   `data2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.

@@ -19,7 +19,7 @@
 //! LCDStatus enum. Also, after every command completed, a callback will be called
 //! to the text_screen capsule, in order for this capsule to be able to receive new
 //! commands. If a command is sent while this capsule is busy, it will return a
-//! "EBUSY" code.
+//! "BUSY" code.
 
 //! Usage
 //! -----

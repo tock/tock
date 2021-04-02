@@ -98,7 +98,7 @@ const WAKE_TIME_MS: u32 = 10;
 // abandoning the transmission.
 const SLEEP_TIME_MS: u32 = 250;
 // Time the radio will continue to send preamble packets before aborting the
-// transmission and returning ENOACK. Should be at least as large as the maximum
+// transmission and returning NOACK. Should be at least as large as the maximum
 // sleep time for any node in the network.
 const PREAMBLE_TX_MS: u32 = 251;
 
@@ -491,7 +491,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
             }
             // If we've sent preambles for longer than the maximum sleep time of
             // any node in the network, then our destination is non-responsive;
-            // return ENOACK to the client.
+            // return NOACK to the client.
             XMacState::TX_PREAMBLE => {
                 self.call_tx_client(
                     self.tx_payload.take().unwrap(),

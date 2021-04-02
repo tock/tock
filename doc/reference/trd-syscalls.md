@@ -355,7 +355,7 @@ unmodified.
 If the passed callback is not valid (is outside process executable
 memory and is not the Null Callback described below), the kernel MUST
 NOT invoke the requested driver and MUST immediately return a failure
-with a return code of EINVAL. The currently registered callback
+with a return code of INVAL. The currently registered callback
 remains registered and the kernel does not cancel any pending invocations
 of the existing callback.
 

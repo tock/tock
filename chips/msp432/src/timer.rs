@@ -247,9 +247,9 @@ pub enum InternalTrigger {
 pub trait InternalTimer {
     /// Start timer in a given frequency. No interrupts are generated, the signal when the timer
     /// has elapsed is directly forwarded to the dedicated hardware module.
-    /// SUCCESS: timer started successfully
-    /// EINVAL: frequency too high or too low
-    /// EBUSY: timer already in use
+    /// Ok(()): timer started successfully
+    /// INVAL: frequency too high or too low
+    /// BUSY: timer already in use
     fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> Result<(), ErrorCode>;
 
     /// Stop the timer

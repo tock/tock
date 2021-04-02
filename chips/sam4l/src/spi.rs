@@ -439,9 +439,9 @@ impl SpiHw {
     /// Asynchronous buffer read/write of SPI.
     ///
     /// Returns:
-    /// - `SUCCESS` if operation starts (will receive callback through
+    /// - `Ok(())` if operation starts (will receive callback through
     ///   SpiMasterClient)
-    /// - `EINVAL` if no buffers were passed in
+    /// - `INVAL` if no buffers were passed in
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -560,9 +560,9 @@ impl spi::SpiMaster for SpiHw {
     /// of the read/write is the minimum of two buffer lengths.
     ///
     /// Returns:
-    /// - `SUCCESS` if operation starts (will receive callback through
+    /// - `Ok(())` if operation starts (will receive callback through
     ///   SpiMasterClient)
-    /// - `EBUSY` if the operation does not start
+    /// - `BUSY` if the operation does not start
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -652,8 +652,8 @@ impl spi::SpiSlave for SpiHw {
     /// Setup buffers for a SPI transaction initiated by the master device.
     ///
     /// Returns:
-    /// - `SUCCESS` if the operation starts. A callback will be generated.
-    /// - `EINVAL` if neither the read or write buffer is provided.
+    /// - `Ok(())` if the operation starts. A callback will be generated.
+    /// - `INVAL` if neither the read or write buffer is provided.
     fn read_write_bytes(
         &self,
         write_buffer: Option<&'static mut [u8]>,

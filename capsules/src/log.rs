@@ -139,7 +139,7 @@ pub struct Log<'a, F: Flash + 'static> {
     length: Cell<usize>,
     /// Whether or not records were lost in the previous append.
     records_lost: Cell<bool>,
-    /// Error returned by previously executed operation (or SUCCESS).
+    /// Error returned by previously executed operation (or Ok(())).
     error: Cell<Result<(), ErrorCode>>,
 }
 
@@ -313,7 +313,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// Returns the ID of the next entry to read or an error if no entry could be retrieved.
     /// Result<(), ErrorCode>s used:
     ///     * FAIL: reached end of log, nothing to read.
-    ///     * ERESERVE: client or internal pagebuffer missing.
+    ///     * RESERVE: client or internal pagebuffer missing.
     fn get_next_entry(&self) -> Result<EntryID, Result<(), ErrorCode>> {
         self.pagebuffer
             .take()
@@ -341,7 +341,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// data is invalid.
     /// Result<(), ErrorCode>s used:
     ///     * FAIL: entry header invalid.
-    ///     * ERESERVE: client or internal pagebuffer missing.
+    ///     * RESERVE: client or internal pagebuffer missing.
     fn read_entry_header(&self, entry_id: EntryID) -> Result<usize, Result<(), ErrorCode>> {
         self.pagebuffer
             .take()
@@ -366,8 +366,8 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// error otherwise.
     /// Result<(), ErrorCode>s used:
     ///     * FAIL: reached end of log, nothing to read.
-    ///     * ERESERVE: internal pagebuffer missing, log is presumably broken.
-    ///     * ESIZE: buffer not large enough to contain entry being read.
+    ///     * RESERVE: internal pagebuffer missing, log is presumably broken.
+    ///     * SIZE: buffer not large enough to contain entry being read.
     fn read_entry(&self, buffer: &mut [u8], length: usize) -> Result<usize, Result<(), ErrorCode>> {
         // Get next entry to read. Immediately returns FAIL in event of failure.
         let entry_id = self.get_next_entry()?;
@@ -444,9 +444,9 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// Flushes the pagebuffer to flash. Log state must be non-idle before calling, else data races
     /// may occur due to asynchronous page write.
     /// Result<(), ErrorCode>s used:
-    ///     * SUCCESS: flush started successfully.
+    ///     * Ok(()): flush started successfully.
     ///     * FAIL: flash driver not configured.
-    ///     * EBUSY: flash driver busy.
+    ///     * BUSY: flash driver busy.
     fn flush_pagebuffer(&self, pagebuffer: &'static mut F::Page) -> Result<(), ErrorCode> {
         // Pad end of page.
         let mut pad_ptr = self.append_entry_id.get();
@@ -595,13 +595,13 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     ///       error is due to a loss of the buffer.
     /// Result<(), ErrorCode>s used:
     ///     * FAIL: reached end of log, nothing to read.
-    ///     * EBUSY: log busy with another operation, try again later.
-    ///     * EINVAL: provided client buffer is too small.
-    ///     * ECANCEL: invalid internal state, read entry ID was reset to start of log.
-    ///     * ERESERVE: client or internal pagebuffer missing.
-    ///     * ESIZE: buffer not large enough to contain entry being read.
+    ///     * BUSY: log busy with another operation, try again later.
+    ///     * INVAL: provided client buffer is too small.
+    ///     * CANCEL: invalid internal state, read entry ID was reset to start of log.
+    ///     * RESERVE: client or internal pagebuffer missing.
+    ///     * SIZE: buffer not large enough to contain entry being read.
     /// Result<(), ErrorCode>s used in read_done callback:
-    ///     * SUCCESS: read succeeded.
+    ///     * Ok(()): read succeeded.
     fn read(
         &self,
         buffer: &'static mut [u8],
@@ -655,9 +655,9 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     /// Seek to a new read entry ID. It is only legal to seek to entry IDs retrieved through the
     /// `log_start()`, `log_end()`, and `next_read_entry_id()` functions.
     /// Result<(), ErrorCode>s used:
-    ///     * SUCCESS: seek succeeded.
-    ///     * EINVAL: entry ID not valid seek position within current log.
-    ///     * ERESERVE: no log client set.
+    ///     * Ok(()): seek succeeded.
+    ///     * INVAL: entry ID not valid seek position within current log.
+    ///     * RESERVE: no log client set.
     fn seek(&self, entry_id: Self::EntryID) -> Result<(), ErrorCode> {
         if entry_id <= self.append_entry_id.get() && entry_id >= self.oldest_entry_id.get() {
             self.read_entry_id.set(entry_id);
@@ -691,14 +691,14 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     ///       error is due to a loss of the buffer.
     /// Result<(), ErrorCode>s used:
     ///     * FAIL: end of non-circular log reached, cannot append any more entries.
-    ///     * EBUSY: log busy with another operation, try again later.
-    ///     * EINVAL: provided client buffer is too small.
-    ///     * ERESERVE: client or internal pagebuffer missing.
-    ///     * ESIZE: entry too large to append to log.
+    ///     * BUSY: log busy with another operation, try again later.
+    ///     * INVAL: provided client buffer is too small.
+    ///     * RESERVE: client or internal pagebuffer missing.
+    ///     * SIZE: entry too large to append to log.
     /// Result<(), ErrorCode>s used in append_done callback:
-    ///     * SUCCESS: append succeeded.
+    ///     * Ok(()): append succeeded.
     ///     * FAIL: write failed due to flash error.
-    ///     * ECANCEL: write failed due to reaching the end of a non-circular log.
+    ///     * CANCEL: write failed due to reaching the end of a non-circular log.
     fn append(
         &self,
         buffer: &'static mut [u8],
@@ -757,12 +757,12 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
 
     /// Sync log to storage.
     /// Result<(), ErrorCode>s used:
-    ///     * SUCCESS: flush started successfully.
+    ///     * Ok(()): flush started successfully.
     ///     * FAIL: flash driver not configured.
-    ///     * EBUSY: log or flash driver busy, try again later.
-    ///     * ERESERVE: no log client set.
+    ///     * BUSY: log or flash driver busy, try again later.
+    ///     * RESERVE: no log client set.
     /// Result<(), ErrorCode>s used in sync_done callback:
-    ///     * SUCCESS: append succeeded.
+    ///     * Ok(()): append succeeded.
     ///     * FAIL: write failed due to flash error.
     fn sync(&self) -> Result<(), ErrorCode> {
         if self.append_entry_id.get() % self.page_size == PAGE_HEADER_SIZE {
@@ -787,11 +787,11 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
 
     /// Erase the entire log.
     /// Result<(), ErrorCode>s used:
-    ///     * SUCCESS: flush started successfully.
-    ///     * EBUSY: log busy, try again later.
+    ///     * Ok(()): flush started successfully.
+    ///     * BUSY: log busy, try again later.
     /// Result<(), ErrorCode>s used in erase_done callback:
-    ///     * SUCCESS: erase succeeded.
-    ///     * EBUSY: erase interrupted by busy flash driver. Call erase again to resume.
+    ///     * Ok(()): erase succeeded.
+    ///     * BUSY: erase interrupted by busy flash driver. Call erase again to resume.
     fn erase(&self) -> Result<(), ErrorCode> {
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
@@ -865,7 +865,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
         }
     }
 
-    /// Erase next page if log erase complete, else make client callback. Fails with EBUSY if flash
+    /// Erase next page if log erase complete, else make client callback. Fails with BUSY if flash
     /// is busy and erase cannot be completed.
     fn erase_complete(&self, error: flash::Error) {
         match error {

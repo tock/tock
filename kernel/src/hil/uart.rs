@@ -65,11 +65,11 @@ pub trait Client: ReceiveClient + TransmitClient {}
 
 /// Trait for configuring a UART.
 pub trait Configure {
-    /// Returns SUCCESS, or
-    /// - EOFF: The underlying hardware is currently not available, perhaps
+    /// Returns Ok(()), or
+    /// - OFF: The underlying hardware is currently not available, perhaps
     ///         because it has not been initialized or in the case of a shared
     ///         hardware USART controller because it is set up for SPI.
-    /// - EINVAL: Impossible parameters (e.g. a `baud_rate` of 0)
+    /// - INVAL: Impossible parameters (e.g. a `baud_rate` of 0)
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
@@ -110,19 +110,19 @@ pub trait Transmit<'a> {
 
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
-    /// If the `Result<(), ErrorCode>` is SUCCESS, on completion,
+    /// If the `Result<(), ErrorCode>` is Ok(()), on completion,
     /// `transmitted_word` will be called on the `TransmitClient`.
     /// Other valid `Result<(), ErrorCode>` values are:
-    ///  - EOFF: The underlying hardware is not available, perhaps because
+    ///  - OFF: The underlying hardware is not available, perhaps because
     ///          it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
-    ///  - EBUSY: the UART is already transmitting and has not made a
+    ///  - BUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
     ///  - FAIL: not supported, or some other error.
-    /// If the `Result<(), ErrorCode>` is not SUCCESS, no callback will be made.
+    /// If the `Result<(), ErrorCode>` is not Ok(()), no callback will be made.
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
-    /// EBUSY.
+    /// BUSY.
     fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
 
     /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
@@ -130,19 +130,19 @@ pub trait Transmit<'a> {
     /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
     /// always make a callback, to return the passed buffer back to the caller.
     ///
-    /// If abort_transmit returns SUCCESS, there will be no future
+    /// If abort_transmit returns Ok(()), there will be no future
     /// callback and the client may retransmit immediately. If
     /// abort_transmit returns any other `Result<(), ErrorCode>` there will be a
     /// callback. This means that if there is no outstanding call to
     /// `transmit_word` or `transmit_buffer` then a call to
-    /// `abort_transmit` returns SUCCESS. If there was a `transmit`
-    /// outstanding and is cancelled successfully then `EBUSY` will
+    /// `abort_transmit` returns Ok(()). If there was a `transmit`
+    /// outstanding and is cancelled successfully then `BUSY` will
     /// be returned and there will be a callback with a `Result<(), ErrorCode>`
-    /// of `ECANCEL`. If there was a reception outstanding, which is
+    /// of `CANCEL`. If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
     ///
-    /// Returns SUCCESS or
+    /// Returns Ok(()) or
     ///  - FAIL if the outstanding call to either transmit operation could
     ///    not be synchronously cancelled. A callback will be made on the
     ///    client indicating whether the call was successfully cancelled.
@@ -195,11 +195,11 @@ pub trait Receive<'a> {
 
     /// Abort any ongoing receive transfers and return what is in the
     /// receive buffer with the `receive_complete` callback. If
-    /// SUCCESS is returned, there will be no callback (no call to
+    /// Ok(()) is returned, there will be no callback (no call to
     /// `receive` was outstanding). If there was a `receive`
-    /// outstanding, which is cancelled successfully then `EBUSY` will
+    /// outstanding, which is cancelled successfully then `BUSY` will
     /// be returned and there will be a callback with a `Result<(), ErrorCode>`
-    /// of `ECANCEL`.  If there was a reception outstanding, which is
+    /// of `CANCEL`.  If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
     fn receive_abort(&self) -> Result<(), ErrorCode>;
@@ -211,11 +211,11 @@ pub trait TransmitClient {
     /// A call to `Transmit::transmit_word` completed. The `Result<(), ErrorCode>`
     /// indicates whether the word was successfully transmitted. A call
     /// to `transmit_word` or `transmit_buffer` made within this callback
-    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
-    /// `rval` is SUCCESS if the word was successfully transmitted, or
-    ///   - ECANCEL if the call to `transmit_word` was cancelled and
+    /// `rval` is Ok(()) if the word was successfully transmitted, or
+    ///   - CANCEL if the call to `transmit_word` was cancelled and
     ///     the word was not transmitted.
     ///   - FAIL if the transmission failed in some way.
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
@@ -223,19 +223,19 @@ pub trait TransmitClient {
     /// A call to `Transmit::transmit_buffer` completed. The `Result<(), ErrorCode>`
     /// indicates whether the buffer was successfully transmitted. A call
     /// to `transmit_word` or `transmit_buffer` made within this callback
-    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
     /// The `tx_len` argument specifies how many words were transmitted.
-    /// An `rval` of SUCCESS indicates that every requested word was
+    /// An `rval` of Ok(()) indicates that every requested word was
     /// transmitted: `tx_len` in the callback should be the same as
     /// `tx_len` in the initiating call.
     ///
-    /// `rval` is SUCCESS if the full buffer was successfully transmitted, or
-    ///   - ECANCEL if the call to `transmit_buffer` was cancelled and
+    /// `rval` is Ok(()) if the full buffer was successfully transmitted, or
+    ///   - CANCEL if the call to `transmit_buffer` was cancelled and
     ///     the buffer was not fully transmitted. `tx_len` contains
     ///     how many words were transmitted.
-    ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
+    ///   - SIZE if the buffer could only be partially transmitted. `tx_len`
     ///     contains how many words were transmitted.
     ///   - FAIL if the transmission failed in some way.
     fn transmitted_buffer(
@@ -250,11 +250,11 @@ pub trait ReceiveClient {
     /// A call to `Receive::receive_word` completed. The `Result<(), ErrorCode>`
     /// indicates whether the word was successfully received. A call
     /// to `receive_word` or `receive_buffer` made within this callback
-    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
-    /// `rval` SUCCESS if the word was successfully received, or
-    ///   - ECANCEL if the call to `receive_word` was cancelled and
+    /// `rval` Ok(()) if the word was successfully received, or
+    ///   - CANCEL if the call to `receive_word` was cancelled and
     ///     the word was not received: `word` should be ignored.
     ///   - FAIL if the reception failed in some way and `word`
     ///     should be ignored. `error` may contain further information
@@ -264,19 +264,19 @@ pub trait ReceiveClient {
     /// A call to `Receive::receive_buffer` completed. The `Result<(), ErrorCode>`
     /// indicates whether the buffer was successfully received. A call
     /// to `receive_word` or `receive_buffer` made within this callback
-    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
     /// The `rx_len` argument specifies how many words were received.
-    /// An `rval` of SUCCESS indicates that every requested word was
+    /// An `rval` of Ok(()) indicates that every requested word was
     /// received: `rx_len` in the callback should be the same as
     /// `rx_len` in the initiating call.
     ///
-    /// `rval` is SUCCESS if the full buffer was successfully received, or
-    ///   - ECANCEL if the call to `received_buffer` was cancelled and
+    /// `rval` is Ok(()) if the full buffer was successfully received, or
+    ///   - CANCEL if the call to `received_buffer` was cancelled and
     ///     the buffer was not fully received. `rx_len` contains
     ///     how many words were received.
-    ///   - ESIZE if the buffer could only be partially received. `rx_len`
+    ///   - SIZE if the buffer could only be partially received. `rx_len`
     ///     contains how many words were received.
     ///   - FAIL if reception failed in some way: `error` may contain further
     ///     information.

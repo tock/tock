@@ -1,7 +1,7 @@
 //! Map arbitrary nonvolatile reads and writes to page operations.
 //!
 //! This splits non-page-aligned reads and writes into a series of page level
-//! reads and writes. While it is handling a read or write it returns `EBUSY` to
+//! reads and writes. While it is handling a read or write it returns `BUSY` to
 //! all additional requests.
 //!
 //! This module is designed to be used on top of any flash storage and below any

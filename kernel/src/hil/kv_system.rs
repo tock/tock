@@ -156,11 +156,11 @@ pub trait KVSystem<'a> {
     /// On error the key, value and a `Result<(), ErrorCode>` will be returned.
     ///
     /// The possible `Result<(), ErrorCode>`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be added due to a collision.
-    ///    `ENOMEM`: The key could not be added due to no more space.
+    ///    `NOMEM`: The key could not be added due to no more space.
     fn append_key(
         &self,
         key: &'static mut Self::K,
@@ -176,9 +176,9 @@ pub trait KVSystem<'a> {
     /// On error the key, ret_buf and a `Result<(), ErrorCode>` will be returned.
     ///
     /// The possible `Result<(), ErrorCode>`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
     fn get_value(
         &self,
@@ -201,9 +201,9 @@ pub trait KVSystem<'a> {
     /// On error the key and a `Result<(), ErrorCode>` will be returned.
     ///
     /// The possible `Result<(), ErrorCode>`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
     fn invalidate_key(
         &self,
@@ -219,8 +219,8 @@ pub trait KVSystem<'a> {
     /// On error a `Result<(), ErrorCode>` will be returned.
     ///
     /// The possible `Result<(), ErrorCode>`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>>;
 }

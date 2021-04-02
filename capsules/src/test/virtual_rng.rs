@@ -28,7 +28,7 @@ impl<'a> TestRng<'a> {
 
     pub fn get_random_nums(&self) {
         match self.device.get() {
-            Ok(()) => debug!("Virtual RNG device {}: get SUCCESS", self.device_id),
+            Ok(()) => debug!("Virtual RNG device {}: get Ok(())", self.device_id),
             _ => panic!("Virtual RNG test: unable to get random numbers"),
         }
     }

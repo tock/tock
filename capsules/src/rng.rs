@@ -318,7 +318,7 @@ impl<'a> Entropy32<'a> for Entropy8To32<'a> {
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
@@ -414,7 +414,7 @@ impl<'a> Entropy8<'a> for Entropy32To8<'a> {
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which

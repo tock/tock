@@ -17,7 +17,7 @@ use nrf5x::constants::TxPower;
 // This driver has some significant flaws -- no ACK support, power cycles
 // the radio after every transmission or reception,
 // doesn't always check hardware for errors and instead defaults to
-// returning SUCCESS. However as of 05/26/20 it does interoperate
+// returning Ok(()). However as of 05/26/20 it does interoperate
 // with other 15.4 implementations for Tock's basic 15.4 apps.
 
 const RADIO_BASE: StaticRef<RadioRegisters> =

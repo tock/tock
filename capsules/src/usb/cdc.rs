@@ -156,7 +156,7 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     /// normal UART semantics are that we can always send (perhaps with a
     /// delay), even if nothing is actually listening. To keep the upper layers
     /// happy and to allow this CDC layer to just drop messages, we always
-    /// return SUCCESS for TX, and then use a deferred call to signal the
+    /// return Ok(()) for TX, and then use a deferred call to signal the
     /// transmit done callback.
     deferred_call_pending_droptx: Cell<bool>,
     /// Flag to mark we need a deferred call to signal a callback after an RX
@@ -696,7 +696,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
             Ok(())
         } else {
             // If we do have a receive pending then we need to start a deferred
-            // call to set the callback and return `EBUSY`.
+            // call to set the callback and return `BUSY`.
             self.deferred_call_pending_abortrx.set(true);
             self.handle.map(|handle| self.deferred_caller.set(*handle));
             Err(ErrorCode::BUSY)
@@ -731,7 +731,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
         }
 
         if self.deferred_call_pending_abortrx.replace(false) {
-            // Signal the RX callback with ECANCEL error.
+            // Signal the RX callback with CANCEL error.
             self.rx_buffer.take().map(|rx_buf| {
                 let rx_offset = self.rx_offset.get();
 

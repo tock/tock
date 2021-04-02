@@ -53,9 +53,9 @@
 //! port_table_test2 passed
 //! Running test 3:
 //! send_test executed, look at printed results once callbacks arrive
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
 //! All UDP kernel tests complete.
 //! ```
@@ -68,9 +68,9 @@
 //! [UDP VIRT] Starting Kernel Coop UDP Test App.
 //! bind_test passed
 //! send_test executed, look at printed results once callbacks arrive
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
 //! App part of app/kernel test successful!
 //! ```
@@ -619,7 +619,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
         assert_eq!(ret1, Ok(()));
         assert_eq!(ret2, Err(ErrorCode::RESERVE));
-        debug!("send_invalid_net_cap_port test executed, expect one send with Result: SUCCESS");
+        debug!("send_invalid_net_cap_port test executed, expect one send with Result: Ok(())");
     }
 
     // Invalid network capability (invalid addr, valid port)
@@ -647,7 +647,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
         assert_eq!(ret1, Ok(()));
         assert_eq!(ret2, Err(ErrorCode::RESERVE));
-        debug!("send_invalid_net_cap_addr executed, expect one send with Result: SUCCESS");
+        debug!("send_invalid_net_cap_addr executed, expect one send with Result: Ok(())");
     }
 
     // Invalid network capability (invalid addr, invalid port)
@@ -680,9 +680,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
         assert_eq!(ret1, Ok(()));
         assert_eq!(ret2, Err(ErrorCode::RESERVE));
-        debug!(
-            "send_invalid_net_cap_addr_port test executed, expect one send with Result: SUCCESS"
-        );
+        debug!("send_invalid_net_cap_addr_port test executed, expect one send with Result: Ok(())");
     }
 }
 

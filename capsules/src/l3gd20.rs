@@ -17,31 +17,31 @@
 //! Only one command can be issued at a time.
 //!
 //! #### command num
-//! - `0`: Returns SUCCESS
+//! - `0`: Returns Ok(())
 //!   - `data`: Unused.
 //!   - Return: 0
 //! - `1`: Is Present
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `2`: Power On
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `3`: Set Scale
 //!   - `data1`: 0, 1 or 2
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `4`: Enable high pass filter
 //!   - `data`: 1 for enable, 0 for disable
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `5`: Set High Pass Filter Mode and Divider (manual page 33)
 //!   - `data1`: mode
 //!   - `data2`: divider
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `6`: Read XYZ
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `7`: Read Temperature
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //!
 //! ### Subscribe
 //!

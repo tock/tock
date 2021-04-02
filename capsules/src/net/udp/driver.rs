@@ -363,7 +363,7 @@ impl<'a> Driver for UDPDriver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup callback for when packet is received. If no port has
-    ///        been bound, return ERESERVE to indicate that port binding is
+    ///        been bound, return RESERVE to indicate that port binding is
     ///        is a prerequisite to reception.
     /// - `1`: Setup callback for when packet is transmitted. Notably,
     ///        this callback receives the result of the send_done callback
@@ -415,10 +415,10 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
-    ///        Returns EINVAL if the cfg buffer is the wrong size, or not available.
+    ///        Returns INVAL if the cfg buffer is the wrong size, or not available.
     /// - `2`: Transmit payload.
-    ///        Returns EBUSY is this process already has a pending tx.
-    ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
+    ///        Returns BUSY is this process already has a pending tx.
+    ///        Returns INVAL if no valid buffer has been loaded into the write buffer,
     ///        or if the config buffer is the wrong length, or if the destination and source
     ///        port/address pairs cannot be parsed.
     ///        Otherwise, returns the result of do_next_tx_immediate(). Notably, a successful
@@ -433,14 +433,14 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        the app should wait for a send_done() callback before attempting to queue another
     ///        packet.
     ///        Currently, only will transmit if the app has bound to the port passed in the tx_cfg
-    ///        buf as the source address. If no port is bound, returns ERESERVE, if it tries to
-    ///        send on a port other than the port which is bound, returns EINVALID.
+    ///        buf as the source address. If no port is bound, returns RESERVE, if it tries to
+    ///        send on a port other than the port which is bound, returns INVALID.
     ///        Notably, the currently transmit implementation allows for starvation - an
     ///        an app with a lower app id can send constantly and starve an app with a
     ///        later ID.
-    /// - `3`: Bind to the address in rx_cfg. Returns SUCCESS if that addr/port combo is free,
-    ///        returns EINVAL if the address requested is not a local interface, or if the port
-    ///        requested is 0. Returns EBUSY if that port is already bound to by another app.
+    /// - `3`: Bind to the address in rx_cfg. Returns Ok(()) if that addr/port combo is free,
+    ///        returns INVAL if the address requested is not a local interface, or if the port
+    ///        requested is 0. Returns BUSY if that port is already bound to by another app.
     ///        This command should be called after allow() is called on the rx_cfg buffer, and
     ///        before subscribe() is used to set up the recv callback. Additionally, apps can only
     ///        send on ports after they have bound to said port. If this command is called

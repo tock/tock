@@ -114,14 +114,14 @@ at before calling `start`.
 
 The `start` function transitions the radio into a state in which it
 can send and receive packets. It either returns FAIL because the
-radio cannot be started or SUCCESS if it will be started. If the radio
+radio cannot be started or Ok(()) if it will be started. If the radio
 is already started (or in the process), `start` MUST return FAIL. I.e.,
 if software calls `start` twice, the second call would return FAIL.
 Software can tell when the radio has completed initialization by
 caling `started`.
 
 The `stop` function returns the radio to a low-power state. The
-function returns SUCCESS if the radio will transition to a
+function returns Ok(()) if the radio will transition to a
 low-power state and FAIL if it will not. Software can tell when the
 radio has turned off by calling `started`.
 
@@ -148,9 +148,9 @@ actually reconfigure it. Instead, those configuration changes
 must be committed by calling `config_commit`. The radio issues a
 callback when the reconfiguration completes. The object to receive
 the callback is set by calling `set_config_client`. If `config_commit`
-returns SUCCESS and there is a configuration client installed, the
+returns Ok(()) and there is a configuration client installed, the
 radio MUST issue a `config_done` callback. `config_commit` MAY
-return EOFF if the radio is off, or may return SUCCESS and hold the
+return OFF if the radio is off, or may return Ok(()) and hold the
 configuration commit until the radio is turned on again.
 
     fn set_config_client(&self, client: &'static ConfigClient);
@@ -160,8 +160,8 @@ A caller can configure the 16-bit short address, 64-bit full address,
 PAN (personal area network) identifier, transmit power, and
 channel. The PAN address and node address are both 16-bit values.
 Channel is an integer in the range 11-26 (the 802.15.4 channel
-numbers). `config_set_channel` MUST return EINVAL if passed a channel
-not in the range 11-26 and SUCCESS otherwise.
+numbers). `config_set_channel` MUST return INVAL if passed a channel
+not in the range 11-26 and Ok(()) otherwise.
 
     fn config_address(&self) -> u16;
     fn config_address_long(&self) -> [u8;8];
@@ -177,7 +177,7 @@ not in the range 11-26 and SUCCESS otherwise.
 `config_set_tx_power` takes an signed integer, whose units are dBm.
 If the specified value is greater than the maximum supported transmit
 power or less than the minimum supported transmit power, it MUST
-return EINVAL. Otherwise, it MUST set the transmit power to the
+return INVAL. Otherwise, it MUST set the transmit power to the
 closest value that the radio supports. `config_tx_power` MUST return
 the actual transmit power value in dBm. Therefore, it is possible that
 the return value of `config_tx_power` returns a different (but close)
@@ -258,15 +258,15 @@ read with `config_set_address`, `config_set_address_long`,
 `config_address`, and `config_address_long`.
 
 The passed buffer `tx_data` MUST be MAX_BUF_LEN in size.  `tx_len` is
-the length of the payload. If `transmit` returns SUCCESS, then the
+the length of the payload. If `transmit` returns Ok(()), then the
 driver MUST issue a transmission completion callback. If `transmit`
-returns any value except SUCCESS, it MUST NOT accept the packet for
+returns any value except Ok(()), it MUST NOT accept the packet for
 transmission and MUST NOT issue a transmission completion callback. If
-`tx_len` is too long, `transmit` MUST return ESIZE. If the radio is
-off, `transmit` MUST return EOFF.  If the stack is temporarilt unable
+`tx_len` is too long, `transmit` MUST return SIZE. If the radio is
+off, `transmit` MUST return OFF.  If the stack is temporarilt unable
 to send a packet (e.g., already has a transmission pending), then
-`transmit` MUST return EBUSY. If the stack accepts a packet for
-transmission (returns SUCCESS), it MUST return EBUSY until it issues a
+`transmit` MUST return BUSY. If the stack accepts a packet for
+transmission (returns Ok(())), it MUST return BUSY until it issues a
 transmission completion callback.
 
 5 TxClient, RxClient, ConfigClient, and PowerClient traits
@@ -304,7 +304,7 @@ wants to receive another packet MUST call `set_receive_buffer`.
 
 The `config_done` callback indicates that a radio reconfiguration has
 been committed to hardware. If the configuration has been successfully
-committed, `result` MUST be SUCCESS. It may otherwise take on any
+committed, `result` MUST be Ok(()). It may otherwise take on any
 value that is a valid return value of `config_commit` or FAIL to
 indicate another failure.
 
@@ -314,10 +314,10 @@ indicate another failure.
 
 The `changed` callback indicates that the power state of the radio
 has changed. The `on` parameter states whether it is now on or off.
-If a call to `stop` using the RadioConfig interface returns SUCCESS,
+If a call to `stop` using the RadioConfig interface returns Ok(()),
 the radio MUST issue a `changed` callback when the radio is powered
 off, passing `false` as the value of the `on` parameter. If a
-call to `start` using the RadioConfig interface returns SUCCESS,
+call to `start` using the RadioConfig interface returns Ok(()),
 the radio MUST issue a `changed` callback when the radio is powered
 on, passing `true` as the value of the `on` parameter.
 

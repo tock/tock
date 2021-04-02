@@ -27,11 +27,11 @@ pub trait AES128<'a> {
     fn set_client(&'a self, client: &'a dyn Client<'a>);
 
     /// Set the encryption key.
-    /// Returns `EINVAL` if length is not `AES128_KEY_SIZE`
+    /// Returns `INVAL` if length is not `AES128_KEY_SIZE`
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the IV (or initial counter).
-    /// Returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Returns `INVAL` if length is not `AES128_BLOCK_SIZE`
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode>;
 
     /// Begin a new message (with the configured IV) when `crypt()` is
@@ -61,15 +61,15 @@ pub trait AES128<'a> {
     /// The indices `start_index` and `stop_index` must be valid
     /// offsets in the destination buffer, and the length
     /// `stop_index - start_index` must be a multiple of
-    /// `AES128_BLOCK_SIZE`.  Otherwise, `Some(EINVAL, ...)` will be
+    /// `AES128_BLOCK_SIZE`.  Otherwise, `Some(INVAL, ...)` will be
     /// returned.
     ///
     /// If the source buffer is not `None`, its length must be
-    /// `stop_index - start_index`.  Otherwise, `Some(EINVAL, ...)`
+    /// `stop_index - start_index`.  Otherwise, `Some(INVAL, ...)`
     /// will be returned.
     ///
     /// If an encryption operation is already in progress,
-    /// `Some(EBUSY, ...)` will be returned.
+    /// `Some(BUSY, ...)` will be returned.
     ///
     /// For correct operation, the methods `set_key` and `set_iv` must have
     /// previously been called to set the buffers containing the
@@ -102,11 +102,11 @@ pub trait AES128ECB {
 }
 
 pub trait CCMClient {
-    /// `res` is SUCCESS if the encryption/decryption process succeeded. This
+    /// `res` is Ok(()) if the encryption/decryption process succeeded. This
     /// does not mean that the message has been verified in the case of
     /// decryption.
-    /// If we are encrypting: `tag_is_valid` is `true` iff `res` is SUCCESS.
-    /// If we are decrypting: `tag_is_valid` is `true` iff `res` is SUCCESS and the
+    /// If we are encrypting: `tag_is_valid` is `true` iff `res` is Ok(()).
+    /// If we are decrypting: `tag_is_valid` is `true` iff `res` is Ok(()) and the
     /// message authentication tag is valid.
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool);
 }

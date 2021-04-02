@@ -296,7 +296,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
     }
 
     /// Prepares crypt_buf with the input for the CCM* authentication and
-    /// encryption/decryption transformations. Returns ENOMEM if crypt_buf is
+    /// encryption/decryption transformations. Returns NOMEM if crypt_buf is
     /// not present or if it is not long enough.
     fn prepare_ccm_buffer(
         &self,

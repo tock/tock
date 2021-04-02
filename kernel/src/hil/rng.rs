@@ -111,12 +111,12 @@ pub trait Rng<'a> {
     /// Initiate the aquisition of new random number generation.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: a `randomness_available` callback will be called in
+    ///   - Ok(()): a `randomness_available` callback will be called in
     ///     the future when randomness is available.
     ///   - FAIL: a `randomness_available` callback will not be called in
     ///     the future, because random numbers cannot be generated. This
     ///     is a general failure condition.
-    ///   - EOFF: a `randomness_available` callback will not be called in
+    ///   - OFF: a `randomness_available` callback will not be called in
     ///     the future, because the random number generator is off/not
     ///     powered.
     fn get(&self) -> Result<(), ErrorCode>;
@@ -124,7 +124,7 @@ pub trait Rng<'a> {
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no oustanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
@@ -150,7 +150,7 @@ pub trait Client {
     /// more is available, or `Continue::Done`.
     ///
     /// If randoness_available is triggered after a call to cancel()
-    /// then error MUST be ECANCEL and randomness MAY contain
+    /// then error MUST be CANCEL and randomness MAY contain
     /// random bits.
     fn randomness_available(
         &self,

@@ -17,8 +17,8 @@ pub trait TextScreen<'a> {
     /// finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The write command is valid and will be sent to the driver.
-    /// - `EBUSY`: The driver is busy with another command.
+    /// - `Ok(())`: The write command is valid and will be sent to the driver.
+    /// - `BUSY`: The driver is busy with another command.
     fn print(
         &self,
         buffer: &'static mut [u8],
@@ -30,64 +30,64 @@ pub trait TextScreen<'a> {
     /// `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn set_cursor(&self, x_position: usize, y_position: usize) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to hide the cursor. When finished,
     /// the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn hide_cursor(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to show the cursor. When finished,
     /// the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn show_cursor(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to turn on the blinking cursor. When finished,
     /// the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn blink_cursor_on(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to turn off the blinking cursor. When finished,
     /// the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn blink_cursor_off(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to turn on the display of the screen.
     /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn display_on(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to turn off the display of the screen.
     /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn display_off(&self) -> Result<(), ErrorCode>;
 
     /// Sends to the driver a command to clear the display of the screen.
     /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: The command is valid and will be sent to the driver.
-    /// - `EBUSY`: Another command is in progress.
+    /// - `Ok(())`: The command is valid and will be sent to the driver.
+    /// - `BUSY`: Another command is in progress.
     fn clear(&self) -> Result<(), ErrorCode>;
 }
 

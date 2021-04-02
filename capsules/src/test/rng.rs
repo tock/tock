@@ -49,7 +49,7 @@ impl<'a> TestRng<'a> {
 
     pub fn run(&self) {
         match self.rng.get() {
-            Ok(()) => debug!("RNG test: first get SUCCESS"),
+            Ok(()) => debug!("RNG test: first get Ok(())"),
             _ => panic!("RNG test: unable to get random numbers"),
         }
     }
@@ -112,7 +112,7 @@ impl<'a> TestEntropy32<'a> {
 
     pub fn run(&self) {
         match self.egen.get() {
-            Ok(()) => debug!("Entropy32 test: first get SUCCESS"),
+            Ok(()) => debug!("Entropy32 test: first get Ok(())"),
             _ => panic!("Entropy32 test: unable to get entropy"),
         }
     }
@@ -175,7 +175,7 @@ impl<'a> TestEntropy8<'a> {
 
     pub fn run(&self) {
         match self.egen.get() {
-            Ok(()) => debug!("Entropy8 test: first get SUCCESS"),
+            Ok(()) => debug!("Entropy8 test: first get Ok(())"),
             _ => panic!("RNG test: unable to get random numbers"),
         }
     }

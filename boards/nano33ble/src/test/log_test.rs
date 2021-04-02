@@ -423,7 +423,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn bad_seek(&self, entry_id: usize) {
-        // Make sure seek fails with EINVAL.
+        // Make sure seek fails with INVAL.
         let original_offset = self.log.next_read_entry_id();
         match self.log.seek(entry_id) {
             Err(ErrorCode::INVAL) => (),

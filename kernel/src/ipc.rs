@@ -192,13 +192,13 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// In either case, the target_id is the same number as provided in a notify
     /// upcall or as returned by allow.
     ///
-    /// Returns EINVAL if the other process doesn't exist.
+    /// Returns INVAL if the other process doesn't exist.
 
     /// Initiates a service discovery or notifies a client or service.
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check, always returns SUCCESS
+    /// - `0`: Driver check, always returns Ok(())
     /// - `1`: Perform discovery on the package name passed to `allow_readonly`. Returns the
     ///        service descriptor if the service is found, otherwise returns an error.
     /// - `2`: Notify a service previously discovered to have the service descriptor in

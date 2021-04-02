@@ -51,7 +51,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         self.apps
             .enter(app_id, |_, _| {
                 // TODO(alevy): if app.slice.map doesn't have a slice, we would have returned
-                // EINVAL here. I.e., the driver is attempting an operation without sharing memory.
+                // INVAL here. I.e., the driver is attempting an operation without sharing memory.
                 app.slice.map_or((), |app_buffer| {
                     self.buf.take().map(|buffer| {
                         buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
@@ -72,7 +72,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
                         }
                     });
                     // TODO(alevy): if buf.take() returned None, the I2C hadn't returned the
-                    // buffer. This shouldn't happen and previous this returned ENOMEM
+                    // buffer. This shouldn't happen and previous this returned NOMEM
                 })
             })
             .expect("Appid does not map to app");

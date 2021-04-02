@@ -8,7 +8,7 @@
 //! However, using this capsule means that no other
 //! capsule or kernel service can use the ADC. It also allows only
 //! a single process to use the ADC: other processes will receive
-//! ENOMEM errors.
+//! NOMEM errors.
 //!
 //! The second, called AdcVirtualized, sits top of an ADC virtualizer.
 //! This capsule shares the ADC with the rest of the kernel through this

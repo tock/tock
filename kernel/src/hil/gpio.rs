@@ -223,7 +223,7 @@ pub trait InterruptWithValue<'a>: Input {
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
     /// Returns:
-    ///    SUCCESS - the interrupt was set up properly
+    ///    Ok(()) - the interrupt was set up properly
     ///    FAIL    - the interrupt was not set up properly; this is due to
     ///              not having an underlying interrupt source yet, i.e.
     ///              the struct is not yet fully initialized.

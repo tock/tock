@@ -14,7 +14,7 @@ pub enum ErrorCode {
     // Reserved value, for when "no error" / "success" should be
     // encoded in the same numeric representation as ErrorCode
     //
-    // SUCCESS = 0,
+    // Ok(()) = 0,
     /// Generic failure condition
     FAIL = 1,
     /// Underlying system is busy; retry

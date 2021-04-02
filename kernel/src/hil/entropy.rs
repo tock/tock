@@ -103,12 +103,12 @@ pub trait Entropy32<'a> {
     /// Initiate the aquisition of entropy.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: a `entropy_available` callback will be called in
+    ///   - Ok(()): a `entropy_available` callback will be called in
     ///     the future when entropy is available.
     ///   - FAIL: a `entropy_available` callback will not be called in
     ///     the future, because entropy cannot be generated. This
     ///     is a general failure condition.
-    ///   - EOFF: a `entropy_available` callback will not be called in
+    ///   - OFF: a `entropy_available` callback will not be called in
     ///     the future, because the random number generator is off/not
     ///     powered.
     fn get(&self) -> Result<(), ErrorCode>;
@@ -116,7 +116,7 @@ pub trait Entropy32<'a> {
     /// Cancel acquisition of entropy.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `entropy_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a `entropy_available` callback, which
@@ -147,7 +147,7 @@ pub trait Client32 {
     /// not be called again until `get()` is called.
     ///
     /// If `entropy_available` is triggered after a call to `cancel()`
-    /// then error MUST be ECANCEL and `entropy` MAY contain bits of
+    /// then error MUST be CANCEL and `entropy` MAY contain bits of
     /// entropy.
     fn entropy_available(
         &self,
@@ -164,12 +164,12 @@ pub trait Entropy8<'a> {
     /// Initiate the acquisition of new entropy.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: a `entropy_available` callback will be called in
+    ///   - Ok(()): a `entropy_available` callback will be called in
     ///     the future when entropy is available.
     ///   - FAIL: a `entropy_available` callback will not be called in
     ///     the future, because entropy cannot be generated. This
     ///     is a general failure condition.
-    ///   - EOFF: a `entropy_available` callback will not be called in
+    ///   - OFF: a `entropy_available` callback will not be called in
     ///     the future, because the entropy generator is off/not
     ///     powered.
     fn get(&self) -> Result<(), ErrorCode>;
@@ -177,7 +177,7 @@ pub trait Entropy8<'a> {
     /// Cancel acquisition of entropy.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `entropy_available`
     ///     callback will be issued.
     ///   - FAIL:: There will be a `entropy_available` callback, which
@@ -208,7 +208,7 @@ pub trait Client8 {
     /// not be called again until `get()` is called.
     ///
     /// If `entropy_available` is triggered after a call to `cancel()`
-    /// then error MUST be ECANCEL and `entropy` MAY contain bits of
+    /// then error MUST be CANCEL and `entropy` MAY contain bits of
     /// entropy.
     fn entropy_available(
         &self,
