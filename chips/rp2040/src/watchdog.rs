@@ -4,9 +4,9 @@ use kernel::common::StaticRef;
 register_structs! {
 
     WatchdogRegisters {
-        /// Watchdog control\n
-/// The rst_wdsel register determines which subsystems are reset when th
-/// The watchdog can be triggered in software.
+        /// Watchdog control
+        /// The rst_wdsel register determines which subsystems are reset when th
+        /// The watchdog can be triggered in software.
         (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
         /// Load the watchdog timer. The maximum setting is 0xffffff which corresponds to 0x
         (0x004 => load: ReadWrite<u32>),
@@ -34,64 +34,64 @@ register_structs! {
     }
 }
 register_bitfields![u32,
-CTRL [
-    /// Trigger a watchdog reset
-    TRIGGER OFFSET(31) NUMBITS(1) [],
-    /// When not enabled the watchdog timer is paused
-    ENABLE OFFSET(30) NUMBITS(1) [],
-    /// Pause the watchdog timer when processor 1 is in debug mode
-    PAUSE_DBG1 OFFSET(26) NUMBITS(1) [],
-    /// Pause the watchdog timer when processor 0 is in debug mode
-    PAUSE_DBG0 OFFSET(25) NUMBITS(1) [],
-    /// Pause the watchdog timer when JTAG is accessing the bus fabric
-    PAUSE_JTAG OFFSET(24) NUMBITS(1) [],
-    /// Indicates the number of ticks / 2 (see errata RP2040-E1) before a watchdog reset
-    TIME OFFSET(0) NUMBITS(24) []
-],
-LOAD [
+    CTRL [
+        /// Trigger a watchdog reset
+        TRIGGER OFFSET(31) NUMBITS(1) [],
+        /// When not enabled the watchdog timer is paused
+        ENABLE OFFSET(30) NUMBITS(1) [],
+        /// Pause the watchdog timer when processor 1 is in debug mode
+        PAUSE_DBG1 OFFSET(26) NUMBITS(1) [],
+        /// Pause the watchdog timer when processor 0 is in debug mode
+        PAUSE_DBG0 OFFSET(25) NUMBITS(1) [],
+        /// Pause the watchdog timer when JTAG is accessing the bus fabric
+        PAUSE_JTAG OFFSET(24) NUMBITS(1) [],
+        /// Indicates the number of ticks / 2 (see errata RP2040-E1) before a watchdog reset
+        TIME OFFSET(0) NUMBITS(24) []
+    ],
+    LOAD [
 
-    LOAD OFFSET(0) NUMBITS(24) []
-],
-REASON [
+        LOAD OFFSET(0) NUMBITS(24) []
+    ],
+    REASON [
 
-    FORCE OFFSET(1) NUMBITS(1) [],
+        FORCE OFFSET(1) NUMBITS(1) [],
 
-    TIMER OFFSET(0) NUMBITS(1) []
-],
-SCRATCH0 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH1 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH2 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH3 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH4 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH5 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH6 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-SCRATCH7 [
-    VALUE OFFSET (0) NUMBITS (32) []
-],
-TICK [
-    /// Count down timer: the remaining number clk_tick cycles before the next tick is g
-    COUNT OFFSET(11) NUMBITS(9) [],
-    /// Is the tick generator running?
-    RUNNING OFFSET(10) NUMBITS(1) [],
-    /// start / stop tick generation
-    ENABLE OFFSET(9) NUMBITS(1) [],
-    /// Total number of clk_tick cycles before the next tick.
-    CYCLES OFFSET(0) NUMBITS(9) []
-]
+        TIMER OFFSET(0) NUMBITS(1) []
+    ],
+    SCRATCH0 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH1 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH2 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH3 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH4 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH5 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH6 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    SCRATCH7 [
+        VALUE OFFSET (0) NUMBITS (32) []
+    ],
+    TICK [
+        /// Count down timer: the remaining number clk_tick cycles before the next tick is g
+        COUNT OFFSET(11) NUMBITS(9) [],
+        /// Is the tick generator running?
+        RUNNING OFFSET(10) NUMBITS(1) [],
+        /// start / stop tick generation
+        ENABLE OFFSET(9) NUMBITS(1) [],
+        /// Total number of clk_tick cycles before the next tick.
+        CYCLES OFFSET(0) NUMBITS(9) []
+    ]
 ];
 const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
     unsafe { StaticRef::new(0x40058000 as *const WatchdogRegisters) };
