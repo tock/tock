@@ -217,8 +217,8 @@ are additional error codes to include errors related to userspace.
 | 7     | SIZE        | The size specified is too large or too small.                                           |
 | 8     | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.        |
 | 9     | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer). |
-| 10    | NOSUPPORT   | The operation is not supported/implemented.                                             |
-| 11    | NODEVICE    | The specified device is not implemented by the kernel.                                  |
+| 10    | NOSUPPORT   | The system call is not available to or supported for the calling process.               |
+| 11    | NODEVICE    | The driver specified by the driver identifier is not available to the calling process.  |
 | 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                             |
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
@@ -283,7 +283,7 @@ syscall identifier `0x2` starts receiving console data into a buffer.
 
 If userspace invokes a system call on a peripheral driver that is not 
 installed in the kernel, the kernel MUST return a Failure result with 
-an error of `NODEVICE`. If userspace invokes an recognized system call
+an error of `NODEVICE`. If userspace invokes an unrecognized system call
 on a peripheral driver, the peripheral driver MUST return a Failure
 result with an error of `NOSUPPORT`.
 

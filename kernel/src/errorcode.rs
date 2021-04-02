@@ -5,11 +5,6 @@ use core::convert::TryFrom;
 use crate::ReturnCode;
 
 /// Standard errors in Tock.
-///
-/// In contrast to [`ReturnCode`](crate::ReturnCode) this does not
-/// feature any success cases and is therefore more approriate for the
-/// Tock 2.0 system call interface, where success payloads and errors
-/// are not packed into the same 32-bit wide register.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(usize)]
 pub enum ErrorCode {
@@ -35,9 +30,9 @@ pub enum ErrorCode {
     CANCEL = 8,
     /// Memory required not available
     NOMEM = 9,
-    /// Operation or command is unsupported
+    /// Operation is not supported
     NOSUPPORT = 10,
-    /// Device does not exist
+    /// Device is not available 
     NODEVICE = 11,
     /// Device is not physically installed
     UNINSTALLED = 12,
