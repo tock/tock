@@ -16,7 +16,11 @@ use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
 use rp2040;
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
-use rp2040::clocks::PllClock;
+use rp2040::clocks::{
+    AdcAuxiliaryClockSource, PeripheralAuxiliaryClockSource, PllClock,
+    ReferenceAuxiliaryClockSource, ReferenceClockSource, RtcAuxiliaryClockSource,
+    SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
+};
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
 mod io;
@@ -110,6 +114,39 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     peripherals
         .clocks
         .pll_init(PllClock::Usb, 12, 1, 480 * 1000000, 5, 2);
+
+    // pico-sdk: // CLK_REF = XOSC (12MHz) / 1 = 12MHz
+    peripherals.clocks.configure_reference(
+        ReferenceClockSource::Xosc,
+        ReferenceAuxiliaryClockSource::PllUsb,
+        12000000,
+        12000000,
+    );
+    // pico-sdk: CLK SYS = PLL SYS (125MHz) / 1 = 125MHz
+    peripherals.clocks.configure_system(
+        SystemClockSource::Auxiliary,
+        SystemAuxiliaryClockSource::PllSys,
+        125000000,
+        125000000,
+    );
+    // pico-sdk: CLK USB = PLL USB (48MHz) / 1 = 48MHz
+    peripherals
+        .clocks
+        .configure_usb(UsbAuxiliaryClockSource::PllSys, 48000000, 48000000);
+    // pico-sdk: CLK ADC = PLL USB (48MHZ) / 1 = 48MHz
+    peripherals
+        .clocks
+        .configure_adc(AdcAuxiliaryClockSource::PllUsb, 48000000, 48000000);
+    // pico-sdk: CLK RTC = PLL USB (48MHz) / 1024 = 46875Hz
+    peripherals
+        .clocks
+        .configure_rtc(RtcAuxiliaryClockSource::PllSys, 48000000, 46875);
+    // pico-sdk:
+    // CLK PERI = clk_sys. Used as reference clock for Peripherals. No dividers so just select and enable
+    // Normally choose clk_sys or clk_usb
+    peripherals
+        .clocks
+        .configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
 }
 
 /// Entry point in the vector table called on hard reset.

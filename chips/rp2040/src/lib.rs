@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn, asm)]
 #![no_std]
 
 pub mod chip;
