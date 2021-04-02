@@ -6,5 +6,6 @@ edition = "2018"
 
 [dependencies]
 sifive = { path = "../sifive" }
+virtio = { path = "../virtio" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
