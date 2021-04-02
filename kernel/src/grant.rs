@@ -30,7 +30,7 @@
 //! operation, they can use an `Allocator` to request additional memory from
 //! the process's grant region.
 //!
-//! ```
+//! ```skip
 //!                            ┌──────────────────┐
 //!                            │                  │
 //!                            │ Capsule          │
@@ -79,7 +79,7 @@
 //! Here is an overview of the types used by grant.rs to implement the Grant
 //! functionality in Tock:
 //!
-//! ```
+//! ```skip
 //!                         ┌──────────────────────────┐
 //!                         │ struct Grant<T> {        │
 //!                         │   number: usize          │
@@ -333,7 +333,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// bug in the code and not a condition that should be handled. For example,
     /// this benign looking code is wrong:
     ///
-    /// ```
+    /// ```skip
     /// self.apps.enter(thisapp, |app_grant, _| {
     ///     // Update state in the grant region of `thisapp`. Also, mark that
     ///     // `thisapp` needs to run again.
