@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** Feb 26, 2021<br/>
-**Draft-Version:** 3<br/>
+**Draft-Modified:** April 2, 2021<br/>
+**Draft-Version:** 4<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -217,7 +217,7 @@ are additional error codes to include errors related to userspace.
 | 7     | SIZE        | The size specified is too large or too small.                                           |
 | 8     | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.        |
 | 9     | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer). |
-| 10    | NOSUPPORT   | The system call is not available to or supported for the calling process.               |
+| 10    | NOSUPPORT   | The system call is not available to or not supported for the calling process.           |
 | 11    | NODEVICE    | The driver specified by the driver identifier is not available to the calling process.  |
 | 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                             |
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
@@ -277,8 +277,8 @@ and a syscall identifier. The driver identifier specifies which system
 call driver to invoke. The syscall identifier (which is different than
 the Syscall Class ID in the table above) specifies which instance of
 that system call on that driver to invoke. Both arguments are unsigned
-32-bit integers. For example, the Console system call driver has
-driver identifier `0x1`, by convention, and a Command to the console driver with
+32-bit integers. For example, by convention the Console system call driver 
+has driver identifier `0x1` and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
 If userspace invokes a system call on a peripheral driver that is not 
@@ -844,10 +844,22 @@ no return value.
 6 Authors' Address
 =================================
 ```
-email - Guillaume Endignoux <guillaumee@google.com>
-email - Jon Flatley <jflat@google.com>
-email - Philip Levis <pal@cs.stanford.edu>
-email - Amit Levy <aalevy@cs.princeton.edu>
-email - Leon Schuermann <leon@is.currently.online>
-email - Johnathan Van Why <jrvanwhy@google.com>
+Guillaume Endignoux <guillaumee@google.com>
+
+Jon Flatley <jflat@google.com>
+
+Philip Levis
+414 Gates Hall 
+Stanford University
+Stanford, CA 94305
+
+Phone: +1 650 725 9046
+Email: pal@cs.stanford.edu
+
+
+Amit Levy <aalevy@cs.princeton.edu>
+
+Leon Schuermann <leon@is.currently.online>
+
+Johnathan Van Why <jrvanwhy@google.com>
 ```
