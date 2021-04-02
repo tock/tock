@@ -74,6 +74,7 @@ members = [
     "chips/stm32f4xx",
     "chips/swerv",
     "chips/swervolf-eh1",
+    "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",

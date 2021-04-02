@@ -1,0 +1,8 @@
+[package]
+name = "virtio"
+version.workspace = true
+authors.workspace = true
+edition = "2021"
+
+[dependencies]
+kernel = { path = "../../kernel" }
