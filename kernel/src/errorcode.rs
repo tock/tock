@@ -32,7 +32,7 @@ pub enum ErrorCode {
     NOMEM = 9,
     /// Operation is not supported
     NOSUPPORT = 10,
-    /// Device is not available 
+    /// Device is not available
     NODEVICE = 11,
     /// Device is not physically installed
     UNINSTALLED = 12,
