@@ -469,7 +469,7 @@ where
 
                     if success {
                         app.scan_callback.schedule(
-                            kernel::into_returncode(result),
+                            kernel::into_statuscode(result),
                             len as usize,
                             0,
                         );

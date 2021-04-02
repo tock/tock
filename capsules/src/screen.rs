@@ -197,7 +197,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetRotation => {
                 let rotation = self.screen.get_rotation();
-                self.run_next_command(kernel::into_returncode(Ok(())), rotation as usize, 0);
+                self.run_next_command(kernel::into_statuscode(Ok(())), rotation as usize, 0);
                 Ok(())
             }
             ScreenCommand::SetResolution => {
@@ -209,7 +209,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
-                self.run_next_command(kernel::into_returncode(Ok(())), width, height);
+                self.run_next_command(kernel::into_statuscode(Ok(())), width, height);
                 Ok(())
             }
             ScreenCommand::SetPixelFormat => {
@@ -225,13 +225,13 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetPixelFormat => {
                 let pixel_format = self.screen.get_pixel_format();
-                self.run_next_command(kernel::into_returncode(Ok(())), pixel_format as usize, 0);
+                self.run_next_command(kernel::into_statuscode(Ok(())), pixel_format as usize, 0);
                 Ok(())
             }
             ScreenCommand::GetSupportedResolutionModes => {
                 if let Some(screen) = self.screen_setup {
                     let resolution_modes = screen.get_num_supported_resolutions();
-                    self.run_next_command(kernel::into_returncode(Ok(())), resolution_modes, 0);
+                    self.run_next_command(kernel::into_statuscode(Ok(())), resolution_modes, 0);
                     Ok(())
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -241,7 +241,7 @@ impl<'a> Screen<'a> {
                 if let Some(screen) = self.screen_setup {
                     if let Some((width, height)) = screen.get_supported_resolution(data1) {
                         self.run_next_command(
-                            kernel::into_returncode(if width > 0 && height > 0 {
+                            kernel::into_statuscode(if width > 0 && height > 0 {
                                 Ok(())
                             } else {
                                 Err(ErrorCode::INVAL)
@@ -260,7 +260,7 @@ impl<'a> Screen<'a> {
             ScreenCommand::GetSupportedPixelFormats => {
                 if let Some(screen) = self.screen_setup {
                     let color_modes = screen.get_num_supported_pixel_formats();
-                    self.run_next_command(kernel::into_returncode(Ok(())), color_modes, 0);
+                    self.run_next_command(kernel::into_statuscode(Ok(())), color_modes, 0);
                     Ok(())
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -270,7 +270,7 @@ impl<'a> Screen<'a> {
                 if let Some(screen) = self.screen_setup {
                     if let Some(pixel_format) = screen.get_supported_pixel_format(data1) {
                         self.run_next_command(
-                            kernel::into_returncode(Ok(())),
+                            kernel::into_statuscode(Ok(())),
                             pixel_format as usize,
                             0,
                         );
@@ -302,7 +302,7 @@ impl<'a> Screen<'a> {
                                     self.screen.write(buffer, len)
                                 } else {
                                     self.buffer.replace(buffer);
-                                    self.run_next_command(kernel::into_returncode(Ok(())), 0, 0);
+                                    self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
                                     Ok(())
                                 }
                             })
@@ -334,7 +334,7 @@ impl<'a> Screen<'a> {
                                 self.screen.write(buffer, len)
                             } else {
                                 self.buffer.replace(buffer);
-                                self.run_next_command(kernel::into_returncode(Ok(())), 0, 0);
+                                self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
                                 Ok(())
                             }
                         })
@@ -473,7 +473,7 @@ impl<'a> Screen<'a> {
 
 impl<'a> hil::screen::ScreenClient for Screen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.run_next_command(kernel::into_returncode(r), 0, 0);
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 
     fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>) {
@@ -483,18 +483,18 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
             let _ = self.screen.write_continue(buffer, len);
         } else {
             self.buffer.replace(buffer);
-            self.run_next_command(kernel::into_returncode(r), 0, 0);
+            self.run_next_command(kernel::into_statuscode(r), 0, 0);
         }
     }
 
     fn screen_is_ready(&self) {
-        self.run_next_command(kernel::into_returncode(Ok(())), 0, 0);
+        self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
     }
 }
 
 impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.run_next_command(kernel::into_returncode(r), 0, 0);
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 }
 

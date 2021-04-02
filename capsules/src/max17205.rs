@@ -382,7 +382,7 @@ impl<'a> MAX17205Driver<'a> {
 impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.callback
-            .map(|cb| cb.schedule(kernel::into_returncode(error), status as usize, 0));
+            .map(|cb| cb.schedule(kernel::into_statuscode(error), status as usize, 0));
     }
 
     fn state_of_charge(
@@ -394,7 +394,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     ) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::into_returncode(error),
+                kernel::into_statuscode(error),
                 percent as usize,
                 (capacity as usize) << 16 | (full_capacity as usize),
             );
@@ -404,7 +404,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::into_returncode(error),
+                kernel::into_statuscode(error),
                 voltage as usize,
                 current as usize,
             )
@@ -413,13 +413,13 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.callback
-            .map(|cb| cb.schedule(kernel::into_returncode(error), coulomb as usize, 0));
+            .map(|cb| cb.schedule(kernel::into_statuscode(error), coulomb as usize, 0));
     }
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::into_returncode(error),
+                kernel::into_statuscode(error),
                 (rid & 0xffffffff) as usize,
                 (rid >> 32) as usize,
             )

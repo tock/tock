@@ -92,17 +92,32 @@ impl From<ErrorCode> for Result<(), ErrorCode> {
     }
 }
 
-/// Convert a `Result<(), ErrorCode>` to a ReturnCode (usize) for userspace.
+/// Convert a `Result<(), ErrorCode>` to a StatusCode (usize) for userspace.
+///
+/// StatusCode is a useful "pseudotype" (there is no actual Rust type called
+/// StatusCode in Tock) for three reasons:
+///
+/// 1. It can be represented in a single `usize`. This allows StatusCode to be
+///    easily passed across the syscall interface between the kernel and
+///    userspace.
+///
+/// 2. It extends ErrorCode, but keeps the same error-to-number mappings as
+///    ErrorCode. For example, in both StatusCode and ErrorCode, the `SIZE`
+///    error is always represented as 7.
+///
+/// 3. It can encode success values, whereas ErrorCode can only encode errors.
+///    Number 0 in ErrorCode is reserved, and is used for `SUCCESS` in
+///    StatusCode.
 ///
 /// This helper function converts the Tock and Rust convention for a
-/// success/error type to a usize sufficient to send to userspace via an upcall.
-/// Tock terms this usize value a `ReturnCode`.
+/// success/error type to a StatusCode. StatusCode is represented as a usize
+/// which is sufficient to send to userspace via an upcall.
 ///
 /// The key to this conversion and portability between the kernel and userspace
 /// is that `ErrorCode`, which only expresses errors, is assigned fixed values,
 /// but does not use value 0 by convention. This allows us to use 0 as success
 /// in ReturnCode.
-pub fn into_returncode(r: Result<(), ErrorCode>) -> usize {
+pub fn into_statuscode(r: Result<(), ErrorCode>) -> usize {
     match r {
         Ok(()) => 0,
         Err(e) => e as usize,

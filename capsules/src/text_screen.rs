@@ -130,7 +130,7 @@ impl<'a> TextScreen<'a> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
-                self.schedule_callback(kernel::into_returncode(Ok(())), x, y);
+                self.schedule_callback(kernel::into_statuscode(Ok(())), x, y);
                 self.run_next_command();
                 Ok(())
             }
@@ -293,13 +293,13 @@ impl<'a> Driver for TextScreen<'a> {
 
 impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.schedule_callback(kernel::into_returncode(r), 0, 0);
+        self.schedule_callback(kernel::into_statuscode(r), 0, 0);
         self.run_next_command();
     }
 
     fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
-        self.schedule_callback(kernel::into_returncode(r), len, 0);
+        self.schedule_callback(kernel::into_statuscode(r), len, 0);
         self.run_next_command();
     }
 }
