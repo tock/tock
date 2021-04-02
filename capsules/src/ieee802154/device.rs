@@ -72,7 +72,7 @@ pub trait MacDevice<'a> {
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
     /// that it can be re-used.
-    fn transmit(&self, frame: Frame) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>);
+    fn transmit(&self, frame: Frame) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 /// Trait to be implemented by any user of the IEEE 802.15.4 device that

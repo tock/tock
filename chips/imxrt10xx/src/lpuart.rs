@@ -531,7 +531,7 @@ impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_status.get() == LPUARTStateTX::Idle {
             if tx_len <= tx_data.len() {
                 self.tx_buffer.put(Some(tx_data));
@@ -539,12 +539,12 @@ impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
                 self.tx_len.set(tx_len);
                 self.tx_status.set(LPUARTStateTX::Transmitting);
                 self.enable_transmit_complete_interrupt();
-                (Ok(()), None)
+                Ok(())
             } else {
-                (Err(ErrorCode::SIZE), Some(tx_data))
+                Err((ErrorCode::SIZE, tx_data))
             }
         } else {
-            (Err(ErrorCode::BUSY), Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         }
     }
 
@@ -647,7 +647,7 @@ impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));
@@ -655,12 +655,12 @@ impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
                 self.rx_len.set(rx_len);
                 self.rx_status.set(USARTStateRX::Receiving);
                 self.enable_receive_interrupt();
-                (Ok(()), None)
+                Ok(())
             } else {
-                (Err(ErrorCode::SIZE), Some(rx_buffer))
+                Err((ErrorCode::SIZE, rx_buffer))
             }
         } else {
-            (Err(ErrorCode::BUSY), Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         }
     }
 

@@ -389,19 +389,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 app.using_app_buf1.set(true);
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
-                                let (rc, retbuf1, retbuf2) = self
-                                    .adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
-                                if rc != Ok(()) {
-                                    // store buffers again
-                                    retbuf1.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                    retbuf2.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                }
-                                rc
+                                self.adc
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .map_or_else(
+                                        |(ecode, buf1, buf2)| {
+                                            // store buffers again
+                                            self.replace_buffer(buf1);
+                                            self.replace_buffer(buf2);
+                                            Err(ecode)
+                                        },
+                                        |()| Ok(()),
+                                    )
                             })
                     });
                     res
@@ -527,19 +525,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
                                 // begin sampling
                                 app.using_app_buf1.set(true);
-                                let (rc, retbuf1, retbuf2) = self
-                                    .adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
-                                if rc != Ok(()) {
-                                    // store buffers again
-                                    retbuf1.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                    retbuf2.map(|buf| {
-                                        self.replace_buffer(buf);
-                                    });
-                                }
-                                rc
+                                self.adc
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .map_or_else(
+                                        |(ecode, buf1, buf2)| {
+                                            // store buffers again
+                                            self.replace_buffer(buf1);
+                                            self.replace_buffer(buf2);
+                                            Err(ecode)
+                                        },
+                                        |()| Ok(()),
+                                    )
                             })
                     })
                 })
@@ -599,18 +595,18 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     }
 
                     // reclaim buffers
-                    let (rc, buf1, buf2) = self.adc.retrieve_buffers();
-
-                    // store buffers again
-                    buf1.map(|buf| {
-                        self.replace_buffer(buf);
-                    });
-                    buf2.map(|buf| {
-                        self.replace_buffer(buf);
-                    });
-
-                    // return result
-                    rc
+                    match self.adc.retrieve_buffers() {
+                        Ok((buf1, buf2)) => {
+                            buf1.map(|buf| {
+                                self.replace_buffer(buf);
+                            });
+                            buf2.map(|buf| {
+                                self.replace_buffer(buf);
+                            });
+                            Ok(())
+                        }
+                        Err(ecode) => Err(ecode),
+                    }
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -863,13 +859,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                             let request_len =
                                                 cmp::min(samples_needed, adc_buf.len());
                                             app.next_samples_outstanding.set(request_len);
-                                            let (res, retbuf) =
-                                                self.adc.provide_buffer(adc_buf, request_len);
-                                            if res != Ok(()) {
-                                                retbuf.map(|buf| {
+                                            let _ = self
+                                                .adc
+                                                .provide_buffer(adc_buf, request_len)
+                                                .map_err(|(_, buf)| {
                                                     self.replace_buffer(buf);
                                                 });
-                                            }
                                         });
                                     } else {
                                         // okay, we still need more samples for the next
@@ -885,13 +880,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                                 .set(app.samples_remaining.get() - request_len);
                                             app.samples_outstanding
                                                 .set(app.samples_outstanding.get() + request_len);
-                                            let (res, retbuf) =
-                                                self.adc.provide_buffer(adc_buf, request_len);
-                                            if res != Ok(()) {
-                                                retbuf.map(|buf| {
+                                            let _ = self
+                                                .adc
+                                                .provide_buffer(adc_buf, request_len)
+                                                .map_err(|(_, buf)| {
                                                     self.replace_buffer(buf);
                                                 });
-                                            }
                                         });
                                     }
                                 }
@@ -915,13 +909,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                             next_app_buf.map_or(0, |buf| buf.len() / 2);
                                         let request_len = cmp::min(samples_needed, adc_buf.len());
                                         app.next_samples_outstanding.set(request_len);
-                                        let (res, retbuf) =
-                                            self.adc.provide_buffer(adc_buf, request_len);
-                                        if res != Ok(()) {
-                                            retbuf.map(|buf| {
+                                        let _ = self
+                                            .adc
+                                            .provide_buffer(adc_buf, request_len)
+                                            .map_err(|(_, buf)| {
                                                 self.replace_buffer(buf);
                                             });
-                                        }
                                     });
                                 }
                             }
@@ -937,12 +930,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                     .set(app.samples_remaining.get() - request_len);
                                 app.samples_outstanding
                                     .set(app.samples_outstanding.get() + request_len);
-                                let (res, retbuf) = self.adc.provide_buffer(adc_buf, request_len);
-                                if res != Ok(()) {
-                                    retbuf.map(|buf| {
+                                let _ = self.adc.provide_buffer(adc_buf, request_len).map_err(
+                                    |(_, buf)| {
                                         self.replace_buffer(buf);
-                                    });
-                                }
+                                    },
+                                );
                             });
                         }
 
@@ -1020,13 +1012,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 let _ = self.adc.stop_sampling();
 
                                 // reclaim buffers and store them
-                                let (_, buf1, buf2) = self.adc.retrieve_buffers();
-                                buf1.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
-                                buf2.map(|buf| {
-                                    self.replace_buffer(buf);
-                                });
+                                if let Ok((buf1, buf2)) = self.adc.retrieve_buffers() {
+                                    buf1.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                    buf2.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
+                                }
                             } else {
                                 // if the mode is ContinuousBuffer, we've just
                                 // switched app buffers. Reset our offset to zero
@@ -1071,13 +1064,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             let _ = self.adc.stop_sampling();
 
             // Also retrieve any buffers we passed to the underlying ADC driver.
-            let (_, buf1, buf2) = self.adc.retrieve_buffers();
-            buf1.map(|buf| {
-                self.replace_buffer(buf);
-            });
-            buf2.map(|buf| {
-                self.replace_buffer(buf);
-            });
+            if let Ok((buf1, buf2)) = self.adc.retrieve_buffers() {
+                buf1.map(|buf| {
+                    self.replace_buffer(buf);
+                });
+                buf2.map(|buf| {
+                    self.replace_buffer(buf);
+                });
+            }
         }
     }
 }

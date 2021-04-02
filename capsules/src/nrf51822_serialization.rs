@@ -221,7 +221,7 @@ impl Driver for Nrf51822Serialization<'_> {
                             for (i, c) in slice.as_ref().iter().enumerate() {
                                 buffer[i] = *c;
                             }
-                            let (_err, _opt) = self.uart.transmit_buffer(buffer, write_len);
+                            let _ = self.uart.transmit_buffer(buffer, write_len);
                             CommandReturn::success()
                         })
                     })

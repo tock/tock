@@ -199,11 +199,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 
         if tx_len == 0 {
-            return (Err(ErrorCode::SIZE), Some(tx_data));
+            return Err((ErrorCode::SIZE, tx_data));
         }
 
         // Enable the interrupt so we know when we can keep writing.
@@ -234,7 +234,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         regs.txctrl
             .write(txctrl::txen::SET + stop_bits + txctrl::txcnt.val(1));
 
-        (Ok(()), None)
+        Ok(())
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
@@ -253,10 +253,10 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
-        (Err(ErrorCode::FAIL), None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {

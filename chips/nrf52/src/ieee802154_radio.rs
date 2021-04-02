@@ -1151,12 +1151,12 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buf.is_some() || self.transmitting.get() {
-            return (Err(ErrorCode::BUSY), Some(buf));
+            return Err((ErrorCode::BUSY, buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
             // Not enough room for CRC
-            return (Err(ErrorCode::SIZE), Some(buf));
+            return Err((ErrorCode::SIZE, buf));
         }
 
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
@@ -1169,6 +1169,6 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
 
         self.radio_off();
         self.radio_initialize();
-        (Ok(()), None)
+        Ok(())
     }
 }

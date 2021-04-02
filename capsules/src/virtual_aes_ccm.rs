@@ -191,11 +191,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
             mnode.map(|node| {
                 self.inflight.set(node);
                 let parameters: CryptFunctionParameters = node.queued_up.take().unwrap();
-                let (res, _) = node.crypt_r(parameters); // eats the parameters
-
-                // notice that we didn't put the parameters back...
-                // because it's already eaten
-                if res != Ok(()) {
+                // now, eat the parameters
+                let _ = node.crypt_r(parameters).map_err(|(ecode, _)| {
+                    // notice that we didn't put the parameters back...
+                    // because it's already eaten
                     if node.crypt_client.is_none() {
                         debug!(
                             "virtual_aes_ccm: no crypt_client is registered in VirtualAES128CCM"
@@ -207,13 +206,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
                     // notify the client that there's a failure
                     node.buf.take().map(|buf| {
                         node.crypt_client.map(move |client| {
-                            client.crypt_done(buf, res, false);
+                            client.crypt_done(buf, Err(ecode), false);
                         });
                     });
                     // if it fails to trigger encryption, remove it and perform the next
                     node.remove_from_queue();
                     self.do_next_op();
-                }
+                });
                 // otherwise, wait for crypt_done
             });
         }
@@ -611,7 +610,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
     fn crypt_r(
         &self,
         parameter: CryptFunctionParameters,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // just expanding the parameters......
         let buf: &'static mut [u8] = parameter.buf;
         let a_off: usize = parameter.a_off;
@@ -622,10 +621,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         let encrypting: bool = parameter.encrypting;
         //
         if self.state.get() != CCMState::Idle {
-            return (Err(ErrorCode::BUSY), Some(buf));
+            return Err((ErrorCode::BUSY, buf));
         }
         if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
-            return (Err(ErrorCode::INVAL), Some(buf));
+            return Err((ErrorCode::INVAL, buf));
         }
 
         self.confidential.set(confidential);
@@ -638,7 +637,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             &buf[m_off..m_off + m_len],
         );
         if res != Ok(()) {
-            return (res, Some(buf));
+            return Err((res.unwrap_err(), buf));
         }
 
         let res = if !confidential || encrypting {
@@ -651,11 +650,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         };
 
         if res != Ok(()) {
-            (res, Some(buf))
+            Err((res.unwrap_err(), buf))
         } else {
             self.buf.replace(buf);
             self.pos.set((a_off, m_off, m_len, mic_len));
-            (Ok(()), None)
+            Ok(())
         }
     }
 
@@ -703,15 +702,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.queued_up.is_some() {
-            return (Err(ErrorCode::BUSY), Some(buf));
+            return Err((ErrorCode::BUSY, buf));
         }
         if self.state.get() != CCMState::Idle {
-            return (Err(ErrorCode::BUSY), Some(buf));
+            return Err((ErrorCode::BUSY, buf));
         }
         if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
-            return (Err(ErrorCode::INVAL), Some(buf));
+            return Err((ErrorCode::INVAL, buf));
         }
 
         self.queued_up.set(CryptFunctionParameters::new(
@@ -724,7 +723,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
             encrypting,
         ));
         self.mux.do_next_op_async();
-        (Ok(()), None)
+        Ok(())
     }
 }
 

@@ -418,11 +418,10 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                                 self.schedule_next();
                             } else {
                                 // TODO: Handle err (not just debug statement)
-                                let (retcode, _opt) = self.radio.transmit(frame);
-                                match retcode {
-                                    Ok(()) => {}
-                                    _ => debug!("Error in radio transmit"),
-                                }
+                                let _ = self
+                                    .radio
+                                    .transmit(frame)
+                                    .map_err(|_| debug!("Error in radio transmit"));
                             }
                         }
                         Err((retcode, _buf)) => {

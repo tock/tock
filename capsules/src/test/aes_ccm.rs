@@ -101,15 +101,13 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
             panic!("aes_ccm_test failed: cannot set key or nonce.");
         }
 
-        let (res, opt_buf) =
-            self.aes_ccm
-                .crypt(buf, a_off, m_off, m_len, mic_len, confidential, encrypting);
-        if res != Ok(()) {
-            debug!("Failed to start test.")
-        }
-        if let Some(buf) = opt_buf {
-            self.buf.replace(buf);
-        }
+        let _ = self
+            .aes_ccm
+            .crypt(buf, a_off, m_off, m_len, mic_len, confidential, encrypting)
+            .map_err(|(_code, buf)| {
+                debug!("Failed to start test.");
+                self.buf.replace(buf);
+            });
     }
 
     fn check_test(&self, tag_is_valid: bool) {

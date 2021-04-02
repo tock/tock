@@ -137,7 +137,7 @@ impl<'a> Console<'a> {
                 });
 
                 app.write_remaining -= transaction_len;
-                let (_err, _opt) = self.uart.transmit_buffer(buffer, transaction_len);
+                let _ = self.uart.transmit_buffer(buffer, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -162,7 +162,7 @@ impl<'a> Console<'a> {
             app.read_len = read_len;
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(app_id);
-                let (_err, _opt) = self.uart.receive_buffer(buffer, app.read_len);
+                let _ = self.uart.receive_buffer(buffer, app.read_len);
             });
             Ok(())
         }

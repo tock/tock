@@ -382,14 +382,14 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // In virtual_uart.rs, transmit is only called when inflight is None. So
         // if the state machine is working correctly, transmit should never
         // abort.
 
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             // there is an ongoing transmission, quit it
-            return (Err(ErrorCode::BUSY), Some(tx_data));
+            return Err((ErrorCode::BUSY, tx_data));
         }
 
         // setup and enable dma stream
@@ -402,7 +402,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 
         // enable dma tx on peripheral side
         self.enable_tx();
-        (Ok(()), None)
+        Ok(())
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
@@ -471,13 +471,13 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
-            return (Err(ErrorCode::BUSY), Some(rx_buffer));
+            return Err((ErrorCode::BUSY, rx_buffer));
         }
 
         if rx_len > rx_buffer.len() {
-            return (Err(ErrorCode::SIZE), Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         // setup and enable dma stream
@@ -490,7 +490,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
 
         // enable dma rx on the peripheral side
         self.enable_rx();
-        (Ok(()), None)
+        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {

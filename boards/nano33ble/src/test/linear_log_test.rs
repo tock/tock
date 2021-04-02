@@ -170,10 +170,10 @@ impl<A: Alarm<'static>> LogTest<A> {
 
                 match self.log.read(buffer, buffer.len()) {
                     Ok(_) => debug_verbose!("Dispatched asynchronous read operation."),
-                    Err((return_code, Some(buffer))) => {
+                    Err(Err((return_code, buffer))) => {
                         self.buffer.replace(buffer);
                         match return_code {
-                            Err(ErrorCode::FAIL) => {
+                            ErrorCode::FAIL => {
                                 // No more entries, start writing again.
                                 debug_verbose!(
                                     "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
@@ -183,14 +183,14 @@ impl<A: Alarm<'static>> LogTest<A> {
                                 self.op_index.increment();
                                 self.run();
                             }
-                            Err(ErrorCode::BUSY) => {
+                            ErrorCode::BUSY => {
                                 debug_verbose!("Flash busy, waiting before reattempting read");
                                 self.wait();
                             }
                             _ => panic!("READ FAILED: {:?}", return_code),
                         }
                     }
-                    Err((_, None)) => panic!("No buffer returned in error!"),
+                    _ => unreachable!(),
                 }
             }
             None => panic!("NO BUFFER"),
@@ -212,11 +212,11 @@ impl<A: Alarm<'static>> LogTest<A> {
                     };
                 }
 
-                if let Err((error, original_buffer)) = self.log.append(buffer, len) {
-                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
+                if let Err(Err((error, original_buffer))) = self.log.append(buffer, len) {
+                    self.buffer.replace(original_buffer);
 
                     match error {
-                        Err(ErrorCode::FAIL) =>
+                        ErrorCode::FAIL =>
                             if expect_write_fail {
                                 debug_verbose!(
                                     "Write failed on {} byte write, as expected",
@@ -232,7 +232,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                                     self.log.log_end()
                                 );
                             }
-                        Err(ErrorCode::BUSY) => self.wait(),
+                        ErrorCode::BUSY => self.wait(),
                         _ => panic!("WRITE FAILED: {:?}", error),
                     }
                 } else if expect_write_fail {

@@ -360,7 +360,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
         _mic_len: usize,
         _confidential: bool,
         _encrypting: bool,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
-        (Ok(()), None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Ok(())
     }
 }

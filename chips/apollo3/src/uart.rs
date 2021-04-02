@@ -331,11 +331,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (Err(ErrorCode::SIZE), Some(tx_data))
+            Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
-            (Err(ErrorCode::BUSY), Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         } else {
             // Save the buffer so we can keep sending it.
             self.tx_buffer.replace(tx_data);
@@ -343,7 +343,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_index.set(0);
 
             self.tx_progress();
-            (Ok(()), None)
+            Ok(())
         }
     }
 
@@ -363,10 +363,10 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
-        (Err(ErrorCode::FAIL), None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {

@@ -219,7 +219,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     }
 
     fn transmit_preamble(&self) {
-        let mut result: (Result<(), ErrorCode>, Option<&'static mut [u8]>) = (Ok(()), None);
+        let mut result: Result<(), (ErrorCode, &'static mut [u8])> = Ok(());
         let buf = self.tx_preamble_buf.take().unwrap();
         let tx_header = self.tx_header.get().unwrap();
 
@@ -267,23 +267,23 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
         }
 
         // If the transmission fails, callback directly back into the client
-        if result.0 != Ok(()) {
-            self.call_tx_client(result.1.unwrap(), false, result.0);
-        }
+        let _ = result.map_err(|(ecode, buf)| {
+            self.call_tx_client(buf, false, Err(ecode));
+        });
     }
 
     fn transmit_packet(&self) {
         // If we have actual data to transmit, send it and report errors to
         // client.
         if self.tx_payload.is_some() {
-            let result: (Result<(), ErrorCode>, Option<&'static mut [u8]>);
             let tx_buf = self.tx_payload.take().unwrap();
 
-            result = self.radio.transmit(tx_buf, self.tx_len.get());
-
-            if result.0 != Ok(()) {
-                self.call_tx_client(result.1.unwrap(), false, result.0);
-            }
+            let _ = self
+                .radio
+                .transmit(tx_buf, self.tx_len.get())
+                .map_err(|(ecode, buf)| {
+                    self.call_tx_client(buf, false, Err(ecode));
+                });
         }
     }
 
@@ -408,15 +408,15 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // If the radio is busy, we already have data to transmit, or the buffer
         // size is wrong, fail before attempting to send any preamble packets
         // (and waking up the radio).
         let frame_len = frame_len + radio::MFR_SIZE;
         if self.radio.busy() || self.tx_payload.is_some() {
-            return (Err(ErrorCode::BUSY), Some(full_mac_frame));
+            return Err((ErrorCode::BUSY, full_mac_frame));
         } else if radio::PSDU_OFFSET + frame_len >= full_mac_frame.len() {
-            return (Err(ErrorCode::SIZE), Some(full_mac_frame));
+            return Err((ErrorCode::SIZE, full_mac_frame));
         }
 
         match Header::decode(&full_mac_frame[radio::PSDU_OFFSET..], false).done() {
@@ -439,7 +439,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
                 self.tx_payload.replace(full_mac_frame);
             }
             None => {
-                return (Err(ErrorCode::FAIL), Some(full_mac_frame));
+                return Err((ErrorCode::FAIL, full_mac_frame));
             }
         }
 
@@ -459,7 +459,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
             let _ = self.radio.start();
         }
 
-        (Ok(()), None)
+        Ok(())
     }
 }
 

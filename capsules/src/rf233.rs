@@ -1348,17 +1348,17 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
         &self,
         spi_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let state = self.state.get();
         let frame_len = frame_len + radio::MFR_SIZE;
 
         if !self.radio_on.get() {
-            return (Err(ErrorCode::OFF), Some(spi_buf));
+            return Err((ErrorCode::OFF, spi_buf));
         } else if self.tx_buf.is_some() || self.transmitting.get() {
-            return (Err(ErrorCode::BUSY), Some(spi_buf));
+            return Err((ErrorCode::BUSY, spi_buf));
         } else if radio::PSDU_OFFSET + frame_len >= spi_buf.len() {
             // Not enough room for CRC
-            return (Err(ErrorCode::SIZE), Some(spi_buf));
+            return Err((ErrorCode::SIZE, spi_buf));
         }
 
         // Set PHY header to be the frame length
@@ -1373,6 +1373,6 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'_, S> {
                 InternalState::TX_STATUS_PRECHECK1,
             );
         }
-        (Ok(()), None)
+        Ok(())
     }
 }

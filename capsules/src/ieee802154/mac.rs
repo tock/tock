@@ -59,7 +59,7 @@ pub trait Mac {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 ///
@@ -142,7 +142,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }

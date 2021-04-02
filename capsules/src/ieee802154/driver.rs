@@ -421,11 +421,13 @@ impl<'a> RadioDriver<'a> {
                 }
 
                 // Finally, transmit the frame
-                let (result, mbuf) = self.mac.transmit(frame);
-                if let Some(buf) = mbuf {
-                    self.kernel_tx.replace(buf);
+                match self.mac.transmit(frame) {
+                    Ok(()) => Ok(()),
+                    Err((ecode, buf)) => {
+                        self.kernel_tx.put(Some(buf));
+                        Err(ecode)
+                    }
                 }
-                result
             });
             if result == Ok(()) {
                 self.current_app.set(appid);

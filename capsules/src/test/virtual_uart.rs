@@ -24,13 +24,9 @@ impl TestVirtualUartReceive {
         let buf = self.buffer.take().unwrap();
         let len = buf.len();
         debug!("Starting receive of length {}", len);
-        let (err, _opt) = self.device.receive_buffer(buf, len);
-        if err != Ok(()) {
-            panic!(
-                "Calling receive_buffer() in virtual_uart test failed: {:?}",
-                err
-            );
-        }
+        self.device
+            .receive_buffer(buf, len)
+            .expect("Calling receive_buffer() in virtual_uart test failed");
     }
 }
 
@@ -47,12 +43,8 @@ impl uart::ReceiveClient for TestVirtualUartReceive {
             debug!("{:02x} ", rx_buffer[i]);
         }
         debug!("Starting receive of length {}", rx_len);
-        let (err, _opt) = self.device.receive_buffer(rx_buffer, rx_len);
-        if err != Ok(()) {
-            panic!(
-                "Calling receive_buffer() in virtual_uart test failed: {:?}",
-                err
-            );
-        }
+        self.device
+            .receive_buffer(rx_buffer, rx_len)
+            .expect("Calling receive_buffer() in virtual_uart test failed");
     }
 }

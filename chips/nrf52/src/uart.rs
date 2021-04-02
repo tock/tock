@@ -447,14 +447,14 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (Err(ErrorCode::SIZE), Some(tx_data))
+            Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
-            (Err(ErrorCode::BUSY), Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         } else {
             self.setup_buffer_transmit(tx_data, tx_len);
-            (Ok(()), None)
+            Ok(())
         }
     }
 
@@ -496,9 +496,9 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         &self,
         rx_buf: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
-            return (Err(ErrorCode::BUSY), Some(rx_buf));
+            return Err((ErrorCode::BUSY, rx_buf));
         }
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
@@ -517,7 +517,7 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         self.registers.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
-        (Ok(()), None)
+        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {

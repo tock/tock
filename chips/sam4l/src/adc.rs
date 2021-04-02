@@ -842,28 +842,24 @@ impl hil::adc::AdcHighSpeed for Adc {
         length1: usize,
         buffer2: &'static mut [u16],
         length2: usize,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
         let res = self.config_and_enable(frequency);
 
         if res != Ok(()) {
-            (res, Some(buffer1), Some(buffer2))
+            Err((res.unwrap_err(), buffer1, buffer2))
         } else if !self.enabled.get() {
-            (Err(ErrorCode::OFF), Some(buffer1), Some(buffer2))
+            Err((ErrorCode::OFF, buffer1, buffer2))
         } else if self.active.get() {
             // only one sample at a time
-            (Err(ErrorCode::BUSY), Some(buffer1), Some(buffer2))
+            Err((ErrorCode::BUSY, buffer1, buffer2))
         } else if frequency <= (self.adc_clk_freq.get() / (0xFFFF + 1)) || frequency > 250000 {
             // can't sample faster than the max sampling frequency or slower
             // than the timer can be set to
-            (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2))
+            Err((ErrorCode::INVAL, buffer1, buffer2))
         } else if length1 == 0 {
             // at least need a valid length for the for the first buffer full of
             // samples. Otherwise, what are we doing here?
-            (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2))
+            Err((ErrorCode::INVAL, buffer1, buffer2))
         } else {
             self.active.set(true);
             self.continuous.set(true);
@@ -930,7 +926,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             // start timer
             self.registers.cr.write(Control::TSTART::SET);
 
-            (Ok(()), None, None)
+            Ok(())
         }
     }
 
@@ -943,24 +939,24 @@ impl hil::adc::AdcHighSpeed for Adc {
         &self,
         buf: &'static mut [u16],
         length: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16])> {
         if !self.enabled.get() {
-            (Err(ErrorCode::OFF), Some(buf))
+            Err((ErrorCode::OFF, buf))
         } else if !self.active.get() {
             // cannot continue sampling that isn't running
-            (Err(ErrorCode::INVAL), Some(buf))
+            Err((ErrorCode::INVAL, buf))
         } else if !self.continuous.get() {
             // cannot continue a single sample operation
-            (Err(ErrorCode::INVAL), Some(buf))
+            Err((ErrorCode::INVAL, buf))
         } else if self.next_dma_buffer.is_some() {
             // we've already got a second buffer, we don't need a third yet
-            (Err(ErrorCode::BUSY), Some(buf))
+            Err((ErrorCode::BUSY, buf))
         } else {
             // store the buffer for later use
             self.next_dma_buffer.replace(buf);
             self.next_dma_length.set(length);
 
-            (Ok(()), None)
+            Ok(())
         }
     }
 
@@ -968,21 +964,13 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// This is expected to be called after `stop_sampling`.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
         if self.active.get() {
             // cannot return buffers while running
-            (Err(ErrorCode::INVAL), None, None)
+            Err(ErrorCode::INVAL)
         } else {
             // we're not running, so give back whatever we've got
-            (
-                Ok(()),
-                self.next_dma_buffer.take(),
-                self.stopped_buffer.take(),
-            )
+            Ok((self.next_dma_buffer.take(), self.stopped_buffer.take()))
         }
     }
 }

@@ -624,14 +624,14 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buffer.is_some() {
             // We are already handling a transmission, we cannot queue another
             // request.
-            (Err(ErrorCode::BUSY), Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         } else if tx_len > tx_buffer.len() {
             // Can't send more bytes than will fit in the buffer.
-            (Err(ErrorCode::SIZE), Some(tx_buffer))
+            Err((ErrorCode::SIZE, tx_buffer))
         } else {
             // Ok, we can handle this transmission. Initialize all of our state
             // for our TX state machine.
@@ -644,16 +644,16 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
                 // Then signal to the lower layer that we are ready to do a TX
                 // by putting data in the IN endpoint.
                 self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-                (Ok(()), None)
+                Ok(())
             } else if self.boot_period.get() {
                 // indicate success because we will try to send it once a host connects
-                (Ok(()), None)
+                Ok(())
             } else {
                 // indicate success, but we will not actually queue this message -- just schedule
                 // a deferred callback to return the buffer immediately.
                 self.deferred_call_pending_droptx.set(true);
                 self.handle.map(|handle| self.deferred_caller.set(*handle));
-                (Ok(()), None)
+                Ok(())
             }
         }
     }
@@ -676,17 +676,17 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
-            (Err(ErrorCode::BUSY), Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {
-            (Err(ErrorCode::SIZE), Some(rx_buffer))
+            Err((ErrorCode::SIZE, rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_offset.set(0);
             self.rx_len.set(rx_len);
 
-            (Ok(()), None)
+            Ok(())
         }
     }
 

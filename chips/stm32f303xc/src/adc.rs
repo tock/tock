@@ -744,16 +744,12 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         &self,
         _channel: &Self::Channel,
         _frequency: u32,
-        _buffer1: &'static mut [u16],
+        buffer1: &'static mut [u16],
         _length1: usize,
-        _buffer2: &'static mut [u16],
+        buffer2: &'static mut [u16],
         _length2: usize,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
-        (Err(ErrorCode::NOSUPPORT), None, None)
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
+        Err((ErrorCode::NOSUPPORT, buffer1, buffer2))
     }
 
     /// Provide a new buffer to send on-going buffered continuous samples to.
@@ -763,21 +759,17 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     /// - `length`: number of samples to collect (up to buffer length)
     fn provide_buffer(
         &self,
-        _buf: &'static mut [u16],
+        buf: &'static mut [u16],
         _length: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
-        (Err(ErrorCode::NOSUPPORT), None)
+    ) -> Result<(), (ErrorCode, &'static mut [u16])> {
+        Err((ErrorCode::NOSUPPORT, buf))
     }
 
     /// Reclaim buffers after the ADC is stopped.
     /// This is expected to be called after `stop_sampling`.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
-        (Err(ErrorCode::NOSUPPORT), None, None)
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }

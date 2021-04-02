@@ -133,5 +133,5 @@ pub trait AES128CCM<'a> {
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }

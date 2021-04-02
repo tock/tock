@@ -214,8 +214,10 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
                                 //self.send_completed(Ok(()));
                                 (Ok(()), true)
                             } else {
-                                let (err, _frame_option) = self.radio.transmit(frame);
-                                (err, false)
+                                match self.radio.transmit(frame) {
+                                    Ok(()) => (Ok(()), false),
+                                    Err((ecode, _buf)) => (Err(ecode), false),
+                                }
                             }
                         }
                         Err((retcode, buf)) => {

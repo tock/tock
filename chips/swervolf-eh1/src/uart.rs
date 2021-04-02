@@ -134,9 +134,9 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if tx_len == 0 {
-            return (Err(ErrorCode::SIZE), Some(tx_data));
+            return Err((ErrorCode::SIZE, tx_data));
         }
 
         // Fill the TX buffer until it reports full.
@@ -155,7 +155,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         self.buffer.replace(tx_data);
         self.len.set(tx_len);
 
-        (Ok(()), None)
+        Ok(())
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
@@ -174,10 +174,10 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
-        (Err(ErrorCode::FAIL), None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {

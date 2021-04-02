@@ -110,5 +110,5 @@ pub trait RadioData {
         &self,
         spi_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }

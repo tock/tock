@@ -247,18 +247,18 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if (tx_len == 0) || (tx_len > tx_buffer.len()) {
-            return (Err(ErrorCode::SIZE), Some(tx_buffer));
+            return Err((ErrorCode::SIZE, tx_buffer));
         }
         if self.tx_busy.get() {
-            (Err(ErrorCode::BUSY), Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         } else {
             self.tx_busy.set(true);
             let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
             self.tx_dma
                 .map(move |dma| dma.transfer_mem_to_periph(tx_reg, tx_buffer, tx_len));
-            (Ok(()), None)
+            Ok(())
         }
     }
 
@@ -294,19 +294,19 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if (rx_len == 0) || (rx_len > rx_buffer.len()) {
-            return (Err(ErrorCode::SIZE), Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         if self.rx_busy.get() {
-            (Err(ErrorCode::BUSY), Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else {
             self.rx_busy.set(true);
             let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
             self.rx_dma
                 .map(move |dma| dma.transfer_periph_to_mem(rx_reg, rx_buffer, rx_len));
-            (Ok(()), None)
+            Ok(())
         }
     }
 

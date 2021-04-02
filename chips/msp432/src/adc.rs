@@ -897,22 +897,18 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         length1: usize,
         buffer2: &'static mut [u16],
         length2: usize,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
         if !self.is_enabled() {
             self.setup();
         }
         if self.mode.get() != AdcMode::Disabled {
-            return (Err(ErrorCode::BUSY), Some(buffer1), Some(buffer2));
+            return Err((ErrorCode::BUSY, buffer1, buffer2));
         }
         if frequency == 0 || frequency > MAX_SAMPLE_FREQ_HZ {
-            return (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2));
+            return Err((ErrorCode::INVAL, buffer1, buffer2));
         }
         if length1 == 0 {
-            return (Err(ErrorCode::INVAL), Some(buffer1), Some(buffer2));
+            return Err((ErrorCode::INVAL, buffer1, buffer2));
         }
 
         self.mode.set(AdcMode::Highspeed);
@@ -960,14 +956,14 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         self.timer
             .map(|timer| timer.start(frequency, timer::InternalTrigger::CaptureCompare1));
 
-        (Ok(()), None, None)
+        Ok(())
     }
 
     fn provide_buffer(
         &self,
         buffer: &'static mut [u16],
         length: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16])> {
         if self.mode.get() != AdcMode::Highspeed {
             panic!("ADC: cannot provide buffers in a different mode than Highspeed!");
         }
@@ -975,21 +971,17 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         let buf = unsafe { buf_u16_to_buf_u8(buffer) };
         self.dma
             .map(move |dma| dma.provide_new_buffer(buf, length * 2));
-        (Ok(()), None)
+        Ok(())
     }
 
     fn retrieve_buffers(
         &self,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
         if self.mode.get() != AdcMode::Disabled {
             // When the device is active, the buffers cannot be returned
-            (Err(ErrorCode::INVAL), None, None)
+            Err(ErrorCode::INVAL)
         } else {
-            (Ok(()), self.buffer1.take(), self.buffer2.take())
+            Ok((self.buffer1.take(), self.buffer2.take()))
         }
     }
 }

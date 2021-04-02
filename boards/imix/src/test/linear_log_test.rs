@@ -155,11 +155,10 @@ impl<A: Alarm<'static>> LogTest<A> {
                     *e = 0;
                 }
 
-                if let Err((error, original_buffer)) = self.log.read(buffer, buffer.len()) {
-                    self.buffer
-                        .replace(original_buffer.expect("No buffer returned in error!"));
+                if let Err(Err((error, original_buffer))) = self.log.read(buffer, buffer.len()) {
+                    self.buffer.replace(original_buffer);
                     match error {
-                        Err(ErrorCode::FAIL) => {
+                        ErrorCode::FAIL => {
                             // No more entries, start writing again.
                             debug!(
                                 "READ DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
@@ -169,7 +168,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                             self.op_index.increment();
                             self.run();
                         }
-                        Err(ErrorCode::BUSY) => {
+                        ErrorCode::BUSY => {
                             debug!("Flash busy, waiting before reattempting read");
                             self.wait();
                         }
@@ -195,11 +194,11 @@ impl<A: Alarm<'static>> LogTest<A> {
                     };
                 }
 
-                if let Err((error, original_buffer)) = self.log.append(buffer, len) {
-                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
+                if let Err(Err((error, original_buffer))) = self.log.append(buffer, len) {
+                    self.buffer.replace(original_buffer);
 
                     match error {
-                        Err(ErrorCode::FAIL) =>
+                        ErrorCode::FAIL =>
                             if expect_write_fail {
                                 debug!(
                                     "Write failed on {} byte write, as expected",
@@ -215,7 +214,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                                     self.log.log_end()
                                 );
                             }
-                        Err(ErrorCode::BUSY) => self.wait(),
+                        ErrorCode::BUSY => self.wait(),
                         _ => panic!("WRITE FAILED: {:?}", error),
                     }
                 } else if expect_write_fail {

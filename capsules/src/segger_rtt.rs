@@ -212,7 +212,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.up_buffer.is_some() && self.config.is_some() {
             self.up_buffer.map(|buffer| {
                 self.config.map(move |config| {
@@ -243,9 +243,9 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 })
             });
-            (Ok(()), None)
+            Ok(())
         } else {
-            (Err(ErrorCode::BUSY), Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         }
     }
 
@@ -285,8 +285,8 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
         &self,
         buffer: &'static mut [u8],
         _len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
-        (Err(ErrorCode::FAIL), Some(buffer))
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, buffer))
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {

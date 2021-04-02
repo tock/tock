@@ -323,16 +323,16 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
         if tx_buffer.len() < tx_len {
-            return (Err(ErrorCode::SIZE), Some(tx_buffer));
+            return Err((ErrorCode::SIZE, tx_buffer));
         }
 
         if self.tx_buffer.is_some() {
-            return (Err(ErrorCode::BUSY), Some(tx_buffer));
+            return Err((ErrorCode::BUSY, tx_buffer));
         }
 
         // Enable TX events (interrupts)
@@ -380,7 +380,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
 
         // If fifo_full == true, we will get an interrupt
 
-        (Ok(()), None)
+        Ok(())
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
@@ -424,16 +424,16 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
         if rx_len > rx_buffer.len() {
-            return (Err(ErrorCode::SIZE), Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         if self.rx_buffer.is_some() {
-            return (Err(ErrorCode::BUSY), Some(rx_buffer));
+            return Err((ErrorCode::BUSY, rx_buffer));
         }
 
         // Store the slice and length for receiving, set the progress
@@ -469,7 +469,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
             self.uart_regs.ev().enable_event(EVENT_MANAGER_INDEX_RX);
         }
 
-        (Ok(()), None)
+        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {

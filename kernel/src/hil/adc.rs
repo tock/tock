@@ -69,11 +69,7 @@ pub trait AdcHighSpeed: Adc {
         length1: usize,
         buffer2: &'static mut [u16],
         length2: usize,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    );
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])>;
 
     /// Provide a new buffer to fill with the ongoing `sample_continuous`
     /// configuration.
@@ -88,23 +84,19 @@ pub trait AdcHighSpeed: Adc {
         &self,
         buf: &'static mut [u16],
         length: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u16]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u16])>;
 
     /// Reclaim ownership of buffers.
     /// Can only be called when the ADC is inactive, which occurs after a
     /// successful `stop_sampling`. Used to reclaim buffers after a sampling
-    /// operation is complete. Returns success if the ADC was inactive, but
+    /// operation is complete. Returns Ok() if the ADC was inactive, but
     /// there may still be no buffers that are `some` if the driver had already
     /// returned all buffers.
     ///
     /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        Result<(), ErrorCode>,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    );
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode>;
 }
 
 /// Trait for handling callbacks from high-speed ADC calls.

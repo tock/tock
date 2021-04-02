@@ -850,9 +850,9 @@ impl<'a> uart::Receive<'a> for USART<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if rx_len > rx_buffer.len() {
-            return (Err(ErrorCode::SIZE), Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
         let usart = &USARTRegManager::new(&self);
 
@@ -865,9 +865,9 @@ impl<'a> uart::Receive<'a> for USART<'a> {
             dma.enable();
             self.rx_len.set(rx_len);
             dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
-            (Ok(()), None)
+            Ok(())
         } else {
-            (Err(ErrorCode::OFF), Some(rx_buffer))
+            Err((ErrorCode::OFF, rx_buffer))
         }
     }
 
@@ -888,12 +888,12 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
-            (Err(ErrorCode::BUSY), Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         } else {
             if tx_len > tx_buffer.len() {
-                return (Err(ErrorCode::SIZE), Some(tx_buffer));
+                return Err((ErrorCode::SIZE, tx_buffer));
             }
             let usart = &USARTRegManager::new(&self);
             // enable TX
@@ -907,9 +907,9 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
                     self.tx_len.set(tx_len);
                     dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
                 });
-                (Ok(()), None)
+                Ok(())
             } else {
-                (Err(ErrorCode::OFF), Some(tx_buffer))
+                Err((ErrorCode::OFF, tx_buffer))
             }
         }
     }
@@ -983,9 +983,9 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
         rx_buffer: &'static mut [u8],
         len: usize,
         interbyte_timeout: u8,
-    ) -> (Result<(), ErrorCode>, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
-            (Err(ErrorCode::BUSY), Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else {
             let usart = &USARTRegManager::new(&self);
             let length = cmp::min(len, rx_buffer.len());
@@ -1004,7 +1004,7 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
                 dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
                 self.rx_len.set(length);
             });
-            (Ok(()), None)
+            Ok(())
         }
     }
 }
