@@ -588,9 +588,45 @@ pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 Rule 9: Avoid Blocking APIs
 ===============================
 
-Don't do it. An asynchronous API can wrap around a synchronous operation
-(e.g., using deferred procedure calls), but a synchronous operation can
-only wrap around an asynchronous one with busy waiting.
+The Tock kernel is non-blocking: I/O operations are split-phase and have 
+a completion callback. If an operation blocks, it blocks the entire system.
+
+There are cases when operations are synchronous *sometimes*. The random
+number generator in Rule 1 is an example. If random bits are cached, then
+a call to request random bits can somtimes retun those bits synchronously.
+If the random number generator needs to engage the underlying AES engine,
+then the random bits have to be asyncronous. As Rule 1 goes into, even
+operations that *could* be synchronous should have a callback that
+executes asynchronously. 
+
+Having a conditional synchronous operation and an asynchronous backup is
+a poor solution. While it might seem to make the synchronous cases simpler,
+a caller still needs to handle the asynchronous ones. The code ends up being
+more complex and larger/longer, as it is now conditional: a caller has to 
+handle both cases.
+
+The more attractive case is when a particular implementation of a HIL seems like
+it can always be synchronous, therefore its HIL is synchronous. For example,
+writes to flash are typically asynchronous: the chip issues an interrupt onces
+the bits are written. However, if the flash chip being written is the same as
+the one code is fetched from, then the chip may block reads while the write
+completes. From the perspective of the caller, writing to flash is blocking,
+as the core stops fetching instructions.
+A synchronous flash HIL allows implementations to be simpler, straight-line
+code. 
+
+Capsules implemented on a synchronous HIL only work for implementations
+with synchronous behavior. Such a HIL limits reuse. For example, a storage system built on top of
+this synchronous API can only work on the same flash bank instructions are
+stored on: otherwise, the operations will be split-phase.
+
+There are use cases when splitting HILs in this way is worth it. For example,
+straightline code can often be shorter and simpler than event-drive systems.
+By providing a synchronous API for the subset of devices that can support it,
+one can reduce code size and produce more light-weight implementations. 
+For this reason, the rule is to *avoid* blocking APIs, not to never implement them.
+They can and should at times exist, but their uses cases should be narrow
+and constrained as they are fundamentally not as reusable.
 
 
 Author Address
