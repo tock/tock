@@ -201,6 +201,11 @@ impl<'a> RPAlarm<'a> {
             cortexm0p::nvic::Nvic::new(TIMER_IRQ_0).disable();
         }
     }
+
+    pub fn handle_interrupt(&self){
+        self.registers.intr.modify(INTR::ALARM_0::SET);
+        self.client.map(|client| client.alarm());
+    }
 }
 
 impl Time for RPAlarm<'_> {
@@ -228,9 +233,10 @@ impl<'a> Alarm<'a> for RPAlarm<'a> {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.enable_interrupt();
-        self.enable_timer_interrupt();
         self.registers.alarm0.set(expire.into_u32());
+        self.enable_timer_interrupt();
+        self.enable_interrupt();
+        
         //panic!("{} now {:?}", self.registers.alarm0.get(), self.now());
     }
 
@@ -254,6 +260,6 @@ impl<'a> Alarm<'a> for RPAlarm<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1)
+        Self::Ticks::from(50)
     }
 }

@@ -11,6 +11,7 @@ use crate::gpio::SIO;
 use crate::interrupts;
 use crate::resets::Resets;
 use crate::xosc::Xosc;
+use crate::timer::RPAlarm;
 
 #[repr(u8)]
 pub enum Processor {
@@ -114,27 +115,33 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
     }
 }
 
-pub struct Rp2040DefaultPeripherals {
+pub struct Rp2040DefaultPeripherals<'a> {
     pub resets: Resets,
     pub sio: SIO,
     pub clocks: Clocks,
     pub xosc: Xosc,
+    pub alarm: RPAlarm<'a>,
 }
 
-impl Rp2040DefaultPeripherals {
+impl Rp2040DefaultPeripherals<'_> {
     pub const fn new() -> Self {
         Self {
             resets: Resets::new(),
             sio: SIO::new(),
             clocks: Clocks::new(),
             xosc: Xosc::new(),
+            alarm: RPAlarm::new(),
         }
     }
 }
 
-impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals {
+impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            interrupts::TIMER_IRQ_0 => {
+                self.alarm.handle_interrupt();
+                true
+            }
             interrupts::SIO_IRQ_PROC0 => {
                 self.sio.handle_proc_interrupt(Processor::Processor0);
                 true

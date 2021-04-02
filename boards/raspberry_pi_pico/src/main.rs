@@ -13,6 +13,8 @@ use enum_primitive::cast::FromPrimitive;
 
 use kernel::component::Component;
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
+use kernel::hil::time::{AlarmClient,Time, Alarm};
+use kernel::hil::gpio::Output;
 
 use rp2040;
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -53,6 +55,7 @@ static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
+    
 }
 
 impl Platform for RaspberryPiPico {
@@ -66,6 +69,18 @@ impl Platform for RaspberryPiPico {
         }
     }
 }
+
+// struct AlarmTest<'a>{
+//     alarm: &'a RPAlarm<'a>,
+//     led: RPGpioPin<'a>
+// }
+
+// impl AlarmClient for AlarmTest<'_>{
+//     fn alarm (&self){
+//         self.led.toggle();
+//         self.alarm.set_alarm(self.alarm.now(), <RPAlarm as Time>::ticks_from_ms(1000));
+//     }
+// }
 
 /// Entry point used for debuger
 #[no_mangle]
@@ -192,7 +207,7 @@ pub unsafe fn main() {
         gpio.deactivate_pads();
     }
 
-    //use kernel::hil::gpio::{Configure, Output};
+    use kernel::hil::gpio::{Configure, Output};
     use kernel::hil::time::{Alarm, Time};
 
     // fn off (){
@@ -205,9 +220,16 @@ pub unsafe fn main() {
     // pin.make_output();
     // pin.set();
 
-    let a = RPAlarm::new();
-    //  a.set_alarm_client(off);
-    a.set_alarm(a.now(), <RPAlarm as Time>::Ticks::from(100));
+    // let pin = RPGpioPin::new(RPGpio::GPIO25);
+    // pin.make_output();
+    // pin.set();
+
+    // let at = static_init!(AlarmTest, AlarmTest{
+    //     alarm:&peripherals.alarm,
+    //     led: pin
+    // });
+    // peripherals.alarm.set_alarm_client(at);
+    // peripherals.alarm.set_alarm(peripherals.alarm.now(), <RPAlarm as Time>::ticks_from_ms(1000));
 
     let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals));
 

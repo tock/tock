@@ -605,7 +605,6 @@ impl hil::gpio::Output for RPGpioPin<'_> {
     }
 
     fn toggle(&self) -> bool {
-        // For performance this match might be skipped
         match self.get_mode() {
             hil::gpio::Configuration::Output | hil::gpio::Configuration::InputOutput => {
                 self.sio_registers.gpio_out_xor.set(1 << self.pin);
