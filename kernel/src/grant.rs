@@ -98,12 +98,12 @@
 //! the underlying memory      │ .enter(fn)              │
 //! where the T is stored.     ▼                         │
 //!                         ┌──────────────────────────┐ │
-//! Borrowed wraps the type │ struct Borrowed<T> {     │◄┘
-//! and provides mutable    │   data: &mut T           │
-//! access.                 │ }                        │
+//! GrantMemory wraps the   │ struct GrantMemory<T> {  │◄┘
+//! type and provides       │   data: &mut T           │
+//! mutable access.         │ }                        │
 //!                         └──┬───────────────────────┘
 //! The actual object T can    │
-//! only be accessed inside    │ fn(mem: &Borrowed)
+//! only be accessed inside    │ fn(mem: &GrantMemory)
 //! the closure.               ▼
 //! ```
 
@@ -112,46 +112,57 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 
-use crate::process::{Error, ProcessDynamicGrantIdentifer, ProcessType};
+use crate::process::{Error, ProcessCustomGrantIdentifer, ProcessType};
 use crate::sched::Kernel;
 use crate::upcall::AppId;
 
-/// This type provides access to the memory in a process's grant.
+/// This GrantMemory object provides access to the memory allocated for a grant
+/// for a specific process.
 ///
-/// The grant must be entered to retrieve a `Borrowed` object. This object is
-/// what capsules are provided so they can access the grant memory.
-pub struct Borrowed<'a, T: 'a + ?Sized> {
+/// The GrantMemory type is templated on T, the actual type of the object in the
+/// grant. GrantMemory holds a mutable reference to the type, allowing users
+/// access to the object in process memory.
+///
+/// Capsules gain access to a GrantMemory object by calling `Grant::enter()`.
+pub struct GrantMemory<'a, T: 'a + ?Sized> {
     /// The mutable reference to the actual object type stored in the grant.
     data: &'a mut T,
 }
 
-impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
-    /// Create a `Borrowed` object to provide to a capsule. Only one can be
-    /// created at a time.
-    fn new(data: &'a mut T) -> Borrowed<'a, T> {
-        Borrowed { data: data }
+impl<'a, T: 'a + ?Sized> GrantMemory<'a, T> {
+    /// Create a `GrantMemory` object to provide access to the actual object
+    /// allocated for a process.
+    ///
+    /// Only one can GrantMemory per underlying object can be created at a time.
+    /// Otherwise, there would be multiple mutable references to the same object
+    /// which is undefined behavior.
+    fn new(data: &'a mut T) -> GrantMemory<'a, T> {
+        GrantMemory { data: data }
     }
 }
 
-impl<'a, T: 'a + ?Sized> Deref for Borrowed<'a, T> {
+impl<'a, T: 'a + ?Sized> Deref for GrantMemory<'a, T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.data
     }
 }
 
-impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
+impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data
     }
 }
 
-/// A grant applied to a particular process.
+/// An instance of a grant allocated for a particular process.
 ///
-/// This is created from a `Grant` to setup memory for that grant in a specific
-/// process's grant region. An `AppliedGrant` guarantees that the memory for the
-/// grant has been allocated in the process's memory.
-pub struct AppliedGrant<'a, T: 'a> {
+/// `ProcessGrant` is a handle to an instance of a grant that has been allocated
+/// in a specific process's grant region. A `ProcessGrant` guarantees that the
+/// memory for the grant has been allocated in the process's memory.
+///
+/// This is created from a `Grant` when that grant is entered for a specific
+/// process.
+pub struct ProcessGrant<'a, T: 'a> {
     /// The process the grant is applied to.
     process: &'a dyn ProcessType,
 
@@ -162,9 +173,9 @@ pub struct AppliedGrant<'a, T: 'a> {
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T: Default> AppliedGrant<'a, T> {
-    /// Create an `AppliedGrant` for the given Grant and apply it to the given
-    /// Process.
+impl<'a, T: Default> ProcessGrant<'a, T> {
+    /// Create a `ProcessGrant` for the given Grant in the given Process's grant
+    /// region.
     ///
     /// If the grant in this process has not been setup before this will attempt
     /// to allocate the memory from the process's grant region.
@@ -172,29 +183,29 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     /// # Return
     ///
     /// If the grant is already allocated or could be allocated, and the process
-    /// is valid, this returns `Ok(AppliedGrant)`. Otherwise it returns a
+    /// is valid, this returns `Ok(ProcessGrant)`. Otherwise it returns a
     /// relevant error.
     fn new(grant: &Grant<T>, process: &'a dyn ProcessType) -> Result<Self, Error> {
         // Here is an example of how the grants are laid out in the grant region
         // of process's memory:
         //
         // Mem. Addr.
-        // 0x0040000  ┌────────────────────
+        // 0x0040000  ┌────────────────────────────────────
         //            │   GrantPointerN [0x003FFC8]
         //            │   ...
         //            │   GrantPointer1 [0x003FFC0]
         //            │   GrantPointer0 [0x0000000 (NULL)]
-        //            ├────────────────────
+        //            ├────────────────────────────────────
         //            │   Process Control Block
-        // 0x003FFE0  ├────────────────────
-        //            │   GrantRegionN
-        // 0x003FFC8  ├────────────────────
-        //            │   GrantRegion1
-        // 0x003FFC0  ├────────────────────
+        // 0x003FFE0  ├────────────────────────────────────  Grant Region ┐
+        //            │   GrantMemoryN                                    │
+        // 0x003FFC8  ├────────────────────────────────────               │
+        //            │   GrantMemory1                                    ▼
+        // 0x003FFC0  ├────────────────────────────────────
         //            │
         //            │   --unallocated--
         //            │
-        //            └────────────────────
+        //            └────────────────────────────────────
         //
         // An array of pointers (one per possible grant region) point to where
         // the actual grant memory is allocated inside of the process. The grant
@@ -205,7 +216,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         let appid = process.appid();
 
         // Check if the grant is allocated. If not, we allocate it process
-        // memory first. We then create an `AppliedGrant` object for this grant.
+        // memory first. We then create an `ProcessGrant` object for this grant.
         if let Some(is_allocated) = process.grant_is_allocated(grant_num) {
             if !is_allocated {
                 // Allocate space in the process's memory for something of type
@@ -253,7 +264,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
 
             // We have ensured the grant is already allocated or was just
             // allocated, so we can create and return the `AppliedGrant` type.
-            Ok(AppliedGrant {
+            Ok(ProcessGrant {
                 process: process,
                 grant_num: grant_num,
                 _phantom: PhantomData,
@@ -265,12 +276,13 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         }
     }
 
-    /// Return an `AppliedGrant` for a grant in a process if the process is
-    /// valid and that grant has already been allocated, or `None` otherwise.
+    /// Return an `ProcessGrant` for a grant in a process if the process is
+    /// valid and that process grant has already been allocated, or `None`
+    /// otherwise.
     fn new_if_allocated(grant: &Grant<T>, process: &'a dyn ProcessType) -> Option<Self> {
         if let Some(is_allocated) = process.grant_is_allocated(grant.grant_num) {
             if is_allocated {
-                Some(AppliedGrant {
+                Some(ProcessGrant {
                     process: process,
                     grant_num: grant.grant_num,
                     _phantom: PhantomData,
@@ -285,7 +297,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         }
     }
 
-    /// Return the AppId of the process this AppliedGrant is applied for.
+    /// Return the AppId of the process this ProcessGrant is associated with.
     pub fn appid(&self) -> AppId {
         self.process.appid()
     }
@@ -300,7 +312,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -315,7 +327,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     /// entered silently skip it.
     ///
     /// **You almost certainly should use `.enter()` rather than
-    /// `.enter_if_unentered()`.**
+    /// `.try_enter()`.**
     ///
     /// While the `.enter()` version can panic, that panic likely indicates a
     /// bug in the code and not a condition that should be handled. For example,
@@ -350,26 +362,47 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     /// `.enter()` before attempting to iterate over the grant for all
     /// processes.
     ///
-    /// However, if the example used `.enter_if_unentered()` in the iter loop,
-    /// there would be no panic, but the already entered grant would be silently
+    /// However, if the example used `.try_enter()` in the iter loop, there
+    /// would be no panic, but the already entered grant would be silently
     /// skipped. This can hide subtle bugs if the skipped grant is only relevant
     /// in certain cases.
     ///
-    /// Therefore, only use `enter_if_unentered()` if you are sure you want to
-    /// skip the already entered grant. Cases for this are rare.
+    /// Therefore, only use `try_enter()` if you are sure you want to skip the
+    /// already entered grant. Cases for this are rare.
     ///
     /// ## Return
     ///
     /// Returns `None` if the grant is already entered. Otherwise returns
     /// `Some(fun())`.
-    pub fn enter_if_unentered<F, R>(self, fun: F) -> Option<R>
+    pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>) -> R,
     {
         self.access_grant(fun, false)
     }
 
-    /// Access the `AppliedGrant` memory and run a closure on the process's
+    /// Run a function with access to the contents of the grant region and an
+    /// allocator for allocating additional memory in a process's grant region.
+    ///
+    /// This is "entering" the grant region, and the _only_ time when the
+    /// contents of a grant region can be accessed.
+    ///
+    /// Note, a grant can only be entered once at a time. Attempting to call
+    /// `.enter()` on a grant while it is already entered will result in a
+    /// panic!()`. See the comment in `access_grant()` for more information.
+    pub fn enter_with_allocator<F, R>(self, fun: F) -> R
+    where
+        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+    {
+        // # `unwrap()` Safety
+        //
+        // `access_grant()` can only return `None` if the grant is already
+        // entered. Since we are asking for a panic!() if the grant is entered,
+        // `access_grant()` function will never return `None`.
+        self.access_grant_with_allocator(fun, true).unwrap()
+    }
+
+    /// Access the `ProcessGrant` memory and run a closure on the process's
     /// grant memory.
     ///
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
@@ -377,7 +410,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -385,7 +418,7 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
             .process
             .enter_grant(self.grant_num)
             .map_err(|_err| {
-                // If we get an error it is causeless the grant is already
+                // If we get an error it is because the grant is already
                 // entered. `process.enter_grant()` can fail for several
                 // reasons, but only the double enter case can happen once a
                 // grant has been applied. The other errors would be detected
@@ -457,9 +490,9 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
             return None;
         };
 
-        // Process only holds the grant's memory, but does not know the actual type
-        // of the grant. We case the type here so that the user of the grant is restricted
-        // by the type system to access this memory safely.
+        // Process only holds the grant's memory, but does not know the actual
+        // type of the grant. We case the type here so that the user of the
+        // grant is restricted by the type system to access this memory safely.
         //
         // # Safety
         //
@@ -472,17 +505,88 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
         // subsequent calls to `enter_grant()` will fail.
         let grant = unsafe { &mut *(grant_ptr as *mut T) };
 
+        // Create a wrapped object that is passed to the capsule.
+        let mut grant_memory = GrantMemory::new(grant);
+
+        // Allow the capsule to access the grant.
+        let res = fun(&mut grant_memory);
+
+        // Now that the capsule has finished we need to "release" the grant.
+        // This will mark it as no longer entered and allow the grant to be used
+        // in the future.
+        self.process.leave_grant(self.grant_num);
+
+        Some(res)
+    }
+
+    /// Access the `ProcessGrant` memory and run a closure on the process's
+    /// grant memory.
+    ///
+    /// If `panic_on_reenter` is `true`, this will panic if the grant region is
+    /// already currently entered. If `panic_on_reenter` is `false`, this will
+    /// return `None` if the grant region is entered and do nothing.
+    fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
+    where
+        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+    {
+        // Access the grant that is in process memory. This can only fail if
+        // the grant is already entered.
+        let optional_grant_ptr = self
+            .process
+            .enter_grant(self.grant_num)
+            .map_err(|_err| {
+                // If we get an error it is because the grant is already
+                // entered. `process.enter_grant()` can fail for several
+                // reasons, but only the double enter case can happen once a
+                // grant has been applied. The other errors would be detected
+                // earlier (i.e. before the grant can be applied).
+
+                // If `panic_on_reenter` is false, we skip this error and do
+                // nothing with this grant.
+                if !panic_on_reenter {
+                    return;
+                }
+
+                // See `access_grant()` for an explanation of this panic.
+                panic!("Attempted to re-enter a grant region.");
+            })
+            .ok();
+
+        // # `unwrap()` Safety
+        //
+        // Only `unwrap()` if some, otherwise return early.
+        let grant_ptr = if optional_grant_ptr.is_some() {
+            optional_grant_ptr.unwrap()
+        } else {
+            return None;
+        };
+
+        // Process only holds the grant's memory, but does not know the actual
+        // type of the grant. We case the type here so that the user of the
+        // grant is restricted by the type system to access this memory safely.
+        //
+        // # Safety
+        //
+        // This is safe as long as the memory at grant_ptr is correctly aligned,
+        // the correct size for type `T`, is only every cast as a `T`, and only
+        // one reference to the object exists. We guarantee this because type
+        // `T` cannot change, and we ensure the size and alignment are correct
+        // when the grant is allocated. We ensure that only one reference can
+        // ever exist by marking the grant entered in `enter_grant()`, and
+        // subsequent calls to `enter_grant()` will fail.
+        let grant = unsafe { &mut *(grant_ptr as *mut T) };
+
+        // Create a wrapped object that is passed to the capsule.
+        let mut grant_memory = GrantMemory::new(grant);
+
         // Setup an allocator in case the capsule needs additional memory in the
         // grant space.
-        let mut allocator = Allocator {
+        let mut allocator = GrantRegionAllocator {
             appid: self.process.appid(),
         };
 
-        // Create a wrapped object that is passed to the capsule.
-        let mut root = Borrowed::new(grant);
-
         // Allow the capsule to access the grant.
-        let res = fun(&mut root, &mut allocator);
+        let res = fun(&mut grant_memory, &mut allocator);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -493,31 +597,30 @@ impl<'a, T: Default> AppliedGrant<'a, T> {
     }
 }
 
-/// Grant which was dynamically allocated from the kernel-owned grant region in
-/// the process's memory separately from a normal `Grant`.
+/// Grant which was allocated from the kernel-owned grant region in a specific
+/// process's memory, separately from a normal `Grant`.
 ///
-/// A `DynamicGrant` allows a capsule to allocate additional memory on behalf of
-/// a process and store the reference to the new memory in the original
-/// `AppliedGrant`.
-pub struct DynamicGrant<T> {
-    /// An identifier for this dynamic grant within a process's grant region.
+/// A `CustomGrant` allows a capsule to allocate additional memory on behalf of
+/// a process.
+pub struct CustomGrant<T> {
+    /// An identifier for this custom grant within a process's grant region.
     ///
     /// Here, this is an opaque reference that Process uses to access the
-    /// dynamic grant allocation. This setup ensures that Process owns the grant
+    /// custom grant allocation. This setup ensures that Process owns the grant
     /// memory.
-    identifier: ProcessDynamicGrantIdentifer,
+    identifier: ProcessCustomGrantIdentifer,
 
-    /// Identifier for the process where this dynamic grant is allocated.
+    /// Identifier for the process where this custom grant is allocated.
     appid: AppId,
 
     /// Used to keep the Rust type of the grant.
     _phantom: PhantomData<T>,
 }
 
-impl<T> DynamicGrant<T> {
-    /// Creates a new `DynamicGrant`.
-    fn new(identifier: ProcessDynamicGrantIdentifer, appid: AppId) -> Self {
-        DynamicGrant {
+impl<T> CustomGrant<T> {
+    /// Creates a new `CustomGrant`.
+    fn new(identifier: ProcessCustomGrantIdentifer, appid: AppId) -> Self {
+        CustomGrant {
             identifier,
             appid,
             _phantom: PhantomData,
@@ -531,18 +634,18 @@ impl<T> DynamicGrant<T> {
 
     /// Gives access to inner data within the given closure.
     ///
-    /// If the app has since been restarted or crashed, or the memory is
+    /// If the process has since been restarted or crashed, or the memory is
     /// otherwise no longer present, then this function will not call the given
     /// closure, and will instead directly return `Err(Error::NoSuchApp)`.
     ///
     /// Because this function requires `&mut self`, it should be impossible to
-    /// access the inner data of a given `DynamicGrant` reentrantly. Thus the
+    /// access the inner data of a given `CustomGrant` reentrantly. Thus the
     /// reentrance detection we use for non-dynamic grants is not needed here.
     pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(Borrowed<'_, T>) -> R,
+        F: FnOnce(GrantMemory<'_, T>) -> R,
     {
-        // Verify that the process this DynamicGrant was allocated within still
+        // Verify that the process this CustomGrant was allocated within still
         // exists.
         self.appid
             .kernel
@@ -550,19 +653,19 @@ impl<T> DynamicGrant<T> {
                 // App is valid.
 
                 // Now try to access the dynamic grant memory.
-                let grant_ptr = process.enter_dynamic_grant(self.identifier)?;
+                let grant_ptr = process.enter_custom_grant(self.identifier)?;
 
                 // # Safety
                 //
                 // `grant_ptr` must be a valid pointer and there must not exist
                 // any other references to the same memory. We verify the
                 // pointer is valid and aligned when the memory is allocated and
-                // `DynamicGrant` is created. We are sure that there are no
+                // `CustomGrant` is created. We are sure that there are no
                 // other references because the only way to create a reference
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
                 let dynamic_grant = unsafe { &mut *(grant_ptr as *mut T) };
-                let borrowed = Borrowed::new(dynamic_grant);
+                let borrowed = GrantMemory::new(dynamic_grant);
                 Ok(fun(borrowed))
             })
     }
@@ -570,14 +673,14 @@ impl<T> DynamicGrant<T> {
 
 /// Tool for allocating additional memory regions in a process's grant region.
 ///
-/// This is provided along with a grant so that if a capsule needs per-process
-/// dynamic allocation it can allocate additional memory.
-pub struct Allocator {
+/// This is optionally provided along with a grant so that if a capsule needs
+/// per-process dynamic allocation it can allocate additional memory.
+pub struct GrantRegionAllocator {
     /// The process the allocator will allocate memory from.
     appid: AppId,
 }
 
-impl Allocator {
+impl GrantRegionAllocator {
     /// Allocates a new dynamic grant initialized using the given closure.
     ///
     /// The closure will be called exactly once, and the result will be used to
@@ -590,11 +693,11 @@ impl Allocator {
     /// # Panic Safety
     ///
     /// If `init` panics, the freshly allocated memory may leak.
-    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<DynamicGrant<T>, Error>
+    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<CustomGrant<T>, Error>
     where
         F: FnOnce() -> T,
     {
-        let (dynamic_grant_identifier, typed_ptr) = self.alloc_raw::<T>()?;
+        let (custom_grant_identifier, typed_ptr) = self.alloc_raw::<T>()?;
 
         // # Safety
         //
@@ -606,7 +709,7 @@ impl Allocator {
             write(typed_ptr.as_ptr(), init());
         }
 
-        Ok(DynamicGrant::new(dynamic_grant_identifier, self.appid))
+        Ok(CustomGrant::new(custom_grant_identifier, self.appid))
     }
 
     // /// Allocates a slice of n instances of a given type. Each instance is
@@ -623,11 +726,11 @@ impl Allocator {
     //     &mut self,
     //     num_items: usize,
     //     mut init: F,
-    // ) -> Result<DynamicGrant<[T]>, Error>
+    // ) -> Result<CustomGrant<[T]>, Error>
     // where
     //     F: FnMut(usize) -> T,
     // {
-    //     let (dynamic_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(num_items)?;
+    //     let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(num_items)?;
 
     //     for i in 0..num_items {
     //         // # Safety
@@ -644,15 +747,15 @@ impl Allocator {
     //     // // convenient with the non-slice ptr.
     //     // let slice_ptr = NonNull::new(slice_from_raw_parts_mut(typed_ptr.as_ptr(), num_items)).unwrap();
 
-    //     Ok(DynamicGrant::new(dynamic_grant_identifier, self.appid))
+    //     Ok(CustomGrant::new(custom_grant_identifier, self.appid))
     // }
 
     /// Allocates uninitialized grant memory appropriate to store a `T`.
     ///
     /// The caller must initialize the memory.
     ///
-    /// Also returns a ProcessDynamicGrantIdentifer to access the memory later.
-    fn alloc_raw<T>(&mut self) -> Result<(ProcessDynamicGrantIdentifer, NonNull<T>), Error> {
+    /// Also returns a ProcessCustomGrantIdentifer to access the memory later.
+    fn alloc_raw<T>(&mut self) -> Result<(ProcessCustomGrantIdentifer, NonNull<T>), Error> {
         self.alloc_n_raw::<T>(1)
     }
 
@@ -661,11 +764,11 @@ impl Allocator {
     /// The caller is responsible for initializing the returned memory.
     ///
     /// Returns memory appropriate for storing `num_items` contiguous instances
-    /// of `T` and a ProcessDynamicGrantIdentifer to access the memory later.
+    /// of `T` and a ProcessCustomGrantIdentifer to access the memory later.
     fn alloc_n_raw<T>(
         &mut self,
         num_items: usize,
-    ) -> Result<(ProcessDynamicGrantIdentifer, NonNull<T>), Error> {
+    ) -> Result<(ProcessCustomGrantIdentifer, NonNull<T>), Error> {
         let alloc_size = size_of::<T>()
             .checked_mul(num_items)
             .ok_or(Error::OutOfMemory)?;
@@ -673,15 +776,15 @@ impl Allocator {
             .kernel
             .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
                 process
-                    .allocate_dynamic_grant(alloc_size, align_of::<T>())
+                    .allocate_custom_grant(alloc_size, align_of::<T>())
                     .map_or(
                         Err(Error::OutOfMemory),
-                        |(dynamic_grant_identifier, raw_ptr)| {
+                        |(custom_grant_identifier, raw_ptr)| {
                             // Convert untyped `*mut u8` allocation to allocated
                             // type
                             let typed_ptr = NonNull::cast::<T>(raw_ptr);
 
-                            Ok((dynamic_grant_identifier, typed_ptr))
+                            Ok((custom_grant_identifier, typed_ptr))
                         },
                     )
             })
@@ -719,56 +822,86 @@ impl<T: Default> Grant<T> {
 
     /// Enter the grant for a specific process.
     ///
-    /// This creates an `AppliedGrant` which is the grant region for just one
-    /// process. Then, that `AppliedGrant` is entered and the provided closure
-    /// is run with access to the memory in the grant region.
+    /// This creates an `ProcessGrant` which is a handle for a grant allocated
+    /// for a specific process. Then, that `ProcessGrant` is entered and the
+    /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>) -> R,
     {
         // Verify that this process actually exists.
         appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-                // Get the `AppliedGrant` for the process, possibly needing to
+                // Get the `ProcessGrant` for the process, possibly needing to
                 // actually allocate the memory in the process's grant region to
                 // do so. This can fail for a variety of reasons, and if so we
                 // return the error to the capsule.
-                let ag = AppliedGrant::new(self, process)?;
+                let pg = ProcessGrant::new(self, process)?;
 
-                // If we have managed to create an `AppliedGrant`, all we need
+                // If we have managed to create an `ProcessGrant`, all we need
                 // to do is actually access the memory and run the
                 // capsule-provided closure. This can only fail if the grant is
                 // already entered, at which point the kernel will panic.
-                Ok(ag.enter(fun))
+                Ok(pg.enter(fun))
             })
     }
 
-    /// Call a function on the grant for each active process if the grant has
+    /// Enter the grant for a specific process with access to an allocator.
+    ///
+    /// This creates an `ProcessGrant` which is a handle for a grant allocated
+    /// for a specific process. Then, that `ProcessGrant` is entered and the
+    /// provided closure is run with access to the memory in the grant region.
+    ///
+    /// The allocator allows the caller to dynamically allocate additional
+    /// memory in the process's grant region.
+    pub fn enter_with_allocator<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
+    where
+        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+    {
+        // Verify that this process actually exists.
+        appid
+            .kernel
+            .process_map_or(Err(Error::NoSuchApp), appid, |process| {
+                // Get the `ProcessGrant` for the process, possibly needing to
+                // actually allocate the memory in the process's grant region to
+                // do so. This can fail for a variety of reasons, and if so we
+                // return the error to the capsule.
+                let pg = ProcessGrant::new(self, process)?;
+
+                // If we have managed to create an `ProcessGrant`, all we need
+                // to do is actually access the memory and run the
+                // capsule-provided closure. This can only fail if the grant is
+                // already entered, at which point the kernel will panic.
+                Ok(pg.enter_with_allocator(fun))
+            })
+    }
+
+    /// Run a function on the grant for each active process if the grant has
     /// been allocated for that process.
     ///
     /// This will silently skip any process where the grant has not previously
     /// been allocated. This will also silently skip any invalid processes.
     ///
-    /// Calling this function when an `AppliedGrant` for a process is currently
+    /// Calling this function when an `ProcessGrant` for a process is currently
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(AppId, &mut Borrowed<T>),
+        F: Fn(AppId, &mut GrantMemory<T>),
     {
-        // Create a the iterator across `AppliedGrant`s for each process.
-        for ag in self.iter() {
-            let appid = ag.appid();
+        // Create a the iterator across `ProcessGrant`s for each process.
+        for pg in self.iter() {
+            let appid = pg.appid();
             // Since we iterating, there is no return value we need to worry
             // about.
-            ag.enter(|borrowed, _| fun(appid, borrowed));
+            pg.enter(|memory| fun(appid, memory));
         }
     }
 
     /// Get an iterator over all processes and their active grant regions for
     /// this particular grant.
     ///
-    /// Calling this function when an `AppliedGrant` for a process is currently
+    /// Calling this function when an `ProcessGrant` for a process is currently
     /// entered will result in a panic.
     pub fn iter(&self) -> Iter<T> {
         Iter {
@@ -778,7 +911,7 @@ impl<T: Default> Grant<T> {
     }
 }
 
-/// Type to iterate `AppliedGrant`s across processes.
+/// Type to iterate `ProcessGrant`s across processes.
 pub struct Iter<'a, T: 'a + Default> {
     /// The grant type to use.
     grant: &'a Grant<T>,
@@ -791,7 +924,7 @@ pub struct Iter<'a, T: 'a + Default> {
 }
 
 impl<'a, T: Default> Iterator for Iter<'a, T> {
-    type Item = AppliedGrant<'a, T>;
+    type Item = ProcessGrant<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;
@@ -799,6 +932,6 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
         // use this grant. Since the iterator itself is saved calling this
         // function again will start where we left off.
         self.subiter
-            .find_map(|process| AppliedGrant::new_if_allocated(grant, process))
+            .find_map(|process| ProcessGrant::new_if_allocated(grant, process))
     }
 }

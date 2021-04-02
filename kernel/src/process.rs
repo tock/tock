@@ -261,21 +261,21 @@ pub fn load_processes<C: Chip>(
     Ok(())
 }
 
-/// Opaque identifier for dynamic grants allocated from a process's grant
-/// region.
+/// Opaque identifier for custom grants allocated dynamically from a process's
+/// grant region.
 ///
-/// This type allows Process to provide a handle to a dynamic grant within a
-/// process's memory that `DynamicGrant` can use to access the dynamic grant
+/// This type allows Process to provide a handle to a custom grant within a
+/// process's memory that `ProcessGrant` can use to access the custom grant
 /// memory later.
 ///
 /// We use this type rather than a direct pointer so that any attempt to access
-/// can ensure the process still exists and is valid, and that the dynamic grant
+/// can ensure the process still exists and is valid, and that the custom grant
 /// has not been freed.
 ///
 /// The fields of this struct are private so only Process can create this
 /// identifier.
 #[derive(Copy, Clone)]
-pub struct ProcessDynamicGrantIdentifer {
+pub struct ProcessCustomGrantIdentifer {
     offset: usize,
 }
 
@@ -540,18 +540,18 @@ pub trait ProcessType {
     fn grant_is_allocated(&self, grant_num: usize) -> Option<bool>;
 
     /// Allocate memory from the grant region that is `size` bytes long and
-    /// aligned to `align` bytes. This is used for creating dynamic grants which
+    /// aligned to `align` bytes. This is used for creating custom grants which
     /// are not recorded in the grant pointer array, but are useful for capsules
     /// which need additional process-specific dynamically allocated memory.
     ///
     /// If successful, return a Some() with an identifier that can be used with
-    /// `enter_dynamic_grant()` to get access to the memory and the pointer to
+    /// `enter_custom_grant()` to get access to the memory and the pointer to
     /// the memory which must be used to initialize the memory.
-    fn allocate_dynamic_grant(
+    fn allocate_custom_grant(
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessDynamicGrantIdentifer, NonNull<u8>)>;
+    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)>;
 
     /// Enter the grant based on `grant_num` for this process.
     ///
@@ -564,17 +564,15 @@ pub trait ProcessType {
     /// previously allocated memory for this grant.
     fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error>;
 
-    /// Enter a dynamic grant based on the `identifier`.
+    /// Enter a custom grant based on the `identifier`.
     ///
-    /// This retrieves a pointer to the previously allocated dynamic grant based
-    /// on the identifier returned when the dynamic grant was allocated.
+    /// This retrieves a pointer to the previously allocated custom grant based
+    /// on the identifier returned when the custom grant was allocated.
     ///
-    /// This returns an error if the dynamic grant is no longer accessible, or
+    /// This returns an error if the custom grant is no longer accessible, or
     /// if the process is inactive.
-    fn enter_dynamic_grant(
-        &self,
-        identifier: ProcessDynamicGrantIdentifer,
-    ) -> Result<*mut u8, Error>;
+    fn enter_custom_grant(&self, identifier: ProcessCustomGrantIdentifer)
+        -> Result<*mut u8, Error>;
 
     /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
     /// entered.
@@ -585,8 +583,8 @@ pub trait ProcessType {
     /// will do nothing.
     fn leave_grant(&self, grant_num: usize);
 
-    /// Return the count of the number of allocated grants if the process is
-    /// active.
+    /// Return the count of the number of allocated grant pointers if the
+    /// process is active. This does not count custom grants.
     ///
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;
@@ -1573,11 +1571,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    fn allocate_dynamic_grant(
+    fn allocate_custom_grant(
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessDynamicGrantIdentifer, NonNull<u8>)> {
+    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
@@ -1586,13 +1584,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         // Use the shared grant allocator function to actually allocate memory.
         // Returns `None` if the allocation cannot be created.
         if let Some(ptr) = self.allocate_in_grant_region_internal(size, align) {
-            // Create the identifier that the caller will use to get access to this
-            // dynamic grant in the future.
-            let identifier = self.create_dynamic_grant_identifier(ptr);
+            // Create the identifier that the caller will use to get access to
+            // this custom grant in the future.
+            let identifier = self.create_custom_grant_identifier(ptr);
 
             Some((identifier, ptr))
         } else {
-            // Could not allocate memory for the dynamic grant.
+            // Could not allocate memory for the custom grant.
             None
         }
     }
@@ -1637,22 +1635,21 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             })
     }
 
-    fn enter_dynamic_grant(
+    fn enter_custom_grant(
         &self,
-        identifier: ProcessDynamicGrantIdentifer,
+        identifier: ProcessCustomGrantIdentifer,
     ) -> Result<*mut u8, Error> {
         // Do not try to access the grant region of inactive process.
         if !self.is_active() {
             return Err(Error::InactiveApp);
         }
 
-        // Get the address of the dynamic grant based on the identifier.
-        let dynamic_grant_address = self.get_dynamic_grant_address(identifier);
+        // Get the address of the custom grant based on the identifier.
+        let custom_grant_address = self.get_custom_grant_address(identifier);
 
-        // We never deallocate dynamic grants and only we can change the
-        // `identifier` so we know this is a valid address for the dynamic
-        // grant.
-        Ok(dynamic_grant_address as *mut u8)
+        // We never deallocate custom grants and only we can change the
+        // `identifier` so we know this is a valid address for the custom grant.
+        Ok(custom_grant_address as *mut u8)
     }
 
     fn leave_grant(&self, grant_num: usize) {
@@ -2774,29 +2771,29 @@ impl<C: 'static + Chip> Process<'_, C> {
         })
     }
 
-    /// Create the identifier for a dynamic grant that grant.rs uses to access
-    /// the dynamic grant.
+    /// Create the identifier for a custom grant that grant.rs uses to access
+    /// the custom grant.
     ///
     /// We create this identifier by calculating the number of bytes between
-    /// where the dynamic grant starts and the end of the process memory.
-    fn create_dynamic_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessDynamicGrantIdentifer {
-        let dynamic_grant_address = ptr.as_ptr() as usize;
+    /// where the custom grant starts and the end of the process memory.
+    fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifer {
+        let custom_grant_address = ptr.as_ptr() as usize;
         let process_memory_end = self.mem_end() as usize;
 
-        ProcessDynamicGrantIdentifer {
-            offset: process_memory_end - dynamic_grant_address,
+        ProcessCustomGrantIdentifer {
+            offset: process_memory_end - custom_grant_address,
         }
     }
 
-    /// Use a ProcessDynamicGrantIdentifer to find the address of the dynamic
+    /// Use a ProcessCustomGrantIdentifer to find the address of the custom
     /// grant.
     ///
-    /// This reverses `create_dynamic_grant_identifier()`.
-    fn get_dynamic_grant_address(&self, identifier: ProcessDynamicGrantIdentifer) -> usize {
+    /// This reverses `create_custom_grant_identifier()`.
+    fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifer) -> usize {
         let process_memory_end = self.mem_end() as usize;
 
         // Subtract the offset in the identifier from the end of the process
-        // memory to get the address of the dynamic grant.
+        // memory to get the address of the custom grant.
         process_memory_end - identifier.offset
     }
 
