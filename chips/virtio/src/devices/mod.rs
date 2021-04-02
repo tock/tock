@@ -1,5 +1,7 @@
 use kernel::ErrorCode;
 
+pub mod virtio_rng;
+
 /// VirtIO Device Types.
 ///
 /// VirtIO is a flexible bus which can be used to expose various kinds of
