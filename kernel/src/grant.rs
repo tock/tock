@@ -302,7 +302,8 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         self.process.appid()
     }
 
-    /// Run a function with access to the contents of the grant region.
+    /// Run a function with access to the memory in the related process for the
+    /// related Grant.
     ///
     /// This is "entering" the grant region, and the _only_ time when the
     /// contents of a grant region can be accessed.
@@ -322,9 +323,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         self.access_grant(fun, true).unwrap()
     }
 
-    /// Run a function with access to the contents of the grant region only if
-    /// that grant region is not already entered. If the grant is already
-    /// entered silently skip it.
+    /// Run a function with access to the memory in the related process for the
+    /// related Grant only if that grant region is not already entered. If the
+    /// grant is already entered silently skip it.
     ///
     /// **You almost certainly should use `.enter()` rather than
     /// `.try_enter()`.**
@@ -381,8 +382,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         self.access_grant(fun, false)
     }
 
-    /// Run a function with access to the contents of the grant region and an
-    /// allocator for allocating additional memory in a process's grant region.
+    /// Run a function with access to the memory in the related process for the
+    /// related Grant. Also provide this function with an allocator for
+    /// allocating additional memory in the process's grant region.
     ///
     /// This is "entering" the grant region, and the _only_ time when the
     /// contents of a grant region can be accessed.
