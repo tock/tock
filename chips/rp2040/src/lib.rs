@@ -10,6 +10,7 @@ pub mod resets;
 pub mod timer;
 pub mod watchdog;
 pub mod xosc;
+pub mod uart;
 
 use cortexm0p::{
     self, generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler,
