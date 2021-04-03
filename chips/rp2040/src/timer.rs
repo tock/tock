@@ -166,14 +166,14 @@ INTS [
 const TIMER_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x40054000 as *const TimerRegisters) };
 
-pub struct RPAlarm<'a> {
+pub struct RPTimer<'a> {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
-impl<'a> RPAlarm<'a> {
-    pub const fn new() -> RPAlarm<'a> {
-        RPAlarm {
+impl<'a> RPTimer<'a> {
+    pub const fn new() -> RPTimer<'a> {
+        RPTimer {
             registers: TIMER_BASE,
             client: OptionalCell::empty(),
         }
@@ -208,7 +208,7 @@ impl<'a> RPAlarm<'a> {
     }
 }
 
-impl Time for RPAlarm<'_> {
+impl Time for RPTimer<'_> {
     type Frequency = hil::time::Freq1MHz;
     type Ticks = Ticks32;
 
@@ -217,7 +217,7 @@ impl Time for RPAlarm<'_> {
     }
 }
 
-impl<'a> Alarm<'a> for RPAlarm<'a> {
+impl<'a> Alarm<'a> for RPTimer<'a> {
     fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }

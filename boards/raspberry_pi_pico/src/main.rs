@@ -9,6 +9,9 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
+use capsules::virtual_alarm::VirtualMuxAlarm;
+
+
 use enum_primitive::cast::FromPrimitive;
 
 use kernel::component::Component;
@@ -25,7 +28,7 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
-use rp2040::timer::RPAlarm;
+use rp2040::timer::RPTimer;
 mod io;
 
 mod flash_bootloader;
@@ -55,6 +58,10 @@ static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
+    >,
 }
 
 impl Platform for RaspberryPiPico {
@@ -63,24 +70,25 @@ impl Platform for RaspberryPiPico {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
 }
 
-struct AlarmTest<'a> {
-    alarm: &'a RPAlarm<'a>,
-    led: RPGpioPin<'a>,
-}
+// struct AlarmTest<'a> {
+//     alarm: &'a RPTimer<'a>,
+//     led: RPGpioPin<'a>,
+// }
 
-impl AlarmClient for AlarmTest<'_> {
-    fn alarm(&self) {
-        self.led.toggle();
-        self.alarm
-            .set_alarm(self.alarm.now(), <RPAlarm as Time>::ticks_from_ms(1000));
-    }
-}
+// impl AlarmClient for AlarmTest<'_> {
+//     fn alarm(&self) {
+//         self.led.toggle();
+//         self.alarm
+//             .set_alarm(self.alarm.now(), <RPTimer as Time>::ticks_from_ms(1000));
+//     }
+// }
 
 /// Entry point used for debuger
 #[no_mangle]
@@ -223,23 +231,23 @@ pub unsafe fn main() {
     // pin.make_output();
     // pin.set();
 
-    let pin = RPGpioPin::new(RPGpio::GPIO25);
-    pin.make_output();
-    // pin.set();
+    // let pin = RPGpioPin::new(RPGpio::GPIO25);
+    // pin.make_output();
+    // // pin.set();
 
-    let at = static_init!(
-        AlarmTest,
-        AlarmTest {
-            alarm: &peripherals.alarm,
-            led: pin
-        }
-    );
+    // let at = static_init!(
+    //     AlarmTest,
+    //     AlarmTest {
+    //         alarm: &peripherals.alarm,
+    //         led: pin
+    //     }
+    // );
 
-    peripherals.alarm.set_alarm_client(at);
-    peripherals.alarm.set_alarm(
-        peripherals.alarm.now(),
-        <RPAlarm as Time>::ticks_from_ms(1000),
-    );
+    // peripherals.alarm.set_alarm_client(at);
+    // peripherals.alarm.set_alarm(
+    //     peripherals.alarm.now(),
+    //     <RPTimer as Time>::ticks_from_ms(1000),
+    // );
 
     let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals));
 
@@ -249,8 +257,16 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer).finalize(
+        components::alarm_mux_component_helper!(RPTimer),
+    );
+
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+    .finalize(components::alarm_component_helper!(RPTimer));
+
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        alarm: alarm
     };
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)

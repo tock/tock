@@ -10,7 +10,7 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::SIO;
 use crate::interrupts;
 use crate::resets::Resets;
-use crate::timer::RPAlarm;
+use crate::timer::RPTimer;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
 
@@ -121,7 +121,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub sio: SIO,
     pub clocks: Clocks,
     pub xosc: Xosc,
-    pub alarm: RPAlarm<'a>,
+    pub timer: RPTimer<'a>,
     pub watchdog: Watchdog,
 }
 
@@ -132,7 +132,7 @@ impl Rp2040DefaultPeripherals<'_> {
             sio: SIO::new(),
             clocks: Clocks::new(),
             xosc: Xosc::new(),
-            alarm: RPAlarm::new(),
+            timer: RPTimer::new(),
             watchdog: Watchdog::new(),
         }
     }
@@ -142,7 +142,7 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TIMER_IRQ_0 => {
-                self.alarm.handle_interrupt();
+                self.timer.handle_interrupt();
                 true
             }
             interrupts::SIO_IRQ_PROC0 => {
