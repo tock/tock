@@ -8,18 +8,18 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Author:** Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
 **Draft-Modified:** April 2, 2021<br/>
-**Draft-Version:** 1<br/>
+**Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
 
-This document describes design rules 
-hardware interface layers (HILs) in the Tock operating system. HILs
-are Rust traits that provide a standard interface to a hardware
-resource, such as a sensor, a flash chip, a cryptographic accelerator,
-a bus, or a radio. Developers adding new HILs to Tock should read this
-document and verify they have followed these guidelines.
+This document describes design rules hardware interface layers (HILs)
+in the Tock operating system. HILs are Rust traits that provide a
+standard interface to a hardware resource, such as a sensor, a flash
+chip, a cryptographic accelerator, a bus, or a radio. Developers
+adding new HILs to Tock should read this document and verify they have
+followed these guidelines.
 
 Introduction
 ===============================
@@ -36,47 +36,51 @@ any implemeentation of the `TemperatureDriver` trait, whether it is a
 local, on-chip sensor, an analog sensor connected to an ADC, or a
 digital sensor over a bus.
 
-HILs are used for many purposes within the kernel. They can be directly accessed
-by kernel services, such as the in-kernel process console using the UART HIL. They
-can be exposed to processes with system driver capsules, such as with GPIO. They
-can be virtualized to allow multiple clients to share a single resource, such as with
-the virtual timer capsule.
+HILs are used for many purposes within the kernel. They can be
+directly accessed by kernel services, such as the in-kernel process
+console using the UART HIL. They can be exposed to processes with
+system driver capsules, such as with GPIO. They can be virtualized to
+allow multiple clients to share a single resource, such as with the
+virtual timer capsule.
 
-This variety of use cases place a complex set of requirements on how a HIL must
-behave. For example, Tock expects that every HIL is virtualizable: it is possible
-to take one instance of the trait and allow multiple clients to use it simultaneously
-through queueing, such that each one thinks it has its own, independent instance of
-the trait. Because virtualization means requests can be queued, all HILs must be
-nonblocking and so have a callback for completion. This has implications to buffer
-management and ownership.
+This variety of use cases place a complex set of requirements on how a
+HIL must behave. For example, Tock expects that every HIL is
+virtualizable: it is possible to take one instance of the trait and
+allow multiple clients to use it simultaneously, such that each one
+thinks it has its own, independent instance of the trait. Because
+virtualization often means requests can be queued and the Tock kernel
+has a single stack, all HILs must be nonblocking and so have a
+callback for completion. This has implications to buffer management
+and ownership.
 
-This document describes these requirements and provides a set of design rules
-for HILs. They are:
+This document describes these requirements and describes a set of
+design rules for HILs. They are:
 
 1. Do not issue synchronous callbacks.
-2. Split-phase operations return a synchronous `Result` type which includes
-   an error code in its `Err` value.
+2. Split-phase operations return a synchronous `Result` type which 
+   includes an error code in its `Err` value.
 3. Split-phase operations with a buffer parameter return a tuple in their error 
    result, which includes the passed buffer as an element.
-4. Split-phase operrations with a buffer parameter take a mutable reference even 
-   if their access is read-only.
-5. Split-phase completion callbacks include an `Option<ErrorCode>` as a parameter; 
-   these errors are a superset of the synchronous errors.
-6. Split-phase completion callbacks for an operation with a buffer parameter return 
-   the buffer.
-7. Separate control and datapath operations into separate traits.
-8. Use fine-grained traits that separate out different use cases.
+4. Split-phase operrations with a buffer parameter take a mutable reference 
+   even if their access is read-only.
+5. Split-phase completion callbacks include a `Result` parameter whose 
+   `Err` contains  an ErrorCode`; these errors are a superset of the 
+   synchronous errors.
+6. Split-phase completion callbacks for an operation with a buffer 
+   parameter return the buffer.
+7. Use fine-grained traits that separate out different use cases.
+8. Separate control and datapath operations into separate traits.
 9. Blocking APIs are not general: use them sparingly, if at all.
 
 The rest of this document describes each of these rules and their
 reasoning.
 
-While these are design rules, they are not sarosanct. There are of
-course reasons or edge cases why a particular HIL might need to break
-one (or more) of them. In such cases, it's usually good to read and
+While these are design rules, they are not sarosanct. There are reasons or 
+edge cases why a particular HIL might need to break
+one (or more) of them. In such cases, be sure to
 understand the reasoning behind the rule; if those considerations
-don't apply in your use case, then it might be OK to break the
-rules. But it's important that this exception is true for *all*
+don't apply in your use case, then it might be OK to break it. But it's 
+important to realize the exception is true for *all*
 implementations of the HIL, not just yours; a HIL is intended to be a
 general, reusable API, not a specific implementation.
 
@@ -84,13 +88,13 @@ A key recurring point in these guidelines is that a HIL should
 encapsulate a wide range of possible implementations and use cases. It
 might be that the hardware you are using or designing a HIL for has
 particular properties or behavior. That does not mean all hardware
-does. For example, writing to on-chip flash often halts execution, as
-the core cannot read instructions while the flash is writing. This
-would suggest that the flash HIL should be blocking. But if the chip
-has two flash banks, it can be possible that you write to one bank
-while you execute from the other. Or, if the flash is off-chip (e.g.,
-a SPI device), then operations are over a bus, which is not a blocking
-interface.
+does. For example, a software pseudo-random generator can synchronously
+return random numbers. However, a hardware-based one typically cannot 
+(without blocking). If you write a blocking random number HIL because
+you are working with a software one, you are precluding hardware
+implementations from using your HIL. This means that a developer must
+decide to use either the blocking HIL (which in some cases can't exist)
+or the non-blocking one, making software less reusable.
 
 Rule 1: Don't Make Synchronous Callbacks
 ===============================
@@ -121,8 +125,8 @@ data. The simple implementation for this algorithm is to call `random_ready`
 inside the call to `random` if cached results are ready: the values 
 are ready, so issue the callback immediately.
 
-Making the `random_ready` callback from inside `random` is a bad idea.
-Let's walk through why.
+Making the `random_ready` callback from inside `random` is a bad idea for
+two reasons: call loops and client code complexity.
 
 The first issue that arises is it can create call loops. Suppose that 
 the client wants 1024 bits (so 32 words) or randomness. It needs to
@@ -215,16 +219,16 @@ decades have run into this problem. Having synchronous callbacks makes all
 code need to be as carefully written as interrupt handling code, since
 from the caller's standpoint the callback can preempt execution.
 
-Issuing an asynchronous callback requires that the module be invoked again
-later: it needs to return now, and then after that call stack is popped,
-invoke the callback. For callbacks that will be triggered by interrupts,
-this occurs naturally. However, if, such as in the random number generation
-example, the callback is purely from software, the module needs a way to
-make itself be invoked later, but as quickly as possible. The standard mechanism to 
-achieve this in Tock is through
-deferred procedure calls. This mechanism allows a module to tell the Tock
-scheduler to call again later, from the main scheduling loop. For example,
-a caching implementation of `Random` might look like this:
+Issuing an asynchronous callback requires that the module be invoked
+again later: it needs to return now, and then after that call stack is
+popped, invoke the callback. For callbacks that will be triggered by
+interrupts, this occurs naturally. However, if, such as in the random
+number generation example, the callback is purely from software, the
+module needs a way to make itself be invoked later, but as quickly as
+possible. The standard mechanism to achieve this in Tock is through
+deferred procedure calls. This mechanism allows a module to tell the
+Tock scheduler to call again later, from the main scheduling loop. For
+example, a caching implementation of `Random` might look like this:
 
 ```rust
 impl Random for CachingRNG {
@@ -413,46 +417,49 @@ Any error that can occur synchronously can usually occur asynchronously too.
 Therefore, callbacks need to indicate that an error occured and pass that
 back to the caller.
 
-The common case for this is virtualization, where a capsule turns one instance
-of a trait into a set of instances that can be used by many clients, each with
-their own callback. A typical virtualizer queues requests. When a request comes
-in, if the underlying resource is idle, the virtualizer forwards the request and
-marks itself busy. If the request on the underlying resource returns an error,
-the virtualizer returns this error to the client immediately and marks itself idle
+The common case for this is virtualization, where a capsule turns one
+instance of a trait into a set of instances that can be used by many
+clients, each with their own callback. A typical virtualizer queues
+requests. When a request comes in, if the underlying resource is idle,
+the virtualizer forwards the request and marks itself busy. If the
+request on the underlying resource returns an error, the virtualizer
+returns this error to the client immediately and marks itself idle
 again.
 
-If the underlying resource is busy, then the virtalizer returns an `Ok` to the caller
-and queues the request. Later, when the request is dequeued, the virtualizer
-invokes the underlying resource. If this operation returns an error, then the virtualizer
-issues a callback to the client, passing the error. Because vitualizers queue and
-delay operations, they also delay errors. If a HIL does not pass a `Result` in its
-callback, then there is no way for the virtualizer inform the client that the operation
-failed.
+If the underlying resource is busy, then the virtalizer returns an
+`Ok` to the caller and queues the request. Later, when the request is
+dequeued, the virtualizer invokes the underlying resource. If this
+operation returns an error, then the virtualizer issues a callback to
+the client, passing the error. Because vitualizers queue and delay
+operations, they also delay errors. If a HIL does not pass a `Result`
+in its callback, then there is no way for the virtualizer inform the
+client that the operation failed.
 
-Note that abstractions which can be virtualized concurrently may not need to pass
-a `Result` in their callback. `Alarm`, for example, can be virtualized into many
-alarms. These alarms, however, are not queued in a way that implies future failure.
-A call to `Alarm::set_alarm` cannot fail, so there is no need to return a `Result`
-in the callback.
+Note that abstractions which can be virtualized concurrently may not
+need to pass a `Result` in their callback. `Alarm`, for example, can
+be virtualized into many alarms. These alarms, however, are not queued
+in a way that implies future failure.  A call to `Alarm::set_alarm`
+cannot fail, so there is no need to return a `Result` in the callback.
 
 Rule 6: Always Return the Passed Buffer in a Completion Callback
 ===============================
 
-If a client passes a buffer to a module for an operation, it needs to be
-able to reclaim it when the operation completes. Rust ownership (and the fact that
-passed references must be mutable, see Rule 4 above) means that the caller must
-pass the reference to the HIL implementation. The HIL needs to pass it back. 
+If a client passes a buffer to a module for an operation, it needs to
+be able to reclaim it when the operation completes. Rust ownership
+(and the fact that passed references must be mutable, see Rule 4
+above) means that the caller must pass the reference to the HIL
+implementation. The HIL needs to pass it back.
 
 Rule 7: Use Fine-grained Traits That Separate Different Use Cases
 ===============================
 
 Access to a trait gives access to functionality. If several pieces of
-functionality are coupled into a single trait, then a client that needs
-access to only some of them gets all of them. HILs should therefore
-decompose their abstractions into fine-grained traits that separate
-different use cases. For clients that need multiple pieces of functionality,
-the HIL can also define composite traits, such that a single reference can
-provide multiple traits.
+functionality are coupled into a single trait, then a client that
+needs access to only some of them gets all of them. HILs should
+therefore decompose their abstractions into fine-grained traits that
+separate different use cases. For clients that need multiple pieces of
+functionality, the HIL can also define composite traits, such that a
+single reference can provide multiple traits.
 
 Consider, for example, an early version of the `Alarm` trait:
 
@@ -541,19 +548,21 @@ pub trait UART {
 }
 ```
 
-It breaks both Rule 7 and Rule 8. It couples reception and transmission (Rule 7).
-It also couples configuration with data (Rule 8). This HIL was fine when there
-was only a single user of the UART. However, once the UART was virtualized,
-`configure` could not work for virtualized clients. There were two options:
-have `configure` always return an error for virtual clients, or write a new
-trait for virtual clients that did not have `configure`. Neither is a good 
-solution. The first pushes failures to runtime: a capsule that needs to adjust
-the configuration of the UART can be connected to a virtual UART and compile
-fine, but then fails when it tries to call `configure`. If that occurs
-rarely, then it might be a long time until the problem is discovered. The second
-solution (a new trait) breaks the idea of virtualization: a client has to be 
-bound to either a physical UART or a virtual one, and can't be swapped between
-them even if it never calls `configure`.
+It breaks both Rule 7 and Rule 8. It couples reception and
+transmission (Rule 7).  It also couples configuration with data (Rule
+8). This HIL was fine when there was only a single user of the
+UART. However, once the UART was virtualized, `configure` could not
+work for virtualized clients. There were two options: have `configure`
+always return an error for virtual clients, or write a new trait for
+virtual clients that did not have `configure`. Neither is a good
+solution. The first pushes failures to runtime: a capsule that needs
+to adjust the configuration of the UART can be connected to a virtual
+UART and compile fine, but then fails when it tries to call
+`configure`. If that occurs rarely, then it might be a long time until
+the problem is discovered. The second solution (a new trait) breaks
+the idea of virtualization: a client has to be bound to either a
+physical UART or a virtual one, and can't be swapped between them even
+if it never calls `configure`.
 
 The modern UART HIL looks like this:
 
@@ -588,49 +597,59 @@ pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 Rule 9: Avoid Blocking APIs
 ===============================
 
-The Tock kernel is non-blocking: I/O operations are split-phase and have 
-a completion callback. If an operation blocks, it blocks the entire system.
+The Tock kernel is non-blocking: I/O operations are split-phase and
+have a completion callback. If an operation blocks, it blocks the
+entire system.
 
-There are cases when operations are synchronous *sometimes*. The random
-number generator in Rule 1 is an example. If random bits are cached, then
-a call to request random bits can somtimes retun those bits synchronously.
-If the random number generator needs to engage the underlying AES engine,
-then the random bits have to be asyncronous. As Rule 1 goes into, even
-operations that *could* be synchronous should have a callback that
-executes asynchronously. 
+There are cases when operations are synchronous *sometimes*. The
+random number generator in Rule 1 is an example. If random bits are
+cached, then a call to request random bits can somtimes retun those
+bits synchronously.  If the random number generator needs to engage
+the underlying AES engine, then the random bits have to be
+asyncronous. As Rule 1 goes into, even operations that *could* be
+synchronous should have a callback that executes asynchronously.
 
-Having a conditional synchronous operation and an asynchronous backup is
-a poor solution. While it might seem to make the synchronous cases simpler,
-a caller still needs to handle the asynchronous ones. The code ends up being
-more complex and larger/longer, as it is now conditional: a caller has to 
-handle both cases.
+Having a conditional synchronous operation and an asynchronous backup
+is a poor solution. While it might seem to make the synchronous cases
+simpler, a caller still needs to handle the asynchronous ones. The
+code ends up being more complex and larger/longer, as it is now
+conditional: a caller has to handle both cases.
 
-The more attractive case is when a particular implementation of a HIL seems like
-it can always be synchronous, therefore its HIL is synchronous. For example,
-writes to flash are typically asynchronous: the chip issues an interrupt onces
-the bits are written. However, if the flash chip being written is the same as
-the one code is fetched from, then the chip may block reads while the write
-completes. From the perspective of the caller, writing to flash is blocking,
-as the core stops fetching instructions.
-A synchronous flash HIL allows implementations to be simpler, straight-line
-code. 
+The more attractive case is when a particular implementation of a HIL
+seems like it can always be synchronous, therefore its HIL is
+synchronous. For example, writes to flash are typically asynchronous:
+the chip issues an interrupt onces the bits are written. However, if
+the flash chip being written is the same as the one code is fetched
+from, then the chip may block reads while the write completes. From
+the perspective of the caller, writing to flash is blocking, as the
+core stops fetching instructions.  A synchronous flash HIL allows
+implementations to be simpler, straight-line code.
 
-Capsules implemented on a synchronous HIL only work for implementations
-with synchronous behavior. Such a HIL limits reuse. For example, a storage system built on top of
-this synchronous API can only work on the same flash bank instructions are
-stored on: otherwise, the operations will be split-phase.
+Capsules implemented on a synchronous HIL only work for
+implementations with synchronous behavior. Such a HIL limits
+reuse. For example, a storage system built on top of this synchronous
+API can only work on the same flash bank instructions are stored on:
+otherwise, the operations will be split-phase.
 
-There are use cases when splitting HILs in this way is worth it. For example,
-straightline code can often be shorter and simpler than event-drive systems.
-By providing a synchronous API for the subset of devices that can support it,
-one can reduce code size and produce more light-weight implementations. 
-For this reason, the rule is to *avoid* blocking APIs, not to never implement them.
-They can and should at times exist, but their uses cases should be narrow
-and constrained as they are fundamentally not as reusable.
+There are use cases when splitting HILs in this way is worth it. For
+example, straightline code can often be shorter and simpler than
+event-drive systems.  By providing a synchronous API for the subset of
+devices that can support it, one can reduce code size and produce more
+light-weight implementations.  For this reason, the rule is to *avoid*
+blocking APIs, not to never implement them.  They can and should at
+times exist, but their uses cases should be narrow and constrained as
+they are fundamentally not as reusable.
 
 
 Author Address
 =================================
 ```
-email - Philip Levis <pal@cs.stanford.edu>
+Philip Levis
+414 Gates Hall
+Stanford University
+Stanford, CA 94305
+
+email: Philip Levis <pal@cs.stanford.edu>
+phone: +1 650 725 9046
+
 ```
