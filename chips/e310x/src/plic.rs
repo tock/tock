@@ -1,6 +1,7 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use kernel::common::cells::VolatileCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

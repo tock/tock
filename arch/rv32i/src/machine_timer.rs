@@ -1,5 +1,6 @@
 //! RISC-V Generic Machine Timer
 
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::ReadWrite;
 use kernel::hil::time::{Ticks, Ticks64};
 use kernel::ErrorCode;

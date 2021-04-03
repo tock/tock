@@ -1,5 +1,6 @@
 //! DCDC Converter
 
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::registers::{self, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;

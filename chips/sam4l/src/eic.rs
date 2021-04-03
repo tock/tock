@@ -17,6 +17,7 @@
 use crate::pm::{self, Clock, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::PeripheralManagement;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;

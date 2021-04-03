@@ -3,6 +3,7 @@
 use core::cell::Cell;
 use cortexm4::support::atomic;
 use kernel::common::cells::{OptionalCell, VolatileCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
     ReadWrite, WriteOnly,
@@ -305,6 +306,7 @@ mod detail {
     use super::{Amount, Count};
     use core::marker::PhantomData;
     use kernel::common::cells::VolatileCell;
+    use kernel::common::registers::interfaces::Writeable;
     use kernel::common::registers::{ReadOnly, ReadWrite};
 
     #[repr(C)]

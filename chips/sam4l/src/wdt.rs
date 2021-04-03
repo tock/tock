@@ -4,6 +4,7 @@ use crate::pm::{self, Clock, PBDClock};
 use core::cell::Cell;
 use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

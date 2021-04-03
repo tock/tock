@@ -1,5 +1,6 @@
 //! Cache Control driver.
 
+use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 

@@ -1,6 +1,7 @@
 //! Clock System (CS)
 
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
