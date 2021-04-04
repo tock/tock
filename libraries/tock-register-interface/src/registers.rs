@@ -232,6 +232,10 @@ where
 }
 
 /// Read/Write registers.
+///
+/// For accessing and manipulating the register contents, the
+/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -259,6 +263,9 @@ impl<T: IntLike, R: RegisterLongName> Writeable for ReadWrite<T, R> {
 }
 
 /// Read-only registers.
+///
+/// For accessing the register contents the [`Readable`] trait is
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -277,6 +284,9 @@ impl<T: IntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
 }
 
 /// Write-only registers.
+///
+/// For setting the register contents the [`Writeable`] trait is
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -333,6 +343,14 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased
 }
 
 /// In memory volatile register.
+///
+/// Like [`ReadWrite`], but can be safely constructed using the
+/// [`InMemoryRegister::new`] method. It will always be initialized to
+/// the passed in, well-defined initial value.
+///
+/// For accessing and manipulating the register contents, the
+/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
