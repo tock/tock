@@ -168,7 +168,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.append_key_complete(Err(error), key, value);
+                            cb.append_key_complete(error, key, value);
                         });
                     }
                     _ => {}
@@ -181,7 +181,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 ) {
                     Err((key, ret_buf, error)) => {
                         self.client.map(move |cb| {
-                            cb.get_value_complete(Err(error), key, ret_buf);
+                            cb.get_value_complete(error, key, ret_buf);
                         });
                     }
                     _ => {}
@@ -191,7 +191,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 match self.invalidate_key(self.key_buffer.take().unwrap()) {
                     Err((key, error)) => {
                         self.client.map(move |cb| {
-                            cb.invalidate_key_complete(Err(error), key);
+                            cb.invalidate_key_complete(error, key);
                         });
                     }
                     _ => {}
@@ -200,7 +200,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
             Operation::GarbageCollect => match self.garbage_collect() {
                 Err(error) => {
                     self.client.map(move |cb| {
-                        cb.garbage_collect_complete(Err(error));
+                        cb.garbage_collect_complete(error);
                     });
                 }
                 _ => {}
@@ -249,7 +249,7 @@ impl<'a, F: Flash> flash::Client<F> for TicKVStore<'a, F> {
                     self.operation.set(Operation::None);
                     self.client.map(|cb| {
                         cb.get_value_complete(
-                            Err(Err(ErrorCode::FAIL)),
+                            Err(ErrorCode::FAIL),
                             self.key_buffer.take().unwrap(),
                             self.ret_buffer.take().unwrap(),
                         );

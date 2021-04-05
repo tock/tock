@@ -69,54 +69,50 @@ impl KeyType for [u8; 8] {}
 pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes
     ///
-    /// `result`: Nothing on success, 'Result<(), ErrorCode>' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `unhashed_key`: The unhashed_key buffer
     /// `key_buf`: The key_buf buffer
     fn generate_key_complete(
         &self,
-        result: Result<(), Result<(), ErrorCode>>,
+        result: Result<(), ErrorCode>,
         unhashed_key: &'static [u8],
         key_buf: &'static K,
     );
 
     /// This callback is called when the append_key operation completes
     ///
-    /// `result`: Nothing on success, 'Result<(), ErrorCode>' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
     /// `value`: The value buffer
     fn append_key_complete(
         &self,
-        result: Result<(), Result<(), ErrorCode>>,
+        result: Result<(), ErrorCode>,
         key: &'static mut K,
         value: &'static [u8],
     );
 
     /// This callback is called when the get_value operation completes
     ///
-    /// `result`: Nothing on success, 'Result<(), ErrorCode>' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
     /// `ret_buf`: The ret_buf buffer
     fn get_value_complete(
         &self,
-        result: Result<(), Result<(), ErrorCode>>,
+        result: Result<(), ErrorCode>,
         key: &'static mut K,
         ret_buf: &'static mut [u8],
     );
 
     /// This callback is called when the invalidate_key operation completes
     ///
-    /// `result`: Nothing on success, 'Result<(), ErrorCode>' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
-    fn invalidate_key_complete(
-        &self,
-        result: Result<(), Result<(), ErrorCode>>,
-        key: &'static mut K,
-    );
+    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut K);
 
     /// This callback is called when the garbage_collect operation completes
     ///
-    /// `result`: Nothing on success, 'Result<(), ErrorCode>' on error
-    fn garbage_collect_complete(&self, result: Result<(), Result<(), ErrorCode>>);
+    /// `result`: Nothing on success, 'ErrorCode' on error
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>);
 }
 
 pub trait KVSystem<'a> {

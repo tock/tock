@@ -86,7 +86,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 {
     fn generate_key_complete(
         &self,
-        _result: Result<(), Result<(), ErrorCode>>,
+        _result: Result<(), ErrorCode>,
         _unhashed_key: &'static [u8],
         _key_buf: &'static T,
     ) {
@@ -95,7 +95,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 
     fn append_key_complete(
         &self,
-        result: Result<(), Result<(), ErrorCode>>,
+        result: Result<(), ErrorCode>,
         key: &'static mut T,
         value: &'static [u8],
     ) {
@@ -115,7 +115,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 
     fn get_value_complete(
         &self,
-        result: Result<(), Result<(), ErrorCode>>,
+        result: Result<(), ErrorCode>,
         key: &'static mut T,
         ret_buf: &'static mut [u8],
     ) {
@@ -140,11 +140,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         }
     }
 
-    fn invalidate_key_complete(
-        &self,
-        result: Result<(), Result<(), ErrorCode>>,
-        key: &'static mut T,
-    ) {
+    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut T) {
         match result {
             Ok(()) => {
                 debug!("Removed Key: {:?}", key);
@@ -161,7 +157,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         }
     }
 
-    fn garbage_collect_complete(&self, result: Result<(), Result<(), ErrorCode>>) {
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>) {
         match result {
             Ok(()) => {
                 debug!("Finished garbage collection");
