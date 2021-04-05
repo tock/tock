@@ -8,6 +8,6 @@
 mod interrupts;
 
 pub mod chip;
+pub mod clint;
 pub mod gpio;
-pub mod timer;
 pub mod uart;
