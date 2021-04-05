@@ -7,7 +7,7 @@ use kernel::InterruptService;
 
 use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
-use crate::gpio::SIO;
+use crate::gpio::{SIO, RPPins};
 use crate::interrupts;
 use crate::resets::Resets;
 use crate::timer::RPTimer;
@@ -123,6 +123,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub xosc: Xosc,
     pub timer: RPTimer<'a>,
     pub watchdog: Watchdog,
+    pub pins: RPPins<'a>
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -134,6 +135,7 @@ impl Rp2040DefaultPeripherals<'_> {
             xosc: Xosc::new(),
             timer: RPTimer::new(),
             watchdog: Watchdog::new(),
+            pins: RPPins::new()
         }
     }
 }

@@ -10,12 +10,14 @@
 #![feature(asm, naked_functions)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-
+use components::gpio::GpioComponent;
+use components::led::LedsComponent;
 
 use enum_primitive::cast::FromPrimitive;
 
 use kernel::component::Component;
-use kernel::hil::gpio::Output;
+use kernel::hil::gpio::{Configure, Output};
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
@@ -62,6 +64,11 @@ pub struct RaspberryPiPico {
         'static,
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
+    gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, RPGpioPin<'static>>,
+    >
 }
 
 impl Platform for RaspberryPiPico {
@@ -71,7 +78,10 @@ impl Platform for RaspberryPiPico {
     {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            
             _ => f(None),
         }
     }
@@ -264,9 +274,61 @@ pub unsafe fn main() {
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
     .finalize(components::alarm_component_helper!(RPTimer));
 
+    let gpio = GpioComponent::new(
+        board_kernel,
+        components::gpio_component_helper!(
+            RPGpioPin,
+            //Used for serial communication. Comment them out if you don't use serial.
+            //0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
+            //1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
+            2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
+            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
+            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
+            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
+            6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
+            7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
+            8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
+            9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
+            10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
+            11 => &peripherals.pins.get_pin(RPGpio::GPIO11),
+            12 => &peripherals.pins.get_pin(RPGpio::GPIO12),
+            13 => &peripherals.pins.get_pin(RPGpio::GPIO13),
+            14 => &peripherals.pins.get_pin(RPGpio::GPIO14),
+            15 => &peripherals.pins.get_pin(RPGpio::GPIO15),
+            16 => &peripherals.pins.get_pin(RPGpio::GPIO16),
+            17 => &peripherals.pins.get_pin(RPGpio::GPIO17),
+            18 => &peripherals.pins.get_pin(RPGpio::GPIO18),
+            19 => &peripherals.pins.get_pin(RPGpio::GPIO19),
+            20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
+            21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
+            22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
+            23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
+            24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
+            //LED pin
+            //25 => &peripherals.pins.get_pin(RPGpio::GPIO25),
+            26 => &peripherals.pins.get_pin(RPGpio::GPIO26),
+            27 => &peripherals.pins.get_pin(RPGpio::GPIO27),
+            28 => &peripherals.pins.get_pin(RPGpio::GPIO28),
+            29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
+        )
+    )
+    .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
+
+    let led = LedsComponent::new(components::led_component_helper!(
+        LedHigh<'static, RPGpioPin<'static>>,
+        LedHigh::new(
+            &peripherals.pins.get_pin(RPGpio::GPIO25)
+        )
+    ))
+    .finalize (components::led_component_buf!(
+        LedHigh<'static, RPGpioPin<'static>>
+    ));
+
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        alarm: alarm
+        alarm: alarm,
+        gpio: gpio,
+        led: led
     };
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
