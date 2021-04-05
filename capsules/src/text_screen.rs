@@ -153,9 +153,9 @@ impl<'a> TextScreen<'a> {
                                 }
                                 match self.text_screen.print(buffer, len) {
                                     Ok(()) => Ok(()),
-                                    Err((err, buffer)) => {
+                                    Err((ecode, buffer)) => {
                                         self.buffer.replace(buffer);
-                                        err
+                                        Err(ecode)
                                     }
                                 }
                             })

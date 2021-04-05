@@ -23,7 +23,7 @@ pub trait TextScreen<'a> {
         &self,
         buffer: &'static mut [u8],
         len: usize,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Sends to the driver a command to set the cursor at a given position
     /// (x_position, y_position). When finished, the driver will call the

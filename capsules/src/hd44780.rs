@@ -603,7 +603,7 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         &self,
         buffer: &'static mut [u8],
         len: usize,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.lcd_status.get() == LCDStatus::Idle {
             self.write_buffer.replace(buffer);
             self.write_len.replace(len as u8);
@@ -612,7 +612,7 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
             self.write_character();
             Ok(())
         } else {
-            Err((Err(ErrorCode::BUSY), buffer))
+            Err((ErrorCode::BUSY, buffer))
         }
     }
 
