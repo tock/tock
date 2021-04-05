@@ -170,7 +170,7 @@ impl<A: Alarm<'static>> LogTest<A> {
 
                 match self.log.read(buffer, buffer.len()) {
                     Ok(_) => debug_verbose!("Dispatched asynchronous read operation."),
-                    Err(Err((return_code, buffer))) => {
+                    Err((return_code, buffer)) => {
                         self.buffer.replace(buffer);
                         match return_code {
                             ErrorCode::FAIL => {
@@ -190,7 +190,6 @@ impl<A: Alarm<'static>> LogTest<A> {
                             _ => panic!("READ FAILED: {:?}", return_code),
                         }
                     }
-                    _ => unreachable!(),
                 }
             }
             None => panic!("NO BUFFER"),
@@ -212,7 +211,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     };
                 }
 
-                if let Err(Err((error, original_buffer))) = self.log.append(buffer, len) {
+                if let Err((error, original_buffer)) = self.log.append(buffer, len) {
                     self.buffer.replace(original_buffer);
 
                     match error {

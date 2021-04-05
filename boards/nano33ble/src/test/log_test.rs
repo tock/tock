@@ -281,7 +281,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 // Clear buffer first to make debugging more sane.
                 buffer.clone_from_slice(&0u64.to_be_bytes());
 
-                if let Err(Err((error, original_buffer))) = self.log.read(buffer, BUFFER_LEN) {
+                if let Err((error, original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
                     self.buffer.replace(original_buffer);
                     match error {
                         ErrorCode::FAIL => {
@@ -312,11 +312,10 @@ impl<A: Alarm<'static>> LogTest<A> {
             .map(
                 move |buffer| match self.log.read(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Read with too-large max read length succeeded unexpectedly!"),
-                    Err(Err((error, original_buffer))) => {
+                    Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
                     }
-                    _ => unreachable!(),
                 },
             )
             .unwrap();
@@ -326,7 +325,7 @@ impl<A: Alarm<'static>> LogTest<A> {
             .take()
             .map(move |buffer| match self.log.read(buffer, BUFFER_LEN - 1) {
                 Ok(_) => panic!("Read with too-small buffer succeeded unexpectedly!"),
-                Err(Err((error, original_buffer))) => {
+                Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     if self.read_val.get() == self.write_val.get() {
                         assert_eq!(error, ErrorCode::FAIL);
@@ -334,7 +333,6 @@ impl<A: Alarm<'static>> LogTest<A> {
                         assert_eq!(error, ErrorCode::SIZE);
                     }
                 }
-                _ => unreachable!(),
             })
             .unwrap();
 
@@ -349,7 +347,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                 buffer.clone_from_slice(
                     &(MAGIC + (self.write_val.get() << VALUE_SHIFT)).to_be_bytes(),
                 );
-                if let Err(Err((error, original_buffer))) = self.log.append(buffer, BUFFER_LEN) {
+                if let Err((error, original_buffer)) = self.log.append(buffer, BUFFER_LEN) {
                     self.buffer.replace(original_buffer);
 
                     match error {
@@ -369,11 +367,10 @@ impl<A: Alarm<'static>> LogTest<A> {
             .take()
             .map(move |buffer| match self.log.append(buffer, 0) {
                 Ok(_) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
-                Err(Err((error, original_buffer))) => {
+                Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     assert_eq!(error, ErrorCode::INVAL);
                 }
-                _ => unreachable!(),
             })
             .unwrap();
 
@@ -383,11 +380,10 @@ impl<A: Alarm<'static>> LogTest<A> {
             .map(
                 move |buffer| match self.log.append(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                    Err(Err((error, original_buffer))) => {
+                    Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
                     }
-                    _ => unreachable!(),
                 },
             )
             .unwrap();
@@ -396,8 +392,7 @@ impl<A: Alarm<'static>> LogTest<A> {
         unsafe {
             match self.log.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
                 Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                Err(Err((error, _original_buffer))) => assert_eq!(error, ErrorCode::SIZE),
-                _ => unreachable!(),
+                Err((error, _original_buffer)) => assert_eq!(error, ErrorCode::SIZE),
             }
         }
 
@@ -601,7 +596,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
 
                 // Make sure that a read on an empty log fails normally.
                 self.buffer.take().map(move |buffer| {
-                    if let Err(Err((error, original_buffer))) = self.log.read(buffer, BUFFER_LEN) {
+                    if let Err((error, original_buffer)) = self.log.read(buffer, BUFFER_LEN) {
                         self.buffer.replace(original_buffer);
                         match error {
                             ErrorCode::FAIL => (),

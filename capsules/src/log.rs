@@ -606,21 +606,21 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), Result<(), (ErrorCode, &'static mut [u8])>> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try reading again later.
-            return Err(Err((ErrorCode::BUSY, buffer)));
+            return Err((ErrorCode::BUSY, buffer));
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
-            return Err(Err((ErrorCode::INVAL, buffer)));
+            return Err((ErrorCode::INVAL, buffer));
         } else if self.read_entry_id.get() > self.append_entry_id.get() {
             // Read entry ID beyond append entry ID, must be invalid.
             self.read_entry_id.set(self.oldest_entry_id.get());
-            return Err(Err((ErrorCode::CANCEL, buffer)));
+            return Err((ErrorCode::CANCEL, buffer));
         } else if self.read_client.is_none() {
             // No client for callback.
-            return Err(Err((ErrorCode::RESERVE, buffer)));
+            return Err((ErrorCode::RESERVE, buffer));
         }
 
         // Try reading next entry.
@@ -633,7 +633,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
                 self.deferred_client_callback();
                 Ok(())
             }
-            Err(return_code) => Err(Err((return_code.unwrap_err(), buffer))),
+            Err(return_code) => Err((return_code.unwrap_err(), buffer)),
         }
     }
 
@@ -703,22 +703,22 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), Result<(), (ErrorCode, &'static mut [u8])>> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let entry_size = length + ENTRY_HEADER_SIZE;
 
         // Check for failure cases.
         if self.state.get() != State::Idle {
             // Log busy, try appending again later.
-            return Err(Err((ErrorCode::BUSY, buffer)));
+            return Err((ErrorCode::BUSY, buffer));
         } else if length == 0 || buffer.len() < length {
             // Invalid length provided.
-            return Err(Err((ErrorCode::INVAL, buffer)));
+            return Err((ErrorCode::INVAL, buffer));
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
             // Entry too big, won't fit within a single page.
-            return Err(Err((ErrorCode::SIZE, buffer)));
+            return Err((ErrorCode::SIZE, buffer));
         } else if !self.circular && self.append_entry_id.get() + entry_size > self.volume.len() {
             // End of non-circular log has been reached.
-            return Err(Err((ErrorCode::FAIL, buffer)));
+            return Err((ErrorCode::FAIL, buffer));
         }
 
         // Perform append.
@@ -746,12 +746,12 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
                         self.state.set(State::Idle);
                         self.buffer.take().map_or_else(
                             || panic!("No buffer to return"),
-                            move |buffer| Err(Err((return_code.unwrap_err(), buffer))),
+                            move |buffer| Err((return_code.unwrap_err(), buffer)),
                         )
                     }
                 }
             }
-            None => Err(Err((ErrorCode::RESERVE, buffer))),
+            None => Err((ErrorCode::RESERVE, buffer)),
         }
     }
 

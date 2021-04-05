@@ -19,7 +19,7 @@ pub trait LogRead<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), Result<(), (ErrorCode, &'static mut [u8])>>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Returns the entry ID at the start of the log. This is the ID of the oldest remaining entry.
     fn log_start(&self) -> Self::EntryID;
@@ -59,7 +59,7 @@ pub trait LogWrite<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), Result<(), (ErrorCode, &'static mut [u8])>>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Sync log to storage, making all entries persistent (not including any entries that were
     /// previously overwritten). There is no guarantee that any changes to the log are persistent

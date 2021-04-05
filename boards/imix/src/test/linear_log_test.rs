@@ -155,7 +155,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     *e = 0;
                 }
 
-                if let Err(Err((error, original_buffer))) = self.log.read(buffer, buffer.len()) {
+                if let Err((error, original_buffer)) = self.log.read(buffer, buffer.len()) {
                     self.buffer.replace(original_buffer);
                     match error {
                         ErrorCode::FAIL => {
@@ -194,7 +194,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     };
                 }
 
-                if let Err(Err((error, original_buffer))) = self.log.append(buffer, len) {
+                if let Err((error, original_buffer)) = self.log.append(buffer, len) {
                     self.buffer.replace(original_buffer);
 
                     match error {
