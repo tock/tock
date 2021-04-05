@@ -823,7 +823,7 @@ impl FLASHCALW {
         address: usize,
         size: usize,
         buffer: &'static mut Sam4lPage,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Sam4lPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut Sam4lPage)> {
         if self.current_state.get() == FlashState::Unconfigured {
             self.configure();
         }
@@ -838,7 +838,7 @@ impl FLASHCALW {
             || buffer.len() < size
         {
             // invalid flash address
-            return Err((Err(ErrorCode::INVAL), buffer));
+            return Err((ErrorCode::INVAL, buffer));
         }
 
         // Actually do a copy from flash into the buffer.
@@ -866,7 +866,7 @@ impl FLASHCALW {
         &self,
         page_num: i32,
         data: &'static mut Sam4lPage,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Sam4lPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut Sam4lPage)> {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
@@ -874,7 +874,7 @@ impl FLASHCALW {
             FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return Err((Err(ErrorCode::BUSY), data)),
+            _ => return Err((ErrorCode::BUSY, data)),
         }
 
         // Save the buffer for the future write.
@@ -917,7 +917,7 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
     }
 
@@ -925,7 +925,7 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_page(page_number as i32, buf)
     }
 

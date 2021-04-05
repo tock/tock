@@ -514,9 +514,9 @@ impl Flash {
         &self,
         page_number: usize,
         buffer: &'static mut StmF303Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut StmF303Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut StmF303Page)> {
         if page_number > 127 {
-            return Err((Err(ErrorCode::INVAL), buffer));
+            return Err((ErrorCode::INVAL, buffer));
         }
 
         if self.is_locked() {
@@ -540,9 +540,9 @@ impl Flash {
         &self,
         page_number: usize,
         buffer: &'static mut StmF303Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut StmF303Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut StmF303Page)> {
         if page_number > 127 {
-            return Err((Err(ErrorCode::INVAL), buffer));
+            return Err((ErrorCode::INVAL, buffer));
         }
 
         let mut byte: *const u8 = (PAGE_START + page_number * PAGE_SIZE) as *const u8;
@@ -616,7 +616,7 @@ impl hil::flash::Flash for Flash {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_page(page_number, buf)
     }
 
@@ -624,7 +624,7 @@ impl hil::flash::Flash for Flash {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_page(page_number, buf)
     }
 

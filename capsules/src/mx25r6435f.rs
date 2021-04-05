@@ -261,7 +261,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
 
         let retval = self
@@ -290,11 +290,12 @@ impl<
                     })
             });
 
-        if retval == Ok(()) {
-            self.client_sector.replace(sector);
-            Ok(())
-        } else {
-            Err((retval, sector))
+        match retval {
+            Ok(()) => {
+                self.client_sector.replace(sector);
+                Ok(())
+            }
+            Err(ecode) => Err((ecode, sector)),
         }
     }
 
@@ -302,7 +303,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -310,11 +311,12 @@ impl<
         });
         let retval = self.enable_write();
 
-        if retval == Ok(()) {
-            self.client_sector.replace(sector);
-            Ok(())
-        } else {
-            Err((retval, sector))
+        match retval {
+            Ok(()) => {
+                self.client_sector.replace(sector);
+                Ok(())
+            }
+            Err(ecode) => Err((ecode, sector)),
         }
     }
 }
@@ -579,7 +581,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_sector(page_number as u32, buf)
     }
 
@@ -587,7 +589,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_sector(page_number as u32, buf)
     }
 

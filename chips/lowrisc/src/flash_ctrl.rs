@@ -399,7 +399,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -438,7 +438,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (Result<(), ErrorCode>, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
