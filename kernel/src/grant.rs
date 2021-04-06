@@ -30,7 +30,7 @@
 //! operation, they can use an `Allocator` to request additional memory from
 //! the process's grant region.
 //!
-//! ```ignore
+//! ```text,ignore
 //!                            ┌──────────────────┐
 //!                            │                  │
 //!                            │ Capsule          │
@@ -79,7 +79,7 @@
 //! Here is an overview of the types used by grant.rs to implement the Grant
 //! functionality in Tock:
 //!
-//! ```ignore
+//! ```text,ignore
 //!                         ┌──────────────────────────┐
 //!                         │ struct Grant<T> {        │
 //!                         │   number: usize          │
