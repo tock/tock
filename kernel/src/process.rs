@@ -520,11 +520,11 @@ pub trait ProcessType {
     /// Allocate memory from the grant region and store the reference in the
     /// proper grant pointer index.
     ///
-    /// This function must check that the doing the allocation does not cause
+    /// This function must check that doing the allocation does not cause
     /// the kernel memory break to go below the top of the process accessible
     /// memory region allowed by the MPU. Note, this can be different from the
     /// actual app_brk, as MPU alignment and size constraints may result in the
-    /// PMP enforced region differing from the app_brk.
+    /// MPU enforced region differing from the app_brk.
     ///
     /// This will return `None` and fail if:
     /// - The process is inactive, or
@@ -997,7 +997,8 @@ pub struct Process<'a, C: 'static + Chip> {
     /// Reference to the slice of pointers stored in the process's memory
     /// reserved for the kernel. These pointers are null if the grant region has
     /// not been allocated. When the grant region is allocated these pointers
-    /// are updated to point to the allocated memory.
+    /// are updated to point to the allocated memory. No other reference to these
+    /// pointers exists in the Tock kernel.
     grant_pointers: MapCell<&'static mut [*mut u8]>,
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
