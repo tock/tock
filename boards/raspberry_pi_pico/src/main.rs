@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
+use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -21,6 +22,8 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
+use kernel::hil::uart::Configure;
+
 use rp2040;
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -28,7 +31,7 @@ use rp2040::clocks::{
     ReferenceAuxiliaryClockSource, ReferenceClockSource, RtcAuxiliaryClockSource,
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
-use rp2040::gpio::{RPGpio, RPGpioPin};
+use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
 use rp2040::timer::RPTimer;
 mod io;
@@ -89,7 +92,7 @@ impl Platform for RaspberryPiPico {
 
 // struct AlarmTest<'a> {
 //     alarm: &'a RPTimer<'a>,
-//     led: RPGpioPin<'a>,
+//     led: RPGpioPin,<'a>,
 // }
 
 // impl AlarmClient for AlarmTest<'_> {
@@ -188,6 +191,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
+
 pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
@@ -221,6 +225,26 @@ pub unsafe fn main() {
 
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
+    peripherals.resets.reset(&[Peripheral::Uart0]);
+    peripherals.resets.unreset(&[Peripheral::Uart0], true);
+
+    let parameters = Parameters {
+        baud_rate: 115200,
+        width: Width::Eight,
+        parity: Parity::None,
+        stop_bits: StopBits::One,
+        hw_flow_control: false,
+    };
+    //configure parameters of uart for sending bytes
+    peripherals.uart0.configure(parameters);
+
+    //set RX and TX pins in UART mode
+    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
+    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+    gpio_rx.set_function(GpioFunction::UART);
+    gpio_tx.set_function(GpioFunction::UART);
+
+    panic!("un text pe care il vreau eu");
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
@@ -232,16 +256,16 @@ pub unsafe fn main() {
     use kernel::hil::time::{Alarm, Time};
 
     // fn off (){
-    //     let pin = RPGpioPin::new(RPGpio::GPIO25);
+    //     let pin = RPGpioPin,::new(RPGpio::GPIO25);
     //     pin.make_output();
     //     pin.clear();
     // }
 
-    // let pin = RPGpioPin::new(RPGpio::GPIO25);
+    // let pin = RPGpioPin,::new(RPGpio::GPIO25);
     // pin.make_output();
     // pin.set();
 
-    // let pin = RPGpioPin::new(RPGpio::GPIO25);
+    // let pin = RPGpioPin,::new(RPGpio::GPIO25);
     // pin.make_output();
     // // pin.set();
 

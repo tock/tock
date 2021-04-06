@@ -1,19 +1,18 @@
-
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::uart::{Configure, Parameters, StopBits, Parity, Width };
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
 register_structs! {
     ///controls serial port
     UartRegisters {
-        (0x000 => uartdr: ReadWrite<u32, UARTDR::Register>), 
-        
-        (0x004 => uartrsr: ReadWrite<u32, UARTRSR::Register>), 
+        (0x000 => uartdr: ReadWrite<u32, UARTDR::Register>),
 
-        (0x018 => uartfr: ReadOnly<u32, UARTFR::Register>), 
+        (0x004 => uartrsr: ReadWrite<u32, UARTRSR::Register>),
+        (0x008 => _reserved0),
 
+        (0x018 => uartfr: ReadOnly<u32, UARTFR::Register>),
         (0x020 => uartilpr: ReadWrite<u32, UARTILPR::Register>),
 
         (0x024 => uartibrd: ReadWrite<u32, UARTIBRD::Register>),
@@ -32,11 +31,10 @@ register_structs! {
 
         (0x040 => uartmis: ReadOnly<u32, UARTMIS::Register>),
 
-        (0x044 => uarticr: ReadWrite<u32, UARTICR::Register>), 
+        (0x044 => uarticr: ReadWrite<u32, UARTICR::Register>),
 
         (0x048 => uartdmacr: ReadWrite<u32, UARTDMACR::Register>),
-        
-        (0x04c => _reserved0),
+        (0x04c => _reserved1),
 
         (0xfe0 => uartperiphid0: ReadOnly<u32, UARTPERIPHID0::Register>),
 
@@ -53,6 +51,7 @@ register_structs! {
         (0xff8 => uartpcellid2: ReadOnly<u32, UARTPCELLID2::Register>),
 
         (0xffc => uartpcellid3: ReadOnly<u32, UARTPCELLID3::Register>),
+
         (0x1000 => @END),
     }
 }
@@ -82,7 +81,6 @@ register_bitfields! [u32,
         /// overrun error
         OE OFFSET(3) NUMBITS(1) []
     ],
-    
     ///flag register
     UARTFR  [
         /// clear to send
@@ -109,7 +107,7 @@ register_bitfields! [u32,
         /// 8-bit low-power divisor value
         ILPDVSR OFFSET(0) NUMBITS(8) []
     ],
-    /// integer baud rate register 
+    /// integer baud rate register
     UARTIBRD [
         /// the integer baud rate divisor
         BAUD_DIVINT OFFSET(0) NUMBITS(16) []
@@ -119,7 +117,6 @@ register_bitfields! [u32,
         /// the fractional baud rate divisor
         BAUD_DIVFRAC OFFSET(0) NUMBITS(6) []
     ],
-    
     /// line control register
     UARTLCR_H [
         /// send break
@@ -138,7 +135,7 @@ register_bitfields! [u32,
             BITS_7 = 0b10,
             BITS_6 = 0b01,
             BITS_5 = 0b00
-        ], 
+        ],
         /// stick parity select
         SPS OFFSET(7) NUMBITS(1) []
     ],
@@ -171,7 +168,7 @@ register_bitfields! [u32,
     ],
     /// interrupt FIFO level select register
     UARTIFLS [
-        /// transmit interrupt FIFO level select 
+        /// transmit interrupt FIFO level select
         TXIFLSEL OFFSET(0) NUMBITS(3) [
             FIFO_1_8 = 0b000,
             FIFO_1_4 = 0b001,
@@ -243,7 +240,6 @@ register_bitfields! [u32,
         /// overrun error interrupt status
         OERIS OFFSET(10) NUMBITS(1) []
     ],
-    
     /// masked interrupt status register
     UARTMIS [
         /// nUARTRI modem masked interrupt status
@@ -347,31 +343,31 @@ register_bitfields! [u32,
         /// these bits read back as 0xB1
         UARTPCELLID3 OFFSET(0) NUMBITS(8) []
     ]
-    
 ];
 
-const UART0_BASE: StaticRef<UartRegisters> = 
-    unsafe {StaticRef::new(0x40034000 as *const UartRegisters) };
+const UART0_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40034000 as *const UartRegisters) };
 
+const UART1_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40038000 as *const UartRegisters) };
 
-const UART1_BASE: StaticRef<UartRegisters> = 
-    unsafe {StaticRef::new(0x40038000 as *const UartRegisters) };     
-
-pub (crate) enum UartDevice {
-    UART0,
-    UART1
-}
+// pub (crate) enum UartDevice {
+//     UART0,
+//     UART1
+// }
 pub struct Uart {
     registers: StaticRef<UartRegisters>,
 }
 
 impl Uart {
-    pub (crate) fn new(uart_device:UartDevice) -> Self {
+    pub const fn new_uart0() -> Self {
         Self {
-            registers: match uart_device {
-                UartDevice::UART0 => UART0_BASE,
-                UartDevice::UART1 => UART1_BASE,
-            }
+            registers: UART0_BASE,
+        }
+    }
+    pub const fn new_uart1() -> Self {
+        Self {
+            registers: UART1_BASE,
         }
     }
 
@@ -386,13 +382,11 @@ impl Uart {
         return !self.registers.uartfr.is_set(UARTFR::TXFF);
     }
 
-    pub fn send_byte(&self, data:u8) {
+    pub fn send_byte(&self, data: u8) {
         self.registers.uartdr.modify(UARTDR::DATA.val(data as u32));
-        //DTR FEN
-        while !self.uart_is_writable() {};
+        //DTR
+        while !self.uart_is_writable() {}
     }
-
-    
 }
 
 impl Configure for Uart {
@@ -400,28 +394,42 @@ impl Configure for Uart {
         let clk = 125000000;
 
         //Calculate baud rate
-        let baud_rate_div = (8 * clk / params.baud_rate);
-        let baud_ibrd = baud_rate_div >> 7;
-        let baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
+        let baud_rate_div = 8 * clk / params.baud_rate;
+        let mut baud_ibrd = baud_rate_div >> 7;
+        let mut baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
 
-        self.registers.uartibrd.modify(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
-        self.registers.uartfbrd.modify(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
+        if baud_ibrd == 0 {
+            baud_ibrd = 1;
+            baud_fbrd = 0;
+        } else if baud_ibrd >= 65535 {
+            baud_ibrd = 65535;
+            baud_fbrd = 0;
+        }
+
+        self.registers
+            .uartibrd
+            .modify(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
+        self.registers
+            .uartfbrd
+            .modify(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
+
+        self.registers.uartlcr_h.set(0);
 
         //Configure the word length
         match params.width {
-            Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6), //&&&&&&&&&&&&&
-            Width::Seven => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN.val(0b10 as u32)),
-            Width::Eight => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN.val(0b11 as u32)),
+            Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
+            Width::Seven => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_7),
+            Width::Eight => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_8),
         }
-        
-         //configure parity 
+
+        //configure parity
         match params.parity {
             Parity::None => self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR),
             Parity::Odd => {
                 self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
                 self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
             }
-            Parity::Even => { 
+            Parity::Even => {
                 self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
                 self.registers.uartlcr_h.modify(UARTLCR_H::EPS::SET);
             }
@@ -429,27 +437,25 @@ impl Configure for Uart {
 
         //Set the stop bit length - 2 stop bits
         match params.stop_bits {
-            StopBits::One =>  self.registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
-            StopBits::Two =>  self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
+            StopBits::One => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
+            StopBits::Two => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
         }
 
         //Set flow control
-        if params.hw_flow_control {
+        if !params.hw_flow_control {
             self.registers.uartcr.modify(UARTCR::RTSEN::SET);
+            self.registers.uartcr.modify(UARTCR::CTSEN::SET);
         } else {
-        self.registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
+            self.registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
+            self.registers.uartcr.modify(UARTCR::CTSEN::CLEAR);
         }
+        self.enable();
+        self.registers.uartcr.modify(UARTCR::TXE::SET);
+        self.registers.uartcr.modify(UARTCR::RXE::SET);
+        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::SET);
+        self.registers.uartdmacr.modify(UARTDMACR::TXDMAE::SET);
+        self.registers.uartdmacr.modify(UARTDMACR::RXDMAE::SET);
 
         ReturnCode::SUCCESS
     }
-
-    
 }
-
-
-
-
-
-
-     
-    

@@ -533,7 +533,8 @@ impl<'a> RPGpioPin<'a> {
         }
     }
 
-    fn set_function(&self, f: GpioFunction) {
+    pub fn set_function(&self, f: GpioFunction) {
+        self.activate_pads();
         self.gpio_registers.pin[self.pin]
             .ctrl
             .write(GPIOx_CTRL::FUNCSEL.val(f as u32));

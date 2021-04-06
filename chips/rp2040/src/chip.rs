@@ -132,6 +132,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub timer: RPTimer<'a>,
     pub watchdog: Watchdog,
     pub pins: RPPins<'a>,
+    pub uart0: Uart,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -144,6 +145,7 @@ impl Rp2040DefaultPeripherals<'_> {
             timer: RPTimer::new(),
             watchdog: Watchdog::new(),
             pins: RPPins::new(),
+            uart0: Uart::new_uart0(),
         }
     }
 }
