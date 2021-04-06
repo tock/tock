@@ -629,7 +629,7 @@ impl<T> CustomGrant<T> {
         }
     }
 
-    /// Helper function to get the AppId from the dynamic grant.
+    /// Helper function to get the AppId from the custom grant.
     pub fn appid(&self) -> AppId {
         self.appid
     }
@@ -642,7 +642,7 @@ impl<T> CustomGrant<T> {
     ///
     /// Because this function requires `&mut self`, it should be impossible to
     /// access the inner data of a given `CustomGrant` reentrantly. Thus the
-    /// reentrance detection we use for non-dynamic grants is not needed here.
+    /// reentrance detection we use for non-custom grants is not needed here.
     pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
     where
         F: FnOnce(GrantMemory<'_, T>) -> R,
@@ -654,7 +654,7 @@ impl<T> CustomGrant<T> {
             .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
                 // App is valid.
 
-                // Now try to access the dynamic grant memory.
+                // Now try to access the custom grant memory.
                 let grant_ptr = process.enter_custom_grant(self.identifier)?;
 
                 // # Safety
@@ -666,8 +666,8 @@ impl<T> CustomGrant<T> {
                 // other references because the only way to create a reference
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
-                let dynamic_grant = unsafe { &mut *(grant_ptr as *mut T) };
-                let borrowed = GrantMemory::new(dynamic_grant);
+                let custom_grant = unsafe { &mut *(grant_ptr as *mut T) };
+                let borrowed = GrantMemory::new(custom_grant);
                 Ok(fun(borrowed))
             })
     }
@@ -683,7 +683,7 @@ pub struct GrantRegionAllocator {
 }
 
 impl GrantRegionAllocator {
-    /// Allocates a new dynamic grant initialized using the given closure.
+    /// Allocates a new `CustomGrant` initialized using the given closure.
     ///
     /// The closure will be called exactly once, and the result will be used to
     /// initialize the owned value.
@@ -794,7 +794,12 @@ impl GrantRegionAllocator {
 }
 
 /// Type for storing an object of type T in process memory that is only
-/// accessible by the kernel.
+/// accessible by the kernel. A single `Grant` can allocate space one object
+/// of type T for each process on the board. Each object allocated will
+/// come out of the memory region of the process that object is allocated for.
+/// The `Grant` type is used to get access to `ProcessGrant`'s, which are
+/// tied to a specific process and provide access to the memory object allocated
+/// for that process.
 pub struct Grant<T: Default> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
@@ -824,7 +829,7 @@ impl<T: Default> Grant<T> {
 
     /// Enter the grant for a specific process.
     ///
-    /// This creates an `ProcessGrant` which is a handle for a grant allocated
+    /// This creates a `ProcessGrant` which is a handle for a grant allocated
     /// for a specific process. Then, that `ProcessGrant` is entered and the
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
