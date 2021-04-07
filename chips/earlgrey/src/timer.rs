@@ -4,9 +4,9 @@ use crate::chip_config::CONFIG;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time;
-use kernel::hil::time::{Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Ticks64};
 use kernel::ReturnCode;
+use rv32i::machine_timer::MachineTimer;
 
 const PRESCALE: u16 = ((CONFIG.cpu_freq / 10_000) - 1) as u16; // 10Khz
 
@@ -94,19 +94,14 @@ impl time::Time for RvTimer<'_> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
-        // RISC-V has a 64-bit counter but you can only read 32 bits
-        // at once, which creates a race condition if the lower register
-        // wraps between the reads. So the recommended approach is to read
-        // low, read high, read low, and if the second low is lower, re-read
-        // high. -pal 8/6/20
-        let first_low: u32 = self.registers.value_low.get();
-        let mut high: u32 = self.registers.value_high.get();
-        let second_low: u32 = self.registers.value_low.get();
-        if second_low < first_low {
-            // Wraparound
-            high = self.registers.value_high.get();
-        }
-        Ticks64::from(((high as u64) << 32) | second_low as u64)
+        let mtimer = MachineTimer::new(
+            &self.registers.compare_low,
+            &self.registers.compare_high,
+            &self.registers.value_low,
+            &self.registers.value_high,
+        );
+
+        mtimer.now()
     }
 }
 
@@ -140,47 +135,40 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        // This does not handle the 64-bit wraparound case.
-        // Because mtimer fires if the counter is >= the compare,
-        // handling wraparound requires setting compare to the
-        // maximum value, issuing a callback on the overflow client
-        // if there is one, spinning until it wraps around to 0, then
-        // setting the compare to the correct value.
-        let regs = self.registers;
-        let now = self.now();
-        let mut expire = reference.wrapping_add(dt);
+        let mtimer = MachineTimer::new(
+            &self.registers.compare_low,
+            &self.registers.compare_high,
+            &self.registers.value_low,
+            &self.registers.value_high,
+        );
 
-        if !now.within_range(reference, expire) {
-            expire = now;
-        }
-
-        let val = expire.into_u64();
-        let high = (val >> 32) as u32;
-        let low = (val & 0xffffffff) as u32;
-
-        // Recommended approach for setting the two compare registers
-        // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.compare_low.set(0xffffffff);
-        regs.compare_high.set(high);
-        regs.compare_low.set(low);
-        //debug!("TIMER: set to {}", expire.into_u64());
         self.registers.intr_enable.write(intr::timer0::SET);
+
+        mtimer.set_alarm(reference, dt)
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let mut val: u64 = (self.registers.compare_high.get() as u64) << 32;
-        val |= self.registers.compare_low.get() as u64;
-        Ticks64::from(val)
+        let mtimer = MachineTimer::new(
+            &self.registers.compare_low,
+            &self.registers.compare_high,
+            &self.registers.value_low,
+            &self.registers.value_high,
+        );
+
+        mtimer.get_alarm()
     }
 
     fn disarm(&self) -> ReturnCode {
-        // You clear the RISCV mtime interrupt by writing to the compare
-        // registers. Since the only way to do so is to set a new alarm,
-        // and this is also the only way to re-enable the interrupt, disabling
-        // the interrupt is sufficient. Calling set_alarm will clear the
-        // pending interrupt before re-enabling. -pal 8/6/20
+        let mtimer = MachineTimer::new(
+            &self.registers.compare_low,
+            &self.registers.compare_high,
+            &self.registers.value_low,
+            &self.registers.value_high,
+        );
+
         self.registers.intr_enable.write(intr::timer0::CLEAR);
-        ReturnCode::SUCCESS
+
+        mtimer.disarm()
     }
 
     fn is_armed(&self) -> bool {
@@ -188,7 +176,14 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1 as u64)
+        let mtimer = MachineTimer::new(
+            &self.registers.compare_low,
+            &self.registers.compare_high,
+            &self.registers.value_low,
+            &self.registers.value_high,
+        );
+
+        mtimer.minimum_dt()
     }
 }
 
