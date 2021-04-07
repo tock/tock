@@ -748,11 +748,6 @@ impl GrantRegionAllocator {
             }
         }
 
-        // // convert `NonNull<T>` to a fat pointer `NonNull<[T]>` which includes
-        // // the length information. We do this here as initialization is more
-        // // convenient with the non-slice ptr.
-        // let slice_ptr = NonNull::new(slice_from_raw_parts_mut(typed_ptr.as_ptr(), num_items)).unwrap();
-
         Ok(CustomGrant::new(custom_grant_identifier, self.appid))
     }
 
