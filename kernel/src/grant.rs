@@ -719,43 +719,42 @@ impl GrantRegionAllocator {
         Ok(CustomGrant::new(custom_grant_identifier, self.appid))
     }
 
-    // /// Allocates a slice of n instances of a given type. Each instance is
-    // /// initialized using the provided function.
-    // ///
-    // /// The provided function will be called exactly `n` times, and will be
-    // /// passed the index it's initializing, from `0` through `num_items - 1`.
-    // ///
-    // /// # Panic Safety
-    // ///
-    // /// If `val_func` panics, the freshly allocated memory and any values
-    // /// already written will be leaked.
-    // pub fn alloc_n_with<T, F>(
-    //     &mut self,
-    //     num_items: usize,
-    //     mut init: F,
-    // ) -> Result<CustomGrant<[T]>, Error>
-    // where
-    //     F: FnMut(usize) -> T,
-    // {
-    //     let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(num_items)?;
+    /// Allocates a slice of n instances of a given type. Each instance is
+    /// initialized using the provided function.
+    ///
+    /// The provided function will be called exactly `n` times, and will be
+    /// passed the index it's initializing, from `0` through `NUM_ITEMS - 1`.
+    ///
+    /// # Panic Safety
+    ///
+    /// If `val_func` panics, the freshly allocated memory and any values
+    /// already written will be leaked.
+    pub fn alloc_n_with<T, F, const NUM_ITEMS: usize>(
+        &mut self,
+        mut init: F,
+    ) -> Result<CustomGrant<[T; NUM_ITEMS]>, Error>
+    where
+        F: FnMut(usize) -> T,
+    {
+        let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(NUM_ITEMS)?;
 
-    //     for i in 0..num_items {
-    //         // # Safety
-    //         //
-    //         // The allocate function guarantees that `ptr` points to memory
-    //         // large enough to allocate `num_items` copies of the object.
-    //         unsafe {
-    //             write(typed_ptr.as_ptr().add(i), init(i));
-    //         }
-    //     }
+        for i in 0..NUM_ITEMS {
+            // # Safety
+            //
+            // The allocate function guarantees that `ptr` points to memory
+            // large enough to allocate `num_items` copies of the object.
+            unsafe {
+                write(typed_ptr.as_ptr().add(i), init(i));
+            }
+        }
 
-    //     // // convert `NonNull<T>` to a fat pointer `NonNull<[T]>` which includes
-    //     // // the length information. We do this here as initialization is more
-    //     // // convenient with the non-slice ptr.
-    //     // let slice_ptr = NonNull::new(slice_from_raw_parts_mut(typed_ptr.as_ptr(), num_items)).unwrap();
+        // // convert `NonNull<T>` to a fat pointer `NonNull<[T]>` which includes
+        // // the length information. We do this here as initialization is more
+        // // convenient with the non-slice ptr.
+        // let slice_ptr = NonNull::new(slice_from_raw_parts_mut(typed_ptr.as_ptr(), num_items)).unwrap();
 
-    //     Ok(CustomGrant::new(custom_grant_identifier, self.appid))
-    // }
+        Ok(CustomGrant::new(custom_grant_identifier, self.appid))
+    }
 
     /// Allocates uninitialized grant memory appropriate to store a `T`.
     ///
