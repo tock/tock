@@ -228,6 +228,12 @@ pub unsafe fn main() {
     peripherals.resets.reset(&[Peripheral::Uart0]);
     peripherals.resets.unreset(&[Peripheral::Uart0], true);
 
+    //set RX and TX pins in UART mode
+    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
+    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+    gpio_rx.set_function(GpioFunction::UART);
+    gpio_tx.set_function(GpioFunction::UART);
+
     let parameters = Parameters {
         baud_rate: 115200,
         width: Width::Eight,
@@ -237,12 +243,6 @@ pub unsafe fn main() {
     };
     //configure parameters of uart for sending bytes
     peripherals.uart0.configure(parameters);
-
-    //set RX and TX pins in UART mode
-    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
-    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
-    gpio_rx.set_function(GpioFunction::UART);
-    gpio_tx.set_function(GpioFunction::UART);
 
     panic!("un text pe care il vreau eu");
 

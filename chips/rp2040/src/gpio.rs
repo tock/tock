@@ -4,6 +4,7 @@
 //! * Ioana Culic <ioana.culic@wyliodrin.com>
 
 // use core::cell::Cell;
+use cortex_m_semihosting::hprintln;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -12,12 +13,13 @@ use kernel::common::StaticRef;
 use kernel::hil;
 
 use crate::chip::Processor;
-
+#[repr(C)]
 struct GpioPin {
     status: ReadOnly<u32, GPIOx_STATUS::Register>,
     ctrl: ReadWrite<u32, GPIOx_CTRL::Register>,
 }
 
+#[repr(C)]
 struct GpioInterrupt {
     intr0: ReadWrite<u32, GPIO_INTR0::Register>,
     intr1: ReadWrite<u32, GPIO_INTR1::Register>,
@@ -25,6 +27,7 @@ struct GpioInterrupt {
     intr3: ReadWrite<u32, GPIO_INTR3::Register>,
 }
 
+#[repr(C)]
 struct GpioProc {
     enable: GpioInterrupt,
     force: GpioInterrupt,

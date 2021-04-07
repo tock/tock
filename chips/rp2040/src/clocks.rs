@@ -1200,8 +1200,8 @@ impl Clocks {
         // If increasing divisor, set divisor before source. Otherwise set source
         // before divisor. This avoids a momentary overspeed when e.g. switching
         // to a faster source and increasing divisor to compensate.
-        if div > self.registers.clk_sys_div.get() {
-            self.set_divider(Clock::System, div);
+        if div > self.registers.clk_ref_div.get() {
+            self.set_divider(Clock::Reference, div);
         }
 
         // pico-sdk:

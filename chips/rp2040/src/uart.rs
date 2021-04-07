@@ -1,3 +1,4 @@
+use cortex_m_semihosting::hprintln;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
@@ -13,6 +14,8 @@ register_structs! {
         (0x008 => _reserved0),
 
         (0x018 => uartfr: ReadOnly<u32, UARTFR::Register>),
+        (0x01c => _reserved1),
+
         (0x020 => uartilpr: ReadWrite<u32, UARTILPR::Register>),
 
         (0x024 => uartibrd: ReadWrite<u32, UARTIBRD::Register>),
@@ -34,7 +37,7 @@ register_structs! {
         (0x044 => uarticr: ReadWrite<u32, UARTICR::Register>),
 
         (0x048 => uartdmacr: ReadWrite<u32, UARTDMACR::Register>),
-        (0x04c => _reserved1),
+        (0x04c => _reserved2),
 
         (0xfe0 => uartperiphid0: ReadOnly<u32, UARTPERIPHID0::Register>),
 
@@ -147,6 +150,8 @@ register_bitfields! [u32,
         SIREN OFFSET(1) NUMBITS(1) [],
         /// SIR low-power IrDA mode
         SIRLP OFFSET(2) NUMBITS(1) [],
+
+        //RESERVED OFFSET(3) NUMBITS(3) [],
         /// loopback enable
         LBE OFFSET(7) NUMBITS(1) [],
         /// transmit enable
@@ -351,10 +356,6 @@ const UART0_BASE: StaticRef<UartRegisters> =
 const UART1_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40038000 as *const UartRegisters) };
 
-// pub (crate) enum UartDevice {
-//     UART0,
-//     UART1
-// }
 pub struct Uart {
     registers: StaticRef<UartRegisters>,
 }
@@ -383,15 +384,17 @@ impl Uart {
     }
 
     pub fn send_byte(&self, data: u8) {
-        self.registers.uartdr.modify(UARTDR::DATA.val(data as u32));
-        //DTR
         while !self.uart_is_writable() {}
+        self.registers.uartdr.write(UARTDR::DATA.val(data as u32));
     }
 }
 
 impl Configure for Uart {
     fn configure(&self, params: Parameters) -> ReturnCode {
-        let clk = 125000000;
+        self.disable();
+        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
+
+        let clk = 125_000_000;
 
         //Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
@@ -408,13 +411,12 @@ impl Configure for Uart {
 
         self.registers
             .uartibrd
-            .modify(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
+            .write(UARTIBRD::BAUD_DIVINT.val(baud_ibrd));
         self.registers
             .uartfbrd
-            .modify(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
+            .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
 
-        self.registers.uartlcr_h.set(0);
-
+        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
         //Configure the word length
         match params.width {
             Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
@@ -424,7 +426,11 @@ impl Configure for Uart {
 
         //configure parity
         match params.parity {
-            Parity::None => self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR),
+            Parity::None => {
+                self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR);
+                self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
+            }
+
             Parity::Odd => {
                 self.registers.uartlcr_h.modify(UARTLCR_H::PEN::SET);
                 self.registers.uartlcr_h.modify(UARTLCR_H::EPS::CLEAR);
@@ -441,21 +447,25 @@ impl Configure for Uart {
             StopBits::Two => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
         }
 
-        //Set flow control
-        if !params.hw_flow_control {
+        // Set flow control
+        if params.hw_flow_control {
             self.registers.uartcr.modify(UARTCR::RTSEN::SET);
             self.registers.uartcr.modify(UARTCR::CTSEN::SET);
         } else {
             self.registers.uartcr.modify(UARTCR::RTSEN::CLEAR);
             self.registers.uartcr.modify(UARTCR::CTSEN::CLEAR);
         }
-        self.enable();
-        self.registers.uartcr.modify(UARTCR::TXE::SET);
-        self.registers.uartcr.modify(UARTCR::RXE::SET);
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::SET);
-        self.registers.uartdmacr.modify(UARTDMACR::TXDMAE::SET);
-        self.registers.uartdmacr.modify(UARTDMACR::RXDMAE::SET);
+        self.registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
 
+        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::SET);
+
+        self.registers
+            .uartcr
+            .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET);
+
+        self.registers
+            .uartdmacr
+            .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
         ReturnCode::SUCCESS
     }
 }

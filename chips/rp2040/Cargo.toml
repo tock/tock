@@ -8,3 +8,5 @@ edition = "2018"
 cortexm0p = { path="../../arch/cortex-m0p" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+cortex-m-semihosting = "*"
+
