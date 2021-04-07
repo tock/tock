@@ -73,14 +73,21 @@ pub struct SysCon<'a> {
     registers: StaticRef<SysConRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
     overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
+    mtimer: MachineTimer<'a>,
 }
 
 impl<'a> SysCon<'a> {
-    pub const fn new() -> SysCon<'a> {
-        SysCon {
+    pub fn new() -> Self {
+        Self {
             registers: SYSCON_BASE,
             alarm_client: OptionalCell::empty(),
             overflow_client: OptionalCell::empty(),
+            mtimer: MachineTimer::new(
+                &SYSCON_BASE.mtimecmp_low,
+                &SYSCON_BASE.mtimecmp_high,
+                &SYSCON_BASE.mtime_low,
+                &SYSCON_BASE.mtime_high,
+            ),
         }
     }
 
@@ -98,14 +105,7 @@ impl time::Time for SysCon<'_> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.now()
+        self.mtimer.now()
     }
 }
 
@@ -139,60 +139,25 @@ impl<'a> time::Alarm<'a> for SysCon<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.set_alarm(reference, dt);
+        self.mtimer.set_alarm(reference, dt);
 
         self.registers.irq_timer_ctrl.set(0xFF);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.get_alarm()
+        self.mtimer.get_alarm()
     }
 
     fn disarm(&self) -> ReturnCode {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.disarm()
+        self.mtimer.disarm()
     }
 
     fn is_armed(&self) -> bool {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.is_armed()
+        self.mtimer.is_armed()
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.mtimecmp_low,
-            &self.registers.mtimecmp_high,
-            &self.registers.mtime_low,
-            &self.registers.mtime_high,
-        );
-
-        mtimer.minimum_dt()
+        self.mtimer.minimum_dt()
     }
 }
 

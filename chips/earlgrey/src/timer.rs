@@ -57,14 +57,21 @@ pub struct RvTimer<'a> {
     registers: StaticRef<TimerRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
     overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
+    mtimer: MachineTimer<'a>,
 }
 
 impl<'a> RvTimer<'a> {
-    pub const fn new() -> RvTimer<'a> {
-        RvTimer {
+    pub fn new() -> Self {
+        Self {
             registers: TIMER_BASE,
             alarm_client: OptionalCell::empty(),
             overflow_client: OptionalCell::empty(),
+            mtimer: MachineTimer::new(
+                &TIMER_BASE.compare_low,
+                &TIMER_BASE.compare_high,
+                &TIMER_BASE.value_low,
+                &TIMER_BASE.value_high,
+            ),
         }
     }
 
@@ -94,14 +101,7 @@ impl time::Time for RvTimer<'_> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.now()
+        self.mtimer.now()
     }
 }
 
@@ -135,40 +135,19 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
         self.registers.intr_enable.write(intr::timer0::SET);
 
-        mtimer.set_alarm(reference, dt)
+        self.mtimer.set_alarm(reference, dt)
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.get_alarm()
+        self.mtimer.get_alarm()
     }
 
     fn disarm(&self) -> ReturnCode {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
         self.registers.intr_enable.write(intr::timer0::CLEAR);
 
-        mtimer.disarm()
+        self.mtimer.disarm()
     }
 
     fn is_armed(&self) -> bool {
@@ -176,14 +155,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.minimum_dt()
+        self.mtimer.minimum_dt()
     }
 }
 

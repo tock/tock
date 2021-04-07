@@ -151,7 +151,7 @@ pub unsafe fn main() {
 
     let hardware_timer = static_init!(
         sifive::clint::Clint,
-        sifive::clint::Clint::new(e310x::clint::CLINT_BASE)
+        sifive::clint::Clint::new(&e310x::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
