@@ -164,6 +164,11 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
 /// process.
 pub struct ProcessGrant<'a, T: 'a> {
     /// The process the grant is applied to.
+    ///
+    /// We use a reference here because instances of `ProcessGrant` are very
+    /// short lived. They only exist while a `Grant` is being entered, so we can
+    /// be sure the process still exists while a `ProcessGrant` exists. No
+    /// `ProcessGrant` can be stored.
     process: &'a dyn ProcessType,
 
     /// The identifier of the Grant this is applied for.
@@ -794,12 +799,13 @@ impl GrantRegionAllocator {
 }
 
 /// Type for storing an object of type T in process memory that is only
-/// accessible by the kernel. A single `Grant` can allocate space one object
-/// of type T for each process on the board. Each object allocated will
-/// come out of the memory region of the process that object is allocated for.
-/// The `Grant` type is used to get access to `ProcessGrant`'s, which are
-/// tied to a specific process and provide access to the memory object allocated
-/// for that process.
+/// accessible by the kernel.
+///
+/// A single `Grant` can allocate space for one object of type T for each
+/// process on the board. Each allocated object will reside in the grant region
+/// belonging to the process that the object is allocated for. The `Grant` type
+/// is used to get access to `ProcessGrant`s, which are tied to a specific
+/// process and provide access to the memory object allocated for that process.
 pub struct Grant<T: Default> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
