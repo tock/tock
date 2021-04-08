@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::{gpio::Configure, led::LedHigh};
+use kernel::ClockInterface;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -59,6 +60,40 @@ impl kernel::Platform for Teensy40 {
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
 
+/// Set the ARM clock frequency to 600MHz
+///
+/// You should use this early in program initialization, before there's a chance
+/// for preemption.
+fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::CcmAnalog) {
+    use imxrt1060::ccm::{
+        PeripheralClock2Selection, PeripheralClockSelection, PrePeripheralClockSelection,
+    };
+
+    // Switch AHB clock root to 24MHz oscillator
+    ccm.set_peripheral_clock2_divider(1);
+    ccm.set_peripheral_clock2_selection(PeripheralClock2Selection::Oscillator);
+    ccm.set_peripheral_clock_selection(PeripheralClockSelection::PeripheralClock2Divided);
+
+    // Set PLL1 output frequency, which is
+    //
+    //      24MHz * DIV_SEL / 2
+    //
+    // 24MHz is from crystal oscillator.
+    // PLL1 output == 120MHz
+    ccm_analog.restart_pll1(100);
+
+    // ARM divider is right after the PLL1 output,
+    // bringing down the clock to 600MHz
+    ccm.set_arm_divider(2);
+
+    // Divider just before the AHB clock root
+    ccm.set_ahb_divider(1);
+
+    // Switch AHB clock (back) to PLL1
+    ccm.set_pre_peripheral_clock_selection(PrePeripheralClockSelection::Pll1);
+    ccm.set_peripheral_clock_selection(PeripheralClockSelection::PrePeripheralClock);
+}
+
 #[no_mangle]
 pub unsafe fn main() {
     imxrt1060::init();
@@ -68,6 +103,13 @@ pub unsafe fn main() {
         imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
     peripherals.ccm.set_low_power_mode();
+
+    peripherals.dcdc.clock().enable();
+    peripherals.dcdc.set_target_vdd_soc(1250);
+    set_arm_clock(&peripherals.ccm, &peripherals.ccm_analog);
+    // IPG clock is 600MHz / 4 == 150MHz
+    peripherals.ccm.set_ipg_divider(4);
+
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
     peripherals

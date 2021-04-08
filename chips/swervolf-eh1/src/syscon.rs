@@ -3,9 +3,9 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time;
-use kernel::hil::time::{Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Ticks64};
 use kernel::ErrorCode;
+use rv32i::machine_timer::MachineTimer;
 
 /// 100Hz `Frequency`
 #[derive(Debug)]
@@ -73,14 +73,21 @@ pub struct SysCon<'a> {
     registers: StaticRef<SysConRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
     overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
+    mtimer: MachineTimer<'a>,
 }
 
 impl<'a> SysCon<'a> {
-    pub const fn new() -> SysCon<'a> {
-        SysCon {
+    pub fn new() -> Self {
+        Self {
             registers: SYSCON_BASE,
             alarm_client: OptionalCell::empty(),
             overflow_client: OptionalCell::empty(),
+            mtimer: MachineTimer::new(
+                &SYSCON_BASE.mtimecmp_low,
+                &SYSCON_BASE.mtimecmp_high,
+                &SYSCON_BASE.mtime_low,
+                &SYSCON_BASE.mtime_high,
+            ),
         }
     }
 
@@ -98,19 +105,7 @@ impl time::Time for SysCon<'_> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
-        // RISC-V has a 64-bit counter but you can only read 32 bits
-        // at once, which creates a race condition if the lower register
-        // wraps between the reads. So the recommended approach is to read
-        // low, read high, read low, and if the second low is lower, re-read
-        // high. -pal 8/6/20
-        let first_low: u32 = self.registers.mtime_low.get();
-        let mut high: u32 = self.registers.mtime_high.get();
-        let second_low: u32 = self.registers.mtime_low.get();
-        if second_low < first_low {
-            // Wraparound
-            high = self.registers.mtime_high.get();
-        }
-        Ticks64::from(((high as u64) << 32) | second_low as u64)
+        self.mtimer.now()
     }
 }
 
@@ -144,53 +139,25 @@ impl<'a> time::Alarm<'a> for SysCon<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        // This does not handle the 64-bit wraparound case.
-        // Because mtimer fires if the counter is >= the compare,
-        // handling wraparound requires setting compare to the
-        // maximum value, issuing a callback on the overflow client
-        // if there is one, spinning until it wraps around to 0, then
-        // setting the compare to the correct value.
-        let regs = self.registers;
-        let now = self.now();
-        let mut expire = reference.wrapping_add(dt);
+        self.mtimer.set_alarm(reference, dt);
 
-        if !now.within_range(reference, expire) {
-            expire = now;
-        }
-
-        let val = expire.into_u64();
-        let high = (val >> 32) as u32;
-        let low = (val & 0xffffffff) as u32;
-
-        // Recommended approach for setting the two compare registers
-        // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.mtimecmp_low.set(0xffffffff);
-        regs.mtimecmp_high.set(high);
-        regs.mtimecmp_low.set(low);
         self.registers.irq_timer_ctrl.set(0xFF);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let mut val: u64 = (self.registers.mtimecmp_high.get() as u64) << 32;
-        val |= self.registers.mtimecmp_low.get() as u64;
-        Ticks64::from(val)
+        self.mtimer.get_alarm()
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        // We don't appear to be able to disarm the alarm, so just
-        // set it to the future.
-        self.registers.mtimecmp_low.set(0xFFFF_FFFF);
-        self.registers.mtimecmp_high.set(0xFFFF_FFFF);
-        Ok(())
+        self.mtimer.disarm()
     }
 
     fn is_armed(&self) -> bool {
-        self.registers.mtimecmp_low.get() == 0xFFFF_FFFF
-            && self.registers.mtimecmp_high.get() == 0xFFFF_FFFF
+        self.mtimer.is_armed()
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1 as u64)
+        self.mtimer.minimum_dt()
     }
 }
 

@@ -1,4 +1,4 @@
-//! Implementation of the physical memory protection unit (PMP).
+//! Implementation of the enhanced physical memory protection unit (ePMP).
 //!
 //! ## Implementation
 //!
@@ -9,17 +9,12 @@
 //! avoid this wasted memory we use TOR and each memory region uses two physical
 //! PMP regions.
 
-use core::cell::Cell;
-use core::cmp;
-use core::fmt;
-use kernel::common::cells::OptionalCell;
-
 use crate::csr;
-use kernel::common::cells::MapCell;
-use kernel::common::registers;
-use kernel::common::registers::register_bitfields;
-use kernel::mpu;
-use kernel::AppId;
+use core::cell::Cell;
+use core::{cmp, fmt};
+use kernel::common::cells::{MapCell, OptionalCell};
+use kernel::common::registers::{self, register_bitfields};
+use kernel::{mpu, AppId};
 
 // Generic PMP config
 register_bitfields![u8,
@@ -45,7 +40,7 @@ register_bitfields![u8,
 /// `MAX_AVAILABLE_REGIONS_OVER_TWO`: The number of PMP regions divided by 2.
 ///  The RISC-V spec mandates that there must be either 0, 16 or 64 PMP
 ///  regions implemented. If you are using this PMP struct we are assuming
-///  there are more than 0 implemented. So this value should be either 8 or 32.
+///  there is more then 0 implemented. So this value should be either 8 or 32.
 ///
 ///  If however you know the exact number of PMP regions implemented by your
 ///  platform and it's not going to change you can just specify the number.
@@ -138,10 +133,11 @@ impl fmt::Display for PMPRegion {
 
         write!(
             f,
-            "addr={:p}, size={:#010X}, cfg={:#X} ({}{}{})",
+            "addr={:p}, size={:#010X}, cfg={:#X} ({}{}{}{})",
             self.location.0,
             self.location.1,
             u8::from(self.cfg),
+            bit_str(self, pmpcfg::l::SET.value, "l", "-"),
             bit_str(self, pmpcfg::r::SET.value, "r", "-"),
             bit_str(self, pmpcfg::w::SET.value, "w", "-"),
             bit_str(self, pmpcfg::x::SET.value, "x", "-"),
@@ -150,30 +146,96 @@ impl fmt::Display for PMPRegion {
 }
 
 impl PMPRegion {
-    fn new(start: *const u8, size: usize, permissions: mpu::Permissions) -> PMPRegion {
+    /// Create a new PMPRegion for use by apps
+    fn new_app(start: *const u8, size: usize, permissions: mpu::Permissions) -> Option<PMPRegion> {
         // Determine access and execute permissions
         let pmpcfg = match permissions {
             mpu::Permissions::ReadWriteExecute => {
-                pmpcfg::r::SET + pmpcfg::w::SET + pmpcfg::x::SET + pmpcfg::a::TOR
+                // App has read/write/execute, kernel can't access
+                pmpcfg::l::CLEAR + pmpcfg::r::SET + pmpcfg::w::SET + pmpcfg::x::SET + pmpcfg::a::TOR
             }
             mpu::Permissions::ReadWriteOnly => {
-                pmpcfg::r::SET + pmpcfg::w::SET + pmpcfg::x::CLEAR + pmpcfg::a::TOR
+                // App and kernel can both read/write
+                pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::SET
+                    + pmpcfg::x::CLEAR
+                    + pmpcfg::a::TOR
             }
             mpu::Permissions::ReadExecuteOnly => {
-                pmpcfg::r::SET + pmpcfg::w::CLEAR + pmpcfg::x::SET + pmpcfg::a::TOR
+                // App has read/execute, kernel can't access
+                pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::CLEAR
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR
             }
             mpu::Permissions::ReadOnly => {
-                pmpcfg::r::SET + pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::TOR
+                // App has read, kernel can't access
+                pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::CLEAR
+                    + pmpcfg::x::CLEAR
+                    + pmpcfg::a::TOR
             }
             mpu::Permissions::ExecuteOnly => {
-                pmpcfg::r::CLEAR + pmpcfg::w::CLEAR + pmpcfg::x::SET + pmpcfg::a::TOR
+                // App has execute only, kernel can't access
+                pmpcfg::l::CLEAR
+                    + pmpcfg::r::CLEAR
+                    + pmpcfg::w::CLEAR
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR
             }
         };
 
-        PMPRegion {
+        Some(PMPRegion {
             location: (start, size),
             cfg: pmpcfg,
-        }
+        })
+    }
+
+    /// Create a new PMPRegion for use by the kernel
+    fn new_kernel(
+        start: *const u8,
+        size: usize,
+        permissions: mpu::Permissions,
+    ) -> Option<PMPRegion> {
+        // Determine access and execute permissions
+        let pmpcfg = match permissions {
+            mpu::Permissions::ReadWriteExecute => {
+                // Not supported
+                return None;
+            }
+            mpu::Permissions::ReadWriteOnly => {
+                // Kernel can read/write, app can't access
+                pmpcfg::l::SET + pmpcfg::r::SET + pmpcfg::w::SET + pmpcfg::x::CLEAR + pmpcfg::a::TOR
+            }
+            mpu::Permissions::ReadExecuteOnly => {
+                // Kernel can read/execute, app can't access
+                pmpcfg::l::SET + pmpcfg::r::SET + pmpcfg::w::CLEAR + pmpcfg::x::SET + pmpcfg::a::TOR
+            }
+            mpu::Permissions::ReadOnly => {
+                // Kernel can read, app can't access
+                pmpcfg::l::SET
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::CLEAR
+                    + pmpcfg::x::CLEAR
+                    + pmpcfg::a::TOR
+            }
+            mpu::Permissions::ExecuteOnly => {
+                // Kernel can execute, app can't access
+                pmpcfg::l::SET
+                    + pmpcfg::r::CLEAR
+                    + pmpcfg::w::CLEAR
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR
+            }
+        };
+
+        Some(PMPRegion {
+            location: (start, size),
+            cfg: pmpcfg,
+        })
     }
 
     fn location(&self) -> (*const u8, usize) {
@@ -290,6 +352,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
     fn clear_mpu(&self) {
         // We want to disable all of the hardware entries, so we use `NUM_REGIONS` here,
         // and not `NUM_REGIONS / 2`.
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::SET);
         for x in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
             match x % 4 {
                 0 => {
@@ -344,15 +407,32 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
         csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::w0::SET);
         csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::x0::SET);
         csr::CSR.pmpconfig_modify(0, csr::pmpconfig::pmpcfg::a0::TOR);
-        // PMP is not configured for any process now
-        self.last_configured_for.take();
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
     }
 
     fn enable_app_mpu(&self) {}
 
     fn disable_app_mpu(&self) {
-        // PMP is not enabled for machine mode, so we don't have to do
-        // anything
+        // Enable debug access
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::SET);
+
+        for i in 0..self.number_total_regions() {
+            if self.locked_region_mask.get() & (1 << i) > 0 {
+                continue;
+            }
+            match i % 2 {
+                0 => {
+                    csr::CSR.pmpconfig_modify(i / 2, csr::pmpconfig::pmpcfg::a1::OFF);
+                }
+                1 => {
+                    csr::CSR.pmpconfig_modify(i / 2, csr::pmpconfig::pmpcfg::a3::OFF);
+                }
+                _ => break,
+            };
+        }
+
+        // Disable debug access
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
     }
 
     fn number_total_regions(&self) -> usize {
@@ -399,9 +479,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
             size = 8;
         }
 
-        let region = PMPRegion::new(start as *const u8, size, permissions);
+        let region = PMPRegion::new_app(start as *const u8, size, permissions);
 
-        config.regions[region_num] = Some(region);
+        if region.is_none() {
+            return None;
+        }
+
+        config.regions[region_num] = region;
         config.is_dirty.set(true);
 
         Some(mpu::Region::new(start as *const u8, size))
@@ -463,16 +547,20 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
             return None;
         }
 
-        let region = PMPRegion::new(
+        let region = PMPRegion::new_app(
             region_start as *const u8,
             initial_app_memory_size,
             permissions,
         );
 
-        config.regions[region_num] = Some(region);
-        config.is_dirty.set(true);
+        if region.is_none() {
+            return None;
+        }
+
+        config.regions[region_num] = region;
 
         config.app_memory_region.set(region_num);
+        config.is_dirty.set(true);
 
         Some((region_start as *const u8, region_size))
     }
@@ -505,9 +593,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
         // Get size of updated region
         let region_size = app_memory_break - region_start as usize;
 
-        let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
+        let region = PMPRegion::new_app(region_start as *const u8, region_size, permissions);
 
-        config.regions[region_num] = Some(region);
+        if region.is_none() {
+            return Err(());
+        }
+
+        config.regions[region_num] = region;
         config.is_dirty.set(true);
 
         Ok(())
@@ -519,9 +611,11 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
             .last_configured_for
             .map_or(false, |last_app_id| last_app_id == app_id);
 
-        // Skip PMP configuration if it is already configured for this app and the MPU
-        // configuration of this app has not changed.
+        // Enable debug access
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::SET);
+
         if !last_configured_for_this_app || config.is_dirty.get() {
+            // We weren't last configured for this app, re-configure everything
             for (x, region) in config.regions.iter().enumerate() {
                 match region {
                     Some(r) => {
@@ -537,7 +631,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                                     csr::pmpconfig::pmpcfg::r0::CLEAR
                                         + csr::pmpconfig::pmpcfg::w0::CLEAR
                                         + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a0::OFF,
+                                        + csr::pmpconfig::pmpcfg::a0::CLEAR,
                                 );
                                 csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
@@ -555,7 +649,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                                     csr::pmpconfig::pmpcfg::r2::CLEAR
                                         + csr::pmpconfig::pmpcfg::w2::CLEAR
                                         + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                        + csr::pmpconfig::pmpcfg::a2::OFF,
+                                        + csr::pmpconfig::pmpcfg::a2::CLEAR,
                                 );
                                 csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
@@ -572,19 +666,34 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                     None => {}
                 };
             }
-            config.is_dirty.set(false);
-            self.last_configured_for.put(*app_id);
+        } else {
+            // We were last configured for this app, just re-enable
+            for (x, region) in config.regions.iter().enumerate() {
+                match region {
+                    Some(_r) => {
+                        match x % 2 {
+                            0 => {
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::a1::TOR);
+                            }
+                            1 => {
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::a3::TOR);
+                            }
+                            _ => break,
+                        };
+                    }
+                    None => {}
+                };
+            }
         }
+
+        config.is_dirty.set(false);
+        self.last_configured_for.put(*app_id);
+
+        // Disable debug access
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
     }
 }
 
-/// This is PMP support for kernel regions
-/// PMP does not allow a deny by default option, so all regions not marked
-/// with the below commands will have full access.
-/// This is still a useful implementation as it can be used to limit the
-/// kernels access, for example removing execute permission from regions
-/// we don't need to execute from and removing write permissions from
-/// executable reions.
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
@@ -626,9 +735,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
             size = 8;
         }
 
-        let region = PMPRegion::new(start as *const u8, size, permissions);
+        let region = PMPRegion::new_kernel(start as *const u8, size, permissions);
 
-        config.regions[region_num] = Some(region);
+        if region.is_none() {
+            return None;
+        }
+
+        config.regions[region_num] = region;
 
         // Mark the region as locked so that the app PMP doesn't use it.
         let mut mask = self.locked_region_mask.get();
@@ -663,8 +776,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
                             // Set access to end address
                             csr::CSR
                                 .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
-                            // Lock the CSR
-                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
                         }
                         1 => {
                             csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
@@ -683,8 +794,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
                                 x / 2,
                                 cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
                             );
-                            // Lock the CSR
-                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
                         }
                         _ => break,
                     }
@@ -692,5 +801,10 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
                 None => {}
             };
         }
+
+        // Set the Machine Mode Lockdown (mseccfg.MML) bit.
+        // This is a sticky bit, meaning that once set it cannot be unset
+        // until a hard reset.
+        csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::mml::SET);
     }
 }

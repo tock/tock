@@ -16,46 +16,46 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use rv32i::machine_timer::MachineTimer;
+use sifive::clint::Clint;
 
-pub unsafe fn run_multi_alarm(mux: &'static MuxAlarm<'static, MachineTimer<'static>>) {
+pub unsafe fn run_multi_alarm(mux: &'static MuxAlarm<'static, Clint<'static>>) {
     debug!("Starting multi alarm test.");
-    let tests: [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, MachineTimer<'static>>>;
-        3] = static_init_multi_alarm_test(mux);
+    let tests: [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, Clint<'static>>>; 3] =
+        static_init_multi_alarm_test(mux);
     tests[0].run();
     tests[1].run();
     tests[2].run();
 }
 
 unsafe fn static_init_multi_alarm_test(
-    mux: &'static MuxAlarm<'static, MachineTimer<'static>>,
-) -> [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, MachineTimer<'static>>>; 3] {
+    mux: &'static MuxAlarm<'static, Clint<'static>>,
+) -> [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, Clint<'static>>>; 3] {
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, Clint<'static>>,
         VirtualMuxAlarm::new(mux)
     );
     let test1 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, MachineTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, Clint<'static>>>,
         TestRandomAlarm::new(virtual_alarm1, 19, 'A')
     );
     virtual_alarm1.set_alarm_client(test1);
 
     let virtual_alarm2 = static_init!(
-        VirtualMuxAlarm<'static, MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, Clint<'static>>,
         VirtualMuxAlarm::new(mux)
     );
     let test2 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, MachineTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, Clint<'static>>>,
         TestRandomAlarm::new(virtual_alarm2, 37, 'B')
     );
     virtual_alarm2.set_alarm_client(test2);
 
     let virtual_alarm3 = static_init!(
-        VirtualMuxAlarm<'static, MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, Clint<'static>>,
         VirtualMuxAlarm::new(mux)
     );
     let test3 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, MachineTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, Clint<'static>>>,
         TestRandomAlarm::new(virtual_alarm3, 89, 'C')
     );
     virtual_alarm3.set_alarm_client(test3);
