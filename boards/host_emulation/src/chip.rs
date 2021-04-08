@@ -1,5 +1,8 @@
 use core::fmt::Write;
 use kernel::{self, static_init};
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::vec::Vec;
 use std::{thread, time};
 
@@ -11,15 +14,13 @@ use std::path::Path;
 
 const SLEEP_DURATION_US: u128 = 1;
 
-pub trait Callback {
-    fn execute(&self) -> ();
-}
-
 /// An generic `Chip` implementation
 pub struct HostChip {
     systick: SysTick,
     syscall: SysCall,
-    service_interrupts_callbacks: Vec<&'static dyn Callback>,
+    service_interrupts_callbacks: Vec<&'static dyn Fn()>,
+    terminate: Arc<AtomicBool>,
+    terminate_callbacks: RefCell<Vec<&'static dyn Fn()>>,
 }
 
 impl HostChip {
@@ -40,10 +41,17 @@ impl HostChip {
             Ok(syscall) => syscall,
             _ => panic!("Unable to create Syscall"),
         };
+
+        let terminate = Arc::new(AtomicBool::new(false));
+        signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&terminate)).unwrap();
+        signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&terminate)).unwrap();
+
         HostChip {
             systick: SysTick::new(),
             syscall: syscall,
             service_interrupts_callbacks: Vec::new(),
+            terminate,
+            terminate_callbacks: RefCell::new(Vec::new()),
         }
     }
 
@@ -57,8 +65,12 @@ impl HostChip {
         cmd_info.apps()[0].bin_path()
     }
 
-    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
+    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Fn()) {
         self.service_interrupts_callbacks.push(callback);
+    }
+
+    pub fn add_terminate_callback(&self, callback: &'static dyn Fn()) {
+        self.terminate_callbacks.borrow_mut().push(callback);
     }
 }
 
@@ -80,8 +92,16 @@ impl kernel::Chip for HostChip {
     }
 
     fn service_pending_interrupts(&self) {
+        if self.terminate.load(Ordering::Relaxed) {
+            println!("Terminated!");
+            for callback in &*self.terminate_callbacks.borrow() {
+                callback();
+            }
+            std::process::exit(0);
+        }
+
         for callback in &self.service_interrupts_callbacks {
-            callback.execute();
+            callback();
         }
         unsafe {
             super::UART0.handle_pending_requests();
