@@ -23,13 +23,20 @@ register_structs! {
 pub struct Clint<'a> {
     registers: StaticRef<ClintRegisters>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
+    mtimer: MachineTimer<'a>,
 }
 
-impl Clint<'_> {
-    pub const fn new(base: StaticRef<ClintRegisters>) -> Self {
-        Clint {
-            registers: base,
+impl<'a> Clint<'a> {
+    pub fn new(base: &'a StaticRef<ClintRegisters>) -> Self {
+        Self {
+            registers: *base,
             client: OptionalCell::empty(),
+            mtimer: MachineTimer::new(
+                &base.compare_low,
+                &base.compare_high,
+                &base.value_low,
+                &base.value_high,
+            ),
         }
     }
 
@@ -52,14 +59,7 @@ impl Time for Clint<'_> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.now()
+        self.mtimer.now()
     }
 }
 
@@ -69,58 +69,23 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.set_alarm(reference, dt)
+        self.mtimer.set_alarm(reference, dt)
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.get_alarm()
+        self.mtimer.get_alarm()
     }
 
     fn disarm(&self) -> ReturnCode {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.disarm()
+        self.mtimer.disarm()
     }
 
     fn is_armed(&self) -> bool {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.is_armed()
+        self.mtimer.is_armed()
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        let mtimer = MachineTimer::new(
-            &self.registers.compare_low,
-            &self.registers.compare_high,
-            &self.registers.value_low,
-            &self.registers.value_high,
-        );
-
-        mtimer.minimum_dt()
+        self.mtimer.minimum_dt()
     }
 }
 

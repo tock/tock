@@ -29,7 +29,7 @@ pub struct ArtyExxDefaultPeripherals<'a> {
 impl<'a> ArtyExxDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            machinetimer: sifive::clint::Clint::new(clint::CLINT_BASE),
+            machinetimer: sifive::clint::Clint::new(&clint::CLINT_BASE),
             gpio_port: crate::gpio::Port::new(),
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
         }
