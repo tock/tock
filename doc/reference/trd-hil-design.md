@@ -59,18 +59,20 @@ design rules for HILs. They are:
 1. Do not issue synchronous callbacks.
 2. Split-phase operations return a synchronous `Result` type which 
    includes an error code in its `Err` value.
-3. Split-phase operations with a buffer parameter return a tuple in their error 
+3. For split-phase operations, `Ok` means a callback will occur
+   while `Err` means one won't.
+4. Split-phase operations with a buffer parameter return a tuple in their error 
    result, which includes the passed buffer as an element.
-4. Split-phase operrations with a buffer parameter take a mutable reference 
+5. Split-phase operrations with a buffer parameter take a mutable reference 
    even if their access is read-only.
-5. Split-phase completion callbacks include a `Result` parameter whose 
+6. Split-phase completion callbacks include a `Result` parameter whose 
    `Err` contains  an ErrorCode`; these errors are a superset of the 
    synchronous errors.
-6. Split-phase completion callbacks for an operation with a buffer 
+7. Split-phase completion callbacks for an operation with a buffer 
    parameter return the buffer.
-7. Use fine-grained traits that separate out different use cases.
-8. Separate control and datapath operations into separate traits.
-9. Blocking APIs are not general: use them sparingly, if at all.
+8. Use fine-grained traits that separate out different use cases.
+9. Separate control and datapath operations into separate traits.
+10. Blocking APIs are not general: use them sparingly, if at all.
 
 The rest of this document describes each of these rules and their
 reasoning.
@@ -276,7 +278,34 @@ to know if the operation succeeded. This is especially problematic for
 split-phase calls: whether the operation succeeds indicates whether
 there will be a callback.
 
-Rule 3: Return Passed Buffers in Error Results
+Rule 3: Split-phase `Result` Values Indicate Whether a Callback Will Occur
+===============================
+
+Suppose you have a split-phase call, such as for sending a message
+over a SPI bus:
+
+```rust
+pub trait SpiMasterClient {
+    /// Called when a read/write operation finishes
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    );
+}
+
+pub trait SpiMasterDevice {
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode;
+}
+```
+
+Rule 4: Return Passed Buffers in Error Results
 ===============================
 
 Consider this method:
@@ -332,7 +361,7 @@ buffer. This invariant, however, cannot be checked. Transitioning to using `Resu
 both makes Tock more in line with standard Rust code and enforces the invariant.
 
 
-Rule 4: Always Pass a Mutable Reference to Buffers
+Rule 5: Always Pass a Mutable Reference to Buffers
 ===============================
 
 Suppose you are desiging a trait to write some text to an LCD screen. The trait
@@ -410,7 +439,7 @@ access. Because the reference will not be returned back until the
 callback, the caller cannot rely on the call stack and scoping to
 retain mutability.
 
-Rule 5: Include an `Result<(), ErrorCode>` in Completion Callbacks
+Rule 6: Include an `Result<(), ErrorCode>` in Completion Callbacks
 ===============================
 
 Any error that can occur synchronously can usually occur asynchronously too.
@@ -441,16 +470,16 @@ be virtualized into many alarms. These alarms, however, are not queued
 in a way that implies future failure.  A call to `Alarm::set_alarm`
 cannot fail, so there is no need to return a `Result` in the callback.
 
-Rule 6: Always Return the Passed Buffer in a Completion Callback
+Rule 7: Always Return the Passed Buffer in a Completion Callback
 ===============================
 
 If a client passes a buffer to a module for an operation, it needs to
 be able to reclaim it when the operation completes. Rust ownership
-(and the fact that passed references must be mutable, see Rule 4
+(and the fact that passed references must be mutable, see Rule 5
 above) means that the caller must pass the reference to the HIL
 implementation. The HIL needs to pass it back.
 
-Rule 7: Use Fine-grained Traits That Separate Different Use Cases
+Rule 8: Use Fine-grained Traits That Separate Different Use Cases
 ===============================
 
 Access to a trait gives access to functionality. If several pieces of
@@ -506,11 +535,11 @@ able to reconfigure or write it. Similarly, for a UART, being able
 to transmit data does not mean that a client should always also be
 able to read data, or reconfigure the UART parameters.
 
-Rule 8: Separate Control and Datapath Operations into Separate Traits
+Rule 9: Separate Control and Datapath Operations into Separate Traits
 ===============================
 
-This rule is a direct corollary for Rule 7, but has some specific
-considerations that make it a rather hard and fast rule. Rule 7
+This rule is a direct corollary for Rule 8, but has some specific
+considerations that make it a rather hard and fast rule. Rule 8
 (separate HILs into fine-grained traits) has a lot of flexibility 
 in design sensibility in terms of what operations *can* be coupled
 together. This rule, however, is more precise and strict.
@@ -548,9 +577,9 @@ pub trait UART {
 }
 ```
 
-It breaks both Rule 7 and Rule 8. It couples reception and
-transmission (Rule 7).  It also couples configuration with data (Rule
-8). This HIL was fine when there was only a single user of the
+It breaks both Rule 8 and Rule 9. It couples reception and
+transmission (Rule 8).  It also couples configuration with data (Rule
+9). This HIL was fine when there was only a single user of the
 UART. However, once the UART was virtualized, `configure` could not
 work for virtualized clients. There were two options: have `configure`
 always return an error for virtual clients, or write a new trait for
@@ -594,7 +623,7 @@ pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 ```
 
-Rule 9: Avoid Blocking APIs
+Rule 10: Avoid Blocking APIs
 ===============================
 
 The Tock kernel is non-blocking: I/O operations are split-phase and
