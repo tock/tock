@@ -261,7 +261,7 @@ this:
 `TestBoard` then supports one driver, the UART console, and maps it to driver
 number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
 will get routed to the console, and all other driver numbers will return
-`ReturnCode::ENODEVICE`.
+`Err(ErrorCode::NODEVICE)`.
 
 
 

@@ -1,6 +1,6 @@
 //! Interfaces for Pulse Width Modulation output.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// PWM control for a single pin.
 pub trait Pwm {
@@ -16,10 +16,15 @@ pub trait Pwm {
     ///   value that corresponds to 100% duty cycle, and divide that
     ///   appropriately to get the desired duty cycle value. For example, a 25%
     ///   duty cycle would be `PWM0.get_maximum_duty_cycle() / 4`.
-    fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> ReturnCode;
+    fn start(
+        &self,
+        pin: &Self::Pin,
+        frequency_hz: usize,
+        duty_cycle: usize,
+    ) -> Result<(), ErrorCode>;
 
     /// Stop a PWM pin output.
-    fn stop(&self, pin: &Self::Pin) -> ReturnCode;
+    fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode>;
 
     /// Return the maximum PWM frequency supported by the PWM implementation.
     /// The frequency will be specified in Hertz.
@@ -46,10 +51,10 @@ pub trait Pwm {
 /// only a specific pin.
 pub trait PwmPin {
     /// Start a PWM output. Same as the `start` function in the `Pwm` trait.
-    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> ReturnCode;
+    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode>;
 
     /// Stop a PWM output. Same as the `stop` function in the `Pwm` trait.
-    fn stop(&self) -> ReturnCode;
+    fn stop(&self) -> Result<(), ErrorCode>;
 
     /// Return the maximum PWM frequency supported by the PWM implementation.
     /// Same as the `get_maximum_frequency_hz` function in the `Pwm` trait.

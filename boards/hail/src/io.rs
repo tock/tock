@@ -32,7 +32,7 @@ impl IoWrite for Writer {
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::Parameters {
+            let _ = uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 width: uart::Width::Eight,
                 stop_bits: uart::StopBits::One,

@@ -51,8 +51,9 @@
 use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::TakeCell;
+use kernel::debug;
 use kernel::hil::kv_system::{self, KVSystem, KeyType};
-use kernel::{debug, ReturnCode};
+use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
 enum CurrentState {
@@ -85,7 +86,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 {
     fn generate_key_complete(
         &self,
-        _result: Result<(), ReturnCode>,
+        _result: Result<(), ErrorCode>,
         _unhashed_key: &'static [u8],
         _key_buf: &'static T,
     ) {
@@ -94,7 +95,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 
     fn append_key_complete(
         &self,
-        result: Result<(), ReturnCode>,
+        result: Result<(), ErrorCode>,
         key: &'static mut T,
         value: &'static [u8],
     ) {
@@ -114,7 +115,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 
     fn get_value_complete(
         &self,
-        result: Result<(), ReturnCode>,
+        result: Result<(), ErrorCode>,
         key: &'static mut T,
         ret_buf: &'static mut [u8],
     ) {
@@ -139,7 +140,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         }
     }
 
-    fn invalidate_key_complete(&self, result: Result<(), ReturnCode>, key: &'static mut T) {
+    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut T) {
         match result {
             Ok(()) => {
                 debug!("Removed Key: {:?}", key);
@@ -156,7 +157,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         }
     }
 
-    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>) {
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>) {
         match result {
             Ok(()) => {
                 debug!("Finished garbage collection");

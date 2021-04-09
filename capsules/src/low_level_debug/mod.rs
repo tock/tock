@@ -5,7 +5,7 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, CommandReturn, ErrorCode, Grant, ReturnCode};
+use kernel::{AppId, CommandReturn, ErrorCode, Grant};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -54,7 +54,12 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
 }
 
 impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], _tx_len: usize, _rval: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rval: Result<(), ErrorCode>,
+    ) {
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
 
@@ -63,8 +68,11 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
             tx_buffer.copy_from_slice(MESSAGE);
-            let (_, returned_buffer) = self.uart.transmit_buffer(tx_buffer, MESSAGE.len());
-            self.buffer.set(returned_buffer);
+            let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
+                |(_, returned_buffer)| {
+                    self.buffer.set(Some(returned_buffer));
+                },
+            );
             return;
         }
 
@@ -132,8 +140,12 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         let msg_len = fmt::format_entry(app_num, entry, buffer);
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
-        let (_, returned_buffer) = self.uart.transmit_buffer(buffer, msg_len);
-        self.buffer.set(returned_buffer);
+        let _ = self
+            .uart
+            .transmit_buffer(buffer, msg_len)
+            .map_err(|(_, returned_buffer)| {
+                self.buffer.set(Some(returned_buffer));
+            });
     }
 }
 

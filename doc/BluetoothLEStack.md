@@ -98,30 +98,30 @@ cases to meet timing constraints.
 pub trait BleRadio {
     /// Sets the channel on which to transmit or receive packets.
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
-    /// receiving, otherwise ReturnCode::Success.
-    fn set_channel(&self, channel: RadioChannel) -> ReturnCode;
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
+    /// receiving, otherwise Ok(()).
+    fn set_channel(&self, channel: RadioChannel) -> Result<(), ErrorCode>;
 
     /// Sets the transmit power
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
-    /// receiving, otherwise ReturnCode::Success.
-    fn set_tx_power(&self, power: u8) -> ReturnCode;
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
+    /// receiving, otherwise Ok(()).
+    fn set_tx_power(&self, power: u8) -> Result<(), ErrorCode>;
 
     /// Transmits a packet over the radio
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
-    /// receiving, otherwise ReturnCode::Success.
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
+    /// receiving, otherwise Ok(()).
     fn transmit_packet(
         &self,
         buf: &'static mut [u8],
-        disable: bool) -> ReturnCode;
+        disable: bool) -> Result<(), ErrorCode>;
 
     /// Receives a packet of at most `buf.len()` size
     ///
-    /// Returns ReturnCode::EBUSY if the radio is currently transmitting or
-    /// receiving, otherwise ReturnCode::Success.
-    fn receive_packet(&self, buf: &'static mut [u8]) -> ReturnCode;
+    /// Returns Err(ErrorCode::BUSY) if the radio is currently transmitting or
+    /// receiving, otherwise Ok(()).
+    fn receive_packet(&self, buf: &'static mut [u8]) -> Result<(), ErrorCode>;
 
     // Aborts an ongoing transmision
     //
@@ -138,17 +138,17 @@ pub trait BleRadio {
 
     // Disable periodic advertisements
     //
-    // Returns always ReturnCode::SUCCESS because it does not respect whether
+    // Returns always Ok(()) because it does not respect whether
     // the driver is actively advertising or not
-    fn disable(&self) -> ReturnCode;
+    fn disable(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait RxClient {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>);
 }
 
 pub trait TxClient {
-    fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode);
+    fn transmit_event(&self, buf: &'static mut [u8], result: Result<(), ErrorCode>);
 }
 
 pub enum RadioChannel {

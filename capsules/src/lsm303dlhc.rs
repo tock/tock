@@ -84,7 +84,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -626,21 +626,21 @@ impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
         self.nine_dof_client.replace(nine_dof_client);
     }
 
-    fn read_accelerometer(&self) -> ReturnCode {
+    fn read_accelerometer(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.read_acceleration_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn read_magnetometer(&self) -> ReturnCode {
+    fn read_magnetometer(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.read_magnetometer_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -650,12 +650,12 @@ impl<'a> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a> {
         self.temperature_client.replace(temperature_client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.read_temperature();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

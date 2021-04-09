@@ -13,7 +13,7 @@
 
 use crate::ieee802154::framer::Frame;
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device
@@ -72,7 +72,7 @@ pub trait MacDevice<'a> {
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
     /// that it can be re-used.
-    fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn transmit(&self, frame: Frame) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 /// Trait to be implemented by any user of the IEEE 802.15.4 device that
@@ -86,9 +86,9 @@ pub trait TxClient {
     /// - `spi_buf`: The buffer used to contain the transmitted frame is
     /// returned to the client here.
     /// - `acked`: Whether the transmission was acknowledged.
-    /// - `result`: This is `ReturnCode::SUCCESS` if the frame was transmitted,
+    /// - `result`: This is `Ok(())` if the frame was transmitted,
     /// otherwise an error occured in the transmission pipeline.
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>);
 }
 
 /// Trait to be implemented by users of the IEEE 802.15.4 device that wish to

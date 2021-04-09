@@ -4,7 +4,7 @@ use kernel::common::math;
 use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
@@ -54,15 +54,15 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
 }
 
 impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
-    fn read_sound_pressure(&self) -> ReturnCode {
+    fn read_sound_pressure(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             // self.enable_pin.map (|pin| pin.set ());
             self.state.set(State::ReadingSPL);
             self.spl_pos.set(0);
-            self.adc.sample();
-            ReturnCode::SUCCESS
+            let _ = self.adc.sample();
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -70,14 +70,14 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
         self.spl_client.set(client);
     }
 
-    fn enable(&self) -> ReturnCode {
+    fn enable(&self) -> Result<(), ErrorCode> {
         self.enable_pin.map(|pin| pin.set());
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) -> Result<(), ErrorCode> {
         self.enable_pin.map(|pin| pin.clear());
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -90,7 +90,7 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
                     self.spl_pos.set(self.spl_pos.get() + 1);
                 }
                 if self.spl_pos.get() < buffer.len() {
-                    self.adc.sample();
+                    let _ = self.adc.sample();
                     false
                 } else {
                     self.state.set(State::Idle);
@@ -99,8 +99,7 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
             }) {
                 // self.enable_pin.map (|pin| pin.clear ());
                 let spl = self.compute_spl();
-                self.spl_client
-                    .map(|client| client.callback(ReturnCode::SUCCESS, spl));
+                self.spl_client.map(|client| client.callback(Ok(()), spl));
             }
         }
     }

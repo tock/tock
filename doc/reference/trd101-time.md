@@ -160,9 +160,9 @@ pub trait OverflowClient {
 }
 
 pub trait Counter<'a>: Time {
-  fn start(&self) -> ReturnCode;
-  fn stop(&self) -> ReturnCode;
-  fn reset(&self) -> ReturnCode;
+  fn start(&self) -> Result<(), ErrorCode>;
+  fn stop(&self) -> Result<(), ErrorCode>;
+  fn reset(&self) -> Result<(), ErrorCode>;
   fn is_running(&self) -> bool;
   fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
@@ -225,7 +225,7 @@ pub trait AlarmClient: OverflowClient {
 pub trait Alarm: Time {
   fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
-  fn disarm(&self) -> ReturnCode;
+  fn disarm(&self) -> Result<(), ErrorCode>;
   fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 }
 ```
@@ -285,7 +285,7 @@ pub trait Timer<'a>: Time {
   fn time_remaining(&self) -> Option<Self::Ticks>;
   fn is_enabled(&self) -> bool;
 
-  fn cancel(&self) -> ReturnCode;
+  fn cancel(&self) -> Result<(), ErrorCode>;
 }
 ```
 

@@ -53,9 +53,9 @@
 //! port_table_test2 passed
 //! Running test 3:
 //! send_test executed, look at printed results once callbacks arrive
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
 //! All UDP kernel tests complete.
 //! ```
@@ -68,9 +68,9 @@
 //! [UDP VIRT] Starting Kernel Coop UDP Test App.
 //! bind_test passed
 //! send_test executed, look at printed results once callbacks arrive
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
-//! Mock UDP done sending. Result: SUCCESS
+//! Mock UDP done sending. Result: Ok(())
 //!
 //! App part of app/kernel test successful!
 //! ```
@@ -134,7 +134,7 @@ use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
@@ -428,7 +428,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     fn capsule_send_fail(&self) {
         let ret = self.mock_udp1.send(0);
-        assert!(ret != ReturnCode::SUCCESS); //trying to send while not bound should fail!
+        assert!(ret != Ok(())); //trying to send while not bound should fail!
 
         debug!("send_fail test passed")
     }
@@ -440,8 +440,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         self.mock_udp2.set_dst(15001);
         // Send from 2 different capsules in quick succession - second send should execute once
         // first completes!
-        self.mock_udp1.send(22);
-        self.mock_udp2.send(23);
+        let _ = self.mock_udp1.send(22);
+        let _ = self.mock_udp2.send(23);
 
         debug!("send_test executed, look at printed results once callbacks arrive");
     }
@@ -449,7 +449,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     fn capsule_app_send_test(&self) {
         self.mock_udp1.bind(16124);
         self.mock_udp1.set_dst(15000);
-        self.mock_udp1.send(22);
+        let _ = self.mock_udp1.send(22);
 
         debug!("app/kernel send_test executed, look at printed results once callbacks arrive");
     }
@@ -544,7 +544,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         &self,
         net_cap1: &'static NetworkCapability,
         net_cap2: &'static NetworkCapability,
-    ) -> (ReturnCode, ReturnCode) {
+    ) -> (Result<(), ErrorCode>, Result<(), ErrorCode>) {
         // from capsule send_test
         self.mock_udp1.update_capability(net_cap1);
         self.mock_udp1.bind(14000);
@@ -585,8 +585,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::SUCCESS);
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Ok(()));
         debug!("send_valid_net_cap test executed, look at printed results once callbacks arrive");
     }
 
@@ -617,9 +617,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
-        debug!("send_invalid_net_cap_port test executed, expect one send with Result: SUCCESS");
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
+        debug!("send_invalid_net_cap_port test executed, expect one send with Result: Ok(())");
     }
 
     // Invalid network capability (invalid addr, valid port)
@@ -645,9 +645,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         };
 
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
-        debug!("send_invalid_net_cap_addr executed, expect one send with Result: SUCCESS");
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
+        debug!("send_invalid_net_cap_addr executed, expect one send with Result: Ok(())");
     }
 
     // Invalid network capability (invalid addr, invalid port)
@@ -678,11 +678,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             )
         };
         let (ret1, ret2) = self.capsule_send_net_cap_test(net_cap1, net_cap2);
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::ERESERVE);
-        debug!(
-            "send_invalid_net_cap_addr_port test executed, expect one send with Result: SUCCESS"
-        );
+        assert_eq!(ret1, Ok(()));
+        assert_eq!(ret2, Err(ErrorCode::RESERVE));
+        debug!("send_invalid_net_cap_addr_port test executed, expect one send with Result: Ok(())");
     }
 }
 

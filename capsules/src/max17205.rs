@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
+use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -88,11 +88,17 @@ enum State {
 }
 
 pub trait MAX17205Client {
-    fn status(&self, status: u16, error: ReturnCode);
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode);
-    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode);
-    fn coulomb(&self, coulomb: u16, error: ReturnCode);
-    fn romid(&self, rid: u64, error: ReturnCode);
+    fn status(&self, status: u16, error: Result<(), ErrorCode>);
+    fn state_of_charge(
+        &self,
+        percent: u16,
+        capacity: u16,
+        full_capacity: u16,
+        error: Result<(), ErrorCode>,
+    );
+    fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>);
+    fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>);
+    fn romid(&self, rid: u64, error: Result<(), ErrorCode>);
 }
 
 pub struct MAX17205<'a> {
@@ -128,8 +134,8 @@ impl<'a> MAX17205<'a> {
         self.client.set(client);
     }
 
-    fn setup_read_status(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn setup_read_status(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             buffer[0] = Registers::Status as u8;
@@ -137,12 +143,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 2);
             self.state.set(State::SetupReadStatus);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn setup_read_soc(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn setup_read_soc(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get SOC mAh and percentage
@@ -151,12 +157,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadSOC);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn setup_read_curvolt(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn setup_read_curvolt(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get current and voltage
@@ -165,12 +171,12 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadVolt);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn setup_read_coulomb(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn setup_read_coulomb(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             // Get raw coulomb count.
@@ -179,19 +185,19 @@ impl<'a> MAX17205<'a> {
             self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadCoulomb);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn setup_read_romid(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn setup_read_romid(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_upper.enable();
 
             buffer[0] = Registers::NRomID as u8;
             self.i2c_upper.write(buffer, 1);
             self.state.set(State::SetupReadRomID);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 }
@@ -208,9 +214,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| client.status(status, error));
@@ -252,9 +258,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| {
@@ -275,9 +281,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| {
@@ -318,9 +324,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client
@@ -344,9 +350,9 @@ impl i2c::I2CClient for MAX17205<'_> {
                 self.buffer.replace(buffer);
 
                 let error = if _error != i2c::Error::CommandComplete {
-                    ReturnCode::ENOACK
+                    Err(ErrorCode::NOACK)
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 };
 
                 self.client.map(|client| client.romid(rid, error));
@@ -374,35 +380,46 @@ impl<'a> MAX17205Driver<'a> {
 }
 
 impl MAX17205Client for MAX17205Driver<'_> {
-    fn status(&self, status: u16, error: ReturnCode) {
+    fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.callback
-            .map(|cb| cb.schedule(From::from(error), status as usize, 0));
+            .map(|cb| cb.schedule(kernel::retcode_into_usize(error), status as usize, 0));
     }
 
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode) {
+    fn state_of_charge(
+        &self,
+        percent: u16,
+        capacity: u16,
+        full_capacity: u16,
+        error: Result<(), ErrorCode>,
+    ) {
         self.callback.map(|cb| {
             cb.schedule(
-                From::from(error),
+                kernel::retcode_into_usize(error),
                 percent as usize,
                 (capacity as usize) << 16 | (full_capacity as usize),
             );
         });
     }
 
-    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(From::from(error), voltage as usize, current as usize));
-    }
-
-    fn coulomb(&self, coulomb: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(From::from(error), coulomb as usize, 0));
-    }
-
-    fn romid(&self, rid: u64, error: ReturnCode) {
+    fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
-                From::from(error),
+                kernel::retcode_into_usize(error),
+                voltage as usize,
+                current as usize,
+            )
+        });
+    }
+
+    fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
+        self.callback
+            .map(|cb| cb.schedule(kernel::retcode_into_usize(error), coulomb as usize, 0));
+    }
+
+    fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
+        self.callback.map(|cb| {
+            cb.schedule(
+                kernel::retcode_into_usize(error),
                 (rid & 0xffffffff) as usize,
                 (rid >> 32) as usize,
             )

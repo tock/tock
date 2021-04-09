@@ -7,8 +7,8 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** April 2, 2021<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** April 9, 2021<br/>
+**Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -439,7 +439,7 @@ access. Because the reference will not be returned back until the
 callback, the caller cannot rely on the call stack and scoping to
 retain mutability.
 
-Rule 6: Include an `Result<(), ErrorCode>` in Completion Callbacks
+Rule 6: Include a `Result<(), ErrorCode>` in Completion Callbacks
 ===============================
 
 Any error that can occur synchronously can usually occur asynchronously too.

@@ -288,7 +288,7 @@ pub unsafe fn main() {
     );
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52832::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
@@ -362,7 +362,7 @@ pub unsafe fn main() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    platform.pconsole.start();
+    let _ = platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);
 

@@ -582,7 +582,7 @@ impl Driver for NonvolatileStorage<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return SUCCESS if this driver is included on the platform.
+    /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.

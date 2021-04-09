@@ -4,9 +4,9 @@
 # size information, and is thus most easily called using the `make stack-analysis`
 # rule.
 
-# Print the stack frame size of `reset_handler`
-printf "reset_handler stack frame: \n"
-$(find $(rustc --print sysroot) -name llvm-readobj) --elf-output-style GNU --stack-sizes $1 | grep 'reset_handler'
+# Print the stack frame size of `main`
+printf "main stack frame: \n"
+$(find $(rustc --print sysroot) -name llvm-readobj) --elf-output-style GNU --stack-sizes $1 | grep 'main'
 
 printf "\n"
 printf "5 largest stack frames: \n"

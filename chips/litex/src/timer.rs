@@ -10,7 +10,7 @@ use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
@@ -202,7 +202,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
 
                 // Completely disable and make sure it doesn't generate
                 // more interrupts until it is started again
-                self.cancel();
+                let _ = self.cancel();
             } else {
                 // Timer is repeating
                 //
@@ -221,7 +221,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
         // If the timer is already enabled, cancel it and disable all
         // interrupts
         if self.is_enabled() {
-            self.cancel();
+            let _ = self.cancel();
         }
 
         if let Some(reload) = repeat_ticks {
@@ -324,7 +324,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
         ReadRegWrapper::wrap(&self.registers.en).is_set(en::enable)
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         // Prevent the event source from generating new interrupts
         self.registers.ev().disable_event(EVENT_MANAGER_INDEX);
 
@@ -334,7 +334,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
         // Clear any previous event
         self.registers.ev().clear_event(EVENT_MANAGER_INDEX);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -444,7 +444,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         // Cancel any pending alarm
         if self.is_armed() {
-            self.disarm();
+            let _ = self.disarm();
         }
 
         // Store both the reference and alarm time (required for
@@ -467,11 +467,11 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
         self.alarm_time.is_some()
     }
 
-    fn disarm(&self) -> ReturnCode {
-        self.timer.cancel();
+    fn disarm(&self) -> Result<(), ErrorCode> {
+        let _ = self.timer.cancel();
         self.alarm_time.clear();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn minimum_dt(&self) -> Self::Ticks {

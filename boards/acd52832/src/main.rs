@@ -226,7 +226,7 @@ pub unsafe fn main() {
     // RTC for Timers
     //
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&base_peripherals.rtc)

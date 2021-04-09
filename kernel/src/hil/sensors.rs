@@ -1,11 +1,11 @@
 //! Interfaces for environment sensors
 
-use crate::returncode::ReturnCode;
+use crate::errorcode::ErrorCode;
 
 /// A basic interface for a temperature sensor
 pub trait TemperatureDriver<'a> {
     fn set_client(&self, client: &'a dyn TemperatureClient);
-    fn read_temperature(&self) -> ReturnCode;
+    fn read_temperature(&self) -> Result<(), ErrorCode>;
 }
 
 /// Client for receiving temperature readings.
@@ -20,7 +20,7 @@ pub trait TemperatureClient {
 /// A basic interface for a humidity sensor
 pub trait HumidityDriver<'a> {
     fn set_client(&self, client: &'a dyn HumidityClient);
-    fn read_humidity(&self) -> ReturnCode;
+    fn read_humidity(&self) -> Result<(), ErrorCode>;
 }
 
 /// Client for receiving humidity readings.
@@ -35,7 +35,7 @@ pub trait HumidityClient {
 pub trait ProximityDriver<'a> {
     fn set_client(&self, client: &'a dyn ProximityClient);
     /// Callback issued after sensor reads proximity value
-    fn read_proximity(&self) -> ReturnCode;
+    fn read_proximity(&self) -> Result<(), ErrorCode>;
     /// Callback issued after sensor reads proximity value greater than 'high_threshold' or less than 'low_threshold'
     ///
     /// To elaborate, the callback is not issued by the driver until (prox_reading >= high_threshold || prox_reading <= low_threshold).
@@ -43,7 +43,11 @@ pub trait ProximityDriver<'a> {
     /// which prompts the driver to collect the proximity reading from the sensor and perform the callback.
     /// Any apps issuing this command will have to wait for the proximity reading to fall within the aforementioned ranges in order to received a callback.
     /// Threshold: A value of range [0 , 255] which represents at what proximity reading ranges an interrupt will occur.
-    fn read_proximity_on_interrupt(&self, low_threshold: u8, high_threshold: u8) -> ReturnCode;
+    fn read_proximity_on_interrupt(
+        &self,
+        low_threshold: u8,
+        high_threshold: u8,
+    ) -> Result<(), ErrorCode>;
 }
 
 pub trait ProximityClient {
@@ -61,8 +65,8 @@ pub trait AmbientLight<'a> {
     fn set_client(&self, client: &'a dyn AmbientLightClient);
 
     /// Get a single instantaneous reading of the ambient light intensity.
-    fn read_light_intensity(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_light_intensity(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 }
 
@@ -89,20 +93,20 @@ pub trait NineDof<'a> {
 
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.
-    fn read_accelerometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_accelerometer(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the magnetometer in all
     /// three directions.
-    fn read_magnetometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_magnetometer(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the gyroscope of the rotation
     /// around all three axes.
-    fn read_gyroscope(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_gyroscope(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 }
 
@@ -116,21 +120,21 @@ pub trait NineDofClient {
 /// Basic Interface for Sound Pressure
 pub trait SoundPressure<'a> {
     /// Read the sound pressure level
-    fn read_sound_pressure(&self) -> ReturnCode;
+    fn read_sound_pressure(&self) -> Result<(), ErrorCode>;
 
     /// Enable
     ///
     /// As this is usually a microphone, some boards require an explicit enable
     /// so that they can turn on an LED. This function enables that microphone and LED.
     /// Not calling this function may result in innacurate readings.
-    fn enable(&self) -> ReturnCode;
+    fn enable(&self) -> Result<(), ErrorCode>;
 
     /// Disable
     ///
     /// As this is usually a microphone, some boards require an explicit enable
     /// so that they can turn on an LED. This function turns off that microphone. Readings
     /// perfomed after this function call might return innacurate.
-    fn disable(&self) -> ReturnCode;
+    fn disable(&self) -> Result<(), ErrorCode>;
 
     /// Set the client
     fn set_client(&self, client: &'a dyn SoundPressureClient);
@@ -138,5 +142,5 @@ pub trait SoundPressure<'a> {
 
 pub trait SoundPressureClient {
     /// Signals the sound pressure in dB
-    fn callback(&self, ret: ReturnCode, sound_pressure: u8);
+    fn callback(&self, ret: Result<(), ErrorCode>, sound_pressure: u8);
 }

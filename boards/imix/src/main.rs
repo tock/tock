@@ -455,7 +455,7 @@ pub unsafe fn main() {
     );
 
     // Can this initialize be pushed earlier, or into component? -pal
-    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
@@ -556,10 +556,10 @@ pub unsafe fn main() {
 
     // These two lines need to be below the creation of the chip for
     // initialization to work.
-    rf233.reset();
-    rf233.start();
+    let _ = rf233.reset();
+    let _ = rf233.start();
 
-    imix.pconsole.start();
+    let _ = imix.pconsole.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

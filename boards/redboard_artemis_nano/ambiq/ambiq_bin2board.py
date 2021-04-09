@@ -632,7 +632,7 @@ def send_ackd_command(command, ser, verboseprint):
     word = word_from_bytes(response, 4)
     if ((word & 0xFFFF) == AM_SECBOOT_WIRED_MSGTYPE_ACK):
         # Received ACK
-        if (word_from_bytes(response, 12) != AM_SECBOOT_WIRED_ACK_STATUS_SUCCESS):
+        if (word_from_bytes(response, 12) != AM_SECBOOT_WIRED_ACK_STATUS_Ok(())):
             verboseprint("Received NACK")
             verboseprint("msgType = ", hex(word_from_bytes(response, 8)))
             verboseprint("error = ", hex(word_from_bytes(response, 12)))

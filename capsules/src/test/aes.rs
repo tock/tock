@@ -7,7 +7,6 @@ use kernel::hil;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
 };
-use kernel::ReturnCode;
 
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,
@@ -70,7 +69,7 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == ReturnCode::SUCCESS);
+            assert!(self.aes.set_key(key) == Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
@@ -160,7 +159,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == ReturnCode::SUCCESS);
+            assert!(self.aes.set_key(key) == Ok(()));
         });
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
@@ -170,7 +169,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
                 iv[i] = *b;
             }
 
-            assert!(self.aes.set_iv(iv) == ReturnCode::SUCCESS);
+            assert!(self.aes.set_iv(iv) == Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
@@ -311,7 +310,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == ReturnCode::SUCCESS);
+            assert!(self.aes.set_key(key) == Ok(()));
         });
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
@@ -322,7 +321,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
                 iv[i] = *b;
             }
 
-            assert!(self.aes.set_iv(iv) == ReturnCode::SUCCESS);
+            assert!(self.aes.set_iv(iv) == Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
