@@ -69,13 +69,20 @@ const PAN_ID: u16 = 0xABCD;
 /// UART Writer for panic!()s.
 pub mod io;
 
-// State for loading and holding applications.
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+// How should the kernel respond when a process faults. Stop but do not
+// immediately panic.
+//
+// We choose this fault response for the nano33ble because it does not have
+// dedicated UART-to-USB hardware. If a process faults very early after boot,
+// the USB stack does not have enough time for initialization, and a `panic!()`
+// leads to the USB-CDC stack to put the serial port in a bad state. By only
+// stopping the app, the user can request a panic later to avoid the issue.
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::StopWithDebug;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
+// State for loading and holding applications.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
 
