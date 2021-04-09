@@ -4,12 +4,8 @@ Kernel Time HIL
 **TRD:** 101<br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
-**Status:** Draft <br/>
+**Status:** Final <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
-**Draft-Created:** Feb 06, 2017<br/>
-**Draft-Modified:** September 9, 2020<br/>
-**Draft-Version:** 4<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
