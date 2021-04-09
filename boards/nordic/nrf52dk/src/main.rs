@@ -352,6 +352,7 @@ pub unsafe fn main() {
             nrf52832::acomp::Channel,
             &nrf52832::acomp::CHANNEL_AC0
         ),
+        board_kernel,
     )
     .finalize(components::acomp_component_buf!(
         nrf52832::acomp::Comparator
