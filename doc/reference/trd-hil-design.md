@@ -61,8 +61,9 @@ design rules for HILs. They are:
    includes an error code in its `Err` value.
 3. For split-phase operations, `Ok` means a callback will occur
    while `Err` means one won't.
-4. Split-phase operations with a buffer parameter return a tuple in their error 
-   result, which includes the passed buffer as an element.
+4. Error results of split-phase operations with a buffer parameter 
+   include a reference to passed buffer, thereby returning the buffer 
+   to the caller.
 5. Split-phase operrations with a buffer parameter take a mutable reference 
    even if their access is read-only.
 6. Split-phase completion callbacks include a `Result` parameter whose 
