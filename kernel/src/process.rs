@@ -789,6 +789,10 @@ pub enum FaultResponse {
 
     /// Stop the app by no longer scheduling it to run.
     Stop,
+
+    /// Stop the app by no longer scheduling it to run, leave the app in a fault
+    /// state, and print a debug message indicating what happened.
+    StopWithDebug,
 }
 
 /// Tasks that can be enqueued for a process.
@@ -1103,6 +1107,13 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // this app as well.
                 self.terminate(COMPLETION_FAULT);
                 self.state.update(State::Faulted);
+            }
+            FaultResponse::StopWithDebug => {
+                // This is the same as `Stop`, but also prints a debug message
+                // noting that the process faulted.
+                self.terminate(COMPLETION_FAULT);
+                self.state.update(State::Faulted);
+                debug!("Process {} faulted and was stopped.", self.process_name);
             }
         }
     }
