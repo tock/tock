@@ -51,7 +51,7 @@
 //! use kernel::hil;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Time;
-//! use kernel::ReturnCode;
+//! use kernel::ErrorCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
 //!     rng: &'a hil::rng::Rng<'a>,
@@ -75,7 +75,7 @@
 //! impl<'a, A: hil::time::Alarm<'a>> hil::rng::Client for RngTest<'a, A> {
 //!     fn randomness_available(&self,
 //!                             randomness: &mut Iterator<Item = u32>,
-//!                             error: ReturnCode) -> hil::rng::Continue {
+//!                             error: Result<(), ErrorCode>) -> hil::rng::Continue {
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
@@ -91,7 +91,8 @@
 //! }
 //! ```
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
+
 /// Denotes whether the [Client](trait.Client.html) wants to be notified when
 /// `More` randomness is available or if they are `Done`
 #[derive(Debug, Eq, PartialEq)]
@@ -110,25 +111,25 @@ pub trait Rng<'a> {
     /// Initiate the aquisition of new random number generation.
     ///
     /// There are three valid return values:
-    ///   - SUCCESS: a `randomness_available` callback will be called in
+    ///   - Ok(()): a `randomness_available` callback will be called in
     ///     the future when randomness is available.
     ///   - FAIL: a `randomness_available` callback will not be called in
     ///     the future, because random numbers cannot be generated. This
     ///     is a general failure condition.
-    ///   - EOFF: a `randomness_available` callback will not be called in
+    ///   - OFF: a `randomness_available` callback will not be called in
     ///     the future, because the random number generator is off/not
     ///     powered.
-    fn get(&self) -> ReturnCode;
+    fn get(&self) -> Result<(), ErrorCode>;
 
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no oustanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode;
+    fn cancel(&self) -> Result<(), ErrorCode>;
     fn set_client(&'a self, _: &'a dyn Client);
 }
 
@@ -149,12 +150,12 @@ pub trait Client {
     /// more is available, or `Continue::Done`.
     ///
     /// If randoness_available is triggered after a call to cancel()
-    /// then error MUST be ECANCEL and randomness MAY contain
+    /// then error MUST be CANCEL and randomness MAY contain
     /// random bits.
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue;
 }
 

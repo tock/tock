@@ -43,7 +43,7 @@ impl IoWrite for Writer {
         if !self.initialized {
             self.initialized = true;
 
-            uart.configure(uart::Parameters {
+            let _ = uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,

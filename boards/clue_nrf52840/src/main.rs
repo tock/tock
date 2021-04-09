@@ -271,7 +271,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
@@ -459,7 +459,7 @@ pub unsafe fn main() {
         ),
     );
 
-    tft.init();
+    let _ = tft.init();
 
     let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
         .finalize(components::screen_buffer_size!(57600));

@@ -16,7 +16,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::{
     AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, ReturnCode, Upcall,
+    ReadWriteAppSlice, Upcall,
 };
 
 const MAX_NEIGHBORS: usize = 4;
@@ -195,7 +195,7 @@ pub struct RadioDriver<'a> {
     saved_appid: OptionalCell<AppId>,
 
     /// Used to save result for passing a callback from a deferred call.
-    saved_result: OptionalCell<ReturnCode>,
+    saved_result: OptionalCell<Result<(), ErrorCode>>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -307,10 +307,10 @@ impl<'a> RadioDriver<'a> {
     }
 
     /// Deletes the key at `index` if `index` is valid, returning
-    /// `ReturnCode::SUCCESS`. Otherwise, returns `ReturnCode::EINVAL`.  Ensures
+    /// `Ok(())`. Otherwise, returns `Err(ErrorCode::INVAL)`.  Ensures
     /// that the `keys` list is compact by shifting forward any elements
     /// after the index.
-    fn remove_key(&self, index: usize) -> ReturnCode {
+    fn remove_key(&self, index: usize) -> Result<(), ErrorCode> {
         let num_keys = self.num_keys.get();
         if index < num_keys {
             self.keys.map(|keys| {
@@ -319,9 +319,9 @@ impl<'a> RadioDriver<'a> {
                 }
             });
             self.num_keys.set(num_keys - 1);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -337,9 +337,9 @@ impl<'a> RadioDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: AppId, closure: F) -> Result<(), ErrorCode>
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -373,7 +373,7 @@ impl<'a> RadioDriver<'a> {
     #[inline]
     fn perform_tx_async(&self, appid: AppId) {
         let result = self.perform_tx_sync(appid);
-        if result != ReturnCode::SUCCESS {
+        if result != Ok(()) {
             self.saved_appid.set(appid);
             self.saved_result.set(result);
             self.handle.map(|handle| self.deferred_caller.set(*handle));
@@ -384,15 +384,15 @@ impl<'a> RadioDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: AppId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
-                    return ReturnCode::SUCCESS;
+                    return Ok(());
                 }
             };
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+            let result = self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
                 // Prepare the frame headers
                 let pan = self.mac.get_pan();
                 let dst_addr = MacAddress::Short(dst_addr);
@@ -408,26 +408,28 @@ impl<'a> RadioDriver<'a> {
                     Ok(frame) => frame,
                     Err(kbuf) => {
                         self.kernel_tx.replace(kbuf);
-                        return ReturnCode::FAIL;
+                        return Err(ErrorCode::FAIL);
                     }
                 };
 
                 // Append the payload: there must be one
-                let result = app.app_write.map_or(ReturnCode::EINVAL, |payload| {
+                let result = app.app_write.map_or(Err(ErrorCode::INVAL), |payload| {
                     frame.append_payload(payload.as_ref())
                 });
-                if result != ReturnCode::SUCCESS {
+                if result != Ok(()) {
                     return result;
                 }
 
                 // Finally, transmit the frame
-                let (result, mbuf) = self.mac.transmit(frame);
-                if let Some(buf) = mbuf {
-                    self.kernel_tx.replace(buf);
+                match self.mac.transmit(frame) {
+                    Ok(()) => Ok(()),
+                    Err((ecode, buf)) => {
+                        self.kernel_tx.put(Some(buf));
+                        Err(ecode)
+                    }
                 }
-                result
             });
-            if result == ReturnCode::SUCCESS {
+            if result == Ok(()) {
                 self.current_app.set(appid);
             }
             result
@@ -448,16 +450,15 @@ impl<'a> RadioDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
-        self.get_next_tx_if_idle()
-            .map_or(ReturnCode::SUCCESS, |appid| {
-                if appid == new_appid {
-                    self.perform_tx_sync(appid)
-                } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
-                }
-            })
+    fn do_next_tx_sync(&self, new_appid: AppId) -> Result<(), ErrorCode> {
+        self.get_next_tx_if_idle().map_or(Ok(()), |appid| {
+            if appid == new_appid {
+                self.perform_tx_sync(appid)
+            } else {
+                self.perform_tx_async(appid);
+                Ok(())
+            }
+        })
     }
 }
 
@@ -466,8 +467,11 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
         let _ = self
             .apps
             .enter(self.saved_appid.expect("missing appid"), |app, _| {
-                app.tx_callback
-                    .schedule(self.saved_result.expect("missing result").into(), 0, 0);
+                app.tx_callback.schedule(
+                    kernel::retcode_into_usize(self.saved_result.expect("missing result")),
+                    0,
+                    0,
+                );
             });
     }
 }
@@ -589,12 +593,12 @@ impl Driver for RadioDriver<'_> {
     /// between kernel space and user space. The expected size of the slice
     /// varies by command, and acts essentially like a custom FFI. That is, the
     /// userspace library MUST `allow()` a buffer of the correct size, otherwise
-    /// the call is EINVAL. When used, the expected format is described below.
+    /// the call is INVAL. When used, the expected format is described below.
     ///
     /// ### `command_num`
     ///
     /// - `0`: Driver check.
-    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
     /// - `3`: Set long MAC address.
     ///        app_cfg (in): 8 bytes: the long MAC address.
@@ -868,11 +872,12 @@ impl Driver for RadioDriver<'_> {
 }
 
 impl device::TxClient for RadioDriver<'_> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.schedule(result.into(), acked as usize, 0);
+                app.tx_callback
+                    .schedule(kernel::retcode_into_usize(result), acked as usize, 0);
             });
         });
         self.do_next_tx_async();

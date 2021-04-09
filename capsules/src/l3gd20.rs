@@ -17,31 +17,31 @@
 //! Only one command can be issued at a time.
 //!
 //! #### command num
-//! - `0`: Returns SUCCESS
+//! - `0`: Returns Ok(())
 //!   - `data`: Unused.
 //!   - Return: 0
 //! - `1`: Is Present
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `2`: Power On
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `3`: Set Scale
 //!   - `data1`: 0, 1 or 2
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `4`: Enable high pass filter
 //!   - `data`: 1 for enable, 0 for disable
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `5`: Set High Pass Filter Mode and Divider (manual page 33)
 //!   - `data1`: mode
 //!   - `data2`: divider
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `6`: Read XYZ
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `7`: Read Temperature
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //!
 //! ### Subscribe
 //!
@@ -106,7 +106,6 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
 
 use crate::driver;
@@ -216,7 +215,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_WHO_AM_I | 0x80;
             buf[1] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
         });
         false
     }
@@ -226,7 +225,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG1;
             buf[1] = 0x0F;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -236,7 +235,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG5;
             buf[1] = if enabled { 1 } else { 0 } << 4;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -247,7 +246,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG2;
             buf[1] = (mode & 0x03) << 4 | (divider & 0x0F);
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -257,7 +256,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG4;
             buf[1] = (scale & 0x03) << 4;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -271,7 +270,7 @@ impl<'a> L3gd20Spi<'a> {
             buf[4] = 0x00;
             buf[5] = 0x00;
             buf[6] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 7);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 7);
         });
     }
 
@@ -280,7 +279,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_OUT_TEMP | 0x80;
             buf[1] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
         });
     }
 
@@ -506,12 +505,12 @@ impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
         self.nine_dof_client.replace(nine_dof_client);
     }
 
-    fn read_gyroscope(&self) -> ReturnCode {
+    fn read_gyroscope(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -521,12 +520,12 @@ impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
         self.temperature_client.replace(temperature_client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_temperature();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

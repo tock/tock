@@ -57,7 +57,7 @@
 //!
 //!    hil::flash
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// The type of keys, this should define the output size of the digest
 /// operations.
@@ -69,50 +69,50 @@ impl KeyType for [u8; 8] {}
 pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes
     ///
-    /// `result`: Nothing on success, 'ReturnCode' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `unhashed_key`: The unhashed_key buffer
     /// `key_buf`: The key_buf buffer
     fn generate_key_complete(
         &self,
-        result: Result<(), ReturnCode>,
+        result: Result<(), ErrorCode>,
         unhashed_key: &'static [u8],
         key_buf: &'static K,
     );
 
     /// This callback is called when the append_key operation completes
     ///
-    /// `result`: Nothing on success, 'ReturnCode' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
     /// `value`: The value buffer
     fn append_key_complete(
         &self,
-        result: Result<(), ReturnCode>,
+        result: Result<(), ErrorCode>,
         key: &'static mut K,
         value: &'static [u8],
     );
 
     /// This callback is called when the get_value operation completes
     ///
-    /// `result`: Nothing on success, 'ReturnCode' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
     /// `ret_buf`: The ret_buf buffer
     fn get_value_complete(
         &self,
-        result: Result<(), ReturnCode>,
+        result: Result<(), ErrorCode>,
         key: &'static mut K,
         ret_buf: &'static mut [u8],
     );
 
     /// This callback is called when the invalidate_key operation completes
     ///
-    /// `result`: Nothing on success, 'ReturnCode' on error
+    /// `result`: Nothing on success, 'ErrorCode' on error
     /// `key`: The key buffer
-    fn invalidate_key_complete(&self, result: Result<(), ReturnCode>, key: &'static mut K);
+    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut K);
 
     /// This callback is called when the garbage_collect operation completes
     ///
-    /// `result`: Nothing on success, 'ReturnCode' on error
-    fn garbage_collect_complete(&self, result: Result<(), ReturnCode>);
+    /// `result`: Nothing on success, 'ErrorCode' on error
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>);
 }
 
 pub trait KVSystem<'a> {
@@ -128,12 +128,19 @@ pub trait KVSystem<'a> {
     /// `key_buf`: A buffer to store the hashed key output.
     ///
     /// On success returns nothing.
-    /// On error the unhashed_key, key_buf and `ReturnCode` will be returned.
+    /// On error the unhashed_key, key_buf and `Result<(), ErrorCode>` will be returned.
     fn generate_key(
         &self,
         unhashed_key: &'static mut [u8],
         key_buf: &'static mut Self::K,
-    ) -> Result<(), (&'static mut [u8], &'static mut Self::K, ReturnCode)>;
+    ) -> Result<
+        (),
+        (
+            &'static mut [u8],
+            &'static mut Self::K,
+            Result<(), ErrorCode>,
+        ),
+    >;
 
     /// Appends the key/value pair.
     ///
@@ -142,19 +149,19 @@ pub trait KVSystem<'a> {
     /// `value`: A buffer containing the data to be stored to flash.
     ///
     /// On success nothing will be returned.
-    /// On error the key, value and a `ReturnCode` will be returned.
+    /// On error the key, value and a `Result<(), ErrorCode>` will be returned.
     ///
-    /// The possible `ReturnCode`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    /// The possible `Result<(), ErrorCode>`s are:
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be added due to a collision.
-    ///    `ENOMEM`: The key could not be added due to no more space.
+    ///    `NOMEM`: The key could not be added due to no more space.
     fn append_key(
         &self,
         key: &'static mut Self::K,
         value: &'static [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static [u8], ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, &'static [u8], Result<(), ErrorCode>)>;
 
     /// Retrieves the value from a specified key.
     ///
@@ -162,35 +169,42 @@ pub trait KVSystem<'a> {
     /// `ret_buf`: A buffer to store the value to.
     ///
     /// On success nothing will be returned.
-    /// On error the key, ret_buf and a `ReturnCode` will be returned.
+    /// On error the key, ret_buf and a `Result<(), ErrorCode>` will be returned.
     ///
-    /// The possible `ReturnCode`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    /// The possible `Result<(), ErrorCode>`s are:
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
     fn get_value(
         &self,
         key: &'static mut Self::K,
         ret_buf: &'static mut [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static mut [u8], ReturnCode)>;
+    ) -> Result<
+        (),
+        (
+            &'static mut Self::K,
+            &'static mut [u8],
+            Result<(), ErrorCode>,
+        ),
+    >;
 
     /// Invalidates the key in flash storage
     ///
     /// `key`: A hashed key. This key will be used to remove the `value`.
     ///
     /// On success nothing will be returned.
-    /// On error the key and a `ReturnCode` will be returned.
+    /// On error the key and a `Result<(), ErrorCode>` will be returned.
     ///
-    /// The possible `ReturnCode`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
+    /// The possible `Result<(), ErrorCode>`s are:
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, ReturnCode)>;
+    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)>;
 
     /// Perform a garbage collection on the KV Store
     ///
@@ -198,11 +212,11 @@ pub trait KVSystem<'a> {
     /// this can just be a NOP that returns 'Ok(0)'.
     ///
     /// On success the number of bytes freed will be returned.
-    /// On error a `ReturnCode` will be returned.
+    /// On error a `Result<(), ErrorCode>` will be returned.
     ///
-    /// The possible `ReturnCode`s are:
-    ///    `EBUSY`: An operation is already in progress
-    ///    `EINVAL`: An invalid parameter was passed
-    ///    `ENODEVICE`: No KV store was setup
-    fn garbage_collect(&self) -> Result<usize, ReturnCode>;
+    /// The possible `Result<(), ErrorCode>`s are:
+    ///    `BUSY`: An operation is already in progress
+    ///    `INVAL`: An invalid parameter was passed
+    ///    `NODEVICE`: No KV store was setup
+    fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>>;
 }

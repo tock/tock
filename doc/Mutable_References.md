@@ -253,23 +253,23 @@ let return = if txbuf.is_some() {
     txbuf.map(|txbuf| {
         write_done(txbuf);
     });
-    ReturnCode::SUCCESS
+    Ok(())
 } else {
-    ReturnCode::ERESERVE
+    Err(ErrorCode::RESERVE)
 };
 ```
 
 `.map_or()` allows us to do this instead:
 
 ```rust
-let return = txbuf.map_or(ReturnCode::ERESERVE, |txbuf| {
+let return = txbuf.map_or(Err(ErrorCode::RESERVE), |txbuf| {
     write_done(txbuf);
-    ReturnCode::SUCCESS
+    Ok(())
 });
 ```
 
 If the `TakeCell` is empty, the first argument (the error code) is returned,
-otherwise the closure is executed and `SUCCESS` is returned.
+otherwise the closure is executed and `Ok(())` is returned.
 
 Sometimes we may want to execute different code based on whether the `TakeCell`
 is empty or not. Again, we could do this:

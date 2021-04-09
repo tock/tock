@@ -16,7 +16,6 @@ use core::mem;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
 use kernel::{
     AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
 };
@@ -99,7 +98,7 @@ impl<'a> Touch<'a> {
         self.screen_rotation_offset.set(screen_rotation_offset);
     }
 
-    fn touch_enable(&self) -> ReturnCode {
+    fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| if app.touch_enable { true } else { false }) {
@@ -107,7 +106,7 @@ impl<'a> Touch<'a> {
                 break;
             }
         }
-        self.touch.map_or(ReturnCode::ENODEVICE, |touch| {
+        self.touch.map_or(Err(ErrorCode::NODEVICE), |touch| {
             if enabled {
                 touch.enable()
             } else {
@@ -116,7 +115,7 @@ impl<'a> Touch<'a> {
         })
     }
 
-    fn multi_touch_enable(&self) -> ReturnCode {
+    fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
             if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {
@@ -125,7 +124,7 @@ impl<'a> Touch<'a> {
             }
         }
         self.multi_touch
-            .map_or(ReturnCode::ENODEVICE, |multi_touch| {
+            .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
                 if enabled {
                     multi_touch.enable()
                 } else {
@@ -338,7 +337,7 @@ impl<'a> Driver for Touch<'a> {
                         mem::swap(&mut app.touch_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
-                self.touch_enable();
+                let _ = self.touch_enable();
                 r
             }
 
@@ -350,7 +349,7 @@ impl<'a> Driver for Touch<'a> {
                         mem::swap(&mut app.gesture_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
-                self.touch_enable();
+                let _ = self.touch_enable();
                 r
             }
 
@@ -363,7 +362,7 @@ impl<'a> Driver for Touch<'a> {
                             mem::swap(&mut app.multi_touch_callback, &mut callback);
                         })
                         .map_err(ErrorCode::from);
-                    self.multi_touch_enable();
+                    let _ = self.multi_touch_enable();
                     r
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -400,7 +399,7 @@ impl<'a> Driver for Touch<'a> {
                         app.touch_enable = true;
                     })
                     .unwrap_or(());
-                self.touch_enable();
+                let _ = self.touch_enable();
                 CommandReturn::success()
             }
 
@@ -411,7 +410,7 @@ impl<'a> Driver for Touch<'a> {
                         app.touch_enable = false;
                     })
                     .unwrap_or(());
-                self.touch_enable();
+                let _ = self.touch_enable();
                 CommandReturn::success()
             }
 
@@ -432,7 +431,7 @@ impl<'a> Driver for Touch<'a> {
                         app.multi_touch_enable = true;
                     })
                     .unwrap_or(());
-                self.multi_touch_enable();
+                let _ = self.multi_touch_enable();
                 CommandReturn::success()
             }
 
@@ -443,7 +442,7 @@ impl<'a> Driver for Touch<'a> {
                         app.multi_touch_enable = false;
                     })
                     .unwrap_or(());
-                self.multi_touch_enable();
+                let _ = self.multi_touch_enable();
                 CommandReturn::success()
             }
 

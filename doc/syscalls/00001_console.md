@@ -25,7 +25,7 @@ share a buffer for every write transaction, even if it's the same buffer.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if it exists, otherwise ENODEVICE
+    **Returns**: Ok(()) if it exists, otherwise NODEVICE
 
   * ### Command number: `1`
 
@@ -37,8 +37,8 @@ share a buffer for every write transaction, even if it's the same buffer.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if no buffer was
-    shared, or ENOMEM if the driver failed to allocate memory for the
+    **Returns**: Ok(()) if the command was successful, BUSY if no buffer was
+    shared, or NOMEM if the driver failed to allocate memory for the
     transaction.
 
   * ### Command number: `2`
@@ -51,8 +51,8 @@ share a buffer for every write transaction, even if it's the same buffer.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if no buffer was
-    shared, or ENOMEM if the driver failed to allocate memory for the
+    **Returns**: Ok(()) if the command was successful, BUSY if no buffer was
+    shared, or NOMEM if the driver failed to allocate memory for the
     transaction.
 
   * ### Command number: `3`
@@ -65,8 +65,8 @@ share a buffer for every write transaction, even if it's the same buffer.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if no buffer was
-    shared, or ENOMEM if the driver failed to allocate memory for the
+    **Returns**: Ok(()) if the command was successful, BUSY if no buffer was
+    shared, or NOMEM if the driver failed to allocate memory for the
     transaction.
 
 ## Subscribe
@@ -80,7 +80,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     of bytes written in the transaction. The value of the remaining arguments
     is undefined.
 
-    **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
+    **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
   * ### Subscribe number: `2`
@@ -92,7 +92,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     of bytes read in the transaction. The value of the remaining arguments
     is undefined.
 
-    **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
+    **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
 ## Allow
@@ -106,7 +106,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     completion callback is undefined (most likely either the original buffer or
     new buffer will be written in its entirety but not both).
 
-    **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
+    **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
   * ### Allow number: `2`
@@ -118,6 +118,6 @@ share a buffer for every write transaction, even if it's the same buffer.
     callback is undefined (most likely either the original buffer or new buffer
     will be sent in its entirety but not both).
 
-    **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
+    **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 

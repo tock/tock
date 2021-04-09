@@ -443,7 +443,7 @@ pub unsafe fn main() {
     // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
-    process_console.start();
+    let _ = process_console.start();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();

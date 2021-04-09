@@ -18,7 +18,6 @@ use crate::ipc;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
-use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::{AppId, UpcallId};
@@ -668,15 +667,15 @@ pub enum Error {
     AlreadyInUse,
 }
 
-impl From<Error> for ReturnCode {
-    fn from(err: Error) -> ReturnCode {
+impl From<Error> for Result<(), ErrorCode> {
+    fn from(err: Error) -> Result<(), ErrorCode> {
         match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-            Error::InactiveApp => ReturnCode::FAIL,
-            Error::KernelError => ReturnCode::FAIL,
-            Error::AlreadyInUse => ReturnCode::FAIL,
+            Error::OutOfMemory => Err(ErrorCode::NOMEM),
+            Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
+            Error::NoSuchApp => Err(ErrorCode::INVAL),
+            Error::InactiveApp => Err(ErrorCode::FAIL),
+            Error::KernelError => Err(ErrorCode::FAIL),
+            Error::AlreadyInUse => Err(ErrorCode::FAIL),
         }
     }
 }

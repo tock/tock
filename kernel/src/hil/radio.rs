@@ -7,9 +7,10 @@
 //! for address recognition. This must be committed to hardware with a call to
 //! config_commit. Please see the relevant TRD for more details.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
+
 pub trait TxClient {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>);
 }
 
 pub trait RxClient {
@@ -18,12 +19,12 @@ pub trait RxClient {
         buf: &'static mut [u8],
         frame_len: usize,
         crc_valid: bool,
-        result: ReturnCode,
+        result: Result<(), ErrorCode>,
     );
 }
 
 pub trait ConfigClient {
-    fn config_done(&self, result: ReturnCode);
+    fn config_done(&self, result: Result<(), ErrorCode>);
 }
 
 pub trait PowerClient {
@@ -72,10 +73,10 @@ pub trait RadioConfig {
         spi_buf: &'static mut [u8],
         reg_write: &'static mut [u8],
         reg_read: &'static mut [u8],
-    ) -> ReturnCode;
-    fn reset(&self) -> ReturnCode;
-    fn start(&self) -> ReturnCode;
-    fn stop(&self) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
+    fn reset(&self) -> Result<(), ErrorCode>;
+    fn start(&self) -> Result<(), ErrorCode>;
+    fn stop(&self) -> Result<(), ErrorCode>;
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
@@ -96,8 +97,8 @@ pub trait RadioConfig {
     fn set_address(&self, addr: u16);
     fn set_address_long(&self, addr: [u8; 8]);
     fn set_pan(&self, id: u16);
-    fn set_tx_power(&self, power: i8) -> ReturnCode;
-    fn set_channel(&self, chan: u8) -> ReturnCode;
+    fn set_tx_power(&self, power: i8) -> Result<(), ErrorCode>;
+    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode>;
 }
 
 pub trait RadioData {
@@ -109,5 +110,5 @@ pub trait RadioData {
         &self,
         spi_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }

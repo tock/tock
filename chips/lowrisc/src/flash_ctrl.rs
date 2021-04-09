@@ -9,7 +9,7 @@ use kernel::common::registers::{
 };
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 register_structs! {
     pub FlashCtrlRegisters {
@@ -399,7 +399,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -438,7 +438,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -490,7 +490,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         Ok(())
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -522,6 +522,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
                 + CONTROL::START::SET,
         );
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

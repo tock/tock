@@ -21,10 +21,10 @@
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
-//! * SUCCESS: The buffer has successfully been filled
-//! * ENOMEM: No sufficient memory available
-//! * EINVAL: Invalid address of the buffer or other error
-//! * EBUSY: The driver is currently busy with other tasks
+//! * Ok(()): The buffer has successfully been filled
+//! * NOMEM: No sufficient memory available
+//! * INVAL: Invalid address of the buffer or other error
+//! * BUSY: The driver is currently busy with other tasks
 //! * ENOSUPPORT: The operation is not supported
 //! * ERROR: Operation `map` on Option failed
 //!
@@ -38,8 +38,8 @@
 //!
 //! The possible return codes from the `allow` system call indicate the following:
 //!
-//! * ENOMEM:    Not sufficient amount memory
-//! * EINVAL:    Invalid operation
+//! * NOMEM:    Not sufficient amount memory
+//! * INVAL:    Invalid operation
 //!
 //! ### Command system call
 //!
@@ -53,8 +53,8 @@
 //!
 //! The possible return codes from the `command` system call indicate the following:
 //!
-//! * SUCCESS:      The command was successful
-//! * EBUSY:        The driver is currently busy with other tasks
+//! * Ok(()):      The command was successful
+//! * BUSY:        The driver is currently busy with other tasks
 //! * ENOSUPPORT:   The operation is not supported
 //!
 //! Usage
@@ -109,9 +109,7 @@ use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::{
-    CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, ReturnCode,
-};
+use kernel::{CommandReturn, ErrorCode, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -238,39 +236,46 @@ impl App {
         Ok(())
     }
 
-    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
+    fn send_advertisement<'a, B, A>(
+        &self,
+        ble: &BLE<'a, B, A>,
+        channel: RadioChannel,
+    ) -> Result<(), ErrorCode>
     where
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data.map_or(ReturnCode::FAIL, |adv_data| {
-            ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
-                let adv_data_len = cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
-                let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                {
-                    let (header, payload) = kernel_tx.split_at_mut(2);
-                    header[0] = self.pdu_type;
-                    match self.pdu_type {
-                        ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                            // Set TxAdd because AdvA field is going to be a "random"
-                            // address
-                            header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+        self.adv_data.map_or(Err(ErrorCode::FAIL), |adv_data| {
+            ble.kernel_tx
+                .take()
+                .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
+                    let adv_data_len =
+                        cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                    let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                    let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                    {
+                        let (header, payload) = kernel_tx.split_at_mut(2);
+                        header[0] = self.pdu_type;
+                        match self.pdu_type {
+                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                // Set TxAdd because AdvA field is going to be a "random"
+                                // address
+                                header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+                            }
+                            _ => {}
                         }
-                        _ => {}
-                    }
-                    // The LENGTH field is 6-bits wide, so make sure to truncate it
-                    header[1] = (payload_len & 0x3f) as u8;
+                        // The LENGTH field is 6-bits wide, so make sure to truncate it
+                        header[1] = (payload_len & 0x3f) as u8;
 
-                    let (adva, data) = payload.split_at_mut(6);
-                    adva.copy_from_slice(&self.address);
-                    data[..adv_data_len].copy_from_slice(adv_data_corrected);
-                }
-                let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                ble.radio
-                    .transmit_advertisement(kernel_tx, total_len, channel);
-                ReturnCode::SUCCESS
-            })
+                        let (adva, data) = payload.split_at_mut(6);
+                        adva.copy_from_slice(&self.address);
+                        data[..adv_data_len].copy_from_slice(adv_data_corrected);
+                    }
+                    let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                    ble.radio
+                        .transmit_advertisement(kernel_tx, total_len, channel);
+                    Ok(())
+                })
         })
     }
 
@@ -411,15 +416,16 @@ where
                             app.process_status =
                                 Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
                             self.sending_app.set(app.appid());
-                            self.radio.set_tx_power(app.tx_power);
-                            app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
+                            let _ = self.radio.set_tx_power(app.tx_power);
+                            let _ =
+                                app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
                         }
                         Some(BLEState::ScanningIdle) => {
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
                             self.receiving_app.set(app.appid());
-                            self.radio.set_tx_power(app.tx_power);
+                            let _ = self.radio.set_tx_power(app.tx_power);
                             self.radio
                                 .receive_advertisement(RadioChannel::AdvertisingChannel37);
                         }
@@ -442,7 +448,7 @@ where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
         self.receiving_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
@@ -454,7 +460,7 @@ where
                 // Packets that are bigger than 39 bytes are likely `Channel PDUs` which should
                 // only be sent on the other 37 RadioChannel channels.
 
-                if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
+                if len <= PACKET_LENGTH as u8 && result == Ok(()) {
                     // write to buffer in userland
                     let success = app.scan_buffer.mut_map_or(false, |userland| {
                         userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
@@ -462,8 +468,11 @@ where
                     });
 
                     if success {
-                        app.scan_callback
-                            .schedule(usize::from(result), len as usize, 0);
+                        app.scan_callback.schedule(
+                            kernel::retcode_into_usize(result),
+                            len as usize,
+                            0,
+                        );
                     }
                 }
 
@@ -472,7 +481,7 @@ where
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
                         self.receiving_app.set(app.appid());
-                        self.radio.set_tx_power(app.tx_power);
+                        let _ = self.radio.set_tx_power(app.tx_power);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel38);
                     }
@@ -503,9 +512,9 @@ where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
 {
-    // The ReturnCode indicates valid CRC or not, not used yet but could be used for
+    // The Result<(), ErrorCode> indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
-    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: ReturnCode) {
+    fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
             let _ = self.app.enter(*appid, |app, _| {
@@ -514,15 +523,15 @@ where
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
                         self.sending_app.set(app.appid());
-                        self.radio.set_tx_power(app.tx_power);
-                        app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
+                        let _ = self.radio.set_tx_power(app.tx_power);
+                        let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
                     }
 
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
                         self.sending_app.set(app.appid());
-                        app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
+                        let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
                     }
 
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39)) => {
@@ -616,7 +625,7 @@ where
                                 tx_power @ 0..=10 | tx_power @ 0xec..=0xff => {
                                     // query the underlying chip if the power level is supported
                                     let status = self.radio.set_tx_power(tx_power);
-                                    if let ReturnCode::SUCCESS = status {
+                                    if let Ok(()) = status {
                                         app.tx_power = tx_power;
                                     }
                                     status.into()

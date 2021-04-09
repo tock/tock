@@ -19,7 +19,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if it exists, otherwise ENODEVICE
+    **Returns**: Ok(()) if it exists, otherwise NODEVICE
 
   * ### Command number: `1` 
 
@@ -29,7 +29,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the rotation value, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
 
   * ### Command number: `2`
 
@@ -39,7 +39,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `3`
 
@@ -49,7 +49,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `4`
 
@@ -59,7 +59,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `5`
 
@@ -69,7 +69,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
   
   * ### Command number: `6`
 
@@ -79,7 +79,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `7` 
 
@@ -89,7 +89,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1), EBUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1), BUSY if another command is in progress.
 
   * ### Command number: `8` 
 
@@ -102,7 +102,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
   
   * ### Command number: `9` 
 
@@ -112,7 +112,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported color depth (minimum 1), EBUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported color depth (minimum 1), BUSY if another command is in progress.
 
   * ### Command number: `10` 
 
@@ -122,7 +122,7 @@ screen like an LCD display.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the rotation value, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
 
   * ### Command number: `11` 
 
@@ -132,7 +132,7 @@ screen like an LCD display.
 
     **Argument 2**: column
 
-    **Returns**: SUCCESS followed by a callback with the resolution, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the resolution, BUSY if another command is in progress.
 
 ## Subscribe
 
@@ -143,7 +143,7 @@ screen like an LCD display.
     **Callback signature**: The callback receives different arguments 
     depending on the issued command.
 
-    **Returns**: SUCCESS if the subscribe was successful.
+    **Returns**: Ok(()) if the subscribe was successful.
 
 ## Allow ReadOnly
 
@@ -156,5 +156,5 @@ screen like an LCD display.
     completion callback is undefined (most likely either the original buffer or
     new buffer will be written in its entirety but not both).
 
-    **Returns**: SUCCESS if the subscribe was successful, INVAL if the buffer's length is not a multiple of the color depth length. 
+    **Returns**: Ok(()) if the subscribe was successful, INVAL if the buffer's length is not a multiple of the color depth length. 
 

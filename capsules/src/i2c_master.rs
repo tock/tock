@@ -45,13 +45,13 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
     }
 
     fn operation(&self, app_id: AppId, app: &mut App, command: Cmd, addr: u8, wlen: u8, rlen: u8) {
-        // TODO(alevy) this function used to try and return ReturnCodes, but would always return
+        // TODO(alevy) this function used to try and return Result<(), ErrorCode>s, but would always return
         // ENOSUPPORT and all call-sites simply ignore the return value. Nonetheless, some error
         // handling is probably useful. Comments inline where there used to be non-success results.
         self.apps
             .enter(app_id, |_, _| {
                 // TODO(alevy): if app.slice.map doesn't have a slice, we would have returned
-                // EINVAL here. I.e., the driver is attempting an operation without sharing memory.
+                // INVAL here. I.e., the driver is attempting an operation without sharing memory.
                 app.slice.map_or((), |app_buffer| {
                     self.buf.take().map(|buffer| {
                         buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
@@ -65,14 +65,14 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
                         self.tx.put(Transaction { app_id, read_len });
 
                         match command {
-                            Cmd::Ping => (), // Unexpected, shouldn't get here (was ReturnCode::EINVAL)
+                            Cmd::Ping => (), // Unexpected, shouldn't get here (was Err(ErrorCode::INVAL))
                             Cmd::Write => self.i2c.write(addr, buffer, wlen),
                             Cmd::Read => self.i2c.read(addr, buffer, rlen),
                             Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
                         }
                     });
                     // TODO(alevy): if buf.take() returned None, the I2C hadn't returned the
-                    // buffer. This shouldn't happen and previous this returned ENOMEM
+                    // buffer. This shouldn't happen and previous this returned NOMEM
                 })
             })
             .expect("Appid does not map to app");

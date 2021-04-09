@@ -14,13 +14,13 @@ use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::NetworkCapability;
 use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// A trait for a client of an `ICMP6Sender`.
 pub trait ICMP6SendClient {
     /// A client callback invoked after an ICMP6Sender has completed sending
     /// a requested packet.
-    fn send_done(&self, result: ReturnCode);
+    fn send_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// A trait that defines an interface for sending ICMPv6 packets.
@@ -53,7 +53,7 @@ pub trait ICMP6Sender<'a> {
         icmp_header: ICMP6Header,
         buf: &'static mut [u8],
         net_cap: &'static NetworkCapability,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
 }
 
 /// A struct that implements the `ICMP6Sender` trait.
@@ -82,7 +82,7 @@ impl<'a, T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
         mut icmp_header: ICMP6Header,
         buf: &'static mut [u8],
         net_cap: &'static NetworkCapability,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         let total_len = buf.len() + icmp_header.get_hdr_size();
         icmp_header.set_len(total_len as u16);
         let transport_header = TransportHeader::ICMP(icmp_header);
@@ -94,7 +94,7 @@ impl<'a, T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
 impl<'a, T: IP6Sender<'a>> IP6SendClient for ICMP6SendStruct<'a, T> {
     /// Forwards callback received from the `IP6Sender` to the
     /// `ICMP6SendClient`.
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: Result<(), ErrorCode>) {
         self.client.map(|client| client.send_done(result));
     }
 }

@@ -7,7 +7,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Ticks, Ticks32, Time};
 use kernel::ClockInterface;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::ccm;
 use crate::nvic;
@@ -378,7 +378,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.disarm();
+        let _ = self.disarm();
         self.registers.ocr1.set(expire.into_u32());
         self.registers.ir.modify(IR::OF1IE::SET);
     }
@@ -387,7 +387,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
         Self::Ticks::from(self.registers.ocr1.get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         unsafe {
             atomic(|| {
                 // Disable counter
@@ -395,7 +395,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
                 cortexm7::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {
