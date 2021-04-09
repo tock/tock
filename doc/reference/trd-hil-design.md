@@ -62,7 +62,7 @@ design rules for HILs. They are:
 3. For split-phase operations, `Ok` means a callback will occur
    while `Err` means one won't.
 4. Error results of split-phase operations with a buffer parameter 
-   include a reference to passed buffer, thereby returning the buffer 
+   include a reference to passed buffer. This returns the buffer 
    to the caller.
 5. Split-phase operrations with a buffer parameter take a mutable reference 
    even if their access is read-only.
