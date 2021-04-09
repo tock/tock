@@ -82,7 +82,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
-        self.spi_master.read_write_bytes(
+        let _ = self.spi_master.read_write_bytes(
             self.kernel_write.take().unwrap(),
             self.kernel_read.take(),
             write_len,

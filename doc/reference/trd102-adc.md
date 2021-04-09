@@ -56,38 +56,38 @@ pub trait Adc {
     type Channel;
 
     /// Initialize must be called before taking a sample.
-    fn initialize(&self) -> ReturnCode;
+    fn initialize(&self) -> Result<(), ErrorCode>;
 
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode;
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 
     /// Request repeated ADC samples on a particular channel.
     /// Callbacks will occur at the given frequency with low jitter and can be
     /// set to any frequency supported by the chip implementation. However
     /// callbacks may be limited based on how quickly the system can service
     /// individual samples, leading to missed samples at high frequencies.
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode;
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode>;
 
     /// Stop a sampling operation.
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
-    fn stop_sampling(&self) -> ReturnCode;
+    fn stop_sampling(&self) -> Result<(), ErrorCode>;
 }
 ```
 
 The `initialize` function configures the hardware to perform analog sampling.
 It MUST be called at least once before any samples are taken. It only needs to
-be called once, not once per sample. This function MUST return SUCCESS upon
+be called once, not once per sample. This function MUST return Ok(()) upon
 correct initialization or FAIL if the hardware fails to initialize
 successfully. If the driver is already initialized, the function SHOULD return
-SUCCESS.
+Ok(()).
 
 The `sample` function starts a single conversion on the specified ADC channel.
 The exact binding of this channel to external or internal analog inputs is
-board-dependent. The function MUST return SUCCESS if the analog conversion has
-been started, EOFF if the ADC is not initialized or enabled, EBUSY if a
-conversion is already in progress, or EINVAL if the specified channel is
+board-dependent. The function MUST return Ok(()) if the analog conversion has
+been started, OFF if the ADC is not initialized or enabled, BUSY if a
+conversion is already in progress, or INVAL if the specified channel is
 invalid. The `sample_ready` callback of the client MUST be called when the
 conversion is complete.
 
@@ -95,17 +95,17 @@ The `sample_continuous` function begins repeated individual conversions on a
 specified channel. Conversions MUST continue at the specified frequency until
 `stop_sampling` is called. The `sample_ready` callback of the client MUST be
 called when each conversion is complete. The channels and frequency ranges
-supported are board-dependent. The function MUST return SUCCESS if repeated
-analog conversions have been started,  EOFF if the ADC is not initialized or
-enabled, EBUSY if a conversion is already in progress, or EINVAL if the
+supported are board-dependent. The function MUST return Ok(()) if repeated
+analog conversions have been started,  OFF if the ADC is not initialized or
+enabled, BUSY if a conversion is already in progress, or INVAL if the
 specified channel or frequency are invalid.
 
 The `stop_sampling` function can be used to stop any sampling operation,
 single, continuous, or high speed. Conversions which have already begun are
 canceled. `stop_sampling` MUST be safe to call from any callback in the Client
-or HighSpeedClient traits. The function MUST return SUCCESS, EOFF, or EINVAL.
-SUCCESS indicates that all conversions are stopped and no further callbacks
-will occur, EOFF means the ADC is not initialized or enabled, and EINVAL means
+or HighSpeedClient traits. The function MUST return Ok(()), OFF, or INVAL.
+Ok(()) indicates that all conversions are stopped and no further callbacks
+will occur, OFF means the ADC is not initialized or enabled, and INVAL means
 the ADC was not active.
 
 The `channel` type is used to signify which ADC channel to sample data on for
@@ -168,7 +168,7 @@ pub trait AdcHighSpeed: Adc {
                         length1: usize,
                         buffer2: &'static mut [u16],
                         length2: usize)
-                        -> (ReturnCode, Option<&'static mut [u16]>,
+                        -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
 
     /// Provide a new buffer to fill with the ongoing `sample_continuous`
@@ -181,7 +181,7 @@ pub trait AdcHighSpeed: Adc {
     fn provide_buffer(&self,
                       buf: &'static mut [u16],
                       length: usize)
-                      -> (ReturnCode, Option<&'static mut [u16]>);
+                      -> (Result<(), ErrorCode>, Option<&'static mut [u16]>);
 
     /// Reclaim ownership of buffers.
     /// Can only be called when the ADC is inactive, which occurs after a
@@ -190,7 +190,7 @@ pub trait AdcHighSpeed: Adc {
     /// there may still be no buffers that are `some` if the driver had already
     /// returned all buffers.
     fn retrieve_buffers(&self)
-                        -> (ReturnCode, Option<&'static mut [u16]>,
+                        -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
 }
 ```
@@ -202,9 +202,9 @@ buffer in order to reduce jitter between samples. Additional buffers SHOULD be
 passed through the `provide_buffer` call. However, if none are provided, the
 driver MUST cease sampling once it runs out of buffers. In case of an error,
 the buffers will be immediately returned from the function. The channels and
-frequencies acceptable are chip-specific. The return code MUST be SUCCESS if
-sampling has begun successfully, EOFF if the ADC is not enabled or initialized,
-EBUSY if the ADC is in use, or EINVAL if the channel or frequency are invalid.
+frequencies acceptable are chip-specific. The return code MUST be Ok(()) if
+sampling has begun successfully, OFF if the ADC is not enabled or initialized,
+BUSY if the ADC is in use, or INVAL if the channel or frequency are invalid.
 
 The `provide_buffer` function is used to provide additional buffers to an
 ongoing high-speed sampling operation. It is expected to be called within a
@@ -214,9 +214,9 @@ is not an error to fail to call `provide_buffer` and the underlying driver MUST
 cease sampling if no buffers are remaining. It is an error to call
 `provide_buffer` twice without having received a buffer through
 `samples_ready`. The prior settings for channel and frequency will persist. The
-return code MUST be SUCCESS if the buffer has been saved for later use, EOFF if
-the ADC is not initialized or enabled, EINVAL if there is no currently running
-continuous sampling operation, or EBUSY if an additional buffer has already
+return code MUST be Ok(()) if the buffer has been saved for later use, OFF if
+the ADC is not initialized or enabled, INVAL if there is no currently running
+continuous sampling operation, or BUSY if an additional buffer has already
 been provided.
 
 The `retrieve_buffers` function returns ownership of all buffers owned by the
@@ -224,8 +224,8 @@ chip implementation. All ADC operations MUST be stopped before buffers are
 returned. Any data within the buffers SHOULD be considered invalid. It is
 expected that `retrieve_buffers` will be called from within a `samples_ready`
 callback after calling `stop_sampling`. Up to two buffers will be returned by
-the function. The return code MUST be SUCCESS if the ADC is not in operation
-(although as few as zero buffers may be returned), EINVAL MUST be returned if
+the function. The return code MUST be Ok(()) if the ADC is not in operation
+(although as few as zero buffers may be returned), INVAL MUST be returned if
 an ADC operation is still in progress.
 
 

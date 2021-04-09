@@ -284,7 +284,7 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
-    tim2.start();
+    let _ = tim2.start();
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 

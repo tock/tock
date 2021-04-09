@@ -10,7 +10,7 @@
 //! a proximity reading.
 //! The `subscribe`call return codes indicate the following:
 //!
-//! * `SUCCESS`: the callback been successfully been configured.
+//! * `Ok(())`: the callback been successfully been configured.
 //! * `ENOSUPPORT`: Invalid allow_num.
 //!
 //!
@@ -26,8 +26,8 @@
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
-//! * `SUCCESS`:    The operation has been successful.
-//! * `EBUSY`:      The driver is busy.
+//! * `Ok(())`:    The operation has been successful.
+//! * `BUSY`:      The driver is busy.
 //! * `ENOSUPPORT`: Invalid `cmd`.
 //!
 //! Usage
@@ -51,7 +51,6 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -135,7 +134,7 @@ impl<'a> ProximitySensor<'a> {
                     && (command == ProximityCommand::ReadProximityOnInterrupt)
                 {
                     let t: Thresholds = self.find_thresholds();
-                    self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                    let _ = self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                     self.command_running
                         .set(ProximityCommand::ReadProximityOnInterrupt);
                     return CommandReturn::success();
@@ -147,7 +146,7 @@ impl<'a> ProximitySensor<'a> {
                 if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
                     && (command == ProximityCommand::ReadProximity)
                 {
-                    self.driver.read_proximity();
+                    let _ = self.driver.read_proximity();
                     self.command_running.set(ProximityCommand::ReadProximity);
                     return CommandReturn::success();
                 }
@@ -164,7 +163,7 @@ impl<'a> ProximitySensor<'a> {
                 }
 
                 if num_commands == 1 {
-                    self.run_next_command();
+                    let _ = self.run_next_command();
                 }
 
                 CommandReturn::success()
@@ -172,7 +171,7 @@ impl<'a> ProximitySensor<'a> {
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
-    fn run_next_command(&self) -> ReturnCode {
+    fn run_next_command(&self) -> Result<(), ErrorCode> {
         let mut break_flag: bool = false;
 
         // Find thresholds before entering any grant regions
@@ -184,11 +183,11 @@ impl<'a> ProximitySensor<'a> {
                     // run it
                     match app.enqueued_command_type {
                         ProximityCommand::ReadProximity => {
-                            self.driver.read_proximity();
+                            let _ = self.driver.read_proximity();
                             self.command_running.set(ProximityCommand::ReadProximity);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
-                            self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                            let _ = self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                             self.command_running
                                 .set(ProximityCommand::ReadProximityOnInterrupt);
                         }
@@ -204,7 +203,7 @@ impl<'a> ProximitySensor<'a> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn find_thresholds(&self) -> Thresholds {
@@ -275,7 +274,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
         self.command_running.set(ProximityCommand::NoCommand);
 
         // When we are done with callback (one command) then find another waiting command to run and run it
-        self.run_next_command();
+        let _ = self.run_next_command();
     }
 }
 

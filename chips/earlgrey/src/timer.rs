@@ -5,7 +5,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks64};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 
 const PRESCALE: u16 = ((CONFIG.cpu_freq / 10_000) - 1) as u16; // 10Khz
@@ -110,18 +110,18 @@ impl<'a> time::Counter<'a> for RvTimer<'a> {
         self.overflow_client.set(client);
     }
 
-    fn start(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn start(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be stopped...
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         // RISCV counter can't be reset
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -144,7 +144,7 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
         self.mtimer.get_alarm()
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.intr_enable.write(intr::timer0::CLEAR);
 
         self.mtimer.disarm()

@@ -1,9 +1,9 @@
 //! Interface for direct control of the analog comparators.
 
+use crate::ErrorCode;
+
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
 // Last modified August 9th, 2018
-
-use crate::returncode::ReturnCode;
 
 pub trait AnalogComparator<'a> {
     /// The chip-dependent type of an analog comparator channel.
@@ -18,10 +18,10 @@ pub trait AnalogComparator<'a> {
     /// Start interrupt-based comparison for the chosen channel (e.g. channel 1
     /// for AC1). This will make it listen and send an interrupt as soon as
     /// Vp > Vn.
-    fn start_comparing(&self, channel: &Self::Channel) -> ReturnCode;
+    fn start_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 
     /// Stop interrupt-based comparison for the chosen channel.
-    fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode;
+    fn stop_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn Client);
 }

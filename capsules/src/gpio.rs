@@ -107,17 +107,17 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
         if let Some(pin) = pins[index] {
             match config {
                 0 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
                     CommandReturn::success()
                 }
 
                 1 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
                     CommandReturn::success()
                 }
 
                 2 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
                     CommandReturn::success()
                 }
 

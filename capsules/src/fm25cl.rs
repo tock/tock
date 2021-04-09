@@ -46,7 +46,6 @@ use core::convert::TryInto;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];
@@ -82,7 +81,7 @@ enum State {
 }
 
 pub trait FM25CLCustom {
-    fn read_status(&self) -> ReturnCode;
+    fn read_status(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait FM25CLClient {
@@ -160,7 +159,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                 self.state.set(State::WriteEnable);
                 let res = self.spi.read_write_bytes(txbuffer, None, 1);
                 match res {
-                    ReturnCode::SUCCESS => Ok(()),
+                    Ok(()) => Ok(()),
                     rc => Err(rc.try_into().unwrap()),
                 }
             })
@@ -189,7 +188,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                             .spi
                             .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
                         match res {
-                            ReturnCode::SUCCESS => Ok(()),
+                            Ok(()) => Ok(()),
                             rc => Err(rc.try_into().unwrap()),
                         }
                     })
@@ -235,7 +234,8 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
                         write_buffer[(i + 3) as usize] = buffer[i as usize];
                     }
 
-                    self.spi
+                    let _ = self
+                        .spi
                         .read_write_bytes(write_buffer, read_buffer, write_len + 3);
                 });
             }
@@ -284,22 +284,22 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
 
 // Implement the custom interface that exposes chip-specific commands.
 impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
-    fn read_status(&self) -> ReturnCode {
+    fn read_status(&self) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         txbuffer[0] = Opcodes::ReadStatusRegister as u8;
 
                         // Use 4 bytes instead of the required 2 because that works better
                         // with DMA for some reason.
-                        self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
+                        let _ = self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
                         self.state.set(State::ReadStatus);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     })
             })
     }

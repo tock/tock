@@ -79,7 +79,7 @@ impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
-        self.spi_slave.read_write_bytes(
+        let _ = self.spi_slave.read_write_bytes(
             self.kernel_write.take(),
             self.kernel_read.take(),
             write_len,

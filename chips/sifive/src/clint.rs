@@ -4,7 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 
 register_structs! {
@@ -76,7 +76,7 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
         self.mtimer.get_alarm()
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         self.mtimer.disarm()
     }
 

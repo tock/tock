@@ -54,7 +54,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
 pub static mut RXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
@@ -219,15 +219,15 @@ impl<
         );
     }
 
-    pub fn read_identification(&self) -> ReturnCode {
+    pub fn read_identification(&self) -> Result<(), ErrorCode> {
         self.configure_spi();
 
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         txbuffer[0] = Opcodes::RDID as u8;
 
                         self.state.set(State::ReadId);
@@ -236,19 +236,19 @@ impl<
             })
     }
 
-    fn enable_write(&self) -> ReturnCode {
+    fn enable_write(&self) -> Result<(), ErrorCode> {
         self.write_protect_pin.map(|pin| {
             pin.set();
         });
         self.txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 txbuffer[0] = Opcodes::WREN as u8;
                 self.spi.read_write_bytes(txbuffer, None, 1)
             })
     }
 
-    fn erase_sector(&self, sector_index: u32) -> ReturnCode {
+    fn erase_sector(&self, sector_index: u32) -> Result<(), ErrorCode> {
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -261,16 +261,16 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
 
         let retval = self
             .txbuffer
             .take()
-            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
                         // Setup the read instruction
                         txbuffer[0] = Opcodes::READ as u8;
                         txbuffer[1] = ((sector_index * SECTOR_SIZE) >> 16) as u8;
@@ -290,11 +290,12 @@ impl<
                     })
             });
 
-        if retval == ReturnCode::SUCCESS {
-            self.client_sector.replace(sector);
-            Ok(())
-        } else {
-            Err((retval, sector))
+        match retval {
+            Ok(()) => {
+                self.client_sector.replace(sector);
+                Ok(())
+            }
+            Err(ecode) => Err((ecode, sector)),
         }
     }
 
@@ -302,7 +303,7 @@ impl<
         &self,
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
-    ) -> Result<(), (ReturnCode, &'static mut Mx25r6435fSector)> {
+    ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
@@ -310,11 +311,12 @@ impl<
         });
         let retval = self.enable_write();
 
-        if retval == ReturnCode::SUCCESS {
-            self.client_sector.replace(sector);
-            Ok(())
-        } else {
-            Err((retval, sector))
+        match retval {
+            Ok(()) => {
+                self.client_sector.replace(sector);
+                Ok(())
+            }
+            Err(ecode) => Err((ecode, sector)),
         }
     }
 }
@@ -377,7 +379,7 @@ impl<
                                 page_index: page_index + 1,
                             });
                             self.client_sector.replace(sector);
-                            self.spi.read_write_bytes(
+                            let _ = self.spi.read_write_bytes(
                                 write_buffer,
                                 Some(read_buffer),
                                 (PAGE_SIZE + 4) as usize,
@@ -396,7 +398,7 @@ impl<
                 write_buffer[2] = ((sector_index * SECTOR_SIZE) >> 8) as u8;
                 write_buffer[3] = ((sector_index * SECTOR_SIZE) >> 0) as u8;
 
-                self.spi.read_write_bytes(write_buffer, None, 4);
+                let _ = self.spi.read_write_bytes(write_buffer, None, 4);
             }
             State::EraseSectorErase { operation } => {
                 self.state.set(State::EraseSectorCheckDone { operation });
@@ -413,7 +415,8 @@ impl<
                     // Check the status byte to see if the erase is done or not.
                     if status & 0x01 == 0x01 {
                         // Erase is still in progress.
-                        self.spi
+                        let _ = self
+                            .spi
                             .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Erase has finished, so jump to the next state.
@@ -460,7 +463,7 @@ impl<
                     });
                     // Need to write enable before each PP
                     write_buffer[0] = Opcodes::WREN as u8;
-                    self.spi.read_write_bytes(write_buffer, None, 1);
+                    let _ = self.spi.read_write_bytes(write_buffer, None, 1);
                 }
             }
             State::WriteSectorWrite {
@@ -484,7 +487,8 @@ impl<
                     }
                 });
 
-                self.spi
+                let _ = self
+                    .spi
                     .read_write_bytes(write_buffer, None, (PAGE_SIZE + 4) as usize);
             }
             State::WriteSectorCheckDone {
@@ -511,7 +515,8 @@ impl<
                     // Check the status byte to see if the write is done or not.
                     if status & 0x01 == 0x01 {
                         // Write is still in progress.
-                        self.spi
+                        let _ = self
+                            .spi
                             .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Write has finished, so go back to writing.
@@ -542,7 +547,8 @@ impl<
         self.txbuffer.take().map(|write_buffer| {
             self.rxbuffer.take().map(move |read_buffer| {
                 write_buffer[0] = Opcodes::RDSR as u8;
-                self.spi
+                let _ = self
+                    .spi
                     .read_write_bytes(write_buffer, Some(read_buffer), 2);
             });
         });
@@ -575,7 +581,7 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_sector(page_number as u32, buf)
     }
 
@@ -583,11 +589,11 @@ impl<
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_sector(page_number as u32, buf)
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.erase_sector(page_number as u32)
     }
 }

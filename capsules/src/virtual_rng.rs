@@ -3,7 +3,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::rng::{Client, Continue, Rng};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
@@ -27,7 +27,7 @@ impl<'a> MuxRngMaster<'a> {
         }
     }
 
-    fn do_next_op(&self) -> ReturnCode {
+    fn do_next_op(&self) -> Result<(), ErrorCode> {
         if self.inflight.is_none() {
             let mnode = self
                 .devices
@@ -41,7 +41,7 @@ impl<'a> MuxRngMaster<'a> {
                         let success_code = self.rng.get();
 
                         // Only set inflight to node if we successfully initiated rng
-                        if success_code == ReturnCode::SUCCESS {
+                        if success_code == Ok(()) {
                             self.inflight.set(node);
                         }
                         success_code
@@ -58,10 +58,10 @@ impl<'a> MuxRngMaster<'a> {
             if let Some(r) = return_code {
                 r
             } else {
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             }
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -70,14 +70,14 @@ impl<'a> Client for MuxRngMaster<'a> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> Continue {
         // Try find if randomness is available, or return done
         self.inflight.take().map_or(Continue::Done, |device| {
             let cont_code = device.randomness_available(_randomness, _error);
 
             if cont_code == Continue::Done {
-                self.do_next_op();
+                let _ = self.do_next_op();
             }
 
             cont_code
@@ -122,26 +122,26 @@ impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
 }
 
 impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.operation.set(Op::Get);
         self.mux.do_next_op()
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         // Set current device to idle
         self.operation.set(Op::Idle);
 
         self.mux.inflight.map_or_else(
             || {
                 // If no node inflight, just set node to idle and return
-                ReturnCode::SUCCESS
+                Ok(())
             },
             |current_node| {
                 // Find if current device is the one in flight or not
                 if *current_node == self {
                     self.mux.rng.cancel()
                 } else {
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
             },
         )
@@ -162,7 +162,7 @@ impl<'a> Client for VirtualRngMasterDevice<'a> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> Continue {
         self.client.map_or(Continue::Done, move |client| {
             client.randomness_available(randomness, error)

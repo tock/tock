@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM, AES128_KEY_SIZE, CCM_NONCE_LENGTH};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub struct Test<'a, A: AES128CCM<'a>> {
     aes_ccm: &'a A,
@@ -97,21 +97,17 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
             buf[m_off..m_off + m_len + mic_len].copy_from_slice(c_data);
         }
 
-        if self.aes_ccm.set_key(&KEY) != ReturnCode::SUCCESS
-            || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
-        {
+        if self.aes_ccm.set_key(&KEY) != Ok(()) || self.aes_ccm.set_nonce(&nonce) != Ok(()) {
             panic!("aes_ccm_test failed: cannot set key or nonce.");
         }
 
-        let (res, opt_buf) =
-            self.aes_ccm
-                .crypt(buf, a_off, m_off, m_len, mic_len, confidential, encrypting);
-        if res != ReturnCode::SUCCESS {
-            debug!("Failed to start test.")
-        }
-        if let Some(buf) = opt_buf {
-            self.buf.replace(buf);
-        }
+        let _ = self
+            .aes_ccm
+            .crypt(buf, a_off, m_off, m_len, mic_len, confidential, encrypting)
+            .map_err(|(_code, buf)| {
+                debug!("Failed to start test.");
+                self.buf.replace(buf);
+            });
     }
 
     fn check_test(&self, tag_is_valid: bool) {
@@ -186,9 +182,9 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
 }
 
 impl<'a, A: AES128CCM<'a>> CCMClient for Test<'a, A> {
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.buf.replace(buf);
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             debug!("aes_ccm_test failed: crypt_done returned {:?}", res);
         } else {
             self.check_test(tag_is_valid);

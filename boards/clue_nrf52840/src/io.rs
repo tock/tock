@@ -1,5 +1,6 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use kernel::ErrorCode;
 
 use cortexm4;
 use kernel::debug;
@@ -38,7 +39,7 @@ struct DummyUsbClient {
 }
 
 impl uart::TransmitClient for DummyUsbClient {
-    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: kernel::ReturnCode) {
+    fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: Result<(), ErrorCode>) {
         self.fired.set(true);
     }
 }
@@ -93,7 +94,7 @@ impl IoWrite for Writer {
                 STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
                 let static_buf = &mut STATIC_PANIC_BUF;
                 cdc.set_transmit_client(&DUMMY);
-                cdc.transmit_buffer(static_buf, max);
+                let _ = cdc.transmit_buffer(static_buf, max);
                 loop {
                     if let Some(interrupt) = cortexm4::nvic::next_pending() {
                         if interrupt == 39 {

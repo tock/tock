@@ -6,8 +6,6 @@
 //! can be ignored by the chip capsule and an error will automatically be
 //! returned.
 
-use returncode::ReturnCode;
-
 /// A basic interface for a 9-DOF compatible chip.
 /// Not all functions must be implemented if not all features are supported
 /// (for instance some chips may not include a gyroscope).
@@ -19,20 +17,20 @@ pub trait NineDof<'a> {
 
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.
-    fn read_accelerometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_accelerometer(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the magnetometer in all
     /// three directions.
-    fn read_magnetometer(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_magnetometer(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 
     /// Get a single instantaneous reading from the gyroscope of the rotation
     /// around all three axes.
-    fn read_gyroscope(&self) -> ReturnCode {
-        ReturnCode::ENODEVICE
+    fn read_gyroscope(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NODEVICE)
     }
 }
 

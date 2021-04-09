@@ -7,7 +7,7 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// The type of the sensor implies how the raw ADC reading should be converted
 /// to a light value.
@@ -56,7 +56,7 @@ impl<'a, A: hil::adc::Adc> hil::sensors::AmbientLight<'a> for AnalogLightSensor<
         self.client.set(client);
     }
 
-    fn read_light_intensity(&self) -> ReturnCode {
+    fn read_light_intensity(&self) -> Result<(), ErrorCode> {
         self.adc.sample(self.channel)
     }
 }
@@ -112,7 +112,7 @@ impl<'a, A: hil::adc::Adc> hil::sensors::TemperatureDriver<'a> for AnalogTempera
         self.client.set(client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         self.adc.sample(self.channel)
     }
 }

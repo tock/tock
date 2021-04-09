@@ -116,7 +116,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> Component
         );
         kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-        self.uart.configure(uart::Parameters {
+        let _ = self.uart.configure(uart::Parameters {
             baud_rate: 115200,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,

@@ -122,7 +122,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         self.next_alarm.set(earliest_alarm);
         match earliest_alarm {
             Expiration::Disabled => {
-                self.alarm.disarm();
+                let _ = self.alarm.disarm();
             }
             Expiration::Enabled { reference, dt } => {
                 // This logic handles when the underlying Alarm is wider than
@@ -299,7 +299,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
         // Otherwise, check all the alarms and find the next one, rescheduling
         // the underlying alarm.
         if self.num_armed.get() == 0 {
-            self.alarm.disarm();
+            let _ = self.alarm.disarm();
         } else {
             self.reset_active_alarm();
         }

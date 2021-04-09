@@ -2,7 +2,7 @@
 
 use kernel::common::registers::ReadWrite;
 use kernel::hil::time::{Ticks, Ticks64};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub struct MachineTimer<'a> {
     compare_low: &'a ReadWrite<u32>,
@@ -77,9 +77,9 @@ impl<'a> MachineTimer<'a> {
         Ticks64::from(val)
     }
 
-    pub fn disarm(&self) -> ReturnCode {
+    pub fn disarm(&self) -> Result<(), ErrorCode> {
         self.disable_machine_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     pub fn is_armed(&self) -> bool {
