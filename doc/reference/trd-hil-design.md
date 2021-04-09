@@ -14,7 +14,7 @@ Design of Kernel Hardware Interface Layers (HILs)
 Abstract
 -------------------------------
 
-This document describes design rules hardware interface layers (HILs)
+This document describes design rules of hardware interface layers (HILs)
 in the Tock operating system. HILs are Rust traits that provide a
 standard interface to a hardware resource, such as a sensor, a flash
 chip, a cryptographic accelerator, a bus, or a radio. Developers
@@ -32,7 +32,7 @@ functionality. For example, a system call driver capsule that gives
 processes access to a temperature sensor relies on having a reference
 to an implementation of the `kernel::hil::sensors::TemperatureDriver`
 trait. This allows the system call driver capsule to work on top of
-any implemeentation of the `TemperatureDriver` trait, whether it is a
+any implementation of the `TemperatureDriver` trait, whether it is a
 local, on-chip sensor, an analog sensor connected to an ADC, or a
 digital sensor over a bus.
 
@@ -43,7 +43,7 @@ system driver capsules, such as with GPIO. They can be virtualized to
 allow multiple clients to share a single resource, such as with the
 virtual timer capsule.
 
-This variety of use cases place a complex set of requirements on how a
+This variety of use cases places a complex set of requirements on how a
 HIL must behave. For example, Tock expects that every HIL is
 virtualizable: it is possible to take one instance of the trait and
 allow multiple clients to use it simultaneously, such that each one
@@ -66,7 +66,7 @@ design rules for HILs. They are:
 5. Split-phase operrations with a buffer parameter take a mutable reference 
    even if their access is read-only.
 6. Split-phase completion callbacks include a `Result` parameter whose 
-   `Err` contains  an ErrorCode`; these errors are a superset of the 
+   `Err` contains  an `ErrorCode`; these errors are a superset of the 
    synchronous errors.
 7. Split-phase completion callbacks for an operation with a buffer 
    parameter return the buffer.
@@ -110,14 +110,14 @@ trait Random {
 }
 
 trait Client {
-  fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>);
+  fn random_ready(&self, result: Result<u32, ErrorCode>);
 }
 ```
 
 If `Random` is implemented on top of a hardware random number
 generator, the random bits might not be ready until an interrupt
 is issued. E.g., if the implementation generates random numbers
-by runnning AES128 in counter mode on a hidden seed[HCG], then 
+by running AES128 in counter mode on a hidden seed[HCG], then 
 generating random bits may require an interrupt.
 
 But AES128 computes *4* 32-bit values of randomness. So a smart
@@ -364,7 +364,7 @@ both makes Tock more in line with standard Rust code and enforces the invariant.
 Rule 5: Always Pass a Mutable Reference to Buffers
 ===============================
 
-Suppose you are desiging a trait to write some text to an LCD screen. The trait
+Suppose you are designing a trait to write some text to an LCD screen. The trait
 takes a buffer of ASCII characters, which it puts on the LCD:
 
 ```rust
@@ -430,7 +430,7 @@ impl uart::ReceiveClient<'static> for TypeToText {
 The problem is in this last line. `TypeToText` needs a mutable
 reference so it can read into it. But once it passes the reference
 to `LcdTextDisplay`, it discards mutability and cannot get it back:
-`text_displayed` provdes an immutable reference, which then cannot
+`text_displayed` provides an immutable reference, which then cannot
 be put back into the `buffer` field of `TypeToText`.
 
 For this reason, split phase operations that take references should
