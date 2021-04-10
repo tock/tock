@@ -608,6 +608,14 @@ impl Kernel {
                 break;
             }
 
+            // Check if this process is actually ready to run. If not, we don't
+            // try to run it. This case can happen if a process faults and is
+            // stopped, for example.
+            if !process.ready() {
+                return_reason = StoppedExecutingReason::NoWorkLeft;
+                break;
+            }
+
             match process.get_state() {
                 process::State::Running => {
                     // Running means that this process expects to be running, so
