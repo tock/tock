@@ -107,16 +107,27 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52832::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
     let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
         Nrf52832DefaultPeripherals::new(ppi)
     );
+
+    nrf52832_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52832::init();
+
+    let nrf52832_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();

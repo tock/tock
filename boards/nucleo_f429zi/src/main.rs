@@ -213,13 +213,17 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
 }
 
-/// Main function.
+/// Statically initialize the core peripherals for the chip.
 ///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f429zi::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> (
+    &'static mut Stm32f429ziDefaultPeripherals<'static>,
+    &'static stm32f429zi::syscfg::Syscfg<'static>,
+    &'static stm32f429zi::dma1::Dma1<'static>,
+) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
     let syscfg = static_init!(
@@ -235,6 +239,17 @@ pub unsafe fn main() {
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1)
     );
+    (peripherals, syscfg, dma1)
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    stm32f429zi::init();
+
+    let (peripherals, syscfg, dma1) = get_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
