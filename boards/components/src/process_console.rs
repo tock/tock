@@ -55,6 +55,7 @@ impl Component for ProcessConsoleComponent {
                 console_uart,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
+                &mut process_console::QUEUE_BUF,
                 &mut process_console::COMMAND_BUF,
                 self.board_kernel,
                 Capability,

@@ -114,6 +114,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::str;
+use core::fmt::{write, Result, Write};
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
@@ -121,21 +122,26 @@ use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
-
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
-pub static mut WRITE_BUF: [u8; 4] = [0; 4];
+pub static mut WRITE_BUF: [u8; 100] = [0; 100];
+pub static mut QUEUE_BUF: [u8; 500] = [0; 500];
+pub static mut SIZE: usize = 0;
 // Since reads are byte-by-byte, to properly echo what's typed,
 // we can use a very small read buffer.
 pub static mut READ_BUF: [u8; 4] = [0; 4];
 // Commands can be up to 32 bytes long: since commands themselves are 4-5
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
+//const BUF_LEN :usize = 500;
+//static mut STATIC_BUF: [u8; BUF_LEN] = [0; BUF_LEN];
 
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
+    queue_buffer: TakeCell<'static,[u8]>,
+    queue_size: Cell<usize>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
@@ -152,11 +158,29 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     capability: C,
 }
 
+pub struct ConsoleWriter {
+    buf : [u8;100],
+}
+impl ConsoleWriter {
+    pub fn new() -> ConsoleWriter {
+        ConsoleWriter {
+            buf: [0;100],
+        }
+    }
+}
+impl Write for ConsoleWriter{
+    fn write_str(&mut self, s: &str) ->Result {
+        self.buf[..].copy_from_slice(&(s).as_bytes()[..]);
+        Ok(())
+    }
+}
+
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
+        queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
         capability: C,
@@ -165,6 +189,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             uart: uart,
             tx_in_progress: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
+            queue_buffer: TakeCell::new(queue_buffer),
+            queue_size: Cell::new(0),
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
@@ -187,9 +213,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
         ReturnCode::SUCCESS
     }
-
+    
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
+
+        
         self.command_buffer.map(|command| {
             let mut terminator = 0;
             let len = command.len();
@@ -205,12 +233,22 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             // it starts.
             if terminator > 0 {
                 let cmd_str = str::from_utf8(&command[0..terminator]);
+                
                 match cmd_str {
                     Ok(s) => {
                         let clean_str = s.trim();
+                        
                         if clean_str.starts_with("help") {
-                            debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help status list stop start fault");
+                            // unsafe{
+                            //     let buf = b"hello_";
+                            //     STATIC_BUF[..].copy_from_slice(&buf[..]);
+                            //     // STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
+                            //     // let static_buf = &mut STATIC_PANIC_BUF;
+                            //     let static_buf = &mut STATIC_BUF;
+                            //     self.uart.transmit_buffer(static_buf, 6);
+                            // }
+                            self.write_bytes(b"Welcome to the process console.\n");
+                            self.write_bytes(b"Valid commands are: help status list stop start fault\n");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -220,7 +258,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
-                                            debug!("Process {} resumed.", name);
+                                            let mut w = ConsoleWriter::new();
+                                            let _ = write(&mut w,format_args!("Process {} resumed.\n", name));
+                                            self.write_bytes(&(w.buf)[..]);
                                         }
                                     },
                                 );
@@ -234,7 +274,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
-                                            debug!("Process {} stopped", proc_name);
+                                            let mut w = ConsoleWriter::new();
+                                            let _ = write(&mut w,format_args!("Process {} stopped\n", proc_name));
+                                            self.write_bytes(&(w.buf)[..]);
+                                            //debug!("Process {} stopped", proc_name);
                                         }
                                     },
                                 );
@@ -248,7 +291,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
-                                            debug!("Process {} now faulted", proc_name);
+                                            let mut w = ConsoleWriter::new();
+                                            let _ = write(&mut w,format_args!("Process {} now faulted\n", proc_name));
+                                            self.write_bytes(&(w.buf)[..]);
+                                            //debug!("Process {} now faulted", proc_name);
                                         }
                                     },
                                 );
@@ -262,9 +308,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     let pname = proc.get_process_name();
                                     let appid = proc.appid();
                                     let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
-
-                                    debug!(
-                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}",
+                                    let mut w = ConsoleWriter::new();
+                                    let _ = write(&mut w,format_args!(
+                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
                                         appid,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
@@ -273,23 +319,66 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         proc.get_restart_count(),
                                         proc.get_state(),
                                         grants_used,
-                                        grants_total
-                                    );
+                                        grants_total));
+                                    self.write_bytes(&(w.buf)[..]);
+                                    // debug!(
+                                    //     "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}",
+                                    //     appid,
+                                    //     pname,
+                                    //     proc.debug_timeslice_expiration_count(),
+                                    //     proc.debug_syscall_count(),
+                                    //     proc.debug_dropped_callback_count(),
+                                    //     proc.get_restart_count(),
+                                    //     proc.get_state(),
+                                    //     grants_used,
+                                    //     grants_total
+                                    // );
                                 });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
-                            debug!(
-                                "Total processes: {}",
-                                info.number_loaded_processes(&self.capability)
-                            );
-                            debug!(
-                                "Active processes: {}",
-                                info.number_active_processes(&self.capability)
-                            );
-                            debug!(
-                                "Timeslice expirations: {}",
-                                info.timeslice_expirations(&self.capability)
-                            );
+                            let mut w = ConsoleWriter::new();
+                            let _ = write(&mut w,format_args!(
+                                "Total processes: {}\n",
+                                info.number_loaded_processes(&self.capability)));
+                            self.write_bytes(&(w.buf)[..]);
+                            // debug!(
+                            //     "Total processes: {}",
+                            //     info.number_loaded_processes(&self.capability)
+                            // );
+                            let _ = write(&mut w,format_args!(
+                                "Active processes: {}\n",
+                                info.number_active_processes(&self.capability)));
+                            self.write_bytes(&(w.buf)[..]);
+                            // debug!(
+                            //     "Active processes: {}",
+                            //     info.number_active_processes(&self.capability)
+                            // );
+                            let _ = write(&mut w,format_args!(
+                                "Timeslice expirations: {}\n",
+                                info.timeslice_expirations(&self.capability)));
+                            self.write_bytes(&(w.buf)[..]);
+                            // debug!(
+                            //     "Timeslice expirations: {}",
+                            //     info.timeslice_expirations(&self.capability)
+                            // );
+                        } else if clean_str.starts_with("kernel"){
+                            // let writer = debug::get_debug_writer();
+                            // self.kernel.process_each_capability(
+                            //     &self.capability, 
+                            //     |proc| {
+                            //         proc.print_full_process(writer);
+                            // });
+
+                            
+                            // debug::panic_begin(Fn());
+                            // let _ = writer.write_fmt(format_args!(
+                            //     "\tKernel version {}\r\n",
+                            //     option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+                            // ));
+                            // //Flush debug buffer if needed
+                            // debug::flush(writer);
+                            // debug::panic_cpu_state(chip, writer);
+                            // debug::panic_process_info(processes, writer);
                         } else {
                             debug!("Valid commands are: help status list stop start fault");
                         }
@@ -306,6 +395,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
     fn write_byte(&self, byte: u8) -> ReturnCode {
         if self.tx_in_progress.get() {
+            self.queue_buffer.map(|buf| {
+                buf[self.queue_size.get()] = byte;
+                self.queue_size.set(self.queue_size.get() + 1);
+            });
             ReturnCode::EBUSY
         } else {
             self.tx_in_progress.set(true);
@@ -319,6 +412,12 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
     fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
         if self.tx_in_progress.get() {
+            self.queue_buffer.map(|buf| {
+                let size = self.queue_size.get();
+                let len = cmp::min(bytes.len(), buf.len()-size);
+                (&mut buf[size..size+len]).copy_from_slice(&bytes[..len]);
+                self.queue_size.set(size + len);
+            });
             ReturnCode::EBUSY
         } else {
             self.tx_in_progress.set(true);
@@ -336,6 +435,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
+        self.queue_buffer.take().map(|buf| {
+            let len = self.queue_size.get();
+            self.uart.transmit_buffer(buf, len);
+            self.queue_size.set(0);
+        });
         self.tx_in_progress.set(false);
 
         // Check if we just received and echoed a newline character, and
