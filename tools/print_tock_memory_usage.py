@@ -112,9 +112,7 @@ def parse_mangled_name(name):
        name, removing the trailing hash. This is not just a simple
        demangling: for methods, it outputs the structure + method
        as a :: separated name, eliding the trait (if any)."""
-    
-    #print("Name:           ", name);
-    
+
     # Trim a trailing . number (e.g., ".71") which breaks demangling
     match = re.search('\.\d+$', name)
     if match != None:
@@ -125,12 +123,12 @@ def parse_mangled_name(name):
     if match != None:
         name = name[:match.start()]
 
-    demangled = ""       
+    demangled = ""
     try:
         demangled = cxxfilt.demangle(name, external_only=False)
     except cxxfilt.InvalidName:
         demangled = name
-        
+
     corrected_name = trim_hash_from_symbol(demangled)
     for escape in escape_sequences:
         corrected_name = corrected_name.replace(escape[0], escape[1])
@@ -303,9 +301,9 @@ def group_symbols(groups, symbols, waste, section):
 
     if waste and waste_sum > 0:
         output = output + "Total of " + str(waste_sum) + " bytes wasted in " + section + "\n"
-        
+
     return output
-        
+
 def string_for_group(key, padding_size, group_size, num_elements):
     """Return the string for a group of variables, with padding added on the
        right; decides whether to add a * or not based on the name of the group
@@ -331,7 +329,7 @@ def print_groups(title, groups):
     output = ""
     max_string_len = len(max(groups.keys(), key=len))
     group_sizes = {}
-    
+
     for key in groups.keys():
         symbols = groups[key]
 
@@ -362,7 +360,7 @@ def print_symbol_information():
     gaps = gaps + group_symbols(variable_groups, kernel_uninitialized, show_waste, "RAM")
     print_groups("Variable groups (RAM)", variable_groups)
     print(gaps)
-    
+
     print("Embedded data (flash): " + str(padding_text) + " bytes")
     print()
     function_groups = {}
@@ -397,7 +395,7 @@ def compute_padding(symbols):
 def parse_options(opts):
     """Parse command line options."""
     global symbol_depth, verbose, show_waste, sort_by_size
-    valid = 'd:vsw' 
+    valid = 'd:vsw'
     long_valid = ['depth=', 'verbose', 'show-waste', 'size']
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
@@ -419,7 +417,7 @@ def parse_options(opts):
 
 
  # Script starts here ######################################
-if __name__ == "__main__": 
+if __name__ == "__main__":
     arguments = sys.argv[1:]
     if len(arguments) < 1:
         usage("no ELF specified")
