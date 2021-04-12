@@ -89,6 +89,24 @@ def trim_hash_from_symbol(symbol):
     else:
         return symbol
 
+escape_sequences = [
+    ["$C$",     ","],
+    ["$SP$",    "@"],
+    ["$BP$",    "*"],
+    ["$RF$",    "&"],
+    ["$LT,GT$", "<>"],
+    ["$LT$",    "<"],
+    ["$GT$",    ">"],
+    ["$LP$",    "("],
+    ["$RP$",    ")"],
+    ["$u20$",   " "],
+    ["$u27$",   "\'"],
+    ["$u5b$",   "["],
+    ["$u5d$",   "]"],
+    ["..",      ":"],
+    [".",       "-"]
+]
+
 def parse_mangled_name(name):
     """Take a potentially mangled symbol name and demangle it to its
        name, removing the trailing hash. This is not just a simple
@@ -114,69 +132,44 @@ def parse_mangled_name(name):
         demangled = name
         
     corrected_name = trim_hash_from_symbol(demangled)
+    for escape in escape_sequences:
+        corrected_name = corrected_name.replace(escape[0], escape[1])
 
-    #print("  - Demangled:  ", demangled);
-    #print("  - Corrected:  ", corrected_name);
+    # Need to separate the name of the structure from the name of
+    # the method. If it starts with a _, then it's of the form
+    # _<structure as trait>::method otherwise it's
+    # structure::method. So first carve off the method name, then
+    # figure out the structure.
 
-    # Rust-specific mangled names triggered by Tock Components, e.g.
-    # ZN100_$LT$capsules..ieee802154..driver..RadioDriver$u20$as$u20$capsules..ieee802154..device..RxClient$GT$7receive
-    # This name has two parts: the structure, then the trait method it is
-    # implementing.
+    structure_end = corrected_name.rfind("::")
+    full_structure_name = ""
 
-    if corrected_name[0:5] == "_$LT$":
-        # Trim off the _$LT$
-        corrected_name = corrected_name[len("_$LT$"):]
-        
-    # If this is an implementation of a trait method, the trait's name
-    # is interposed between the structure and method. Cut it out.
-    # It starts with $u20$as$u20$ and ends with $GT$.
+    if structure_end >= 0:
+        method = corrected_name[structure_end + 2:]
+        full_structure_name = corrected_name[0:structure_end]
+    else:
+        method = corrected_name
 
-    structure_name = corrected_name
-    structure_end = len(structure_name)
-    # If there is an "as", cut it off
-    as_end = structure_name.find("$u20$as$u20$");
-    if as_end >= 0:
-        structure_name = structure_name[:as_end]
-        structure_end = as_end
+    structure = full_structure_name
+    if corrected_name[0:1] == "_":
+        split = full_structure_name.split(" as ")
+        structure = split[0]
+        # trim the _<
+        structure = structure[2:]
 
-    # If there is a "for", cut it off
-    for_end = structure_name.find("$u20$for$u20$");
-    if for_end >= 0:
-        structure_name = structure_name[:for_end]
-        structure_end = for_end
+    symbol = structure
+    if len(symbol) > 0:
+      symbol = symbol + "::" + method
+    else :
+        # No structure, just a method
+        symbol = method
 
-    # Structures can have a trailing $LT$ which takes one
-    # of 3 forms: trim all of them.
-    shorter_structure_end = structure_name.find("::_$LT");
-    if shorter_structure_end >= 0:
-        structure_name = structure_name[:shorter_structure_end]
+    if symbol[0:2] == "-L" or symbol[0:2] == "-l" or symbol[0:4] == "anon":
+        symbol = "Anonymous"
+    if symbol[0:7] == "-hidden":
+        symbol = "Hidden"
 
-    shorter_structure_end = structure_name.find("_$LT");
-    if shorter_structure_end >= 0:
-        structure_name = structure_name[:shorter_structure_end]
-        
-    shorter_structure_end = structure_name.find("$LT");
-    if shorter_structure_end >= 0:
-        structure_name = structure_name[:shorter_structure_end]
-
-    # mangled_method is the symbol after the structure and trait.
-    # It can have a lot of extra stuff besides the name, including
-    # "as" elements and "$GT$". Remove them.
-    mangled_method = corrected_name[structure_end:]
-    trait_start = mangled_method.find("$u20$as$u20$") + len("$u20$as$u20$")
-    mangled_method = mangled_method[trait_start:]
-
-
-    method = mangled_method
-    trait_end = method.find("$GT$")
-    if trait_end >= 0:
-        trait_end = trait_end + len("$GT$")
-        method = method[trait_end:]
-    #print("  - Method:     ", method)
-    
-    symbol = structure_name + method
-    symbol = symbol.replace("..", "::")
-    
+#    print(name, "->", symbol)
     return symbol
 
 def process_symbol_line(line):
