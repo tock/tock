@@ -94,6 +94,10 @@ impl<'a> UnixProcess<'a> {
         Ok(())
     }
 
+    pub fn terminate(&self) {
+        self.process.map(|process| process.kill());
+    }
+
     /// Checks if the process has yet been started.
     pub fn was_started(&self) -> bool {
         self.process.is_some()

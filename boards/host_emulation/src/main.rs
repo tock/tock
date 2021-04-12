@@ -129,6 +129,15 @@ pub unsafe fn reset_handler() {
             Some(p) => p,
             None => break,
         };
+
+        chip.add_terminate_callback(&|| {
+            for process in &UNINITIALIZED_PROCESSES {
+                if let Some(process) = process {
+                    process.terminate();
+                }
+            }
+        });
+
         let state = static_init!(HostStoredState, HostStoredState::new(uninitialized_process));
         match EmulatedProcess::<chip::HostChip>::create(
             AppId::new_external(board_kernel, i, i, EXTERNAL_PROCESS_CAP),
