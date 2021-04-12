@@ -335,6 +335,13 @@ pub trait ProcessType {
     /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
+
+    fn flash_protected(&self) -> u32;
+    fn app_memory_break(&self) -> *const u8;
+    fn get_app_heap_start(&self) -> Option<usize>;
+    fn get_app_stack_start(&self) -> Option<usize>;
+    fn get_app_stack_end(&self) -> Option<usize>;
+
     /// The start address of allocated RAM for this process.
     fn mem_start(&self) -> *const u8;
 
@@ -1016,6 +1023,27 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         })
     }
 
+    fn flash_protected(&self) -> u32{
+        self.header.get_protected_size() 
+    }
+    fn app_memory_break(&self) -> *const u8{
+        self.app_break.get()
+    }
+    fn get_app_heap_start(&self) -> Option<usize>{
+        self.debug.map_or(None, |debug| {
+            debug.app_heap_start_pointer.map(|p| p as usize)
+        })
+    }
+    fn get_app_stack_start(&self) -> Option<usize>{
+        self.debug.map_or(None, |debug| {
+            debug.app_stack_start_pointer.map(|p| p as usize)
+        })
+    }
+    fn get_app_stack_end(&self) -> Option<usize>{
+        self.debug.map_or(None, |debug| {
+            debug.app_stack_min_pointer.map(|p| p as usize)
+        })
+    }
     fn mem_start(&self) -> *const u8 {
         self.memory.as_ptr()
     }
