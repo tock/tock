@@ -1,8 +1,9 @@
 use cortex_m_semihosting::hprintln;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
-use kernel::ClockInterface;
+use kernel::hil::uart::ReceiveClient;
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Transmit, Width};
+use kernel::hil::uart::{Receive, TransmitClient};
 use kernel::ReturnCode;
 
 register_structs! {
@@ -350,6 +351,14 @@ register_bitfields! [u32,
     ]
 ];
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum UARTStateTX {
+    Idle,
+    Transmitting,
+    AbortRequested,
+}
+
 const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40034000 as *const UartRegisters) };
 
@@ -467,5 +476,47 @@ impl Configure for Uart {
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
         ReturnCode::SUCCESS
+    }
+}
+
+impl<'a> Transmit<'a> for Uart {
+    fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
+        //self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::FAIL, Some(tx_buffer))
+    }
+
+    fn transmit_word(&self, word: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+}
+
+impl<'a> Receive<'a> for Uart {
+    fn set_receive_client(&self, client: &'a dyn ReceiveClient) {}
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::FAIL, Some(rx_buffer))
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
     }
 }
