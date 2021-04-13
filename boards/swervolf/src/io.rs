@@ -37,9 +37,7 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
-    debug::panic_banner(writer, pi);
-    debug::panic_cpu_state(&CHIP, writer);
-    debug::panic_process_info(&PROCESSES, writer);
+    debug::panic_print(writer, pi, &rv32i::support::nop, &PROCESSES, &CHIP);
 
     // By writing to address 0x80001009 we can exit the simulation.
     // So instead of blinking in a loop let's exit the simulation.
