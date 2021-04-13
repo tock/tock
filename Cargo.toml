@@ -39,6 +39,7 @@ members = [
     "chips/e310x",
     "chips/earlgrey",
     "chips/esp32",
+    "chips/esp32-c3",
     "chips/imxrt10xx",
     "chips/litex",
     "chips/litex_vexriscv",
