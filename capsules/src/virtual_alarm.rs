@@ -12,6 +12,9 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
+    /// Stores a known time in the near past; used for comparisons of time. This
+    /// effectively marks the time of what is considered past and future.
+    prev: Cell<u32>,
 }
 
 impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
@@ -28,6 +31,7 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
             armed: Cell::new(false),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
+            prev: Cell::new(0),
         }
     }
 }
@@ -40,7 +44,9 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
     }
 
     fn now(&self) -> u32 {
-        self.mux.alarm.now()
+        let now = self.mux.alarm.now();
+        self.prev.set(now);
+        now
     }
 }
 
@@ -81,20 +87,25 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
             self.armed.set(true);
         }
 
+        self.when.set(when);
+
         if enabled > 0 {
             let cur_alarm = self.mux.alarm.get_alarm();
-            let now = self.now();
+            let prev = self.mux.prev.get();
 
-            if cur_alarm.wrapping_sub(now) > when.wrapping_sub(now) {
-                self.mux.prev.set(self.mux.alarm.now());
+            // If this virtual alarm is sooner than the current alarm, reset the
+            // underlying alarm
+            if cur_alarm.wrapping_sub(prev) > when.wrapping_sub(prev) {
                 self.mux.alarm.set_alarm(when);
             }
         } else {
-            self.mux.prev.set(self.mux.alarm.now());
+            // Since we are just now enabling the alarm, the underlying mux
+            // previous might be really far in the past. Update it with our more
+            // recent prev. Our prev was most likely just  updated when the user
+            // call now() to calculate the time to use for set_alarm
+            self.mux.prev.set(self.prev.get());
             self.mux.alarm.set_alarm(when);
         }
-
-        self.when.set(when);
     }
 
     fn get_alarm(&self) -> u32 {
@@ -139,7 +150,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // Capture this before the loop because it can change while checking
         // each alarm. If a timer fires, it can immediately set a new timer
         // by calling `VirtualMuxAlarm.set_alarm()` which can change `self.prev`
-        // to the current timer time.
         let prev = self.prev.get();
 
         // Check whether to fire each alarm. At this level, alarms are one-shot,
@@ -160,14 +170,21 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| cur.when.get().wrapping_sub(now));
+            .min_by_key(|cur| cur.when.get().wrapping_sub(prev));
 
         self.prev.set(now);
         // If there is an alarm to fire, set the underlying alarm to it
         if let Some(valrm) = next {
-            self.alarm.set_alarm(valrm.when.get());
+            // If we already expired, just call this function recursively until
+            // we have serviced  all pending virtual alarms, otherwise set the
+            // underlying alarm for the next nearest  value in the future.
             if has_expired(valrm.when.get(), self.alarm.now(), prev) {
                 self.fired();
+            } else {
+                // Trust that the underlying alarm will honor a time in the very
+                // recent past (e.g. the last second) will actually fire this
+                // callback again now (or very soon).
+                self.alarm.set_alarm(valrm.when.get());
             }
         } else {
             self.alarm.disable();
