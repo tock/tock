@@ -60,11 +60,11 @@ design rules for HILs. They are:
 2. Split-phase operations return a synchronous `Result` type which 
    includes an error code in its `Err` value.
 3. For split-phase operations, `Ok` means a callback will occur
-   while `Err` means one won't.
+   while `Err` with an error code besides BUSY means one won't.
 4. Error results of split-phase operations with a buffer parameter 
    include a reference to passed buffer. This returns the buffer 
    to the caller.
-5. Split-phase operrations with a buffer parameter take a mutable reference 
+5. Split-phase operations with a buffer parameter take a mutable reference 
    even if their access is read-only.
 6. Split-phase completion callbacks include a `Result` parameter whose 
    `Err` contains  an `ErrorCode`; these errors are a superset of the 
@@ -154,18 +154,18 @@ For example, consider this client code:
   let result = random.random();
   match result {
     Ok(()) => self.state.set(State::Waiting),
-	Err(e) => self.state.set(State::Error),
+    Err(e) => self.state.set(State::Error),
   }
   
 fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
   match result {
-     Ok(()) => {
-	   // Use the random bits
-	   self.state.set(State::Idle);
-     },
-	 Err(e) => {
-	   self.state.set(State::Error);
-	 }
+    Ok(()) => {
+      // Use the random bits
+      self.state.set(State::Idle);
+    },
+    Err(e) => {
+      self.state.set(State::Error);
+    }
   }
 }
 ```
@@ -240,23 +240,23 @@ impl Random for CachingRNG {
       return Err(ErrorCode::BUSY);
     }
 	
-	self.busy.set(true);
-	if self.cached_words.get() > 0 {
-	  // This tells the scheduler to issue a deferred procedure call,
-	  // passing the "handle" the scheduler uses to keep track of it.
-	  self.handle.map(|handle| self.deferred_call.set(*handle));
-	} else {
-	  self.request_more_randomness();
-	}
+    self.busy.set(true);
+    if self.cached_words.get() > 0 {
+      // This tells the scheduler to issue a deferred procedure call,
+      // passing the "handle" the scheduler uses to keep track of it.
+      self.handle.map(|handle| self.deferred_call.set(*handle));
+    } else {
+      self.request_more_randomness();
+    }
   }
   ...
 }
 
 impl<'a> DynamicDeferredCallClient for CachingRNG<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
-	  let rbits = self.pop_cached_word();
-      self.client.random_ready(rbits, Ok(()));
-    }
+  fn call(&self, _handle: DeferredCallHandle) {
+    let rbits = self.pop_cached_word();
+    self.client.random_ready(rbits, Ok(()));
+  }
 }
 
 ```
@@ -282,29 +282,46 @@ there will be a callback.
 Rule 3: Split-phase `Result` Values Indicate Whether a Callback Will Occur
 ===============================
 
-Suppose you have a split-phase call, such as for sending a message
-over a SPI bus:
+Suppose you have a split-phase call, such as for requesting an ADC reading:
 
 ```rust
-pub trait SpiMasterClient {
-    /// Called when a read/write operation finishes
-    fn read_write_done(
-        &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    );
+pub trait Client {
+  /// Called when an ADC sample is ready.
+  fn sample_ready(&self, sample: u16);
 }
 
-pub trait SpiMasterDevice {
-    fn read_write_bytes(
-        &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> ReturnCode;
+pub trait Adc {
+  // Many methods elided
+  fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
 }
 ```
+
+One issue that arises is whether a client calling `Adc::sample` should
+expect a callback invocation of `Client::sample_ready`. Often, when writing
+event-driven code, modules are state machines. If the client is waiting for
+a sample to come back, then it shouldn't call `sample` again. Similarly,
+if it calls `sample` and the operation doesn't start (so there won't be
+a callback), then it can try to call `sample` again later.
+
+It's very important to a caller to know whether a callback will be issued.
+If there will be a callback, then it knows that it will be invoked again:
+it can use this invocation to dequeue a request, issue its own callbacks,
+or perform other operations. If there won't be a callback, then it might
+never be invoked again, and can be in a stuck state.
+
+For this reason, the standard calling convention in Tock is that an `Ok`
+result means there will be a callback in response to this call, and an
+`Err` result means there will not be a callback in response to this 
+call. Note that an `Err` result does not mean there won't be a callback.
+This depends on which `ErrorCode` is passed.
+A common calling pattern is for a trait to return
+`ErrorCode::BUSY` if there is already an operation pending and a callback
+will be issued. This error code is unique in this way: the general rule
+is that `Ok` means there will be a callback in response to this call,
+`Err` with `ErrorCode::BUSY` means this call did not start a new operation
+but there will be a callback in response to a prior call, and any other `Err`
+means there will not be a callback.
+
 
 Rule 4: Return Passed Buffers in Error Results
 ===============================
@@ -495,9 +512,9 @@ Consider, for example, an early version of the `Alarm` trait:
 
 ```rust
 pub trait Alarm: Time {
-    fn now(&self) -> u32;
-    fn set_alarm(&self, tics: u32);
-    fn get_alarm(&self) -> u32;
+  fn now(&self) -> u32;
+  fn set_alarm(&self, tics: u32);
+  fn get_alarm(&self) -> u32;
 }
 ```
 
@@ -510,19 +527,19 @@ The modern versions of the traits look like this:
 
 ```rust
 pub trait Time {
-    type Frequency: Frequency; // The number of ticks per second
-    type Ticks: Ticks; // The width of a time value
-    fn now(&self) -> Self::Ticks;
+  type Frequency: Frequency; // The number of ticks per second
+  type Ticks: Ticks; // The width of a time value
+  fn now(&self) -> Self::Ticks;
 }
 
 pub trait Alarm<'a>: Time {
-    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
-    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
-    fn get_alarm(&self) -> Self::Ticks;
+  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
+  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
+  fn get_alarm(&self) -> Self::Ticks;
 
-    fn disarm(&self) -> ReturnCode;
-    fn is_armed(&self) -> bool;
-    fn minimum_dt(&self) -> Self::Ticks;
+  fn disarm(&self) -> ReturnCode;
+  fn is_armed(&self) -> bool;
+  fn minimum_dt(&self) -> Self::Ticks;
 }
 ```
 
@@ -570,11 +587,11 @@ of the UART trait (v1.3):
 
 ```rust
 pub trait UART {
-    fn set_client(&self, client: &'static Client);
-    fn configure(&self, params: UARTParameters) -> ReturnCode;
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
-    fn abort_receive(&self);
+  fn set_client(&self, client: &'static Client);
+  fn configure(&self, params: UARTParameters) -> ReturnCode;
+  fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+  fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+  fn abort_receive(&self);
 }
 ```
 
@@ -598,27 +615,27 @@ The modern UART HIL looks like this:
 
 ```rust
 pub trait Configure {
-    fn configure(&self, params: Parameters) -> ReturnCode;
+  fn configure(&self, params: Parameters) -> ReturnCode;
 }
 pub trait Transmit<'a> {
-    fn set_transmit_client(&self, client: &'a dyn TransmitClient);
-    fn transmit_buffer(
-        &self,
-        tx_buffer: &'static mut [u8],
-        tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
-    fn transmit_word(&self, word: u32) -> ReturnCode;
-    fn transmit_abort(&self) -> ReturnCode;
+  fn set_transmit_client(&self, client: &'a dyn TransmitClient);
+  fn transmit_buffer(
+    &self,
+    tx_buffer: &'static mut [u8],
+    tx_len: usize,
+  ) -> (ReturnCode, Option<&'static mut [u8]>);
+  fn transmit_word(&self, word: u32) -> ReturnCode;
+  fn transmit_abort(&self) -> ReturnCode;
 }
 pub trait Receive<'a> {
-    fn set_receive_client(&self, client: &'a dyn ReceiveClient);
-    fn receive_buffer(
-        &self,
-        rx_buffer: &'static mut [u8],
-        rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
-    fn receive_word(&self) -> ReturnCode;
-    fn receive_abort(&self) -> ReturnCode;
+  fn set_receive_client(&self, client: &'a dyn ReceiveClient);
+  fn receive_buffer(
+    &self,
+    rx_buffer: &'static mut [u8],
+    rx_len: usize,
+  ) -> (ReturnCode, Option<&'static mut [u8]>);
+  fn receive_word(&self) -> ReturnCode;
+  fn receive_abort(&self) -> ReturnCode;
 }
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
