@@ -34,7 +34,7 @@ fn earlgrey_nexysvideo_flash(
     // Flash the Tock kernel and app
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/earlgrey_nexysvideo")
+        .arg("../../boards/earlgrey-nexysvideo")
         .arg(format!(
             "OPENTITAN_TREE={}",
             env::var("OPENTITAN_TREE").unwrap()
@@ -49,9 +49,7 @@ fn earlgrey_nexysvideo_flash(
     // Make sure the image is flashed
     p.exp_string("Processing frame #13, expecting #13")?;
     p.exp_string("Processing frame #67, expecting #67")?;
-    p.exp_string("Processing frame #155, expecting #155")?;
-    p.exp_string("Processing frame #183, expecting #183")?;
-    p.exp_string("Processing frame #200, expecting #200")?;
+    p.exp_string("Processing frame #101, expecting #101")?;
 
     p.exp_string("Boot ROM initialisation has completed, jump into flash")?;
 
@@ -116,7 +114,7 @@ fn earlgrey_nexysvideo_c_hello_and_printf_long() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20031080.0x10008000.tbf"
+            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20032080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
@@ -351,6 +349,7 @@ fn earlgrey_nexysvideo_mpu_walk_region() -> Result<(), Error> {
     p.exp_string("MPU Walk Regions")?;
     p.exp_string("Walking flash")?;
     p.exp_string("Will overrun")?;
+    p.exp_string("0x2003ba00")?;
     p.exp_string("panicked at 'Process mpu_walk_region had a fault'")?;
 
     Ok(())
@@ -377,53 +376,73 @@ pub fn all_earlgrey_nexysvideo_tests() {
     println!();
     println!("Running earlgrey_nexysvideo tests...");
     earlgrey_nexysvideo_c_hello()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_c_hello job failed with {}", e));
     earlgrey_nexysvideo_blink()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
-    earlgrey_nexysvideo_c_hello_and_printf_long()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
-    earlgrey_nexysvideo_recv_short_and_recv_long()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
-    earlgrey_nexysvideo_blink_and_c_hello_and_buttons()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
-    earlgrey_nexysvideo_console_recv_short()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_blink job failed with {}", e));
+    earlgrey_nexysvideo_c_hello_and_printf_long().unwrap_or_else(|e| {
+        panic!(
+            "earlgrey_nexysvideo_c_hello_and_printf_long job failed with {}",
+            e
+        )
+    });
+    earlgrey_nexysvideo_recv_short_and_recv_long().unwrap_or_else(|e| {
+        panic!(
+            "earlgrey_nexysvideo_recv_short_and_recv_long job failed with {}",
+            e
+        )
+    });
+    earlgrey_nexysvideo_blink_and_c_hello_and_buttons().unwrap_or_else(|e| {
+        panic!(
+            "earlgrey_nexysvideo_blink_and_c_hello_and_buttons job failed with {}",
+            e
+        )
+    });
+    earlgrey_nexysvideo_console_recv_short().unwrap_or_else(|e| {
+        panic!(
+            "earlgrey_nexysvideo_console_recv_short job failed with {}",
+            e
+        )
+    });
     earlgrey_nexysvideo_console_timeout()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_console_timeout job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_malloc_test1().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    // earlgrey_nexysvideo_malloc_test1()
+    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_malloc_test1 job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test1().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    // earlgrey_nexysvideo_stack_size_test1()
+    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test1 job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test2().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    // earlgrey_nexysvideo_stack_size_test2()
+    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test2 job failed with {}", e));
 
     earlgrey_nexysvideo_mpu_stack_growth()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_stack_growth job failed with {}", e));
 
     // Disabled by default.
     // Requires:
     //    STACK_SIZE       = 2048
     //    APP_HEAP_SIZE    = 4096
     //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_mpu_walk_region().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+    // earlgrey_nexysvideo_mpu_walk_region()
+    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_walk_region job failed with {}", e));
 
     earlgrey_nexysvideo_multi_alarm_test()
-        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_multi_alarm_test job failed with {}", e));
 
     println!("earlgrey_nexysvideo SUCCESS.");
 }
