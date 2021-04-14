@@ -23,7 +23,7 @@ Microcontrollers provide a variety of hardware controllers that keep track of
 time. The Tock kernel organizes these various types of controllers into two
 broad categories: alarms and timers. Alarms continuously increment a clock and
 can fire an event when the clock reaches a specific value. Timers can fire an
-event after a certain number of clock tics have elapsed.
+event after a certain number of clock ticks have elapsed.
 
 The time HIL is in the kernel crate, in module `hil::time`. It provides six
 main traits:
@@ -174,7 +174,7 @@ isn't needed would be wasteful.
 Note that Tock's concurrency model means interrupt bottom halves
 can be delayed until the current bottom half (or syscall
 invocation) completes. This means that an overflow callback can
-seem to occur *after* an overlow. For example, suppose there is
+seem to occur *after* an overflow. For example, suppose there is
 an 8-bit counter. The following execution is possible:
 
   1. Client code calls Time::now, which returns 250.
@@ -373,7 +373,7 @@ past. Furthermore, many instances of timer hardware requires that a
 compare value be some minimum number of ticks in the future. In
 practice, this means setting "very soon" to be a safe number of ticks
 in the future is a better implementation approach than trying to be
-extremely precise and inadverently choosing too soon and then waiting
+extremely precise and inadvertently choosing too soon and then waiting
 for a wraparound.
 
 Pseudocode to handle these cases is as follows:
