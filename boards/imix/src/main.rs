@@ -430,6 +430,7 @@ pub unsafe fn main() {
             ac_2,
             ac_3
         ),
+        board_kernel,
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
