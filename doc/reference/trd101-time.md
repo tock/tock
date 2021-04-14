@@ -113,11 +113,11 @@ pub trait Time {
 }
 ```
 
-Frequency is defined with an [associated type] of the `Time` trait
-(`Time::Frequencey`). It MUST implement the `Frequency` trait, which
-has a single method, `frequency`. `frequency` returns the frequency in
-Hz, e.g. 1MHz is 1000000. Clients can use this to write code that is
-independent of the underlying frequency.
+Frequency is defined with an [associated type][associated_type]
+of the `Time` trait (`Time::Frequencey`). It MUST implement the
+`Frequency` trait, which has a single method, `frequency`. `frequency`
+returns the frequency in Hz, e.g. 1 MHz is 1000000. Clients can use this
+to write code that is independent of the underlying frequency.
 
 An instance of `Time` or derived trait MUST NOT have a `Frequency`
 which is greater than its underlying frequency precision.  It must be
@@ -139,7 +139,7 @@ if the `Time` instance has a frequency of 32kHz, calling
 `ticks_from_us(20)` returns 0, because a single tick of a 32kHz clock
 is 30.5 microseconds.
 
-[associated type]: https://doc.rust-lang.org/book/associated-types.html
+[associated_type]: https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types
 
 
 3 `Counter` and `OverflowClient` traits
