@@ -211,6 +211,7 @@ impl<'a> APDS9960<'a> {
         self.interrupt_pin.make_input();
         self.interrupt_pin
             .set_floating_state(gpio::FloatingState::PullUp);
+        self.interrupt_pin.disable_interrupts();
         self.interrupt_pin
             .enable_interrupts(gpio::InterruptEdge::FallingEdge);
 
