@@ -123,20 +123,20 @@ An instance of `Time` or derived trait MUST NOT have a `Frequency`
 which is greater than its underlying frequency precision.  It must be
 able to accurately return every possible value in the range of `Ticks`
 without further quantization. It is therefore not allowed to take a
-32kHz clock and present it as an instance of `Time` with a frequency
+32 kHz clock and present it as an instance of `Time` with a frequency
 of `Freq16MHz`.
 
 `Frequency` allows a user of `Time` to know the granularity of ticks
 and so avoid quantization error when two different times map to the
 same time tick. For example, if a user of `Time` needs microsecond
 precision, then the associated type can be used to statically check
-that is is not put on top of an implementation with 32kHz precision.
+that it is not put on top of an implementation with 32 kHz precision.
 
 The three `ticks_from` methods are helper functions to convert values
 in seconds, milliseconds, or microseconds to a number of ticks. These
 three methods all round down the result. This means, for example, that
-if the `Time` instance has a frequency of 32kHz, calling
-`ticks_from_us(20)` returns 0, because a single tick of a 32kHz clock
+if the `Time` instance has a frequency of 32 kHz, calling
+`ticks_from_us(20)` returns 0, because a single tick of a 32 kHz clock
 is 30.5 microseconds.
 
 [associated_type]: https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types
@@ -186,7 +186,7 @@ an 8-bit counter. The following execution is possible:
 
 A `Counter` implementation MUST NOT provide a `Frequency` of a higher
 resolution than an underlying hardware counter. For example, if the
-underlying hardware counter has a frequency of 32kHz, then a `Counter`
+underlying hardware counter has a frequency of 32 kHz, then a `Counter`
 cannot say it has a frequency of 1MHz by multiplying the underlying
 counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
