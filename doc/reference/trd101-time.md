@@ -325,7 +325,7 @@ pub struct Ticks64Bits(u64);
 ```
 
 The 24 bits implementation is to support some Nordic Semiconductor
-nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
+nRF platforms (e.g. nRF52840) that only support a 24-bit counter.
 
 
 7 Capsules
