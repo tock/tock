@@ -282,26 +282,36 @@ there will be a callback.
 Rule 3: Split-phase `Result` Values Indicate Whether a Callback Will Occur
 ===============================
 
-Suppose you have a split-phase call, such as for requesting an ADC reading:
+Suppose you have a split-phase call, such as for a SPI read/write operation:
 
 ```rust
-pub trait Client {
-  /// Called when an ADC sample is ready.
-  fn sample_ready(&self, sample: u16);
+pub trait SpiMasterClient {
+    /// Called when a read/write operation finishes
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    );
 }
-
-pub trait Adc {
-  // Many methods elided
-  fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode>;
+pub trait SpiMaster {
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> Result<(), ErrorCode>;
 }
 ```
 
-One issue that arises is whether a client calling `Adc::sample` should
-expect a callback invocation of `Client::sample_ready`. Often, when writing
-event-driven code, modules are state machines. If the client is waiting for
-a sample to come back, then it shouldn't call `sample` again. Similarly,
-if it calls `sample` and the operation doesn't start (so there won't be
-a callback), then it can try to call `sample` again later.
+One issue that arises is whether a client calling
+`SpiMaster::read_write_bytes` should expect a callback invocation of
+`SpiMasterClient::read_write_done`.  Often, when writing event-driven
+code, modules are state machines. If the client is waiting for an
+operation to complete, then it shouldn't call `read_write_bytes`
+again.  Similarly, if it calls `read_write_bytes` and the operation
+doesn't start (so there won't be a callback), then it can try to call
+`read_write_bytes` again later.
 
 It's very important to a caller to know whether a callback will be issued.
 If there will be a callback, then it knows that it will be invoked again:
@@ -309,18 +319,19 @@ it can use this invocation to dequeue a request, issue its own callbacks,
 or perform other operations. If there won't be a callback, then it might
 never be invoked again, and can be in a stuck state.
 
-For this reason, the standard calling convention in Tock is that an `Ok`
-result means there will be a callback in response to this call, and an
-`Err` result means there will not be a callback in response to this 
-call. Note that an `Err` result does not mean there won't be a callback.
-This depends on which `ErrorCode` is passed.
-A common calling pattern is for a trait to return
-`ErrorCode::BUSY` if there is already an operation pending and a callback
-will be issued. This error code is unique in this way: the general rule
-is that `Ok` means there will be a callback in response to this call,
-`Err` with `ErrorCode::BUSY` means this call did not start a new operation
-but there will be a callback in response to a prior call, and any other `Err`
-means there will not be a callback.
+For this reason, the standard calling convention in Tock is that an
+`Ok` result means there will be a callback in response to this call,
+and an `Err` result means there will not be a callback in response to
+*this* call. Note that it is possible for an `Err` result to be
+returned yet there will be a callback in the future.  This depends on
+which `ErrorCode` is passed.  A common calling pattern is for a trait
+to return `ErrorCode::BUSY` if there is already an operation pending
+and a callback will be issued. This error code is unique in this way:
+the general rule is that `Ok` means there will be a callback in
+response to this call, `Err` with `ErrorCode::BUSY` means this call
+did not start a new operation but there will be a callback in response
+to a prior call, and any other `Err` means there will not be a
+callback.
 
 
 Rule 4: Return Passed Buffers in Error Results
