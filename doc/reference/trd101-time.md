@@ -382,7 +382,7 @@ set_alarm(self, reference, dt):
   now = now()
   expires = reference.wrapping_add(dt)
   if !now.within_range(reference, expired):
-    expires = now 
+    expires = now
 
   if expires.wrapping_sub(now) < MIN_DELAY:
     expires = now.wrapping_add(MIN_DELAY)
