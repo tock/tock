@@ -13,7 +13,7 @@ Abstract
 This document describes the hardware independent layer interface (HIL) for time
 in the Tock operating system kernel. It describes the Rust traits and other
 definitions for this service as well as the reasoning behind them. This
-document is in full compliance with [TRD1].
+document is in full compliance with [TRD1](./trd1-trds.md).
 
 
 1 Introduction
