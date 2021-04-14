@@ -178,8 +178,7 @@ seem to occur *after* an overflow. For example, suppose there is
 an 8-bit counter. The following execution is possible:
 
   1. Client code calls Time::now, which returns 250.
-  1. An overflow happens, marking an interrupt as pending but the 
-  bottom half doesn't execute yet.
+  1. An overflow happens, marking an interrupt as pending but the bottom half doesn't execute yet.
   1. Client code calls Time::now, which returns 12.
   1. The main event loop runs, invoking the bottom half.
   1. The Counter calls OverflowClient::overflow, notifying the client of the overflow.
