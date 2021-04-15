@@ -1,4 +1,3 @@
-use core::cell::Cell;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
@@ -27,27 +26,6 @@ impl IoWrite for Writer {
     }
 }
 
-// The LiteX simulation does not have LEDs, hence use a dummy type for
-// the debug::panic function
-struct DummyLed(Cell<bool>);
-impl kernel::hil::led::Led for DummyLed {
-    fn init(&self) {
-        self.0.set(false);
-    }
-    fn on(&self) {
-        self.0.set(true);
-    }
-    fn off(&self) {
-        self.0.set(false);
-    }
-    fn toggle(&self) {
-        self.0.set(!self.0.get());
-    }
-    fn read(&self) -> bool {
-        self.0.get()
-    }
-}
-
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
@@ -55,12 +33,14 @@ impl kernel::hil::led::Led for DummyLed {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
-    debug::panic::<DummyLed, _, _>(
-        &mut [],
+    debug::panic_print(
         writer,
         pi,
         &rv32i::support::nop,
         &PROCESSES,
         &PANIC_REFERENCES.chip,
-    )
+    );
+
+    // The system is no longer in a well-defined state; loop forever
+    loop {}
 }
