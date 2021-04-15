@@ -164,7 +164,13 @@ impl<'a> ProximitySensor<'a> {
                             self.command_running.set(ProximityCommand::ReadProximity);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
-                            let t: Thresholds = self.find_thresholds();
+                            let mut t: Thresholds = self.find_thresholds();
+                            if t.lower < app.lower_proximity {
+                                t.lower = app.lower_proximity;
+                            }
+                            if t.upper > app.upper_proximity {
+                                t.upper = app.upper_proximity;
+                            }
                             let _ = self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                             self.command_running
                                 .set(ProximityCommand::ReadProximityOnInterrupt);
