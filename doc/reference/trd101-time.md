@@ -213,7 +213,7 @@ at an absolute moment while `Timer` requests a callback at a point
 relative to now.
 
 ```rust
-pub trait AlarmClient: OverflowClient {
+pub trait AlarmClient {
   fn alarm(&self);
 }
 
@@ -226,11 +226,17 @@ pub trait Alarm: Time {
 ```
 
 `Alarm` has a `disable` in order to cancel an existing alarm. Calling
-`set_alarm` enables an alarm. The `reference` parameter is typically a
-sample of `Time::now` just before `set_alarm` is called, but it can
-also be a stored value from a previous call. The `reference` parameter
-follows the invariant that it is in the past: its value is by
-definition equal to or less than a call to `Time::now`.
+`set_alarm` enables an alarm. If there is currently no alarm set, this
+sets a new alarm. If there is an alarm set, calling `set_alarm` cancels
+the previous alarm and replaces the it with the new one. It cancels the
+previous alarm so a client does not have to disambiguate which alarm it
+is handling, the previous or current one.
+
+The `reference` parameter of `set_alarm` is typically a sample of
+`Time::now` just before `set_alarm` is called, but it can also be a
+stored value from a previous call. The `reference` parameter follows
+the invariant that it is in the past: its value is by definition equal
+to or less than a call to `Time::now`.
 
 The `set_alarm` method takes a `reference` and a `dt` parameter to
 handle edge cases in which it can be impossible distinguish between
@@ -255,7 +261,7 @@ future).
 5 `Timer` and `TimerClient` traits
 ===============================
 
-The `Timer` trait presents the abstraction of a software timer. The
+The `Timer` trait presents the abstraction of a timer. The
 timer can either be one-shot or periodic with a fixed
 interval. `Timer` derives from `Time`, therefore has associated
 `Time::Frequency` and `Ticks` types.
