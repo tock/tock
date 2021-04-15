@@ -57,19 +57,19 @@ This document describes these requirements and describes a set of
 design rules for HILs. They are:
 
 1. Do not issue synchronous callbacks.
-2. Split-phase operations return a synchronous `Result` type which 
+2. Split-phase operations return a synchronous `Result` type which
    includes an error code in its `Err` value.
 3. For split-phase operations, `Ok` means a callback will occur
    while `Err` with an error code besides BUSY means one won't.
-4. Error results of split-phase operations with a buffer parameter 
-   include a reference to passed buffer. This returns the buffer 
+4. Error results of split-phase operations with a buffer parameter
+   include a reference to passed buffer. This returns the buffer
    to the caller.
-5. Split-phase operations with a buffer parameter take a mutable reference 
+5. Split-phase operations with a buffer parameter take a mutable reference
    even if their access is read-only.
-6. Split-phase completion callbacks include a `Result` parameter whose 
-   `Err` contains  an `ErrorCode`; these errors are a superset of the 
+6. Split-phase completion callbacks include a `Result` parameter whose
+   `Err` contains  an `ErrorCode`; these errors are a superset of the
    synchronous errors.
-7. Split-phase completion callbacks for an operation with a buffer 
+7. Split-phase completion callbacks for an operation with a buffer
    parameter return the buffer.
 8. Use fine-grained traits that separate out different use cases.
 9. Separate control and datapath operations into separate traits.
@@ -78,11 +78,11 @@ design rules for HILs. They are:
 The rest of this document describes each of these rules and their
 reasoning.
 
-While these are design rules, they are not sacrosanct. There are reasons or 
+While these are design rules, they are not sacrosanct. There are reasons or
 edge cases why a particular HIL might need to break
 one (or more) of them. In such cases, be sure to
 understand the reasoning behind the rule; if those considerations
-don't apply in your use case, then it might be OK to break it. But it's 
+don't apply in your use case, then it might be OK to break it. But it's
 important to realize the exception is true for *all*
 implementations of the HIL, not just yours; a HIL is intended to be a
 general, reusable API, not a specific implementation.
@@ -92,7 +92,7 @@ encapsulate a wide range of possible implementations and use cases. It
 might be that the hardware you are using or designing a HIL for has
 particular properties or behavior. That does not mean all hardware
 does. For example, a software pseudo-random generator can synchronously
-return random numbers. However, a hardware-based one typically cannot 
+return random numbers. However, a hardware-based one typically cannot
 (without blocking). If you write a blocking random number HIL because
 you are working with a software one, you are precluding hardware
 implementations from using your HIL. This means that a developer must
@@ -118,31 +118,31 @@ trait Client {
 If `Random` is implemented on top of a hardware random number
 generator, the random bits might not be ready until an interrupt
 is issued. E.g., if the implementation generates random numbers
-by running AES128 in counter mode on a hidden seed[HCG], then 
+by running AES128 in counter mode on a hidden seed[HCG], then
 generating random bits may require an interrupt.
 
 But AES128 computes *4* 32-bit values of randomness. So a smart
 implementation will compute 128 bits, and call back with 32 of them.
 The next 3 calls to `random` can produce data from the remaining
-data. The simple implementation for this algorithm is to call `random_ready` 
-inside the call to `random` if cached results are ready: the values 
+data. The simple implementation for this algorithm is to call `random_ready`
+inside the call to `random` if cached results are ready: the values
 are ready, so issue the callback immediately.
 
 Making the `random_ready` callback from inside `random` is a bad idea for
 two reasons: call loops and client code complexity.
 
-The first issue that arises is it can create call loops. Suppose that 
+The first issue that arises is it can create call loops. Suppose that
 the client wants 1024 bits (so 32 words) or randomness. It needs to
 invoke `random` 32 times. The standard call pattern is to call `random`,
 then in the `random_ready` callback, store the new random bits and call
-`random` again. This repeats 32 times. 
+`random` again. This repeats 32 times.
 
-If the implementation uses an interrupt every 4 calls, then this call 
+If the implementation uses an interrupt every 4 calls, then this call
 pattern isn't terrible: it would result in 8 stack frames. But suppose
 that the implementation chooses to generate not 128 bits at a time, but
 rather 1024 bits (e.g., runs counter mode on 32 words). Then one could have
 up to 64 stack frames. It might be that the compiler inlines this, but it
-also might not. Assuming the compiler always does a specific optimization 
+also might not. Assuming the compiler always does a specific optimization
 for you is dangerous: there all sorts of edge cases and heuristics, and
 trying to adjust source code to coax it to do what you want (which can
 change with each compiler release) is brittle.
@@ -157,7 +157,7 @@ For example, consider this client code:
     match result {
       Ok(()) => self.state.set(State::Waiting),
       Err(e) => self.state.set(State::Error),
-    } 
+    }
   }
   ...
 
@@ -179,7 +179,7 @@ there will be a callback: `Ok` means there will be a callback, while
 `Err` means there will not. If the implementation of `Random` issues
 a synchronous callback, then the `state` variable of the client will be
 in an incorrect state. Before the call to `random` returns, the callback
-executes and sets `state` to `State::Idle`. Then, the call to `random` 
+executes and sets `state` to `State::Idle`. Then, the call to `random`
 returns, and sets `state` to `State::Waiting`. If the callback checks
 whether it's in the `Waiting` state (e.g., to guard against spurious/buggy
 callbacks), this check will fail. The problem is that the callback occurs
@@ -199,7 +199,7 @@ that `random` will succeed:
     }
   }
   ...
-  
+
 fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
   match result {
     Ok(()) => {
@@ -222,7 +222,7 @@ After the first match (where `random` is called), `self.state` can be in
 
 This progresses up the call stack. The client that invoked this module might
 receive a callback invoked from within the `random_ready` callback.
-  
+
 Expert programmers who are fully prepared for a re-entrant callback
 might realize this and program accordingly, but most programmers
 aren't. Some of the Tock developers who have been writing event-driven
@@ -248,7 +248,7 @@ impl Random for CachingRNG {
     if self.busy.get() {
       return Err(ErrorCode::BUSY);
     }
-	
+
     self.busy.set(true);
     if self.cached_words.get() > 0 {
       // This tells the scheduler to issue a deferred procedure call,
@@ -275,11 +275,11 @@ Rule 2: Return Synchronous Errors
 
 Methods that invoke hardware can fail. It could be that the hardware is not
 configured as expected, it is powered down, or it has been disabled. Generally
-speaking, every HIL operation should return a Rust `Result` type, whose `Err` 
+speaking, every HIL operation should return a Rust `Result` type, whose `Err`
 variant includes an error code. The Tock kernel provides a standard set of
 error codes, oriented towards system calls, in the `kernel::ErrorCode` enum.
 Sometimes, however, these error codes don't quite fit the use case and so
-a HIL defines its own error codes. The I2C HIL, for example, defines an 
+a HIL defines its own error codes. The I2C HIL, for example, defines an
 `i2c::Error` enumeration for cases such as address and data negative
 acknowledgments, which can occur in I2C.
 
@@ -361,21 +361,21 @@ fn send_done(&self, buf: &'static mut[u8]);
 ```
 
 
-The `send` method follows Rule 2: it returns a synchronous error. But 
+The `send` method follows Rule 2: it returns a synchronous error. But
 suppose that calling it returns an `Err(ErrorCode)`: what happens to
 the buffer?
 
-Rust's ownership rules mean that the caller can't still hold the reference: 
-it passed the reference to the implementer of `send`. But since the 
+Rust's ownership rules mean that the caller can't still hold the reference:
+it passed the reference to the implementer of `send`. But since the
 operation did not succeed, the caller does not expect a callback. Forcing
-the callee to issue a callback on a failed operation typically forces it 
+the callee to issue a callback on a failed operation typically forces it
 to include an alarm or other timer. Following Rule 1 means it can't do
 so synchronously, so it needs an asynchronous event to invoke the callback
 from. This leads to every implementer of the HIL requiring an alarm or
 timer, which use RAM, has more complex logic, and makes initialization more
 complex.
 
-As a result, in the above interface, if there is an error on `send`, the buffer 
+As a result, in the above interface, if there is an error on `send`, the buffer
 is lost. It's passed into the callee, but the callee
 has no way to pass it back.
 
@@ -424,10 +424,10 @@ to the buffer is not mutable.
 
 This is a mistake.
 
-The issue that arises is that because the caller passes the reference to the 
+The issue that arises is that because the caller passes the reference to the
 LCD screen, it loses access to it. Suppose that the caller has a mutable
 reference to a buffer, which it uses to read in data typed from a user before
-displaying it on the screen. Or, more generally, it has a mutable reference 
+displaying it on the screen. Or, more generally, it has a mutable reference
 so it can create new text to display to the screen.
 
 ```rust
@@ -544,7 +544,7 @@ pub trait Alarm: Time {
 This trait coupled two operations: setting an alarm for a callback and
 being able to get the current time. A module that only needs to be able
 to get the current time (e.g., for a timestamp) must also be able to
-set an alarm, which implies RAM/state allocation somewhere. 
+set an alarm, which implies RAM/state allocation somewhere.
 
 The modern versions of the traits look like this:
 
@@ -569,7 +569,7 @@ pub trait Alarm<'a>: Time {
 They decouple getting a timestamp (the `Time` trait) from an alarm
 that issues callbacks at a particular timestamp (the `Alarm` trait).
 
-Separating a HIL into fine-grained traits allows Tock to follow 
+Separating a HIL into fine-grained traits allows Tock to follow
 the security principle of least privilege. In the case of GPIO, for
 example, being able to read a pin does not mean a client should be
 able to reconfigure or write it. Similarly, for a UART, being able
@@ -581,7 +581,7 @@ Rule 9: Separate Control and Datapath Operations into Separate Traits
 
 This rule is a direct corollary for Rule 8, but has some specific
 considerations that make it a rather hard and fast rule. Rule 8
-(separate HILs into fine-grained traits) has a lot of flexibility 
+(separate HILs into fine-grained traits) has a lot of flexibility
 in design sensibility in terms of what operations *can* be coupled
 together. This rule, however, is more precise and strict.
 
