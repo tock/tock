@@ -166,7 +166,7 @@ fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
     Ok(()) => {
       // Use the random bits
       self.state.set(State::Idle);
-    },
+    }
     Err(e) => {
       self.state.set(State::Error);
     }
@@ -195,7 +195,7 @@ that `random` will succeed:
     let result = random.random();
     match result {
       Err(e) => self.state.set(State::Error),
-	  Ok(()) => {} // Do nothing
+      Ok(()) => {} // Do nothing
     }
   }
   ...
@@ -203,11 +203,11 @@ that `random` will succeed:
 fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
   match result {
     Ok(()) => {
-	  // Use the random bits
-	  self.state.set(State::Idle);
-    },
+      // Use the random bits
+      self.state.set(State::Idle);
+    }
     Err(e) => {
-	  self.state.set(State::Error);
+      self.state.set(State::Error);
     }
   }
 }
@@ -267,7 +267,6 @@ impl<'a> DynamicDeferredCallClient for CachingRNG<'a> {
     self.client.random_ready(rbits, Ok(()));
   }
 }
-
 ```
 
 Rule 2: Return Synchronous Errors
@@ -434,18 +433,18 @@ so it can create new text to display to the screen.
 enum State {
   Idle,
   Reading,
-  Writing
+  Writing,
 }
 
 struct TypeToText {
-  buffer: Option<&'static mut [u8]>
-  uart: &'static dyn uart::Receive<'static>;
-  lcd: &'static dyn LcdTextDisplay;
-  state: Cell<State>;
+  buffer: Option<&'static mut [u8]>,
+  uart: &'static dyn uart::Receive<'static>,
+  lcd: &'static dyn LcdTextDisplay,
+  state: Cell<State>,
 }
 
 impl TypeToText {
-  fn display_more(&self) -> Result<(), ErrorCode>{
+  fn display_more(&self) -> Result<(), ErrorCode> {
     if self.state.get() != State::Idle || self.buffer.is_none() {
       return Err(ErrorCode::BUSY);
     }
@@ -456,7 +455,7 @@ impl TypeToText {
         self.state.set(State::Reading);
         return Ok(());
       }
-      Err(e) => return Err(e);
+      Err(e) => return Err(e),
     }
   }
 }
