@@ -36,7 +36,7 @@ The GPIO HIL is the kernel crate, in module hil::gpio. It provides the following
   * `kernel::hil::gpio::Input` controls an input pin.
   * `kernel::hil::gpio::Configure` configures a pin.
   * `kernel::hil::gpio::ConfigureInputOutput` configures a pin that can simultaneously be an
-     input and an output (some hardware supports this. It depends on `Configure`.
+     input and an output (some hardware supports this. It depends on `Configure`).
   * `kernel::hil::gpio::Interrupt` controls an interrupt pin. It depends on `Input`.
   * `kernel::hil::gpio::Client` handles callbacks from pin interrupts.
   * `kernel::hil::gpio::InterruptWithValue` controls an interrupt pin that provides a value in
@@ -315,7 +315,7 @@ impl<'a, IP: InterruptPin<'a>> InterruptValueWrapper<'a, IP> {
 ========================================
 
 The GPIO HIL uses fine-grained traits in order to follow the security
-principle of least privilege. For example, that needs to be able to read 
+principle of least privilege. For example, something that needs to be able to read 
 a GPIO pin should not necessarily be able to reconfigure or write to it.
 However, because handling multiple small traits at once can be
 cumbersome, the GPIO HIL defines several standard composite traits:
@@ -329,7 +329,7 @@ pub trait InterruptValuePin<'a>: Pin + InterruptWithValue<'a> {}
 6 Example Implementation
 ========================================
 
-There are example implementations of the GPIO HIL for the Atmel
+As of this writing (April 2021; Tock v1.6 and v2.0), there are example implementations of the GPIO HIL for the Atmel
 SAM4L, lowRISC, nrf5x, sifive, stm32f303xc, stm32f4xx, imxrt10xx,
 apollo3, and msp432 chips. The lowrisc, sam4l, and sifive chips
 support `Configuration::InputOutput` mode, while the others
