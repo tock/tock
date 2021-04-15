@@ -398,6 +398,7 @@ takes a buffer of ASCII characters, which it puts on the LCD:
 
 ```rust
 trait LcdTextDisplay {
+  // This is an anti-pattern: the `text` buffer should be `mut`, for reasons explained below
   fn display_text(&self, text: &'static [u8]) -> Result<(), ErrorCode>;
   fn set_client(&self, client: &'static Client);
 }
@@ -691,7 +692,7 @@ otherwise, the operations will be split-phase.
 
 There are use cases when splitting HILs in this way is worth it. For
 example, straightline code can often be shorter and simpler than
-event-drive systems.  By providing a synchronous API for the subset of
+event-driven systems.  By providing a synchronous API for the subset of
 devices that can support it, one can reduce code size and produce more
 light-weight implementations.  For this reason, the rule is to *avoid*
 blocking APIs, not to never implement them.  They can and should at
