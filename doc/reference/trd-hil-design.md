@@ -151,12 +151,16 @@ The second, and more dangerously, client logic becomes much more complex.
 For example, consider this client code:
 
 ```rust
-  let result = random.random();
-  match result {
-    Ok(()) => self.state.set(State::Waiting),
-    Err(e) => self.state.set(State::Error),
+  ...
+  if self.state.get() == State::Idle {
+    let result = random.random();
+    match result {
+      Ok(()) => self.state.set(State::Waiting),
+      Err(e) => self.state.set(State::Error),
+    } 
   }
-  
+  ...
+
 fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
   match result {
     Ok(()) => {
@@ -185,22 +189,26 @@ There are ways to guard against this. The caller can optimistically assume
 that `random` will succeed:
 
 ```rust
-  self.state.set(State::Waiting);
-  let result = random.random();
-  match result {
-	Err(e) => self.state.set(State::Error),
-	Ok(()) => {} // Do nothing
+  ...
+  if self.state.get() == State::Idle {
+    self.state.set(State::Waiting);
+    let result = random.random();
+    match result {
+      Err(e) => self.state.set(State::Error),
+	  Ok(()) => {} // Do nothing
+    }
   }
+  ...
   
 fn random_ready(&self, bits: u32, result: Result<(), ErrorCode>) {
   match result {
-     Ok(()) => {
-	   // Use the random bits
-	   self.state.set(State::Idle);
-     },
-	 Err(e) => {
-	   self.state.set(State::Error);
-	 }
+    Ok(()) => {
+	  // Use the random bits
+	  self.state.set(State::Idle);
+    },
+    Err(e) => {
+	  self.state.set(State::Error);
+    }
   }
 }
 ```
@@ -215,12 +223,13 @@ After the first match (where `random` is called), `self.state` can be in
 This progresses up the call stack. The client that invoked this module might
 receive a callback invoked from within the `random_ready` callback.
   
-Expert programmers who are fully prepared for a re-entrant callback might
-realize this and program accordingly, but most programmers aren't. Some of
-the Tock developers who have been writing event-driven embedded for code
-decades have run into this problem. Having synchronous callbacks makes all
-code need to be as carefully written as interrupt handling code, since
-from the caller's standpoint the callback can preempt execution.
+Expert programmers who are fully prepared for a re-entrant callback
+might realize this and program accordingly, but most programmers
+aren't. Some of the Tock developers who have been writing event-driven
+embedded for code decades have mistakenly handled this case. Having
+synchronous callbacks makes all code need to be as carefully written
+as interrupt handling code, since from the caller's standpoint the
+callback can preempt execution.
 
 Issuing an asynchronous callback requires that the module be invoked
 again later: it needs to return now, and then after that call stack is
@@ -286,21 +295,21 @@ Suppose you have a split-phase call, such as for a SPI read/write operation:
 
 ```rust
 pub trait SpiMasterClient {
-    /// Called when a read/write operation finishes
-    fn read_write_done(
-        &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    );
+  /// Called when a read/write operation finishes
+  fn read_write_done(
+    &self,
+    write_buffer: &'static mut [u8],
+    read_buffer: Option<&'static mut [u8]>,
+    len: usize,
+  );
 }
 pub trait SpiMaster {
-    fn read_write_bytes(
-        &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), ErrorCode>;
+  fn read_write_bytes(
+    &self,
+    write_buffer: &'static mut [u8],
+    read_buffer: Option<&'static mut [u8]>,
+    len: usize,
+  ) -> Result<(), ErrorCode>;
 }
 ```
 
@@ -340,6 +349,7 @@ Rule 4: Return Passed Buffers in Error Results
 Consider this method:
 
 ```rust
+// Anti-pattern: caller cannot regain buf on an error
 fn send(&self, buf: &'static mut [u8]) -> Result<(), ErrorCode>;
 ```
 
@@ -397,6 +407,7 @@ Suppose you are designing a trait to write some text to an LCD screen. The trait
 takes a buffer of ASCII characters, which it puts on the LCD:
 
 ```rust
+// Anti-pattern: caller is forced to discard mutability
 trait LcdTextDisplay {
   fn display_text(&self, text: &'static [u8]) -> Result<(), ErrorCode>;
   fn set_client(&self, client: &'static Client);
@@ -597,6 +608,10 @@ For example, returning to the UART example, this is an early version
 of the UART trait (v1.3):
 
 ```rust
+// Anti-pattern: combining data and control operations makes this
+// trait unvirtualizable, as multiple clients cannot configure a
+// shared UART. It also requires every client to handle both
+// receive and transmit callbacks.
 pub trait UART {
   fn set_client(&self, client: &'static Client);
   fn configure(&self, params: UARTParameters) -> ReturnCode;
