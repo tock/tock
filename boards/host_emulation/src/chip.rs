@@ -11,6 +11,9 @@ use crate::systick::SysTick;
 
 use crate::emulation_config::Config;
 use std::path::Path;
+pub trait Callback {
+    fn execute(&self) -> ();
+}
 
 const SLEEP_DURATION_US: u128 = 1;
 
@@ -18,7 +21,7 @@ const SLEEP_DURATION_US: u128 = 1;
 pub struct HostChip {
     systick: SysTick,
     syscall: SysCall,
-    service_interrupts_callbacks: Vec<&'static dyn Fn()>,
+    service_interrupts_callbacks: Vec<&'static dyn Callback>,
     terminate: Arc<AtomicBool>,
     terminate_callbacks: RefCell<Vec<&'static dyn Fn()>>,
 }
@@ -65,7 +68,7 @@ impl HostChip {
         cmd_info.apps()[0].bin_path()
     }
 
-    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Fn()) {
+    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
         self.service_interrupts_callbacks.push(callback);
     }
 
@@ -101,7 +104,7 @@ impl kernel::Chip for HostChip {
         }
 
         for callback in &self.service_interrupts_callbacks {
-            callback();
+            callback.execute();
         }
         unsafe {
             super::UART0.handle_pending_requests();
