@@ -78,7 +78,7 @@ design rules for HILs. They are:
 The rest of this document describes each of these rules and their
 reasoning.
 
-While these are design rules, they are not sarosanct. There are reasons or 
+While these are design rules, they are not sacrosanct. There are reasons or 
 edge cases why a particular HIL might need to break
 one (or more) of them. In such cases, be sure to
 understand the reasoning behind the rule; if those considerations
@@ -281,7 +281,7 @@ error codes, oriented towards system calls, in the `kernel::ErrorCode` enum.
 Sometimes, however, these error codes don't quite fit the use case and so
 a HIL defines its own error codes. The I2C HIL, for example, defines an 
 `i2c::Error` enumeration for cases such as address and data negative
-acknowledgements, which can occur in I2C.
+acknowledgments, which can occur in I2C.
 
 If a method doesn't return a synchronous error, there is no way for a caller
 to know if the operation succeeded. This is especially problematic for
@@ -484,7 +484,7 @@ Rule 6: Include a `Result<(), ErrorCode>` in Completion Callbacks
 ===============================
 
 Any error that can occur synchronously can usually occur asynchronously too.
-Therefore, callbacks need to indicate that an error occured and pass that
+Therefore, callbacks need to indicate that an error occurred and pass that
 back to the caller.
 
 The common case for this is virtualization, where a capsule turns one
@@ -496,11 +496,11 @@ request on the underlying resource returns an error, the virtualizer
 returns this error to the client immediately and marks itself idle
 again.
 
-If the underlying resource is busy, then the virtalizer returns an
+If the underlying resource is busy, then the virtualizer returns an
 `Ok` to the caller and queues the request. Later, when the request is
 dequeued, the virtualizer invokes the underlying resource. If this
 operation returns an error, then the virtualizer issues a callback to
-the client, passing the error. Because vitualizers queue and delay
+the client, passing the error. Because virtualizers queue and delay
 operations, they also delay errors. If a HIL does not pass a `Result`
 in its callback, then there is no way for the virtualizer inform the
 client that the operation failed.
@@ -677,10 +677,10 @@ entire system.
 
 There are cases when operations are synchronous *sometimes*. The
 random number generator in Rule 1 is an example. If random bits are
-cached, then a call to request random bits can somtimes retun those
+cached, then a call to request random bits can sometimes return those
 bits synchronously.  If the random number generator needs to engage
 the underlying AES engine, then the random bits have to be
-asyncronous. As Rule 1 goes into, even operations that *could* be
+asynchronous. As Rule 1 goes into, even operations that *could* be
 synchronous should have a callback that executes asynchronously.
 
 Having a conditional synchronous operation and an asynchronous backup
@@ -692,7 +692,7 @@ conditional: a caller has to handle both cases.
 The more attractive case is when a particular implementation of a HIL
 seems like it can always be synchronous, therefore its HIL is
 synchronous. For example, writes to flash are typically asynchronous:
-the chip issues an interrupt onces the bits are written. However, if
+the chip issues an interrupt once the bits are written. However, if
 the flash chip being written is the same as the one code is fetched
 from, then the chip may block reads while the write completes. From
 the perspective of the caller, writing to flash is blocking, as the
@@ -706,7 +706,7 @@ API can only work on the same flash bank instructions are stored on:
 otherwise, the operations will be split-phase.
 
 There are use cases when splitting HILs in this way is worth it. For
-example, straightline code can often be shorter and simpler than
+example, straight-line code can often be shorter and simpler than
 event-driven systems.  By providing a synchronous API for the subset of
 devices that can support it, one can reduce code size and produce more
 light-weight implementations.  For this reason, the rule is to *avoid*
