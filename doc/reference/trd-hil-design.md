@@ -7,8 +7,8 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** April 9, 2021<br/>
-**Draft-Version:** 3<br/>
+**Draft-Modified:** April 14, 2021<br/>
+**Draft-Version:** 4<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
