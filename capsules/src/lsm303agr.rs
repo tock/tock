@@ -85,7 +85,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 
 use crate::driver;
 use crate::lsm303xx::{
@@ -496,7 +496,7 @@ impl Driver for Lsm303agrI2C<'_> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        _appid: AppId,
+        _appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
@@ -597,7 +597,7 @@ impl Driver for Lsm303agrI2C<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        _appid: AppId,
+        _appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {

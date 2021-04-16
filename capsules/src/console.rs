@@ -42,8 +42,8 @@ use core::{cmp, mem};
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, ErrorCode, Grant, Upcall};
 use kernel::{CommandReturn, Driver};
+use kernel::{ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -69,9 +69,9 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<App>,
-    tx_in_progress: OptionalCell<AppId>,
+    tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
-    rx_in_progress: OptionalCell<AppId>,
+    rx_in_progress: OptionalCell<ProcessId>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
@@ -93,7 +93,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
+    fn send_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         app.write_len = cmp::min(len, app.write_buffer.len());
         app.write_remaining = app.write_len;
         self.send(app_id, app);
@@ -102,7 +102,11 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, Result<(), ErrorCode>> {
+    fn send_continue(
+        &self,
+        app_id: ProcessId,
+        app: &mut App,
+    ) -> Result<bool, Result<(), ErrorCode>> {
         if app.write_remaining > 0 {
             self.send(app_id, app);
             Ok(true)
@@ -113,7 +117,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App) {
+    fn send(&self, app_id: ProcessId, app: &mut App) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
@@ -145,7 +149,7 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for starting a receive operation
-    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
+    fn receive_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
@@ -177,7 +181,7 @@ impl Driver for Console<'_> {
     /// - `1`: Writeable buffer for read buffer
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -205,7 +209,7 @@ impl Driver for Console<'_> {
     /// - `1`: Readonly buffer for write buffer
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -234,7 +238,7 @@ impl Driver for Console<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 => {
@@ -274,7 +278,7 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
         let res = match cmd_num {
             0 => Ok(Ok(())),
             1 => {
@@ -348,7 +352,7 @@ impl uart::TransmitClient for Console<'_> {
         // see if any other applications have pending messages.
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
-                let appid = cntr.appid();
+                let appid = cntr.processid();
                 let started_tx = cntr.enter(|app| {
                     if app.pending_write {
                         app.pending_write = false;

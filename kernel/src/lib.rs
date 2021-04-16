@@ -121,7 +121,7 @@ pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};
 pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use crate::process::AppId;
+pub use crate::process::ProcessId;
 pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
 pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;

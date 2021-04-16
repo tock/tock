@@ -17,8 +17,8 @@ use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
-use crate::process::{AppId, FaultResponse, ProcessCustomGrantIdentifer, ProcessStateCell};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
+use crate::process::{FaultResponse, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -72,7 +72,7 @@ struct ProcessStandardDebug {
 pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
     /// table.
-    app_id: Cell<AppId>,
+    process_id: Cell<ProcessId>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -185,8 +185,8 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 }
 
 impl<C: Chip> Process for ProcessStandard<'_, C> {
-    fn appid(&self) -> AppId {
-        self.app_id.get()
+    fn processid(&self) -> ProcessId {
+        self.process_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
@@ -239,7 +239,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
-                    self.appid(),
+                    self.processid(),
                     upcall_id.driver_num,
                     upcall_id.subscribe_num,
                     count_before - count_after,
@@ -412,7 +412,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config, &self.appid());
+            self.chip.mpu().configure_mpu(&config, &self.processid());
         });
     }
 
@@ -479,7 +479,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config, &self.appid());
+                    self.chip.mpu().configure_mpu(&config, &self.processid());
                     Ok(old_break)
                 }
             })
@@ -518,7 +518,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We specific a zero-length buffer, so the implementation of
             // `ReadWriteAppSlice` will handle any safety issues. Therefore, we
             // can encapsulate the unsafe.
-            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.appid()) })
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
 
@@ -548,7 +548,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadWriteAppSlice` will be
             // the only reference to this memory.
-            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.appid()) })
+            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
         }
@@ -587,7 +587,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We specific a zero-length buffer, so the implementation of
             // `ReadOnlyAppSlice` will handle any safety issues. Therefore, we
             // can encapsulate the unsafe.
-            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.appid()) })
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
         {
@@ -620,7 +620,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadOnlyAppSlice` will be
             // the only reference to this memory.
-            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.appid()) })
+            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
         }
@@ -1542,8 +1542,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let fixed_address_ram = tbf_header.get_fixed_address_ram();
 
         process
-            .app_id
-            .set(AppId::new(kernel, unique_identifier, index));
+            .process_id
+            .set(ProcessId::new(kernel, unique_identifier, index));
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
@@ -1642,13 +1642,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn restart(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
-        // invalidate any stored `AppId`s that point to the old version of the
+        // invalidate any stored `ProcessId`s that point to the old version of the
         // process. However, the process has not moved locations in the
         // processes array, so we copy the existing index.
-        let old_index = self.app_id.get().index;
+        let old_index = self.process_id.get().index;
         let new_identifier = self.kernel.create_process_identifier();
-        self.app_id
-            .set(AppId::new(self.kernel, new_identifier, old_index));
+        self.process_id
+            .set(ProcessId::new(self.kernel, new_identifier, old_index));
 
         // Reset debug information that is per-execution and not per-process.
         self.debug.map(|debug| {

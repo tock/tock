@@ -41,7 +41,7 @@ use core::mem;
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -49,7 +49,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
     grants: Grant<App>,
-    current_process: OptionalCell<AppId>,
+    current_process: OptionalCell<ProcessId>,
 }
 
 #[derive(Default)]
@@ -124,7 +124,13 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        channel: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         if command_num == 0 {
             // Handle this first as it should be returned unconditionally.
             return CommandReturn::success_u32(self.channels.len() as u32);
@@ -163,7 +169,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Subscribe to all interrupts

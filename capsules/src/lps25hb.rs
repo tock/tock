@@ -22,7 +22,7 @@ use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -225,7 +225,7 @@ impl Driver for LPS25HB<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set a callback
@@ -236,7 +236,7 @@ impl Driver for LPS25HB<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             0 /* check if present */ => CommandReturn::success(),
             // Take a pressure measurement

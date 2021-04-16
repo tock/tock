@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
@@ -94,7 +94,7 @@ pub struct App {
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
@@ -128,7 +128,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            let appid = app.appid();
+            let appid = app.processid();
             app.enter(|app| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
@@ -172,7 +172,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -215,7 +215,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for CRC result
@@ -299,7 +299,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         command_num: usize,
         algorithm: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver is present

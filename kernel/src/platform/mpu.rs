@@ -1,6 +1,6 @@
 //! Interface for configuring the Memory Protection Unit.
 
-use crate::process::AppId;
+use crate::process::ProcessId;
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -260,9 +260,9 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    /// - `app_id`: AppId of the process that the MPU is configured for
+    /// - `app_id`: ProcessId of the process that the MPU is configured for
     #[allow(unused_variables)]
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {}
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {}
 }
 
 /// Implement default MPU trait for unit.

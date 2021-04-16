@@ -15,7 +15,7 @@ use core::convert::From;
 use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -64,7 +64,7 @@ impl Default for App {
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -87,7 +87,7 @@ impl<'a> TextScreen<'a> {
         command: TextScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let res = self
             .apps
@@ -125,7 +125,7 @@ impl<'a> TextScreen<'a> {
         command: TextScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<(), ErrorCode> {
         match command {
             TextScreenCommand::GetResolution => {
@@ -175,7 +175,7 @@ impl<'a> TextScreen<'a> {
     fn run_next_command(&self) {
         // Check for pending events.
         for app in self.apps.iter() {
-            let appid = app.appid();
+            let appid = app.processid();
             let current_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
@@ -210,7 +210,7 @@ impl<'a> Driver for TextScreen<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -235,7 +235,7 @@ impl<'a> Driver for TextScreen<'a> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver exists.
@@ -269,7 +269,7 @@ impl<'a> Driver for TextScreen<'a> {
 
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {

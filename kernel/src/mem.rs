@@ -14,7 +14,7 @@
 //! AppSlice-structs.
 
 use crate::capabilities;
-use crate::process::AppId;
+use crate::process::ProcessId;
 
 /// Convert an AppSlice's internal representation to a Rust slice.
 ///
@@ -154,7 +154,7 @@ pub trait ReadWrite: Read {
 pub struct ReadWriteAppSlice {
     ptr: *mut u8,
     len: usize,
-    process_id: Option<AppId>,
+    process_id: Option<ProcessId>,
 }
 
 impl ReadWriteAppSlice {
@@ -165,7 +165,7 @@ impl ReadWriteAppSlice {
     ///
     /// Refer to the safety requirments of
     /// [`ReadWriteAppSlice::new_external`].
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: AppId) -> Self {
+    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
         ReadWriteAppSlice {
             ptr,
             len,
@@ -201,7 +201,7 @@ impl ReadWriteAppSlice {
     ///
     /// If the length is not `0`, the memory region of `[ptr; ptr +
     /// len)` must be valid memory of the process of the given
-    /// [`AppId`]. It must be allocated and and accessible over the
+    /// [`ProcessId`]. It must be allocated and and accessible over the
     /// entire lifetime of the [`ReadWriteAppSlice`]. It must not
     /// point to memory outside of the process' accessible memory
     /// range, or point (in part) to other processes or kernel
@@ -214,7 +214,7 @@ impl ReadWriteAppSlice {
     pub unsafe fn new_external(
         ptr: *mut u8,
         len: usize,
-        process_id: AppId,
+        process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
         Self::new(ptr, len, process_id)
@@ -311,7 +311,7 @@ impl Read for ReadWriteAppSlice {
 pub struct ReadOnlyAppSlice {
     ptr: *const u8,
     len: usize,
-    process_id: Option<AppId>,
+    process_id: Option<ProcessId>,
 }
 
 impl ReadOnlyAppSlice {
@@ -322,7 +322,7 @@ impl ReadOnlyAppSlice {
     ///
     /// Refer to the safety requirments of
     /// [`ReadOnlyAppSlice::new_external`].
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: AppId) -> Self {
+    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
         ReadOnlyAppSlice {
             ptr,
             len,
@@ -358,7 +358,7 @@ impl ReadOnlyAppSlice {
     ///
     /// If the length is not `0`, the memory region of `[ptr; ptr +
     /// len)` must be valid memory of the process of the given
-    /// [`AppId`]. It must be allocated and and accessible over the
+    /// [`ProcessId`]. It must be allocated and and accessible over the
     /// entire lifetime of the [`ReadOnlyAppSlice`]. It must not point
     /// to memory outside of the process' accessible memory range, or
     /// point (in part) to other processes or kernel memory. The `ptr`
@@ -371,7 +371,7 @@ impl ReadOnlyAppSlice {
     pub unsafe fn new_external(
         ptr: *const u8,
         len: usize,
-        process_id: AppId,
+        process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
         Self::new(ptr, len, process_id)

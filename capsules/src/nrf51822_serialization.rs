@@ -26,7 +26,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, Upcall,
 };
 
@@ -52,7 +52,7 @@ pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
     apps: Grant<App>,
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -107,7 +107,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Provide a RX buffer.
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_type: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -142,7 +142,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Provide a TX buffer.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_type: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -177,7 +177,7 @@ impl Driver for Nrf51822Serialization<'_> {
         &self,
         subscribe_type: usize,
         mut callback: Upcall,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_type {
             // Add a callback
@@ -206,7 +206,13 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Received from the nRF into the allowed buffer.
     /// - `3`: Reset the nRF51822.
-    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_type: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_type {
             0 /* check if present */ => CommandReturn::success(),
 

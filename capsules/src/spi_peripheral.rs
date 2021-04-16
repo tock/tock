@@ -9,7 +9,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -94,7 +94,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ///
     fn allow_readwrite(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -115,7 +115,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ///
     fn allow_readonly(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -144,7 +144,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* read_write */ => {
@@ -193,7 +193,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     /// - x+1: unlock spi
     ///   - does nothing if lock not held
     ///   - not implemented or currently supported
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: ProcessId) -> CommandReturn {
         match cmd_num {
             0 /* check if present */ => CommandReturn::success(),
             1 /* read_write_bytes */ => {

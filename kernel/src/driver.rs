@@ -72,7 +72,7 @@
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
-use crate::process::AppId;
+use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
 use crate::upcall::Upcall;
 use core::convert::TryFrom;
@@ -187,7 +187,7 @@ pub trait Driver {
         &self,
         subscribe_identifier: usize,
         upcall: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         Err((upcall, ErrorCode::NOSUPPORT))
     }
@@ -197,7 +197,7 @@ pub trait Driver {
     /// is signaled with an upcall). Command 0 is a reserved command to
     /// detect if a peripheral system call driver is installed and must
     /// always return a CommandReturn::Success.
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandReturn {
+    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
@@ -207,7 +207,7 @@ pub trait Driver {
     /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
-        app: AppId,
+        app: ProcessId,
         which: usize,
         slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -222,7 +222,7 @@ pub trait Driver {
     /// read-only data (e.g., in flash) to the kernel.
     fn allow_readonly(
         &self,
-        app: AppId,
+        app: ProcessId,
         which: usize,
         slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {

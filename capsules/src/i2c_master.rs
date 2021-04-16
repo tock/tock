@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -22,7 +22,7 @@ pub static mut BUF: [u8; 64] = [0; 64];
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
     /// the client
-    app_id: AppId,
+    app_id: ProcessId,
     /// The total amount to transmit
     read_len: OptionalCell<usize>,
 }
@@ -44,7 +44,15 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         }
     }
 
-    fn operation(&self, app_id: AppId, app: &mut App, command: Cmd, addr: u8, wlen: u8, rlen: u8) {
+    fn operation(
+        &self,
+        app_id: ProcessId,
+        app: &mut App,
+        command: Cmd,
+        addr: u8,
+        wlen: u8,
+        rlen: u8,
+    ) {
         // TODO(alevy) this function used to try and return Result<(), ErrorCode>s, but would always return
         // ENOSUPPORT and all call-sites simply ignore the return value. Nonetheless, some error
         // handling is probably useful. Comments inline where there used to be non-success results.
@@ -99,7 +107,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     /// - `1`: buffer for command
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -128,7 +136,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 /* write_read_done */ => {
@@ -146,7 +154,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: ProcessId) -> CommandReturn {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
                 Cmd::Ping => CommandReturn::success(),

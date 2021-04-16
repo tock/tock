@@ -15,7 +15,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Upcall};
+use kernel::{CommandReturn, ProcessId, Upcall};
 use kernel::{Driver, ErrorCode, Read, ReadWrite, ReadWriteAppSlice};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
@@ -222,7 +222,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 impl Driver for I2CMasterSlaveDriver<'_> {
     fn allow_readwrite(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -264,7 +264,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -279,7 +279,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             0 /* check if present */ => CommandReturn::success(),
 

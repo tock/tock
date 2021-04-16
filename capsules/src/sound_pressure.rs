@@ -56,7 +56,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -87,7 +87,7 @@ impl<'a> SoundPressureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> CommandReturn {
+    fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
         self.apps
             .enter(appid, |app| {
                 if !self.busy.get() {
@@ -144,7 +144,7 @@ impl Driver for SoundPressureSensor<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to sound_pressure reading with callback
@@ -165,7 +165,7 @@ impl Driver for SoundPressureSensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
             0 => CommandReturn::success(),
