@@ -13,7 +13,7 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::procs::ProcessType;
+use kernel::procs::Process;
 use kernel::{static_init, static_init_half};
 use kernel::{CoopProcessNode, CooperativeSched};
 
@@ -30,11 +30,11 @@ macro_rules! coop_component_helper {
 }
 
 pub struct CooperativeComponent {
-    processes: &'static [Option<&'static dyn ProcessType>],
+    processes: &'static [Option<&'static dyn Process>],
 }
 
 impl CooperativeComponent {
-    pub fn new(processes: &'static [Option<&'static dyn ProcessType>]) -> CooperativeComponent {
+    pub fn new(processes: &'static [Option<&'static dyn Process>]) -> CooperativeComponent {
         CooperativeComponent { processes }
     }
 }

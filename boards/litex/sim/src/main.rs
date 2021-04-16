@@ -73,8 +73,7 @@ const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an
 // empty list at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 // Reference to the chip and UART hardware for panic dumps
 struct LiteXSimPanicReferences {
