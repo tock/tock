@@ -140,7 +140,8 @@ pub mod procs {
     };
     pub use crate::process_policies::{
         PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
-        ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
+        StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
+        ThresholdRestartThenPanicFaultPolicy,
     };
     pub use crate::process_standard::ProcessStandard;
     pub use crate::process_utilities::{load_processes, ProcessLoadError};

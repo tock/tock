@@ -35,6 +35,21 @@ impl ProcessFaultPolicy for StopFaultPolicy {
     }
 }
 
+/// Stop the process and no longer schedule it if a process faults, but also
+/// print a debug message notifying the user that the process faulted and
+/// stopped.
+pub struct StopWithDebugFaultPolicy {}
+
+impl ProcessFaultPolicy for StopWithDebugFaultPolicy {
+    fn action(&self, process: &dyn Process) -> process::FaultAction {
+        crate::debug!(
+            "Process {} faulted and was stopped.",
+            process.get_process_name()
+        );
+        process::FaultAction::Stop
+    }
+}
+
 /// Always restart the process if it faults.
 pub struct RestartFaultPolicy {}
 
