@@ -13,17 +13,17 @@
 
 use crate::common::list::{List, ListLink, ListNode};
 use crate::platform::Chip;
-use crate::process::ProcessType;
+use crate::process::Process;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {
-    proc: &'static Option<&'static dyn ProcessType>,
+    proc: &'static Option<&'static dyn Process>,
     next: ListLink<'a, CoopProcessNode<'a>>,
 }
 
 impl<'a> CoopProcessNode<'a> {
-    pub fn new(proc: &'static Option<&'static dyn ProcessType>) -> CoopProcessNode<'a> {
+    pub fn new(proc: &'static Option<&'static dyn Process>) -> CoopProcessNode<'a> {
         CoopProcessNode {
             proc,
             next: ListLink::empty(),

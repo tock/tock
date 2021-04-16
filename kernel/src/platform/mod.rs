@@ -57,7 +57,7 @@ pub trait Platform {
     /// future.
     fn filter_syscall(
         &self,
-        _process: &dyn process::ProcessType,
+        _process: &dyn process::Process,
         _syscall: &syscall::Syscall,
     ) -> Result<(), errorcode::ErrorCode> {
         Ok(())
@@ -96,7 +96,7 @@ pub trait Platform {
     ///      where access faults can be handled by the `Platform` to ensure the
     ///      QPSI is mapped correctly.
     #[allow(unused_variables)]
-    fn process_fault_hook(&self, process: &dyn process::ProcessType) -> Result<(), ()> {
+    fn process_fault_hook(&self, process: &dyn process::Process) -> Result<(), ()> {
         Err(())
     }
 }
