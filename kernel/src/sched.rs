@@ -895,7 +895,7 @@ impl Kernel {
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
-                    None => upcall.into_subscribe_failure(ErrorCode::NOSUPPORT),
+                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -919,7 +919,7 @@ impl Kernel {
             } => {
                 let cres = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
-                    None => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                    None => CommandReturn::failure(ErrorCode::NODEVICE),
                 });
 
                 let res = SyscallReturn::from_command_return(cres);
@@ -985,7 +985,7 @@ impl Kernel {
                         }
                     }
                     None => SyscallReturn::AllowReadWriteFailure(
-                        ErrorCode::NOSUPPORT,
+                        ErrorCode::NODEVICE,
                         allow_address,
                         allow_size,
                     ),
@@ -1058,7 +1058,7 @@ impl Kernel {
                         }
                     }
                     None => SyscallReturn::AllowReadOnlyFailure(
-                        ErrorCode::NOSUPPORT,
+                        ErrorCode::NODEVICE,
                         allow_address,
                         allow_size,
                     ),
