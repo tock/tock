@@ -52,7 +52,7 @@ pub unsafe extern "C" fn generic_isr() {
     str r6, [r1, #24]
     str r7, [r1, #28]
 
-    push {r4-r7}
+    push {{r4-r7}}
     mov  r4, r8
     mov  r5, r9
     mov  r6, r10
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn generic_isr() {
     str r5, [r1, #4]
     str r6, [r1, #8]
     str r7, [r1, #12]
-    pop {r4-r7}
+    pop {{r4-r7}}
 
     ldr r0, MEXC_RETURN_MSP
 _ggeneric_isr_no_stacking:
@@ -111,6 +111,43 @@ MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
   .word 0xFFFFFFFD",
+        options(noreturn)
+    );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn systick_handler() {
+    unimplemented!()
+}
+
+/// The `systick_handler` is called when the systick interrupt occurs, signaling
+/// that an application executed for longer than its timeslice. This interrupt
+/// handler is no longer responsible for signaling to the kernel thread that an
+/// interrupt has occurred, but is slightly more efficient than the
+/// `generic_isr` handler on account of not needing to mark the interrupt as
+/// pending.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[naked]
+pub unsafe extern "C" fn systick_handler() {
+    asm!(
+        "
+    // Set thread mode to privileged to switch back to kernel mode.
+    movs r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
+    ldr r0, ST_EXC_RETURN_MSP
+
+    // This will resume in the switch to user function where application state
+    // is saved and the scheduler can choose what to do next.
+    bx   r0
+.align 4
+ST_EXC_RETURN_MSP:
+  .word 0xFFFFFFF9
+    ",
         options(noreturn)
     );
 }
@@ -171,12 +208,12 @@ pub unsafe extern "C" fn switch_to_user(
     mov r3, r7
 
     /* Load non-hardware-stacked registers from Process stack */
-    ldmia r1!, {r4-r7}
+    ldmia r1!, {{r4-r7}}
     mov r11, r7
     mov r10, r6
     mov r9,  r5
     mov r8,  r4
-    ldmia r1!, {r4-r7}
+    ldmia r1!, {{r4-r7}}
     subs r1, 32 /* Restore pointer to process_regs
                 /* ldmia! added a 32-byte offset */
 
@@ -270,7 +307,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
 /// can mix `asm!()` and Rust. We separate this logic to not have to write the
 /// entire fault handler entirely in assembly.
 unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kernel_stack: u32) {
-    if kernel_stack {
+    if kernel_stack != 0 {
         kernel_hardfault(faulting_stack);
     } else {
         // hard fault occurred in an app, not the kernel. The app should be

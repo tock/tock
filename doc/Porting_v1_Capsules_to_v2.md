@@ -155,7 +155,7 @@ Here is a slightly more complex implementation of `command`, from the
 ```rust
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult{
         let res = match cmd_num {
-            0 => Ok(ReturnCode::SUCCESS),
+            0 => Ok(Ok(())),
             1 => { // putstr
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
@@ -170,7 +170,7 @@ Here is a slightly more complex implementation of `command`, from the
             },
             3 => { // Abort RX
                 self.uart.receive_abort();
-                Ok(ReturnCode::SUCCESS)
+                Ok(Ok(()))
             }
             _ => Err(ErrorCode::NOSUPPORT)
         };
@@ -185,18 +185,18 @@ Here is a slightly more complex implementation of `command`, from the
 
 This implementation is more complex because it uses a grant region
 that stores per-process state. `Grant::enter` returns a
-`Result<ReturnCode, grant::Error>`. An `Err` return type means the
+`Result<Result<(), ErrorCode>, grant::Error>`. An outer `Err` return type means the
 grant could not be entered successfully and the closure was not invoked:
 this returns what grant error occurred. An `Ok` return type means the
 closure was executed, but it is possible that an error occurred during
 its execution. So there are three cases:
 
-  - Ok(ReturnCode::Success) | Ok(ReturnCode::SuccessWithValue)
-  - Ok(ReturnCode:: error cases)
+  - Ok(Ok(()))
+  - Ok(Err(ErrorCode:: error cases))
   - Err(grant::Error)
 
 The bottom `match` statement separates these two. In the `Ok()` case,
-it checks whether the `ReturnCode` can be turned into an `ErrorCode`.
+it checks whether the inner Result contains an `Err(ErrorCode)`.
 If not (`Err`), this means it was a success, and the result was a
 success, so it returns a `CommandResult::Success`. If it can be converted
 into an error code, or if the grant produced an error, it returns a
@@ -208,7 +208,8 @@ return size. This means that for a given `command_num`, it is not allowed
 for it to sometimes return `CommandResult::Success` and other times return
 `Command::SuccessWithValue`, as these are different sizes. As part of easing
 this transition, Tock 2.0 removed the `SuccessWithValue` variant of
-`ReturnCode`.
+`ReturnCode`, and then later in the transition removed `ReturnCode` entirely,
+replacing all uses of `ReturnCode` with `Result<(), ErrorCode>`.
 
 If, while porting, you encounter a construction of `ReturnCode::SuccessWithValue{v}`
 in `command()` for an out-of-tree capsule, replace it with a construction of

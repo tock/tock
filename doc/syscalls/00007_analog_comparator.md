@@ -26,7 +26,7 @@ the index of the last AC module.
 
     **Argument 2**: unused
 
-    **Returns**: `SUCCESS` if it exists, otherwise `ENODEVICE`
+    **Returns**: `Ok(())` if it exists, otherwise `NODEVICE`
 
   * ### Command number: `1`
 
@@ -53,7 +53,7 @@ the index of the last AC module.
 
     **Argument 2**: unused
 
-    **Returns**: `SUCCESS` if starting interrupts was succesful.
+    **Returns**: `Ok(())` if starting interrupts was succesful.
 
 * ### Command number: `4`
 
@@ -64,4 +64,4 @@ the index of the last AC module.
 
     **Argument 2**: unused
 
-    **Returns**: `SUCCESS` if stopping interrupts was succesful.
+    **Returns**: `Ok(())` if stopping interrupts was succesful.

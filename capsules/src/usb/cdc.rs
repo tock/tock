@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 
 use super::descriptors;
 use super::descriptors::Buffer64;
@@ -24,7 +25,6 @@ use kernel::hil;
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
-use kernel::ReturnCode;
 
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.
@@ -156,7 +156,7 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     /// normal UART semantics are that we can always send (perhaps with a
     /// delay), even if nothing is actually listening. To keep the upper layers
     /// happy and to allow this CDC layer to just drop messages, we always
-    /// return SUCCESS for TX, and then use a deferred call to signal the
+    /// return Ok(()) for TX, and then use a deferred call to signal the
     /// transmit done callback.
     deferred_call_pending_droptx: Cell<bool>,
     /// Flag to mark we need a deferred call to signal a callback after an RX
@@ -332,7 +332,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
         self.tx_offset.set(0);
         self.tx_client.map(|client| {
             self.tx_buffer.take().map(|buf| {
-                client.transmitted_buffer(buf, 0, ReturnCode::FAIL);
+                client.transmitted_buffer(buf, 0, Err(ErrorCode::FAIL));
             });
         });
     }
@@ -510,11 +510,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
                             // Signal the callback and pass back the TX buffer.
                             self.tx_client.map(move |tx_client| {
-                                tx_client.transmitted_buffer(
-                                    tx_buf,
-                                    self.tx_len.get(),
-                                    ReturnCode::SUCCESS,
-                                )
+                                tx_client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()))
                             });
 
                             // Return that we have nothing else to do to the USB
@@ -567,7 +563,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                             client.received_buffer(
                                 rx_buf,
                                 total_received_bytes,
-                                ReturnCode::SUCCESS,
+                                Ok(()),
                                 uart::Error::None,
                             );
                         });
@@ -602,7 +598,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
                 // Signal the callback and pass back the TX buffer.
                 self.tx_client.map(move |tx_client| {
-                    tx_client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS)
+                    tx_client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()))
                 });
             }
         });
@@ -610,10 +606,10 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Configure for CdcAcm<'a, U, A> {
-    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+    fn configure(&self, _parameters: uart::Parameters) -> Result<(), ErrorCode> {
         // Since this is not a real UART, we don't need to consider these
         // parameters.
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -628,14 +624,14 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buffer.is_some() {
             // We are already handling a transmission, we cannot queue another
             // request.
-            (ReturnCode::EBUSY, Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         } else if tx_len > tx_buffer.len() {
             // Can't send more bytes than will fit in the buffer.
-            (ReturnCode::ESIZE, Some(tx_buffer))
+            Err((ErrorCode::SIZE, tx_buffer))
         } else {
             // Ok, we can handle this transmission. Initialize all of our state
             // for our TX state machine.
@@ -648,26 +644,26 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
                 // Then signal to the lower layer that we are ready to do a TX
                 // by putting data in the IN endpoint.
                 self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             } else if self.boot_period.get() {
                 // indicate success because we will try to send it once a host connects
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             } else {
                 // indicate success, but we will not actually queue this message -- just schedule
                 // a deferred callback to return the buffer immediately.
                 self.deferred_call_pending_droptx.set(true);
                 self.handle.map(|handle| self.deferred_caller.set(*handle));
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             }
         }
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -680,35 +676,35 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {
-            (ReturnCode::ESIZE, Some(rx_buffer))
+            Err((ErrorCode::SIZE, rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_offset.set(0);
             self.rx_len.set(rx_len);
 
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_buffer.is_none() {
             // If we have nothing pending then aborting is very easy.
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             // If we do have a receive pending then we need to start a deferred
-            // call to set the callback and return `EBUSY`.
+            // call to set the callback and return `BUSY`.
             self.deferred_call_pending_abortrx.set(true);
             self.handle.map(|handle| self.deferred_caller.set(*handle));
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -735,7 +731,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
         }
 
         if self.deferred_call_pending_abortrx.replace(false) {
-            // Signal the RX callback with ECANCEL error.
+            // Signal the RX callback with CANCEL error.
             self.rx_buffer.take().map(|rx_buf| {
                 let rx_offset = self.rx_offset.get();
 
@@ -746,7 +742,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
                     client.received_buffer(
                         rx_buf,
                         total_received_bytes,
-                        ReturnCode::ECANCEL,
+                        Err(ErrorCode::CANCEL),
                         uart::Error::None,
                     );
                 });

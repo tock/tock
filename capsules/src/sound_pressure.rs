@@ -10,10 +10,10 @@
 //! a sound_pressure sensor reading.
 //! The `subscribe`call return codes indicate the following:
 //!
-//! * `SUCCESS`: the callback been successfully been configured.
+//! * `Ok(())`: the callback been successfully been configured.
 //! * `ENOSUPPORT`: Invalid allow_num.
-//! * `ENOMEM`: No sufficient memory available.
-//! * `EINVAL`: Invalid address of the buffer or other error.
+//! * `NOMEM`: No sufficient memory available.
+//! * `INVAL`: Invalid address of the buffer or other error.
 //!
 //!
 //! ### `command` System Call
@@ -27,11 +27,11 @@
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
-//! * `SUCCESS`:    The operation has been successful.
-//! * `EBUSY`:      The driver is busy.
+//! * `Ok(())`:    The operation has been successful.
+//! * `BUSY`:      The driver is busy.
 //! * `ENOSUPPORT`: Invalid `cmd`.
-//! * `ENOMEM`:     No sufficient memory available.
-//! * `EINVAL`:     Invalid address of the buffer or other error.
+//! * `NOMEM`:     No sufficient memory available.
+//! * `INVAL`:     Invalid address of the buffer or other error.
 //!
 //! Usage
 //! -----
@@ -56,7 +56,6 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -90,7 +89,7 @@ impl<'a> SoundPressureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -110,28 +109,28 @@ impl<'a> SoundPressureSensor<'a> {
     fn enable(&self) {
         let mut enable = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if app.enable {
                     enable = true;
                 }
             });
             if enable {
-                self.driver.enable();
+                let _ = self.driver.enable();
             } else {
-                self.driver.disable();
+                let _ = self.driver.disable();
             }
         }
     }
 }
 
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
-    fn callback(&self, ret: ReturnCode, sound_val: u8) {
+    fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    if ret == ReturnCode::SUCCESS {
+                    if ret == Ok(()) {
                         app.callback.schedule(sound_val.into(), 0, 0);
                     }
                 }
@@ -152,7 +151,7 @@ impl Driver for SoundPressureSensor<'_> {
             0 => {
                 let res = self
                     .apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -178,7 +177,7 @@ impl Driver for SoundPressureSensor<'_> {
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.enable = true;
                         CommandReturn::success()
                     })
@@ -195,7 +194,7 @@ impl Driver for SoundPressureSensor<'_> {
             3 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.enable = false;
                         CommandReturn::success()
                     })

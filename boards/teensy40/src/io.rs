@@ -17,7 +17,7 @@ const BAUD_RATE: u32 = 115_200;
 
 impl<'a> Writer<'a> {
     pub unsafe fn new(output: &'a mut lpuart::Lpuart<'a>) -> Self {
-        output.configure(uart::Parameters {
+        let _ = output.configure(uart::Parameters {
             baud_rate: BAUD_RATE,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

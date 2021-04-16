@@ -27,7 +27,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,
@@ -180,12 +180,12 @@ impl<'a> gpio::Client for Ft6x06<'a> {
 }
 
 impl<'a> touch::Touch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn enable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn disable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn touch::TouchClient) {
@@ -200,12 +200,12 @@ impl<'a> touch::Gesture<'a> for Ft6x06<'a> {
 }
 
 impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn enable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn disable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
     fn get_num_touches(&self) -> usize {

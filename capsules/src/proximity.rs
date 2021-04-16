@@ -10,7 +10,7 @@
 //! a proximity reading.
 //! The `subscribe`call return codes indicate the following:
 //!
-//! * `SUCCESS`: the callback been successfully been configured.
+//! * `Ok(())`: the callback been successfully been configured.
 //! * `ENOSUPPORT`: Invalid allow_num.
 //!
 //!
@@ -26,8 +26,8 @@
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
-//! * `SUCCESS`:    The operation has been successful.
-//! * `EBUSY`:      The driver is busy.
+//! * `Ok(())`:    The operation has been successful.
+//! * `BUSY`:      The driver is busy.
 //! * `ENOSUPPORT`: Invalid `cmd`.
 //!
 //! Usage
@@ -51,7 +51,6 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
 
 /// Syscall driver number.
@@ -113,7 +112,7 @@ impl<'a> ProximitySensor<'a> {
     ) -> CommandReturn {
         // Enqueue command by saving command type, args, appid within app struct in grant region
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
                     return CommandReturn::failure(ErrorCode::BUSY);
@@ -135,7 +134,7 @@ impl<'a> ProximitySensor<'a> {
                     && (command == ProximityCommand::ReadProximityOnInterrupt)
                 {
                     let t: Thresholds = self.find_thresholds();
-                    self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                    let _ = self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                     self.command_running
                         .set(ProximityCommand::ReadProximityOnInterrupt);
                     return CommandReturn::success();
@@ -147,7 +146,7 @@ impl<'a> ProximitySensor<'a> {
                 if (self.command_running.get() == ProximityCommand::ReadProximityOnInterrupt)
                     && (command == ProximityCommand::ReadProximity)
                 {
-                    self.driver.read_proximity();
+                    let _ = self.driver.read_proximity();
                     self.command_running.set(ProximityCommand::ReadProximity);
                     return CommandReturn::success();
                 }
@@ -156,7 +155,7 @@ impl<'a> ProximitySensor<'a> {
                 let mut num_commands: u8 = 0;
 
                 for cntr in self.apps.iter() {
-                    cntr.enter(|app, _| {
+                    cntr.enter(|app| {
                         if app.subscribed {
                             num_commands += 1;
                         }
@@ -164,7 +163,7 @@ impl<'a> ProximitySensor<'a> {
                 }
 
                 if num_commands == 1 {
-                    self.run_next_command();
+                    let _ = self.run_next_command();
                 }
 
                 CommandReturn::success()
@@ -172,23 +171,23 @@ impl<'a> ProximitySensor<'a> {
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
-    fn run_next_command(&self) -> ReturnCode {
+    fn run_next_command(&self) -> Result<(), ErrorCode> {
         let mut break_flag: bool = false;
 
         // Find thresholds before entering any grant regions
         let t: Thresholds = self.find_thresholds();
         // Find and run another command
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     // run it
                     match app.enqueued_command_type {
                         ProximityCommand::ReadProximity => {
-                            self.driver.read_proximity();
+                            let _ = self.driver.read_proximity();
                             self.command_running.set(ProximityCommand::ReadProximity);
                         }
                         ProximityCommand::ReadProximityOnInterrupt => {
-                            self.driver.read_proximity_on_interrupt(t.lower, t.upper);
+                            let _ = self.driver.read_proximity_on_interrupt(t.lower, t.upper);
                             self.command_running
                                 .set(ProximityCommand::ReadProximityOnInterrupt);
                         }
@@ -204,7 +203,7 @@ impl<'a> ProximitySensor<'a> {
             }
         }
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn find_thresholds(&self) -> Thresholds {
@@ -216,7 +215,7 @@ impl<'a> ProximitySensor<'a> {
         let mut lowest_upper_proximity: u8 = 255;
 
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if (app.lower_proximity > highest_lower_proximity)
                     && app.subscribed
                     && app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt
@@ -250,7 +249,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
         // to notice if this reading will fulfill the app's command.
         // The reading is also delivered to any apps waiting on an immediate reading.
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     if app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt {
                         // Case: ReadProximityOnInterrupt
@@ -275,7 +274,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
         self.command_running.set(ProximityCommand::NoCommand);
 
         // When we are done with callback (one command) then find another waiting command to run and run it
-        self.run_next_command();
+        let _ = self.run_next_command();
     }
 }
 
@@ -289,7 +288,7 @@ impl Driver for ProximitySensor<'_> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
+                .enter(app_id, |app| mem::swap(&mut app.callback, &mut callback))
                 .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
         };

@@ -334,7 +334,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                 }
                 _ => unreachable!(),
             }
-            csr::CSR.pmpconfig_set(x, 0x0);
+            csr::CSR.pmpaddr_set(x, 0x0);
         }
 
         //set first PMP to have permissions to entire space

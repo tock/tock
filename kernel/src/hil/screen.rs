@@ -1,5 +1,5 @@
 //! Interface for screens and displays.
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 use core::ops::Add;
 use core::ops::Sub;
 
@@ -92,27 +92,27 @@ pub trait ScreenSetup {
     fn set_client(&self, client: Option<&'static dyn ScreenSetupClient>);
 
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
-    /// not supported. The function should return SUCCESS if the request is registered
+    /// not supported. The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
-    /// that will return the actual ReturnCode after setting the resolution.
-    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode;
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
+    /// that will return the actual Result<(), ErrorCode> after setting the resolution.
+    fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode>;
 
     /// Sets the pixel format. Returns ENOSUPPORT if the pixel format is
-    /// not supported. The function should return SUCCESS if the request is registered
+    /// not supported. The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
-    /// that will return the actual ReturnCode after setting the pixel format.
-    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode;
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
+    /// that will return the actual Result<(), ErrorCode> after setting the pixel format.
+    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode>;
 
     /// Sets the rotation of the display.
-    /// The function should return SUCCESS if the request is registered
+    /// The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon SUCCESS, the caller has to wait for the `command_complete` callback function
-    /// that will return the actual ReturnCode after setting the rotation.
+    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
+    /// that will return the actual Result<(), ErrorCode> after setting the rotation.
     ///
     /// Note that in the case of `Rotated90` or `Rotated270`, this will swap the width and height.
-    fn set_rotation(&self, rotation: ScreenRotation) -> ReturnCode;
+    fn set_rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode>;
 
     /// Returns the number of the resolutions supported.
     /// should return at least one (the current resolution)
@@ -172,19 +172,25 @@ pub trait Screen {
     /// This will generate a `command_complete()` callback when finished.
     ///
     /// Return values:
-    /// - `SUCCESS`: The write frame is valid.
-    /// - `EINVAL`: The parameters of the write frame are not valid.
-    /// - `EBUSY`: Unable to set the write frame on the device.
-    fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode;
+    /// - `Ok(())`: The write frame is valid.
+    /// - `INVAL`: The parameters of the write frame are not valid.
+    /// - `BUSY`: Unable to set the write frame on the device.
+    fn set_write_frame(
+        &self,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<(), ErrorCode>;
 
     /// Sends a write command to write data in the selected video memory frame.
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: Write is valid and will be sent to the screen.
-    /// - `EINVAL`: Write is invalid or length is wrong.
-    /// - `EBUSY`: Another write is in progress.
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
+    /// - `Ok(())`: Write is valid and will be sent to the screen.
+    /// - `INVAL`: Write is invalid or length is wrong.
+    /// - `BUSY`: Another write is in progress.
+    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode>;
 
     /// Sends a write command to write data in the selected video memory frame
     /// without resetting the video memory frame position. It "continues" the
@@ -193,10 +199,10 @@ pub trait Screen {
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:
-    /// - `SUCCESS`: Write is valid and will be sent to the screen.
-    /// - `EINVAL`: Write is invalid or length is wrong.
-    /// - `EBUSY`: Another write is in progress.
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode;
+    /// - `Ok(())`: Write is valid and will be sent to the screen.
+    /// - `INVAL`: Write is invalid or length is wrong.
+    /// - `BUSY`: Another write is in progress.
+    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode>;
 
     /// Set the object to receive the asynchronous command callbacks.
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
@@ -205,29 +211,29 @@ pub trait Screen {
     /// Screens must implement this function for at least two brightness values (in percent)
     ///     0 - power off,
     ///     otherwise - on, set brightness (if available)
-    fn set_brightness(&self, brightness: usize) -> ReturnCode;
+    fn set_brightness(&self, brightness: usize) -> Result<(), ErrorCode>;
 
     /// Inverts the colors.
-    fn invert_on(&self) -> ReturnCode;
+    fn invert_on(&self) -> Result<(), ErrorCode>;
 
     /// Reverts the colors to normal.
-    fn invert_off(&self) -> ReturnCode;
+    fn invert_off(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait ScreenAdvanced: Screen + ScreenSetup {}
 
 pub trait ScreenSetupClient {
     /// The screen will call this function to notify that a command has finished.
-    fn command_complete(&self, r: ReturnCode);
+    fn command_complete(&self, r: Result<(), ErrorCode>);
 }
 
 pub trait ScreenClient {
     /// The screen will call this function to notify that a command (except write) has finished.
-    fn command_complete(&self, r: ReturnCode);
+    fn command_complete(&self, r: Result<(), ErrorCode>);
 
     /// The screen will call this function to notify that the write command has finished.
     /// This is different from `command_complete` as it has to pass back the write buffer
-    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode);
+    fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>);
 
     /// Some screens need some time to start, this function is called when the screen is ready
     fn screen_is_ready(&self);

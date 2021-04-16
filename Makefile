@@ -41,7 +41,7 @@ usage:
 	@echo "       allboards: Compiles Tock for all supported boards"
 	@echo "        allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "          alldoc: Builds Tock documentation for all boards"
-	@echo "          allstack: Prints a basic stack frame analysis for all boards"
+	@echo "        allstack: Prints a basic stack frame analysis for all boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
 	@echo "            list: Lists available boards"
@@ -411,7 +411,6 @@ ci-job-libraries:
 	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tock-cells && CI=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-rt0 && CI=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-job-archs
 ci-job-archs:

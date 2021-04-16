@@ -18,7 +18,6 @@ use crate::ipc;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
-use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::{AppId, UpcallId};
@@ -124,8 +123,12 @@ impl fmt::Debug for ProcessLoadError {
 /// Processes are found in flash starting from the given address and iterating
 /// through Tock Binary Format (TBF) headers. Processes are given memory out of
 /// the `app_memory` buffer until either the memory is exhausted or the
-/// allocated number of processes are created. A reference to each process is
-/// stored in the provided `procs` array. How process faults are handled by the
+/// allocated number of processes are created. This buffer is a non-static slice,
+/// ensuring that this code cannot hold onto the slice past the end of this function
+/// (instead, processes store a pointer and length), which necessary for later
+/// creation of `AppSlice`'s in this memory region to be sound.
+/// A reference to each process is stored in the provided `procs` array.
+/// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
 ///
 /// This function is made `pub` so that board files can use it, but loading
@@ -139,7 +142,7 @@ pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
+    app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
     _capability: &dyn ProcessManagementCapability,
@@ -256,6 +259,24 @@ pub fn load_processes<C: Chip>(
     }
 
     Ok(())
+}
+
+/// Opaque identifier for custom grants allocated dynamically from a process's
+/// grant region.
+///
+/// This type allows Process to provide a handle to a custom grant within a
+/// process's memory that `ProcessGrant` can use to access the custom grant
+/// memory later.
+///
+/// We use this type rather than a direct pointer so that any attempt to access
+/// can ensure the process still exists and is valid, and that the custom grant
+/// has not been freed.
+///
+/// The fields of this struct are private so only Process can create this
+/// identifier.
+#[derive(Copy, Clone)]
+pub struct ProcessCustomGrantIdentifer {
+    offset: usize,
 }
 
 /// This trait is implemented by process structs.
@@ -496,29 +517,77 @@ pub trait ProcessType {
 
     // grants
 
-    /// Create new memory in the grant region, and check that the MPU region
-    /// covering program memory does not extend past the kernel memory break.
+    /// Allocate memory from the grant region and store the reference in the
+    /// proper grant pointer index.
     ///
-    /// This will return `None` and fail if the process is inactive.
-    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
+    /// This function must check that doing the allocation does not cause
+    /// the kernel memory break to go below the top of the process accessible
+    /// memory region allowed by the MPU. Note, this can be different from the
+    /// actual app_brk, as MPU alignment and size constraints may result in the
+    /// MPU enforced region differing from the app_brk.
+    ///
+    /// This will return `None` and fail if:
+    /// - The process is inactive, or
+    /// - There is not enough available memory to do the allocation, or
+    /// - The grant_num is invalid, or
+    /// - The grant_num already has an allocated grant.
+    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
 
-    unsafe fn free(&self, _: *mut u8);
+    /// Check if a given grant for this process has been allocated.
+    ///
+    /// Returns `None` if the process is not active. Otherwise, returns `true`
+    /// if the grant has been allocated, `false` otherwise.
+    fn grant_is_allocated(&self, grant_num: usize) -> Option<bool>;
 
-    /// Get the grant pointer for this grant number.
+    /// Allocate memory from the grant region that is `size` bytes long and
+    /// aligned to `align` bytes. This is used for creating custom grants which
+    /// are not recorded in the grant pointer array, but are useful for capsules
+    /// which need additional process-specific dynamically allocated memory.
     ///
-    /// This will return `None` if the process is inactive and the grant region
-    /// cannot be used.
-    ///
-    /// Caution: The grant may not have been allocated yet, so it is possible
-    /// for this grant pointer to be null.
-    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+    /// If successful, return a Some() with an identifier that can be used with
+    /// `enter_custom_grant()` to get access to the memory and the pointer to
+    /// the memory which must be used to initialize the memory.
+    fn allocate_custom_grant(
+        &self,
+        size: usize,
+        align: usize,
+    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)>;
 
-    /// Set the grant pointer for this grant number.
+    /// Enter the grant based on `grant_num` for this process.
     ///
-    /// Note: This method trusts arguments completely, that is, it assumes the
-    /// index into the grant array is valid and the pointer is to an allocated
-    /// grant region in the process memory.
-    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
+    /// Entering a grant means getting access to the actual memory for the
+    /// object stored as the grant.
+    ///
+    /// This will return an `Err` if the process is inactive of the `grant_num`
+    /// is invalid, if the grant has not been allocated, or if the grant is
+    /// already entered. If this returns `Ok()` then the pointer points to the
+    /// previously allocated memory for this grant.
+    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error>;
+
+    /// Enter a custom grant based on the `identifier`.
+    ///
+    /// This retrieves a pointer to the previously allocated custom grant based
+    /// on the identifier returned when the custom grant was allocated.
+    ///
+    /// This returns an error if the custom grant is no longer accessible, or
+    /// if the process is inactive.
+    fn enter_custom_grant(&self, identifier: ProcessCustomGrantIdentifer)
+        -> Result<*mut u8, Error>;
+
+    /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
+    /// entered.
+    ///
+    /// If `grant_num` is valid, this function cannot fail. If `grant_num` is
+    /// invalid, this function will do nothing. If the process is inactive then
+    /// grants are invalid and are not entered or not entered, and this function
+    /// will do nothing.
+    fn leave_grant(&self, grant_num: usize);
+
+    /// Return the count of the number of allocated grant pointers if the
+    /// process is active. This does not count custom grants.
+    ///
+    /// Useful for debugging/inspecting the system.
+    fn grant_allocated_count(&self) -> Option<usize>;
 
     // functions for processes that are architecture specific
 
@@ -664,15 +733,15 @@ pub enum Error {
     AlreadyInUse,
 }
 
-impl From<Error> for ReturnCode {
-    fn from(err: Error) -> ReturnCode {
+impl From<Error> for Result<(), ErrorCode> {
+    fn from(err: Error) -> Result<(), ErrorCode> {
         match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-            Error::InactiveApp => ReturnCode::FAIL,
-            Error::KernelError => ReturnCode::FAIL,
-            Error::AlreadyInUse => ReturnCode::FAIL,
+            Error::OutOfMemory => Err(ErrorCode::NOMEM),
+            Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
+            Error::NoSuchApp => Err(ErrorCode::INVAL),
+            Error::InactiveApp => Err(ErrorCode::FAIL),
+            Error::KernelError => Err(ErrorCode::FAIL),
+            Error::AlreadyInUse => Err(ErrorCode::FAIL),
         }
     }
 }
@@ -892,7 +961,7 @@ pub struct Process<'a, C: 'static + Chip> {
     /// Application memory layout:
     ///
     /// ```text
-    ///     ╒════════ ← memory[memory.len()]
+    ///     ╒════════ ← memory_start + memory_len
     ///  ╔═ │ Grant Pointers
     ///  ║  │ ──────
     ///     │ Process Control Block
@@ -914,11 +983,23 @@ pub struct Process<'a, C: 'static + Chip> {
     ///  E  │                                    S B
     ///  D  │ ──────  ← current_stack_pointer      L
     ///     │                                    ║ E
-    ///  ╚═ ╘════════ ← memory[0]               ═╝
+    ///  ╚═ ╘════════ ← memory_start            ═╝
     /// ```
     ///
-    /// The process's memory.
-    memory: &'static mut [u8],
+    /// The start of process memory. We store this as a pointer and length and
+    /// not a slice due to Rust aliasing rules. If we were to store a slice,
+    /// then any time another slice to the same memory or an AppSlice is used in
+    /// the kernel would be undefined behavior.
+    memory_start: *const u8,
+    /// Number of bytes of memory allocated to this process.
+    memory_len: usize,
+
+    /// Reference to the slice of pointers stored in the process's memory
+    /// reserved for the kernel. These pointers are null if the grant region has
+    /// not been allocated. When the grant region is allocated these pointers
+    /// are updated to point to the allocated memory. No other reference to these
+    /// pointers exists in the Tock kernel.
+    grant_pointers: MapCell<&'static mut [*mut u8]>,
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
@@ -1152,11 +1233,11 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn mem_start(&self) -> *const u8 {
-        self.memory.as_ptr()
+        self.memory_start
     }
 
     fn mem_end(&self) -> *const u8 {
-        unsafe { self.memory.as_ptr().add(self.memory.len()) }
+        self.memory_start.wrapping_add(self.memory_len)
     }
 
     fn flash_start(&self) -> *const u8 {
@@ -1168,7 +1249,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
     }
 
     fn flash_end(&self) -> *const u8 {
-        unsafe { self.flash.as_ptr().add(self.flash.len()) }
+        self.flash.as_ptr().wrapping_add(self.flash.len())
     }
 
     fn kernel_memory_break(&self) -> *const u8 {
@@ -1431,88 +1512,186 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         }
     }
 
-    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
+    fn grant_is_allocated(&self, grant_num: usize) -> Option<bool> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
-        self.mpu_config.and_then(|mut config| {
-            // First, compute the candidate new pointer. Note that at this
-            // point we have not yet checked whether there is space for
-            // this allocation or that it meets alignment requirements.
-            let new_break_unaligned = self
-                .kernel_memory_break
-                .get()
-                .wrapping_offset(-(size as isize));
-
-            // The alignment must be a power of two, 2^a. The expression
-            // `!(align - 1)` then returns a mask with leading ones,
-            // followed by `a` trailing zeros.
-            let alignment_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
-
-            // Verify there is space for this allocation
-            if new_break < self.app_break.get() {
-                None
-            // Verify it didn't wrap around
-            } else if new_break > self.kernel_memory_break.get() {
-                None
-            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
-                self.app_break.get(),
-                new_break,
-                mpu::Permissions::ReadWriteOnly,
-                &mut config,
-            ) {
-                None
-            } else {
-                self.kernel_memory_break.set(new_break);
-                unsafe {
-                    // Two unsafe steps here, both okay as we just made this pointer
-                    Some(NonNull::new_unchecked(new_break as *mut u8))
-                }
-            }
+        // Update the grant pointer to the address of the new allocation.
+        self.grant_pointers.map_or(None, |grant_pointers| {
+            // Implement `grant_pointers[grant_num]` without a
+            // chance of a panic.
+            grant_pointers
+                .get(grant_num)
+                .map_or(None, |grant_pointer_pointer| {
+                    Some(!(*grant_pointer_pointer).is_null())
+                })
         })
     }
 
-    unsafe fn free(&self, _: *mut u8) {}
-
-    // This is safe today, as MPU constraints ensure that `mem_end` will always
-    // be aligned on at least a word boundary. While this is unlikely to
-    // change, it should be more proactively enforced.
-    //
-    // TODO: https://github.com/tock/tock/issues/1739
-    #[allow(clippy::cast_ptr_alignment)]
-    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8> {
-        // Do not try to access the grant region of inactive process.
+    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>> {
+        // Do not modify an inactive process.
         if !self.is_active() {
             return None;
         }
 
-        // Sanity check the argument
+        // Verify the grant_num is valid.
         if grant_num >= self.kernel.get_grant_count_and_finalize() {
             return None;
         }
 
-        let grant_num = grant_num as isize;
-        let grant_pointer = unsafe {
-            let grant_pointer_array = self.mem_end() as *const *mut u8;
-            *grant_pointer_array.offset(-(grant_num + 1))
-        };
-        Some(grant_pointer)
+        // Verify that the grant is not already allocated. If the pointer is not
+        // null then the grant is already allocated.
+        if let Some(is_allocated) = self.grant_is_allocated(grant_num) {
+            if is_allocated {
+                return None;
+            }
+        }
+
+        // Use the shared grant allocator function to actually allocate memory.
+        // Returns `None` if the allocation cannot be created.
+        if let Some(grant_ptr) = self.allocate_in_grant_region_internal(size, align) {
+            // Update the grant pointer to the address of the new allocation.
+            self.grant_pointers.map_or(None, |grant_pointers| {
+                // Implement `grant_pointers[grant_num] = grant_ptr` without a
+                // chance of a panic.
+                grant_pointers
+                    .get_mut(grant_num)
+                    .map_or(None, |grant_pointer_pointer| {
+                        // Actually set the grant pointer.
+                        *grant_pointer_pointer = grant_ptr.as_ptr() as *mut u8;
+
+                        // If all of this worked, return the allocated pointer.
+                        Some(grant_ptr)
+                    })
+            })
+        } else {
+            // Could not allocate the memory for the grant region.
+            None
+        }
     }
 
-    // This is safe today, as MPU constraints ensure that `mem_end` will always
-    // be aligned on at least a word boundary. While this is unlikely to
-    // change, it should be more proactively enforced.
-    //
-    // TODO: https://github.com/tock/tock/issues/1739
-    #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
-        let grant_num = grant_num as isize;
-        let grant_pointer_array = self.mem_end() as *mut *mut u8;
-        let grant_pointer_pointer = grant_pointer_array.offset(-(grant_num + 1));
-        *grant_pointer_pointer = grant_ptr;
+    fn allocate_custom_grant(
+        &self,
+        size: usize,
+        align: usize,
+    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
+        // Use the shared grant allocator function to actually allocate memory.
+        // Returns `None` if the allocation cannot be created.
+        if let Some(ptr) = self.allocate_in_grant_region_internal(size, align) {
+            // Create the identifier that the caller will use to get access to
+            // this custom grant in the future.
+            let identifier = self.create_custom_grant_identifier(ptr);
+
+            Some((identifier, ptr))
+        } else {
+            // Could not allocate memory for the custom grant.
+            None
+        }
+    }
+
+    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
+        // Retrieve the grant pointer from the `grant_pointers` slice. We use
+        // `[slice].get()` so that if the grant number is invalid this will
+        // return `Err` and not panic.
+        self.grant_pointers
+            .map_or(Err(Error::KernelError), |grant_pointers| {
+                // Implement `grant_pointers[grant_num]` without a chance of a
+                // panic.
+                match grant_pointers.get_mut(grant_num) {
+                    Some(grant_pointer_pointer) => {
+                        // Get a copy of the actual grant pointer.
+                        let grant_ptr = *grant_pointer_pointer;
+
+                        // Check if the grant pointer is marked that the grant
+                        // has already been entered. If so, return an error.
+                        if (grant_ptr as usize) & 0x1 == 0x1 {
+                            // Lowest bit is one, meaning this grant has been
+                            // entered.
+                            Err(Error::AlreadyInUse)
+                        } else {
+                            // Now, to mark that the grant has been entered, we
+                            // set the lowest bit to one and save this as the
+                            // grant pointer.
+                            *grant_pointer_pointer = (grant_ptr as usize | 0x1) as *mut u8;
+
+                            // And we return the grant pointer to the entered
+                            // grant.
+                            Ok(grant_ptr)
+                        }
+                    }
+                    None => Err(Error::AddressOutOfBounds),
+                }
+            })
+    }
+
+    fn enter_custom_grant(
+        &self,
+        identifier: ProcessCustomGrantIdentifer,
+    ) -> Result<*mut u8, Error> {
+        // Do not try to access the grant region of inactive process.
+        if !self.is_active() {
+            return Err(Error::InactiveApp);
+        }
+
+        // Get the address of the custom grant based on the identifier.
+        let custom_grant_address = self.get_custom_grant_address(identifier);
+
+        // We never deallocate custom grants and only we can change the
+        // `identifier` so we know this is a valid address for the custom grant.
+        Ok(custom_grant_address as *mut u8)
+    }
+
+    fn leave_grant(&self, grant_num: usize) {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return;
+        }
+
+        self.grant_pointers.map(|grant_pointers| {
+            // Implement `grant_pointers[grant_num]` without a chance of a
+            // panic.
+            match grant_pointers.get_mut(grant_num) {
+                Some(grant_pointer_pointer) => {
+                    // Get a copy of the actual grant pointer.
+                    let grant_ptr = *grant_pointer_pointer;
+
+                    // Now, to mark that the grant has been released, we set the
+                    // lowest bit back to zero and save this as the grant
+                    // pointer.
+                    *grant_pointer_pointer = (grant_ptr as usize & !0x1) as *mut u8;
+                }
+                None => {}
+            }
+        });
+    }
+
+    fn grant_allocated_count(&self) -> Option<usize> {
+        // Do not modify an inactive process.
+        if !self.is_active() {
+            return None;
+        }
+
+        self.grant_pointers.map(|grant_pointers| {
+            // Filter our list of grant pointers into just the non null ones,
+            // and count those. A grant is allocated if its grant pointer is non
+            // null.
+            grant_pointers
+                .iter()
+                .filter(|grant_ptr| !grant_ptr.is_null())
+                .count()
+        })
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -1530,7 +1709,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     return_value,
@@ -1569,7 +1748,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // passed to `set_process_function` are correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     callback,
@@ -1614,12 +1793,10 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 // we pass are valid, ensuring this context switch is safe.
                 // Therefore we encapsulate the `unsafe`.
                 unsafe {
-                    let (switch_reason, optional_stack_pointer) =
-                        self.chip.userspace_kernel_boundary().switch_to_process(
-                            self.memory.as_ptr(),
-                            self.app_break.get(),
-                            stored_state,
-                        );
+                    let (switch_reason, optional_stack_pointer) = self
+                        .chip
+                        .userspace_kernel_boundary()
+                        .switch_to_process(self.mem_start(), self.app_break.get(), stored_state);
                     (Some(switch_reason), optional_stack_pointer)
                 }
             });
@@ -1677,7 +1854,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let flash_app_size = flash_end - flash_app_start;
 
         // SRAM addresses
-        let sram_end = self.memory.as_ptr().wrapping_add(self.memory.len()) as usize;
+        let sram_end = self.mem_end() as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
@@ -1689,7 +1866,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
         let sram_stack_bottom: Option<usize> = self.debug.map_or(None, |debug| {
             debug.app_stack_min_pointer.map(|p| p as usize)
         });
-        let sram_start = self.memory.as_ptr() as usize;
+        let sram_start = self.mem_start() as usize;
 
         // SRAM sizes
         let sram_grant_size = sram_end - sram_grant_start;
@@ -1835,7 +2012,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             // correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
-                    self.memory.as_ptr(),
+                    self.mem_start(),
                     self.app_break.get(),
                     stored_state,
                     writer,
@@ -1851,31 +2028,34 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             self.kernel.get_grant_count_and_finalize()
         ));
         let rows = (number_grants + 2) / 3;
-        // Iterate each grant and show its address.
-        for i in 0..rows {
-            for j in 0..3 {
-                let index = i + (rows * j);
-                if index >= number_grants {
-                    break;
-                }
 
-                match self.get_grant_ptr(index) {
-                    Some(ptr) => {
-                        if ptr.is_null() {
+        // Access our array of grant pointers.
+        self.grant_pointers.map(|grant_pointers| {
+            // Iterate each grant and show its address.
+            for i in 0..rows {
+                for j in 0..3 {
+                    let index = i + (rows * j);
+                    if index >= number_grants {
+                        break;
+                    }
+
+                    // Implement `grant_pointers[grant_num]` without a chance of
+                    // a panic.
+                    grant_pointers.get(index).map(|grant_pointer_pointer| {
+                        if grant_pointer_pointer.is_null() {
                             let _ =
                                 writer.write_fmt(format_args!("  Grant {:>2}: --        ", index));
                         } else {
-                            let _ =
-                                writer.write_fmt(format_args!("  Grant {:>2}: {:p}", index, ptr));
+                            let _ = writer.write_fmt(format_args!(
+                                "  Grant {:>2}: {:p}",
+                                index, grant_pointer_pointer
+                            ));
                         }
-                    }
-                    None => {
-                        // Don't display if the grant ptr is completely invalid.
-                    }
+                    });
                 }
+                let _ = writer.write_fmt(format_args!("\r\n"));
             }
-            let _ = writer.write_fmt(format_args!("\r\n"));
-        }
+        });
 
         // Display the current state of the MPU for this process.
         self.mpu_config.map(|config| {
@@ -1900,7 +2080,7 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                 ));
             } else {
                 // PIC, need to specify the addresses.
-                let sram_start = self.memory.as_ptr() as usize;
+                let sram_start = self.mem_start() as usize;
                 let flash_start = self.flash.as_ptr() as usize;
                 let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
@@ -1931,16 +2111,16 @@ impl<C: 'static + Chip> Process<'_, C> {
     // Memory offset to make room for this process's metadata.
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Process<C>>();
 
-    pub(crate) unsafe fn create(
+    pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
         app_flash: &'static [u8],
         header_length: usize,
         app_version: u16,
-        remaining_memory: &'static mut [u8],
+        remaining_memory: &'a mut [u8],
         fault_response: FaultResponse,
         index: usize,
-    ) -> Result<(Option<&'static dyn ProcessType>, &'static mut [u8]), ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn ProcessType>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length as usize)
@@ -2195,10 +2375,9 @@ impl<C: 'static + Chip> Process<'_, C> {
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
-        let opts =
-            slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
+        let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_ptrs_num);
         for opt in opts.iter_mut() {
-            *opt = ptr::null()
+            *opt = ptr::null_mut()
         }
 
         // Now that we know we have the space we can setup the memory for the
@@ -2242,10 +2421,12 @@ impl<C: 'static + Chip> Process<'_, C> {
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory = app_memory;
+        process.memory_start = app_memory.as_ptr();
+        process.memory_len = app_memory.len();
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
+        process.grant_pointers = MapCell::new(opts);
 
         process.flash = app_flash;
 
@@ -2287,8 +2468,8 @@ impl<C: 'static + Chip> Process<'_, C> {
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
                 argument0: flash_app_start_addr,
-                argument1: process.memory.as_ptr() as usize,
-                argument2: process.memory.len() as usize,
+                argument1: process.memory_start as usize,
+                argument2: process.memory_len,
                 argument3: process.app_break.get() as usize,
             }));
         });
@@ -2399,9 +2580,9 @@ impl<C: 'static + Chip> Process<'_, C> {
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
-            self.memory.as_ptr() as *const u8,
-            self.memory.len(),
-            self.memory.len(), //we want exactly as much as we had before restart
+            self.mem_start(),
+            self.memory_len,
+            self.memory_len, //we want exactly as much as we had before restart
             min_process_memory_size,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
@@ -2476,8 +2657,8 @@ impl<C: 'static + Chip> Process<'_, C> {
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
                 argument0: flash_app_start,
-                argument1: self.memory.as_ptr() as usize,
-                argument2: self.memory.len() as usize,
+                argument1: self.mem_start() as usize,
+                argument2: self.memory_len,
                 argument3: self.app_break.get() as usize,
             }));
         });
@@ -2527,6 +2708,94 @@ impl<C: 'static + Chip> Process<'_, C> {
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
             write_volatile(ctr_ptr, ptr::null_mut());
         }
+    }
+
+    /// Allocate memory in a process's grant region.
+    ///
+    /// Ensures that the allocation is of `size` bytes and aligned to `align`
+    /// bytes.
+    ///
+    /// If there is not enough memory, or the MPU cannot isolate the process
+    /// accessible region from the new kernel memory break after doing the
+    /// allocation, then this will return `None`.
+    fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
+        self.mpu_config.and_then(|mut config| {
+            // First, compute the candidate new pointer. Note that at this
+            // point we have not yet checked whether there is space for
+            // this allocation or that it meets alignment requirements.
+            let new_break_unaligned = self.kernel_memory_break.get().wrapping_sub(size);
+
+            // Our minimum alignment requirement is two bytes, so that the
+            // lowest bit of the address will always be zero and we can use it
+            // as a flag. It doesn't hurt to increase the alignment (except for
+            // potentially a wasted byte) so we make sure `align` is at least
+            // two.
+            let align = cmp::max(align, 2);
+
+            // The alignment must be a power of two, 2^a. The expression
+            // `!(align - 1)` then returns a mask with leading ones,
+            // followed by `a` trailing zeros.
+            let alignment_mask = !(align - 1);
+            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+
+            // Verify there is space for this allocation
+            if new_break < self.app_break.get() {
+                None
+            // Verify it didn't wrap around
+            } else if new_break > self.kernel_memory_break.get() {
+                None
+            // Verify this is compatible with the MPU.
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                self.app_break.get(),
+                new_break,
+                mpu::Permissions::ReadWriteOnly,
+                &mut config,
+            ) {
+                None
+            } else {
+                // Allocation is valid.
+
+                // We always allocate down, so we must lower the
+                // kernel_memory_break.
+                self.kernel_memory_break.set(new_break);
+
+                // We need `grant_ptr` as a mutable pointer.
+                let grant_ptr = new_break as *mut u8;
+
+                // ### Safety
+                //
+                // Here we are guaranteeing that `grant_ptr` is not null. We can
+                // ensure this because we just created `grant_ptr` based on the
+                // process's allocated memory, and we know it cannot be null.
+                unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
+            }
+        })
+    }
+
+    /// Create the identifier for a custom grant that grant.rs uses to access
+    /// the custom grant.
+    ///
+    /// We create this identifier by calculating the number of bytes between
+    /// where the custom grant starts and the end of the process memory.
+    fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifer {
+        let custom_grant_address = ptr.as_ptr() as usize;
+        let process_memory_end = self.mem_end() as usize;
+
+        ProcessCustomGrantIdentifer {
+            offset: process_memory_end - custom_grant_address,
+        }
+    }
+
+    /// Use a ProcessCustomGrantIdentifer to find the address of the custom
+    /// grant.
+    ///
+    /// This reverses `create_custom_grant_identifier()`.
+    fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifer) -> usize {
+        let process_memory_end = self.mem_end() as usize;
+
+        // Subtract the offset in the identifier from the end of the process
+        // memory to get the address of the custom grant.
+        process_memory_end - identifier.offset
     }
 
     /// Check if the process is active.

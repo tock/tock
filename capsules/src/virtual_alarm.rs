@@ -5,7 +5,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
 /// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.
@@ -67,9 +67,9 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         self.client.set(client);
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         if !self.armed.get() {
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
 
         self.armed.set(false);
@@ -80,9 +80,9 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            self.mux.alarm.disarm();
+            let _ = self.mux.alarm.disarm();
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {
@@ -180,7 +180,7 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
 
     pub fn disarm(&self) {
         self.next_tick_vals.set(None);
-        self.alarm.disarm();
+        let _ = self.alarm.disarm();
     }
 }
 

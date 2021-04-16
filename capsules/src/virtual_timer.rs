@@ -6,7 +6,7 @@ use core::cmp;
 use kernel::common::cells::{NumericCellExt, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Mode {
@@ -96,9 +96,9 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
         self.client.set(client);
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         match self.mode.get() {
-            Mode::Uninserted | Mode::Disabled => ReturnCode::SUCCESS,
+            Mode::Uninserted | Mode::Disabled => Ok(()),
             Mode::OneShot | Mode::Repeating => {
                 self.mode.set(Mode::Disabled);
                 self.mux.enabled.decrement();
@@ -106,9 +106,9 @@ impl<'a, A: Alarm<'a>> Timer<'a> for VirtualTimer<'a, A> {
                 // If there are not more enabled timers, disable the
                 // underlying alarm.
                 if self.mux.enabled.get() == 0 {
-                    self.mux.alarm.disarm();
+                    let _ = self.mux.alarm.disarm();
                 }
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -255,7 +255,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxTimer<'a, A> {
             self.alarm
                 .set_alarm(now, valrm.when.get().wrapping_sub(now));
         } else {
-            self.alarm.disarm();
+            let _ = self.alarm.disarm();
         }
     }
 }

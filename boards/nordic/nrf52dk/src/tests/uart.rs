@@ -4,7 +4,7 @@ use nrf52832::uart::Uarte;
 
 const BUFFER_SIZE_2048: usize = 2048;
 
-/// To run the tests add the following `main.rs::reset_handler` somewhere after that the UART
+/// To run the tests add the following `main.rs::main` somewhere after that the UART
 /// peripheral has been initilized:
 ///
 /// ```rustc
@@ -12,7 +12,7 @@ const BUFFER_SIZE_2048: usize = 2048;
 /// ```
 ///
 /// Make sure you don't are running any user-space processes and remove all `debug!` prints
-/// in `main.rs::reset_handler()` otherwise race-conditions in the UART will occur.
+/// in `main.rs::main()` otherwise race-conditions in the UART will occur.
 /// Then enable the test you want run in `run()`
 ///
 pub unsafe fn run(uart: &'static Uarte) {

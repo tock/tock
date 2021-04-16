@@ -134,18 +134,27 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point in the vector table called on hard reset.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52833::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
     let ppi = static_init!(nrf52833::ppi::Ppi, nrf52833::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
         Nrf52833DefaultPeripherals::new(ppi)
     );
+
+    nrf52833_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52833::init();
+
+    let nrf52833_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52833_peripherals.init();
@@ -240,7 +249,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
@@ -472,7 +481,7 @@ pub unsafe fn reset_handler() {
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
-    process_console.start();
+    let _ = process_console.start();
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

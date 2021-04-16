@@ -2,7 +2,7 @@ use crate::net::ipv6::IP6Header;
 use crate::net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 // To provide some context for the entire rx chain:
 /*
@@ -59,15 +59,15 @@ impl<'a> IP6RecvStruct<'a> {
 }
 
 impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
-    fn receive(&self, buf: &[u8], len: usize, result: ReturnCode) {
+    fn receive(&self, buf: &[u8], len: usize, result: Result<(), ErrorCode>) {
         // TODO: Drop here?
-        if len > buf.len() || result != ReturnCode::SUCCESS {
+        if len > buf.len() || result != Ok(()) {
             return;
         }
         match IP6Header::decode(buf).done() {
             Some((offset, ip6_header)) => {
                 let checksum_result = ip6_header.check_transport_checksum(&buf[offset..len]);
-                if checksum_result == ReturnCode::FAIL {
+                if checksum_result == Err(ErrorCode::FAIL) {
                     debug!("cksum fail!: {:?}", checksum_result);
                     return; //Dropped.
                 }

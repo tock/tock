@@ -1,6 +1,6 @@
 //! Interface for touch input devices
 
-use crate::ReturnCode;
+use crate::ErrorCode;
 
 /// Touch Event Status
 #[derive(Debug, Copy, Clone)]
@@ -57,13 +57,13 @@ pub struct TouchEvent {
 pub trait Touch<'a> {
     /// Enable the touch panel
     ///
-    /// returns SUCCESS even if device is already enabled
-    fn enable(&self) -> ReturnCode;
+    /// returns Ok(()) even if device is already enabled
+    fn enable(&self) -> Result<(), ErrorCode>;
 
     /// Disable the touch panel
     ///
-    /// returns SUCCESS even if device is already disabled
-    fn disable(&self) -> ReturnCode;
+    /// returns Ok(()) even if device is already disabled
+    fn disable(&self) -> Result<(), ErrorCode>;
 
     /// Set the touch client
     fn set_client(&self, touch_client: &'a dyn TouchClient);
@@ -73,13 +73,13 @@ pub trait Touch<'a> {
 pub trait MultiTouch<'a> {
     /// Enable the touche panel
     ///
-    /// returns SUCCESS even if device is already enabled
-    fn enable(&self) -> ReturnCode;
+    /// returns Ok(()) even if device is already enabled
+    fn enable(&self) -> Result<(), ErrorCode>;
 
     /// Disable the touch panel
     ///
-    /// returns SUCCESS even if device is already disabled
-    fn disable(&self) -> ReturnCode;
+    /// returns Ok(()) even if device is already disabled
+    fn disable(&self) -> Result<(), ErrorCode>;
 
     /// Returns the number of maximum concurently supported touches.
     fn get_num_touches(&self) -> usize;

@@ -608,6 +608,14 @@ impl Kernel {
                 break;
             }
 
+            // Check if this process is actually ready to run. If not, we don't
+            // try to run it. This case can happen if a process faults and is
+            // stopped, for example.
+            if !process.ready() {
+                return_reason = StoppedExecutingReason::NoWorkLeft;
+                break;
+            }
+
             match process.get_state() {
                 process::State::Running => {
                     // Running means that this process expects to be running, so
@@ -627,8 +635,12 @@ impl Kernel {
                     // why and handle the process as appropriate.
                     match context_switch_reason {
                         Some(ContextSwitchReason::Fault) => {
-                            // Let process deal with it as appropriate.
-                            process.set_fault_state();
+                            // The app faulted, check if the chip wants to
+                            // handle the fault.
+                            if platform.process_fault_hook(process).is_err() {
+                                // Let process deal with it as appropriate.
+                                process.set_fault_state();
+                            }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             self.handle_syscall(platform, process, syscall);

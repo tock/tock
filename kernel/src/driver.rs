@@ -72,7 +72,6 @@
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
-use crate::returncode::ReturnCode;
 use crate::syscall::SyscallReturn;
 use crate::upcall::{AppId, Upcall};
 use core::convert::TryFrom;
@@ -149,10 +148,10 @@ impl CommandReturn {
     }
 }
 
-impl From<ReturnCode> for CommandReturn {
-    fn from(rc: ReturnCode) -> Self {
+impl From<Result<(), ErrorCode>> for CommandReturn {
+    fn from(rc: Result<(), ErrorCode>) -> Self {
         match rc {
-            ReturnCode::SUCCESS => CommandReturn::success(),
+            Ok(()) => CommandReturn::success(),
             _ => CommandReturn::failure(ErrorCode::try_from(rc).unwrap()),
         }
     }

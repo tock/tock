@@ -1,7 +1,7 @@
 //! Interface for GPIO pins that require split-phase operation to control.
 
 use crate::hil;
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// Interface for banks of asynchronous GPIO pins. GPIO pins are asynchronous
 /// when there is an asynchronous interface used to control them. The most
@@ -18,35 +18,36 @@ use crate::returncode::ReturnCode;
 /// The API for the Port mirrors the synchronous GPIO interface.
 pub trait Port {
     /// Try to disable a GPIO pin. This cannot be supported for all devices.
-    fn disable(&self, pin: usize) -> ReturnCode;
+    fn disable(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Configure a pin as an ouput GPIO.
-    fn make_output(&self, pin: usize) -> ReturnCode;
+    fn make_output(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Configure a pin as an input GPIO. Not all FloatingMode settings may
     /// be supported by a given device.
-    fn make_input(&self, pin: usize, mode: hil::gpio::FloatingState) -> ReturnCode;
+    fn make_input(&self, pin: usize, mode: hil::gpio::FloatingState) -> Result<(), ErrorCode>;
 
     /// Get the state (0 or 1) of an input pin. The value will be returned
     /// via a callback.
-    fn read(&self, pin: usize) -> ReturnCode;
+    fn read(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Toggle an output GPIO pin.
-    fn toggle(&self, pin: usize) -> ReturnCode;
+    fn toggle(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Assert a GPIO pin high.
-    fn set(&self, pin: usize) -> ReturnCode;
+    fn set(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Clear a GPIO pin low.
-    fn clear(&self, pin: usize) -> ReturnCode;
+    fn clear(&self, pin: usize) -> Result<(), ErrorCode>;
 
     /// Setup an interrupt on a GPIO input pin. The identifier should be
     /// the port number and will be returned when the interrupt callback
     /// fires.
-    fn enable_interrupt(&self, pin: usize, mode: hil::gpio::InterruptEdge) -> ReturnCode;
+    fn enable_interrupt(&self, pin: usize, mode: hil::gpio::InterruptEdge)
+        -> Result<(), ErrorCode>;
 
     /// Disable an interrupt on a GPIO input pin.
-    fn disable_interrupt(&self, pin: usize) -> ReturnCode;
+    fn disable_interrupt(&self, pin: usize) -> Result<(), ErrorCode>;
 
     fn is_pending(&self, pin: usize) -> bool;
 }

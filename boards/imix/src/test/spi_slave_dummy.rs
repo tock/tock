@@ -74,7 +74,7 @@ pub unsafe fn spi_slave_dummy_test() {
     SPI_SLAVE.enable();
 
     // Hint: Temporarily, when switching between master and slave dummy code,
-    // - uncomment the right line at the end of reset_handler in main.rs
+    // - uncomment the right line at the end of main in main.rs
     // - uncomment the right client at the end of transfer_done in spi.rs
     // - uncomment 240-242 in main.rs for slave and comment it for master
 

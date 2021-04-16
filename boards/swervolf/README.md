@@ -62,16 +62,38 @@ functionality impact.
 
 ```diff
 diff --git a/arch/rv32i/src/lib.rs b/arch/rv32i/src/lib.rs
-index 5b6a23615..5e207a423 100644
+index 994de0a6c..87347e40b 100644
 --- a/arch/rv32i/src/lib.rs
 +++ b/arch/rv32i/src/lib.rs
-@@ -88,7 +88,7 @@ pub extern "C" fn _start() {
- /// This moves the data segment from flash to RAM and zeros out the BSS section.
- pub unsafe fn init_memory() {
-     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
--    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
-+    // tock_rt0::zero_bss(&mut _szero, &mut _ezero);
- }
- 
- /// The various privilege levels in RISC-V.
+@@ -81,18 +81,18 @@ pub extern "C" fn _start() {
+
+             // INITIALIZE MEMORY
+
+-            // Start by initializing .bss memory. The Tock linker script defines
+-            // `_szero` and `_ezero` to mark the .bss segment.
+-            la a0, {sbss}               // a0 = first address of .bss
+-            la a1, {ebss}               // a1 = first address after .bss
+-
+-          bss_init_loop:
+-            beq  a0, a1, bss_init_done  // If a0 == a1, we are done.
+-            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
+-            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
+-            j bss_init_loop             // Continue the loop.
+-
+-          bss_init_done:
++          //   // Start by initializing .bss memory. The Tock linker script defines
++          //   // `_szero` and `_ezero` to mark the .bss segment.
++          //   la a0, {sbss}               // a0 = first address of .bss
++          //   la a1, {ebss}               // a1 = first address after .bss
++
++          // bss_init_loop:
++          //   beq  a0, a1, bss_init_done  // If a0 == a1, we are done.
++          //   sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
++          //   addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
++          //   j bss_init_loop             // Continue the loop.
++
++          // bss_init_done:
+
+
+             // Now initialize .data memory. This involves coping the values right at the
 ```

@@ -2,16 +2,19 @@
 
 use core::convert::TryFrom;
 
-use crate::ReturnCode;
-
 /// Standard errors in Tock.
+///
+/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this does not
+/// feature any success cases and is therefore more approriate for the
+/// Tock 2.0 system call interface, where success payloads and errors
+/// are not packed into the same 32-bit wide register.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(usize)]
 pub enum ErrorCode {
     // Reserved value, for when "no error" / "success" should be
     // encoded in the same numeric representation as ErrorCode
     //
-    // SUCCESS = 0,
+    // Ok(()) = 0,
     /// Generic failure condition
     FAIL = 1,
     /// Underlying system is busy; retry
@@ -46,45 +49,67 @@ impl From<ErrorCode> for usize {
     }
 }
 
-impl TryFrom<ReturnCode> for ErrorCode {
+impl TryFrom<Result<(), ErrorCode>> for ErrorCode {
     type Error = ();
 
-    fn try_from(rc: ReturnCode) -> Result<Self, Self::Error> {
+    fn try_from(rc: Result<(), ErrorCode>) -> Result<Self, Self::Error> {
         match rc {
-            ReturnCode::SUCCESS => Err(()),
-            ReturnCode::FAIL => Ok(ErrorCode::FAIL),
-            ReturnCode::EBUSY => Ok(ErrorCode::BUSY),
-            ReturnCode::EALREADY => Ok(ErrorCode::ALREADY),
-            ReturnCode::EOFF => Ok(ErrorCode::OFF),
-            ReturnCode::ERESERVE => Ok(ErrorCode::RESERVE),
-            ReturnCode::EINVAL => Ok(ErrorCode::INVAL),
-            ReturnCode::ESIZE => Ok(ErrorCode::SIZE),
-            ReturnCode::ECANCEL => Ok(ErrorCode::CANCEL),
-            ReturnCode::ENOMEM => Ok(ErrorCode::NOMEM),
-            ReturnCode::ENOSUPPORT => Ok(ErrorCode::NOSUPPORT),
-            ReturnCode::ENODEVICE => Ok(ErrorCode::NODEVICE),
-            ReturnCode::EUNINSTALLED => Ok(ErrorCode::UNINSTALLED),
-            ReturnCode::ENOACK => Ok(ErrorCode::NOACK),
+            Ok(()) => Err(()),
+            Err(ErrorCode::FAIL) => Ok(ErrorCode::FAIL),
+            Err(ErrorCode::BUSY) => Ok(ErrorCode::BUSY),
+            Err(ErrorCode::ALREADY) => Ok(ErrorCode::ALREADY),
+            Err(ErrorCode::OFF) => Ok(ErrorCode::OFF),
+            Err(ErrorCode::RESERVE) => Ok(ErrorCode::RESERVE),
+            Err(ErrorCode::INVAL) => Ok(ErrorCode::INVAL),
+            Err(ErrorCode::SIZE) => Ok(ErrorCode::SIZE),
+            Err(ErrorCode::CANCEL) => Ok(ErrorCode::CANCEL),
+            Err(ErrorCode::NOMEM) => Ok(ErrorCode::NOMEM),
+            Err(ErrorCode::NOSUPPORT) => Ok(ErrorCode::NOSUPPORT),
+            Err(ErrorCode::NODEVICE) => Ok(ErrorCode::NODEVICE),
+            Err(ErrorCode::UNINSTALLED) => Ok(ErrorCode::UNINSTALLED),
+            Err(ErrorCode::NOACK) => Ok(ErrorCode::NOACK),
         }
     }
 }
 
-impl From<ErrorCode> for ReturnCode {
+impl From<ErrorCode> for Result<(), ErrorCode> {
     fn from(ec: ErrorCode) -> Self {
         match ec {
-            ErrorCode::FAIL => ReturnCode::FAIL,
-            ErrorCode::BUSY => ReturnCode::EBUSY,
-            ErrorCode::ALREADY => ReturnCode::EALREADY,
-            ErrorCode::OFF => ReturnCode::EOFF,
-            ErrorCode::RESERVE => ReturnCode::ERESERVE,
-            ErrorCode::INVAL => ReturnCode::EINVAL,
-            ErrorCode::SIZE => ReturnCode::ESIZE,
-            ErrorCode::CANCEL => ReturnCode::ECANCEL,
-            ErrorCode::NOMEM => ReturnCode::ENOMEM,
-            ErrorCode::NOSUPPORT => ReturnCode::ENOSUPPORT,
-            ErrorCode::NODEVICE => ReturnCode::ENODEVICE,
-            ErrorCode::UNINSTALLED => ReturnCode::EUNINSTALLED,
-            ErrorCode::NOACK => ReturnCode::ENOACK,
+            ErrorCode::FAIL => Err(ErrorCode::FAIL),
+            ErrorCode::BUSY => Err(ErrorCode::BUSY),
+            ErrorCode::ALREADY => Err(ErrorCode::ALREADY),
+            ErrorCode::OFF => Err(ErrorCode::OFF),
+            ErrorCode::RESERVE => Err(ErrorCode::RESERVE),
+            ErrorCode::INVAL => Err(ErrorCode::INVAL),
+            ErrorCode::SIZE => Err(ErrorCode::SIZE),
+            ErrorCode::CANCEL => Err(ErrorCode::CANCEL),
+            ErrorCode::NOMEM => Err(ErrorCode::NOMEM),
+            ErrorCode::NOSUPPORT => Err(ErrorCode::NOSUPPORT),
+            ErrorCode::NODEVICE => Err(ErrorCode::NODEVICE),
+            ErrorCode::UNINSTALLED => Err(ErrorCode::UNINSTALLED),
+            ErrorCode::NOACK => Err(ErrorCode::NOACK),
         }
     }
+}
+
+pub fn retcode_into_usize(original: Result<(), ErrorCode>) -> usize {
+    let out = match original {
+        Ok(()) => 0,
+        Err(e) => match e {
+            ErrorCode::FAIL => -1,
+            ErrorCode::BUSY => -2,
+            ErrorCode::ALREADY => -3,
+            ErrorCode::OFF => -4,
+            ErrorCode::RESERVE => -5,
+            ErrorCode::INVAL => -6,
+            ErrorCode::SIZE => -7,
+            ErrorCode::CANCEL => -8,
+            ErrorCode::NOMEM => -9,
+            ErrorCode::NOSUPPORT => -10,
+            ErrorCode::NODEVICE => -11,
+            ErrorCode::UNINSTALLED => -12,
+            ErrorCode::NOACK => -13,
+        },
+    };
+    out as usize
 }

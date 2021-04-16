@@ -107,17 +107,17 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
         if let Some(pin) = pins[index] {
             match config {
                 0 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
                     CommandReturn::success()
                 }
 
                 1 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
                     CommandReturn::success()
                 }
 
                 2 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
                     CommandReturn::success()
                 }
 
@@ -137,7 +137,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
             let pin_state = pin.read();
 
             // schedule callback with the pin number and value
-            self.apps.each(|callback| {
+            self.apps.each(|_, callback| {
                 callback.schedule(pin_num as usize, pin_state as usize, 0);
             });
         }
@@ -162,7 +162,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // individual pins being configured as interrupts)
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut **app, &mut callback);
                 })
                 .map_err(ErrorCode::from),

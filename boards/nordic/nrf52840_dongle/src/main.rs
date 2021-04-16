@@ -121,17 +121,27 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point in the vector table called on hard reset.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52840::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
     let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
         Nrf52840DefaultPeripherals::new(ppi)
     );
+
+    nrf52840_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52840::init();
+
+    let nrf52840_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
@@ -230,7 +240,7 @@ pub unsafe fn reset_handler() {
     );
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
@@ -307,6 +317,7 @@ pub unsafe fn reset_handler() {
             nrf52840::acomp::Channel,
             &nrf52840::acomp::CHANNEL_AC0
         ),
+        board_kernel,
     )
     .finalize(components::acomp_component_buf!(
         nrf52840::acomp::Comparator
@@ -329,7 +340,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    platform.pconsole.start();
+    let _ = platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
 

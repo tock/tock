@@ -7,7 +7,7 @@
 //! use core::ops::{Index, IndexMut};
 //!
 //! use kernel::hil;
-//! use kernel::ReturnCode;
+//! use kernel::ErrorCode;
 //!
 //! // Size in bytes
 //! const PAGE_SIZE: u32 = 1024;
@@ -57,9 +57,9 @@
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ReturnCode, &'static mut Self::Page)> { Err((ReturnCode::FAIL, buf)) }
-//!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
+//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ErrorCode, &'static mut Self::Page)> { Err((ErrorCode::FAIL, buf)) }
+//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ErrorCode, &'static mut Self::Page)> { Err((ErrorCode::FAIL, buf)) }
+//!     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> { Err(ErrorCode::FAIL) }
 //! }
 //! ```
 //!
@@ -90,7 +90,7 @@
 //! }
 //! ```
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// Flash errors returned in the callbacks.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -118,17 +118,17 @@ pub trait Flash {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)>;
 
     /// Write a page of flash from the buffer.
     fn write_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)>;
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)>;
 
     /// Erase a page of flash by setting every byte to 0xFF.
-    fn erase_page(&self, page_number: usize) -> ReturnCode;
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode>;
 }
 
 /// Implement `Client` to receive callbacks from `Flash`.

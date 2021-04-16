@@ -216,7 +216,7 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 app_id.map_or(Err(ErrorCode::FAIL), |appid| {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
                                 NonvolatileCommand::UserspaceRead => app.buffer_read.len(),
@@ -371,12 +371,12 @@ impl<'a> NonvolatileStorage<'a> {
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let started_command = cntr.enter(|app, _| {
+                let appid = cntr.appid();
+                let started_command = cntr.enter(|app| {
                     if app.pending_command {
                         app.pending_command = false;
-                        self.current_user.set(NonvolatileUser::App {
-                            app_id: app.appid(),
-                        });
+                        self.current_user
+                            .set(NonvolatileUser::App { app_id: appid });
                         if let Ok(()) =
                             self.userspace_call_driver(app.command, app.offset, app.length)
                         {
@@ -408,7 +408,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Need to copy in the contents of the buffer
                         app.buffer_read.mut_map_or((), |app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
@@ -442,7 +442,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Replace the buffer we used to do this write.
                         self.buffer.replace(buffer);
 
@@ -501,7 +501,7 @@ impl Driver for NonvolatileStorage<'_> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.buffer_read);
                     Ok(())
                 })
@@ -529,7 +529,7 @@ impl Driver for NonvolatileStorage<'_> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.buffer_write);
                     Ok(())
                 })
@@ -557,7 +557,7 @@ impl Driver for NonvolatileStorage<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app, _| match subscribe_num {
+            .enter(app_id, |app| match subscribe_num {
                 0 => {
                     mem::swap(&mut app.callback_read, &mut callback);
                     Ok(())
@@ -582,7 +582,7 @@ impl Driver for NonvolatileStorage<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return SUCCESS if this driver is included on the platform.
+    /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.

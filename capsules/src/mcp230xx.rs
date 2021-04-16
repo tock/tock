@@ -68,7 +68,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::gpio_async;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 7] = [0; 7];
@@ -170,26 +170,26 @@ impl<'a> MCP230xx<'a> {
         self.client.set(client);
     }
 
-    fn enable_host_interrupt(&self) -> ReturnCode {
+    fn enable_host_interrupt(&self) -> Result<(), ErrorCode> {
         // We configure the MCP230xx to use an active high interrupt.
         // If we don't have an interrupt pin mapped to this driver then we
         // obviously can't do interrupts.
         let first = self
             .interrupt_pin_a
-            .map_or(ReturnCode::FAIL, |interrupt_pin| {
+            .map_or(Err(ErrorCode::FAIL), |interrupt_pin| {
                 interrupt_pin.make_input();
-                interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
-                ReturnCode::SUCCESS
+                let _ = interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+                Ok(())
             });
-        if first != ReturnCode::SUCCESS {
+        if first != Ok(()) {
             return first;
         }
         // Also do the other interrupt pin if it exists.
         self.interrupt_pin_b.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+            let _ = interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
         });
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// This calculates the actual register address to use based on the list of
@@ -213,21 +213,21 @@ impl<'a> MCP230xx<'a> {
         }
     }
 
-    fn set_direction(&self, pin_number: u8, direction: Direction) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn set_direction(&self, pin_number: u8, direction: Direction) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectIoDir(pin_number, direction));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Set the pull-up on the pin also configure it to be an input.
-    fn configure_pullup(&self, pin_number: u8, enabled: bool) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn configure_pullup(&self, pin_number: u8, enabled: bool) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
@@ -235,48 +235,52 @@ impl<'a> MCP230xx<'a> {
             self.state
                 .set(State::SelectIoDirForGpPu(pin_number, enabled));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn set_pin(&self, pin_number: u8, value: PinState) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn set_pin(&self, pin_number: u8, value: PinState) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpio(pin_number, value));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn toggle_pin(&self, pin_number: u8) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn toggle_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioToggle(pin_number));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn read_pin(&self, pin_number: u8) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn read_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioRead(pin_number));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn enable_interrupt_pin(&self, pin_number: u8, direction: gpio::InterruptEdge) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn enable_interrupt_pin(
+        &self,
+        pin_number: u8,
+        direction: gpio::InterruptEdge,
+    ) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             // Mark the settings that we have for this interrupt.
@@ -301,12 +305,12 @@ impl<'a> MCP230xx<'a> {
             self.i2c.write(buffer, (i + 1) as u8);
             self.state.set(State::EnableInterruptSettings(pin_number));
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn disable_interrupt_pin(&self, pin_number: u8) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+    fn disable_interrupt_pin(&self, pin_number: u8) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             self.i2c.enable();
 
             // Clear this interrupt from our setup.
@@ -318,7 +322,7 @@ impl<'a> MCP230xx<'a> {
             self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -546,21 +550,21 @@ impl gpio::ClientWithValue for MCP230xx<'_> {
 }
 
 impl gpio_async::Port for MCP230xx<'_> {
-    fn disable(&self, pin: usize) -> ReturnCode {
+    fn disable(&self, pin: usize) -> Result<(), ErrorCode> {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)
     }
 
-    fn make_output(&self, pin: usize) -> ReturnCode {
+    fn make_output(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.set_direction(pin as u8, Direction::Output)
     }
 
-    fn make_input(&self, pin: usize, mode: gpio::FloatingState) -> ReturnCode {
+    fn make_input(&self, pin: usize, mode: gpio::FloatingState) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         match mode {
             gpio::FloatingState::PullUp => self.configure_pullup(pin as u8, true),
@@ -572,48 +576,48 @@ impl gpio_async::Port for MCP230xx<'_> {
         }
     }
 
-    fn read(&self, pin: usize) -> ReturnCode {
+    fn read(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.read_pin(pin as u8)
     }
 
-    fn toggle(&self, pin: usize) -> ReturnCode {
+    fn toggle(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.toggle_pin(pin as u8)
     }
 
-    fn set(&self, pin: usize) -> ReturnCode {
+    fn set(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.set_pin(pin as u8, PinState::High)
     }
 
-    fn clear(&self, pin: usize) -> ReturnCode {
+    fn clear(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.set_pin(pin as u8, PinState::Low)
     }
 
-    fn enable_interrupt(&self, pin: usize, mode: gpio::InterruptEdge) -> ReturnCode {
+    fn enable_interrupt(&self, pin: usize, mode: gpio::InterruptEdge) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         let ret = self.enable_host_interrupt();
         match ret {
-            ReturnCode::SUCCESS => self.enable_interrupt_pin(pin as u8, mode),
+            Ok(()) => self.enable_interrupt_pin(pin as u8, mode),
             _ => ret,
         }
     }
 
-    fn disable_interrupt(&self, pin: usize) -> ReturnCode {
+    fn disable_interrupt(&self, pin: usize) -> Result<(), ErrorCode> {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         self.disable_interrupt_pin(pin as u8)
     }

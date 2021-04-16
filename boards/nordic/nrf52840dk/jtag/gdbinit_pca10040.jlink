@@ -22,4 +22,4 @@ set remote memory-write-packet-size fixed
 # tui enable
 # layout split
 # layout service_pending_interrupts
-b reset_handler
+b initialize_ram_jump_to_main

@@ -284,20 +284,21 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
-    tim2.start();
+    let _ = tim2.start();
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 
-/// Reset Handler.
+/// Statically initialize the core peripherals for the chip.
 ///
-/// This symbol is loaded into vector table by the STM32F303VCT6 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    stm32f303xc::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> (
+    &'static mut Stm32f3xxDefaultPeripherals<'static>,
+    &'static stm32f303xc::syscfg::Syscfg<'static>,
+    &'static stm32f303xc::rcc::Rcc,
+) {
     // We use the default HSI 8Mhz clock
 
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
@@ -314,6 +315,17 @@ pub unsafe fn reset_handler() {
         Stm32f3xxDefaultPeripherals,
         Stm32f3xxDefaultPeripherals::new(rcc, exti)
     );
+    (peripherals, syscfg, rcc)
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    stm32f303xc::init();
+
+    let (peripherals, syscfg, rcc) = get_peripherals();
     set_pin_primary_functions(
         syscfg,
         &peripherals.exti,

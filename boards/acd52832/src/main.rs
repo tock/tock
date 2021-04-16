@@ -107,17 +107,27 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point in the vector table called on hard reset.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52832::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
     let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
         Nrf52832DefaultPeripherals::new(ppi)
     );
+
+    nrf52832_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52832::init();
+
+    let nrf52832_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
@@ -227,7 +237,7 @@ pub unsafe fn reset_handler() {
     // RTC for Timers
     //
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&base_peripherals.rtc)

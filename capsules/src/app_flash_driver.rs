@@ -67,7 +67,7 @@ impl<'a> AppFlash<'a> {
     // completes.
     fn enqueue_write(&self, flash_address: usize, appid: AppId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.len();
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
@@ -119,17 +119,18 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.callback.schedule(0, 0, 0);
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let started_command = cntr.enter(|app, _| {
+            let appid = cntr.appid();
+            let started_command = cntr.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
+                    self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
                     app.buffer.map_or(false, |app_buffer| {
@@ -178,7 +179,7 @@ impl Driver for AppFlash<'_> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.buffer, &mut slice);
                     Ok(())
                 })
@@ -206,7 +207,7 @@ impl Driver for AppFlash<'_> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                     Ok(())
                 })

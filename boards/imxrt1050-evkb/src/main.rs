@@ -171,20 +171,28 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
 }
 
-/// Reset Handler.
-///
-/// This symbol is loaded into vector table by the IMXRT1050 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    imxrt1050::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
         imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
+
+    peripherals
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    imxrt1050::init();
+
+    let peripherals = get_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();

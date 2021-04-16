@@ -83,14 +83,11 @@ impl Platform for RedboardArtemisNano {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the Apollo3 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     apollo3::init();
 
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
@@ -176,7 +173,7 @@ pub unsafe fn reset_handler() {
 
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
-    peripherals.stimer.start();
+    let _ = peripherals.stimer.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );

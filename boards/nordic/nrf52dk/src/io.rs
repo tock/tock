@@ -31,7 +31,7 @@ impl IoWrite for Writer {
         let uart = nrf52832::uart::Uarte::new();
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::Parameters {
+            let _ = uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,

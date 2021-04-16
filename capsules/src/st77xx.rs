@@ -42,7 +42,7 @@ use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
 use kernel::hil::time::{self, Alarm};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
 
@@ -278,7 +278,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         }
     }
 
-    fn send_sequence(&self, sequence: CommandSequence) -> ReturnCode {
+    fn send_sequence(&self, sequence: CommandSequence) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             let error = self.sequence_buffer.map_or_else(
                 || panic!("st77xx: send sequence has no sequence buffer"),
@@ -288,31 +288,31 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                         for (i, cmd) in sequence.iter().enumerate() {
                             sequence_buffer[i] = *cmd;
                         }
-                        ReturnCode::SUCCESS
+                        Ok(())
                     } else {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     }
                 },
             );
-            if error == ReturnCode::SUCCESS {
+            if error == Ok(()) {
                 self.send_sequence_buffer()
             } else {
                 error
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn send_sequence_buffer(&self) -> ReturnCode {
+    fn send_sequence_buffer(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.position_in_sequence.set(0);
             // set status to delay so that do_next_op will send the next item in the sequence
             self.status.set(Status::Delay);
             self.do_next_op();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -339,7 +339,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         if let Some(dc) = self.dc {
             dc.clear();
         }
-        self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
 
     fn send_command_slice(&self, cmd: &'static Command, len: usize) {
@@ -348,7 +348,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             dc.clear();
         }
         self.status.set(Status::SendCommandSlice(len));
-        self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
 
     fn send_parameters(&self, position: usize, len: usize, repeat: usize) {
@@ -366,7 +366,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     if let Some(dc) = self.dc {
                         dc.set();
                     }
-                    self.bus.write(BusWidth::Bits8, buffer, len);
+                    let _ = self.bus.write(BusWidth::Bits8, buffer, len);
                 },
             );
         } else {
@@ -382,12 +382,12 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 if let Some(dc) = self.dc {
                     dc.set();
                 }
-                self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
+                let _ = self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
             },
         );
     }
 
-    fn rotation(&self, rotation: ScreenRotation) -> ReturnCode {
+    fn rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             let rotation_bits = match rotation {
                 ScreenRotation::Normal => 0x00,
@@ -415,44 +415,44 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             self.setup_command.set(true);
             self.send_command(&MADCTL, 0, 1, 1);
             self.current_rotation.set(rotation);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn display_on(&self) -> ReturnCode {
+    fn display_on(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
-                ReturnCode::EOFF
+                Err(ErrorCode::OFF)
             } else {
                 self.setup_command.set(false);
                 self.send_command_with_default_parameters(&DISPLAY_ON);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn display_off(&self) -> ReturnCode {
+    fn display_off(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
-                ReturnCode::EOFF
+                Err(ErrorCode::OFF)
             } else {
                 self.setup_command.set(false);
                 self.send_command_with_default_parameters(&DISPLAY_OFF);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn display_invert_on(&self) -> ReturnCode {
+    fn display_invert_on(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
-                ReturnCode::EOFF
+                Err(ErrorCode::OFF)
             } else {
                 self.setup_command.set(false);
                 let cmd = if self.screen.inverted {
@@ -461,17 +461,17 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     &INVON
                 };
                 self.send_command_with_default_parameters(cmd);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn display_invert_off(&self) -> ReturnCode {
+    fn display_invert_off(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if !self.power_on.get() {
-                ReturnCode::EOFF
+                Err(ErrorCode::OFF)
             } else {
                 self.setup_command.set(false);
                 let cmd = if self.screen.inverted {
@@ -480,10 +480,10 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     &INVOFF
                 };
                 self.send_command_with_default_parameters(cmd);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -529,16 +529,16 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                         if self.setup_command.get() {
                             self.setup_command.set(false);
                             self.setup_client.map(|setup_client| {
-                                setup_client.command_complete(ReturnCode::SUCCESS);
+                                setup_client.command_complete(Ok(()));
                             });
                         } else {
                             self.client.map(|client| {
                                 if self.write_buffer.is_some() {
                                     self.write_buffer.take().map(|buffer| {
-                                        client.write_complete(buffer, ReturnCode::SUCCESS);
+                                        client.write_complete(buffer, Ok(()));
                                     });
                                 } else {
-                                    client.command_complete(ReturnCode::SUCCESS);
+                                    client.command_complete(Ok(()));
                                 }
                             });
                         }
@@ -601,7 +601,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::Init => {
                 self.status.set(Status::Idle);
-                self.send_sequence(&self.screen.init_sequence);
+                let _ = self.send_sequence(&self.screen.init_sequence);
             }
             _ => {
                 panic!("ST77XX status Idle");
@@ -616,7 +616,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         sy: usize,
         ex: usize,
         ey: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if sx <= self.width.get()
             && sy <= self.height.get()
             && ex <= self.width.get()
@@ -641,22 +641,22 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                         buffer[position + 7] = ((ey + oy) & 0xFF) as u8;
                     },
                 );
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::EBUSY
+                Err(ErrorCode::BUSY)
             }
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
-    pub fn init(&self) -> ReturnCode {
+    pub fn init(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::Reset1);
             self.do_next_op();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -684,35 +684,35 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
         }
     }
 
-    fn set_resolution(&self, resolution: (usize, usize)) -> ReturnCode {
+    fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if resolution.0 == self.width.get() && resolution.1 == self.height.get() {
                 self.setup_client
-                    .map(|setup_client| setup_client.command_complete(ReturnCode::SUCCESS));
-                ReturnCode::SUCCESS
+                    .map(|setup_client| setup_client.command_complete(Ok(())));
+                Ok(())
             } else {
-                ReturnCode::ENOSUPPORT
+                Err(ErrorCode::NOSUPPORT)
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> ReturnCode {
+    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             if depth == ScreenPixelFormat::RGB_565 {
                 self.setup_client
-                    .map(|setup_client| setup_client.command_complete(ReturnCode::SUCCESS));
-                ReturnCode::SUCCESS
+                    .map(|setup_client| setup_client.command_complete(Ok(())));
+                Ok(())
             } else {
-                ReturnCode::EINVAL
+                Err(ErrorCode::INVAL)
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn set_rotation(&self, rotation: ScreenRotation) -> ReturnCode {
+    fn set_rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
         self.rotation(rotation)
     }
 
@@ -750,7 +750,13 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         self.current_rotation.get()
     }
 
-    fn set_write_frame(&self, x: usize, y: usize, width: usize, height: usize) -> ReturnCode {
+    fn set_write_frame(
+        &self,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             let buffer_len = self.buffer.map_or_else(
@@ -760,7 +766,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
             if buffer_len >= 9 {
                 // set buffer
                 let err = self.set_memory_frame(0, x, y, x + width - 1, y + height - 1);
-                if err == ReturnCode::SUCCESS {
+                if err == Ok(()) {
                     self.sequence_buffer.map_or_else(
                         || panic!("st77xx: set write frame no sequence buffer"),
                         |sequence| {
@@ -769,18 +775,18 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
                             self.sequence_len.set(2);
                         },
                     );
-                    self.send_sequence_buffer();
+                    let _ = self.send_sequence_buffer();
                 }
                 err
             } else {
-                ReturnCode::ENOMEM
+                Err(ErrorCode::NOMEM)
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             self.write_buffer.replace(buffer);
@@ -797,24 +803,24 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
                         self.sequence_len.set(1);
                     },
                 );
-                self.send_sequence_buffer();
-                ReturnCode::SUCCESS
+                let _ = self.send_sequence_buffer();
+                Ok(())
             } else {
-                ReturnCode::ENOMEM
+                Err(ErrorCode::NOMEM)
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             self.write_buffer.replace(buffer);
             self.send_parameters_slice(len);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -826,7 +832,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn set_brightness(&self, brightness: usize) -> ReturnCode {
+    fn set_brightness(&self, brightness: usize) -> Result<(), ErrorCode> {
         if brightness > 0 {
             self.display_on()
         } else {
@@ -834,11 +840,11 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn invert_on(&self) -> ReturnCode {
+    fn invert_on(&self) -> Result<(), ErrorCode> {
         self.display_invert_on()
     }
 
-    fn invert_off(&self) -> ReturnCode {
+    fn invert_off(&self) -> Result<(), ErrorCode> {
         self.display_invert_off()
     }
 }

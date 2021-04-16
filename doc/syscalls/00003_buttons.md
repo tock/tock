@@ -23,7 +23,7 @@ main file.
 
     **Argument 2**: unused
 
-    **Returns**: The number of buttons on the board, or `ENODEVICE` if this
+    **Returns**: The number of buttons on the board, or `NODEVICE` if this
     driver is not present on the board.
 
   * ### Command number: `1`
@@ -38,8 +38,8 @@ main file.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, ENOMEM if the driver
-    cannot support another app, and `EINVAL` if the app is somehow invalid.
+    **Returns**: Ok(()) if the command was successful, NOMEM if the driver
+    cannot support another app, and `INVAL` if the app is somehow invalid.
 
   * ### Command number: `2`
 
@@ -51,8 +51,8 @@ main file.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, ENOMEM if the driver
-    cannot support another app, and `EINVAL` if the app is somehow invalid.
+    **Returns**: Ok(()) if the command was successful, NOMEM if the driver
+    cannot support another app, and `INVAL` if the app is somehow invalid.
 
   * ### Command number: `3`
 
@@ -79,8 +79,8 @@ main file.
     the second value will be a 1, if the button was released the value will be
     a 0.
 
-    **Returns**: SUCCESS if the subscribe was successful, ENOMEM if the driver
-    cannot support another app, and `EINVAL` if the app is somehow invalid.
+    **Returns**: Ok(()) if the subscribe was successful, NOMEM if the driver
+    cannot support another app, and `INVAL` if the app is somehow invalid.
 
 ## Allow
 

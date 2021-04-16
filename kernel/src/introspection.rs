@@ -133,18 +133,11 @@ impl KernelInfo {
         // Just need to get the number, this has already been finalized, but it
         // doesn't hurt to call this again.
         let number_of_grants = self.kernel.get_grant_count_and_finalize();
-        let mut used = 0;
-        self.kernel.process_map_or((), app, |process| {
-            for i in 0..number_of_grants {
-                if let Some(grant_ptr) = process.get_grant_ptr(i) {
-                    // If the pointer at that location is not NULL then the
-                    // grant memory has been allocated and the grant is
-                    // being used.
-                    if !(grant_ptr.is_null()) {
-                        used += 1;
-                    }
-                }
-            }
+        let used = self.kernel.process_map_or(0, app, |process| {
+            // Have process tell us the number of allocated grants. If this
+            // process isn't valid then we can't count the grants and all we can
+            // do is return 0.
+            process.grant_allocated_count().unwrap_or(0)
         });
 
         (used, number_of_grants)

@@ -252,14 +252,11 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     peripherals.pc[31].configure(None); //... D2          -- GPIO Pin
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the SAM4L chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     sam4l::init();
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
     let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
@@ -433,6 +430,7 @@ pub unsafe fn reset_handler() {
             ac_2,
             ac_3
         ),
+        board_kernel,
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
@@ -458,7 +456,7 @@ pub unsafe fn reset_handler() {
     );
 
     // Can this initialize be pushed earlier, or into component? -pal
-    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
@@ -559,10 +557,10 @@ pub unsafe fn reset_handler() {
 
     // These two lines need to be below the creation of the chip for
     // initialization to work.
-    rf233.reset();
-    rf233.start();
+    let _ = rf233.reset();
+    let _ = rf233.start();
 
-    imix.pconsole.start();
+    let _ = imix.pconsole.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

@@ -152,7 +152,7 @@ impl Pic {
         }
     }
 
-    /// Get the index (0-256) of the lowest number pending interrupt, or `None` if
+    /// Get the index (0-96) of the lowest number pending interrupt, or `None` if
     /// none is pending. RISC-V PIC has a "claim" register which makes it easy
     /// to grab the highest priority pending interrupt.
     pub fn next_pending(&self) -> Option<u32> {
@@ -181,8 +181,10 @@ impl Pic {
             0
         } else if index < 64 {
             1
-        } else {
+        } else if index < 96 {
             2
+        } else {
+            panic!("Unsupported index {}", index);
         };
         let irq = index % 32;
 

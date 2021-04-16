@@ -33,7 +33,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
 
@@ -94,9 +94,9 @@ impl<'a, A: time::Alarm<'a>> AmbientLight<'a> for Isl29035<'a, A> {
         self.client.set(client);
     }
 
-    fn read_light_intensity(&self) -> ReturnCode {
+    fn read_light_intensity(&self) -> Result<(), ErrorCode> {
         self.start_read_lux();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
