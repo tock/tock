@@ -31,7 +31,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -163,7 +163,7 @@ impl Driver for PCA9544A<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -188,7 +188,7 @@ impl Driver for PCA9544A<'_> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             // Check if present.
             0 => CommandReturn::success(),

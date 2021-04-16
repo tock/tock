@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -154,7 +154,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res: Result<(), ErrorCode> = match subscribe_num {
             0 => self
@@ -188,7 +188,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         cmd_type: usize,
         data: usize,
         data2: usize,
-        caller_id: AppId,
+        caller_id: ProcessId,
     ) -> CommandReturn {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if

@@ -27,7 +27,7 @@ use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
-use crate::process::AppId;
+use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -46,7 +46,7 @@ pub trait Scheduler<C: Chip> {
     /// one. If the scheduler chooses not to run a process, it can request that
     /// the chip enter sleep mode.
     ///
-    /// If the scheduler selects a process to run it must provide its `AppId`
+    /// If the scheduler selects a process to run it must provide its `ProcessId`
     /// and an optional timeslice length in microseconds to provide to that
     /// process. If the timeslice is `None`, the process will be run
     /// cooperatively (i.e. without preemption). Otherwise the process will run
@@ -102,7 +102,7 @@ pub trait Scheduler<C: Chip> {
     /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
-    unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
+    unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
         !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
@@ -115,7 +115,7 @@ pub enum SchedulingDecision {
     /// Tell the kernel to run the specified process with the passed timeslice.
     /// If `None` is passed as a timeslice, the process will be run
     /// cooperatively.
-    RunProcess((AppId, Option<u32>)),
+    RunProcess((ProcessId, Option<u32>)),
 
     /// Tell the kernel to go to sleep. Notably, if the scheduler asks the
     /// kernel to sleep when kernel tasks are ready, the kernel will not sleep,
@@ -231,8 +231,8 @@ impl Kernel {
     }
 
     /// Run a closure on a specific process if it exists. If the process with a
-    /// matching `AppId` does not exist at the index specified within the
-    /// `AppId`, then `default` will be returned.
+    /// matching `ProcessId` does not exist at the index specified within the
+    /// `ProcessId`, then `default` will be returned.
     ///
     /// A match will not be found if the process was removed (and there is a
     /// `None` in the process array), if the process changed its identifier
@@ -240,7 +240,7 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: ProcessId, closure: F) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
     {
@@ -345,11 +345,11 @@ impl Kernel {
         None
     }
 
-    /// Retrieve the `AppId` of the given app based on its identifier. This is
+    /// Retrieve the `ProcessId` of the given app based on its identifier. This is
     /// useful if an app identifier is passed to the kernel from somewhere (such
-    /// as from userspace) and needs to be expanded to a full `AppId` for use
+    /// as from userspace) and needs to be expanded to a full `ProcessId` for use
     /// with other APIs.
-    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<ProcessId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
                 if p2.appid().id() == identifier {
@@ -361,13 +361,13 @@ impl Kernel {
         })
     }
 
-    /// Checks if the provided `AppId` is still valid given the processes stored
-    /// in the processes array. Returns `true` if the AppId still refers to
+    /// Checks if the provided `ProcessId` is still valid given the processes stored
+    /// in the processes array. Returns `true` if the ProcessId still refers to
     /// a valid process, and `false` if not.
     ///
-    /// This is needed for `AppId` itself to implement the `.index()` command to
+    /// This is needed for `ProcessId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    pub(crate) fn appid_is_valid(&self, appid: &AppId) -> bool {
+    pub(crate) fn appid_is_valid(&self, appid: &ProcessId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
             p.map_or(false, |process| process.appid().id() == appid.id())
         })

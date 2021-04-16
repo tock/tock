@@ -47,7 +47,7 @@ use core::mem;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{AppId, CommandReturn, Driver, Upcall};
+use kernel::{CommandReturn, Driver, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -1500,7 +1500,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     fn allow_readwrite(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -1518,7 +1518,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
 
     fn allow_readonly(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -1538,7 +1538,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set callback
@@ -1552,7 +1552,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             // check if present
             0 => CommandReturn::success(),

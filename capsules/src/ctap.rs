@@ -33,7 +33,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -62,7 +62,7 @@ pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
     app: Grant<App>,
-    appid: OptionalCell<AppId>,
+    appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
     send_buffer: TakeCell<'static, [u8; 64]>,
@@ -190,7 +190,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -235,7 +235,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => {
@@ -263,7 +263,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let can_access = self.appid.map_or(true, |owning_app| {
             if owning_app == &appid {

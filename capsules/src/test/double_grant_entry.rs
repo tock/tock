@@ -57,7 +57,7 @@
 //!      // Setup the UART bus for nRF51 serialization..
 //!     ```
 
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0xF001;
@@ -79,7 +79,7 @@ impl TestGrantDoubleEntry {
 }
 
 impl Driver for TestGrantDoubleEntry {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
 

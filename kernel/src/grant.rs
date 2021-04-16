@@ -112,7 +112,7 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 
-use crate::process::{AppId, Error, Process, ProcessCustomGrantIdentifer};
+use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
 
 /// This GrantMemory object provides access to the memory allocated for a grant
@@ -301,8 +301,8 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         }
     }
 
-    /// Return the AppId of the process this ProcessGrant is associated with.
-    pub fn appid(&self) -> AppId {
+    /// Return the ProcessId of the process this ProcessGrant is associated with.
+    pub fn appid(&self) -> ProcessId {
         self.process.appid()
     }
 
@@ -615,7 +615,7 @@ pub struct CustomGrant<T> {
     identifier: ProcessCustomGrantIdentifer,
 
     /// Identifier for the process where this custom grant is allocated.
-    appid: AppId,
+    appid: ProcessId,
 
     /// Used to keep the Rust type of the grant.
     _phantom: PhantomData<T>,
@@ -623,7 +623,7 @@ pub struct CustomGrant<T> {
 
 impl<T> CustomGrant<T> {
     /// Creates a new `CustomGrant`.
-    fn new(identifier: ProcessCustomGrantIdentifer, appid: AppId) -> Self {
+    fn new(identifier: ProcessCustomGrantIdentifer, appid: ProcessId) -> Self {
         CustomGrant {
             identifier,
             appid,
@@ -631,8 +631,8 @@ impl<T> CustomGrant<T> {
         }
     }
 
-    /// Helper function to get the AppId from the custom grant.
-    pub fn appid(&self) -> AppId {
+    /// Helper function to get the ProcessId from the custom grant.
+    pub fn appid(&self) -> ProcessId {
         self.appid
     }
 
@@ -681,7 +681,7 @@ impl<T> CustomGrant<T> {
 /// per-process dynamic allocation it can allocate additional memory.
 pub struct GrantRegionAllocator {
     /// The process the allocator will allocate memory from.
-    appid: AppId,
+    appid: ProcessId,
 }
 
 impl GrantRegionAllocator {
@@ -829,7 +829,7 @@ impl<T: Default> Grant<T> {
     /// This creates a `ProcessGrant` which is a handle for a grant allocated
     /// for a specific process. Then, that `ProcessGrant` is entered and the
     /// provided closure is run with access to the memory in the grant region.
-    pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
+    pub fn enter<F, R>(&self, appid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantMemory<T>) -> R,
     {
@@ -859,7 +859,7 @@ impl<T: Default> Grant<T> {
     ///
     /// The allocator allows the caller to dynamically allocate additional
     /// memory in the process's grant region.
-    pub fn enter_with_allocator<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
+    pub fn enter_with_allocator<F, R>(&self, appid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
     {
@@ -891,7 +891,7 @@ impl<T: Default> Grant<T> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(AppId, &mut GrantMemory<T>),
+        F: Fn(ProcessId, &mut GrantMemory<T>),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
@@ -932,7 +932,7 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;
-        // Get the next `AppId` from the kernel processes array that is setup to
+        // Get the next `ProcessId` from the kernel processes array that is setup to
         // use this grant. Since the iterator itself is saved calling this
         // function again will start where we left off.
         self.subiter

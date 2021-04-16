@@ -17,8 +17,8 @@ use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
-use crate::process::{AppId, FaultResponse, ProcessCustomGrantIdentifer, ProcessStateCell};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
+use crate::process::{FaultResponse, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -72,7 +72,7 @@ struct ProcessStandardDebug {
 pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
     /// table.
-    app_id: Cell<AppId>,
+    app_id: Cell<ProcessId>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -185,7 +185,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 }
 
 impl<C: Chip> Process for ProcessStandard<'_, C> {
-    fn appid(&self) -> AppId {
+    fn appid(&self) -> ProcessId {
         self.app_id.get()
     }
 
@@ -1543,7 +1543,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         process
             .app_id
-            .set(AppId::new(kernel, unique_identifier, index));
+            .set(ProcessId::new(kernel, unique_identifier, index));
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
@@ -1642,13 +1642,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn restart(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
-        // invalidate any stored `AppId`s that point to the old version of the
+        // invalidate any stored `ProcessId`s that point to the old version of the
         // process. However, the process has not moved locations in the
         // processes array, so we copy the existing index.
         let old_index = self.app_id.get().index;
         let new_identifier = self.kernel.create_process_identifier();
         self.app_id
-            .set(AppId::new(self.kernel, new_identifier, old_index));
+            .set(ProcessId::new(self.kernel, new_identifier, old_index));
 
         // Reset debug information that is per-execution and not per-process.
         self.debug.map(|debug| {

@@ -24,7 +24,7 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{
-    debug, AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    debug, CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, Upcall,
 };
 
@@ -86,7 +86,7 @@ pub struct UDPDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: Cell<Option<ProcessId>>,
 
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
@@ -130,7 +130,7 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> Result<(), ErrorCode>
+    fn do_with_app<F>(&self, appid: ProcessId, closure: F) -> Result<(), ErrorCode>
     where
         F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
@@ -140,8 +140,8 @@ impl<'a> UDPDriver<'a> {
     }
 
     /// If the driver is currently idle and there are pending transmissions,
-    /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    /// pick an app with a pending transmission and return its `ProcessId`.
+    fn get_next_tx_if_idle(&self) -> Option<ProcessId> {
         if self.current_app.get().is_some() {
             // Tx already in progress
             return None;
@@ -166,7 +166,7 @@ impl<'a> UDPDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: ProcessId) {
         let result = self.perform_tx_sync(appid);
         if result != Ok(()) {
             let _ = self.apps.enter(appid, |app| {
@@ -180,7 +180,7 @@ impl<'a> UDPDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> Result<(), ErrorCode> {
+    fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -242,7 +242,7 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: AppId) -> Result<u32, ErrorCode> {
+    fn do_next_tx_immediate(&self, new_appid: ProcessId) -> Result<u32, ErrorCode> {
         self.get_next_tx_if_idle().map_or(Ok(0), |appid| {
             if appid == new_appid {
                 let sync_result = self.perform_tx_sync(appid);
@@ -294,7 +294,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        be waiting for an incoming packet asynchronously).
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -333,7 +333,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        if an invalid `allow_num` is passed.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -374,7 +374,7 @@ impl<'a> Driver for UDPDriver<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -454,7 +454,13 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        This represents the size of the payload buffer in the kernel. Apps can use this
     ///        syscall to ensure they do not attempt to send too-large messages.
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
 

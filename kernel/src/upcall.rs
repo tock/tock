@@ -5,7 +5,7 @@ use core::ptr::NonNull;
 use crate::config;
 use crate::debug;
 use crate::process;
-use crate::process::AppId;
+use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 
@@ -23,7 +23,7 @@ pub struct UpcallId {
 /// This is essentially a wrapper around a function pointer.
 #[derive(Clone, Copy)]
 struct ProcessUpcall {
-    app_id: AppId,
+    app_id: ProcessId,
     upcall_id: UpcallId,
     appdata: usize,
     fn_ptr: NonNull<*mut ()>,
@@ -36,7 +36,7 @@ pub struct Upcall {
 
 impl Upcall {
     pub(crate) fn new(
-        app_id: AppId,
+        app_id: ProcessId,
         upcall_id: UpcallId,
         appdata: usize,
         fn_ptr: NonNull<*mut ()>,
@@ -74,7 +74,7 @@ impl Upcall {
 
 impl ProcessUpcall {
     fn new(
-        app_id: AppId,
+        app_id: ProcessId,
         upcall_id: UpcallId,
         appdata: usize,
         fn_ptr: NonNull<*mut ()>,

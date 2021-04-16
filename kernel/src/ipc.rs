@@ -7,7 +7,7 @@ use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
 use crate::mem::Read;
 use crate::process;
-use crate::process::AppId;
+use crate::process::ProcessId;
 use crate::sched::Kernel;
 use crate::upcall::Upcall;
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
@@ -68,8 +68,8 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     /// scheduler loop if an IPC task was queued for the process.
     pub(crate) unsafe fn schedule_upcall(
         &self,
-        schedule_on: AppId,
-        called_from: AppId,
+        schedule_on: ProcessId,
+        called_from: ProcessId,
         cb_type: IPCUpcallType,
     ) -> Result<(), process::Error> {
         self.data
@@ -129,7 +129,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         &self,
         subscribe_num: usize,
         mut upcall: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe(0)
@@ -213,7 +213,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         command_number: usize,
         target_id: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
@@ -300,7 +300,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// The buffer should contain the package name of a process that exports an IPC service.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         subdriver: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -329,7 +329,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// target_id == 0 is currently unsupported and reserved for future use.
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         target_id: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {

@@ -21,7 +21,7 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -56,7 +56,7 @@ impl Default for App {
 pub struct NineDof<'a> {
     drivers: &'a [&'a dyn hil::sensors::NineDof<'a>],
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
 }
 
 impl<'a> NineDof<'a> {
@@ -71,7 +71,12 @@ impl<'a> NineDof<'a> {
     // Check so see if we are doing something. If not,
     // go ahead and do this command. If so, this is queued
     // and will be run when the pending command completes.
-    fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> CommandReturn {
+    fn enqueue_command(
+        &self,
+        command: NineDofCommand,
+        arg1: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         self.apps
             .enter(appid, |app| {
                 if self.current_app.is_none() {
@@ -137,7 +142,7 @@ impl<'a> NineDof<'a> {
     fn configure_callback(
         &self,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
@@ -203,7 +208,7 @@ impl Driver for NineDof<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => self.configure_callback(callback, app_id),
@@ -211,7 +216,13 @@ impl Driver for NineDof<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
             // Single acceleration reading.

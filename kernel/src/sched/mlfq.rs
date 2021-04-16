@@ -21,8 +21,8 @@ use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Ticks;
 use crate::platform::Chip;
-use crate::process::AppId;
 use crate::process::Process;
+use crate::process::ProcessId;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 use core::cell::Cell;
 
@@ -189,7 +189,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         }
     }
 
-    unsafe fn continue_process(&self, _: AppId, _: &C) -> bool {
+    unsafe fn continue_process(&self, _: ProcessId, _: &C) -> bool {
         // This MLFQ scheduler only preempts processes if there is a timeslice expiration
         true
     }

@@ -27,8 +27,8 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::{AppId, ErrorCode, Upcall};
 use kernel::{CommandReturn, Driver};
+use kernel::{ErrorCode, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -101,7 +101,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Set callback for `done()` events
@@ -144,7 +144,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         command_number: usize,
         pin: usize,
         data: usize,
-        _appid: AppId,
+        _appid: ProcessId,
     ) -> CommandReturn {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;

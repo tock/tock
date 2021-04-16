@@ -223,8 +223,8 @@ impl App {
     // Byte 1            0xf0
     // Byte 2-5          random
     // Byte 6            0xf0
-    // FIXME: For now use AppId as "randomness"
-    fn generate_random_address(&mut self, appid: kernel::AppId) -> Result<(), ErrorCode> {
+    // FIXME: For now use ProcessId as "randomness"
+    fn generate_random_address(&mut self, appid: kernel::ProcessId) -> Result<(), ErrorCode> {
         self.address = [
             0xf0,
             (appid.id() & 0xff) as u8,
@@ -312,8 +312,8 @@ where
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
-    sending_app: OptionalCell<kernel::AppId>,
-    receiving_app: OptionalCell<kernel::AppId>,
+    sending_app: OptionalCell<kernel::ProcessId>,
+    receiving_app: OptionalCell<kernel::ProcessId>,
 }
 
 impl<'a, B, A> BLE<'a, B, A>
@@ -555,7 +555,7 @@ where
         command_num: usize,
         data: usize,
         interval: usize,
-        appid: kernel::AppId,
+        appid: kernel::ProcessId,
     ) -> CommandReturn {
         match command_num {
             // Start periodic advertisements
@@ -667,7 +667,7 @@ where
 
     fn allow_readonly(
         &self,
-        appid: kernel::AppId,
+        appid: kernel::ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -695,7 +695,7 @@ where
 
     fn allow_readwrite(
         &self,
-        appid: kernel::AppId,
+        appid: kernel::ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -727,7 +727,7 @@ where
         &self,
         subscribe_num: usize,
         mut callback: kernel::Upcall,
-        app_id: kernel::AppId,
+        app_id: kernel::ProcessId,
     ) -> Result<kernel::Upcall, (kernel::Upcall, ErrorCode)> {
         match subscribe_num {
             // Upcall for scanning
