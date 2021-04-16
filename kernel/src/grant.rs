@@ -488,11 +488,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             })
             .ok();
 
-        // # `unwrap()` Safety
-        //
-        // Only `unwrap()` if some, otherwise return early.
-        let grant_ptr = if optional_grant_ptr.is_some() {
-            optional_grant_ptr.unwrap()
+        // Return early if no grant
+        let grant_ptr = if let Some(ptr) = optional_grant_ptr {
+            ptr
         } else {
             return None;
         };
