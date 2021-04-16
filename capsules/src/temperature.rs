@@ -88,7 +88,7 @@ impl<'a> TemperatureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -112,7 +112,7 @@ impl<'a> TemperatureSensor<'a> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 mem::swap(&mut app.callback, &mut callback);
             })
             .map_err(ErrorCode::from);
@@ -127,7 +127,7 @@ impl<'a> TemperatureSensor<'a> {
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;

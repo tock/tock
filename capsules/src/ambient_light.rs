@@ -46,7 +46,7 @@ impl<'a> AmbientLight<'a> {
 
     fn enqueue_sensor_reading(&self, appid: AppId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if app.pending {
                     Err(ErrorCode::NOMEM)
                 } else {
@@ -79,7 +79,7 @@ impl Driver for AmbientLight<'_> {
             0 => {
                 let rcode = self
                     .apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut callback, &mut app.callback);
                         Ok(())
                     })
@@ -121,7 +121,7 @@ impl Driver for AmbientLight<'_> {
 impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
-        self.apps.each(|app| {
+        self.apps.each(|_, app| {
             if app.pending {
                 app.pending = false;
                 app.callback.schedule(lux, 0, 0);

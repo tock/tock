@@ -112,7 +112,7 @@ mod upcall;
 pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::retcode_into_usize;
 pub use crate::errorcode::ErrorCode;
-pub use crate::grant::{DynamicGrant, Grant};
+pub use crate::grant::{Grant, ProcessGrant};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
