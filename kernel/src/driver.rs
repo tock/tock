@@ -72,8 +72,9 @@
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
+use crate::process::AppId;
 use crate::syscall::SyscallReturn;
-use crate::upcall::{AppId, Upcall};
+use crate::upcall::Upcall;
 use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified

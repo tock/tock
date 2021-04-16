@@ -14,7 +14,7 @@
 //! AppSlice-structs.
 
 use crate::capabilities;
-use crate::AppId;
+use crate::process::AppId;
 
 /// Convert an AppSlice's internal representation to a Rust slice.
 ///

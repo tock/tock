@@ -17,12 +17,12 @@ use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
+use crate::process::{AppId, FaultResponse, ProcessCustomGrantIdentifer, ProcessStateCell};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
-use crate::process::{FaultResponse, ProcessCustomGrantIdentifer, ProcessStateCell};
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
-use crate::upcall::{AppId, UpcallId};
+use crate::upcall::UpcallId;
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;

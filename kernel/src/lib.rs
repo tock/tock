@@ -121,12 +121,13 @@ pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};
 pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
+pub use crate::process::AppId;
 pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
 pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
-pub use crate::upcall::{AppId, Upcall};
+pub use crate::upcall::Upcall;
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These

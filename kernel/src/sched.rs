@@ -27,10 +27,11 @@ use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
+use crate::process::AppId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
-use crate::upcall::{AppId, Upcall, UpcallId};
+use crate::upcall::{Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice

@@ -21,9 +21,9 @@ use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Ticks;
 use crate::platform::Chip;
+use crate::process::AppId;
 use crate::process::Process;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
-use crate::upcall::AppId;
 use core::cell::Cell;
 
 #[derive(Default)]

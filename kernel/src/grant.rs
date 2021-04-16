@@ -112,9 +112,8 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 
-use crate::process::{Error, Process, ProcessCustomGrantIdentifer};
+use crate::process::{AppId, Error, Process, ProcessCustomGrantIdentifer};
 use crate::sched::Kernel;
-use crate::upcall::AppId;
 
 /// This GrantMemory object provides access to the memory allocated for a grant
 /// for a specific process.

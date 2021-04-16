@@ -7,8 +7,9 @@ use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
 use crate::mem::Read;
 use crate::process;
+use crate::process::AppId;
 use crate::sched::Kernel;
-use crate::upcall::{AppId, Upcall};
+use crate::upcall::Upcall;
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
