@@ -173,7 +173,7 @@ variant is to simplify userspace implementations and preclude them
 from having to handle many different cases.  The presence of many
 difference cases suggests that the operation should be split up, as
 there is non-determinism in its execution or its meaning is
-overloaded. The requirement of a single failure anda single success
+overloaded. The requirement of a single failure and a single success
 variant also fits well with Rust's `Result` type.
 
 If userspace tries to invoke a system call that the kernel does not
@@ -259,7 +259,7 @@ The 6 classes are:
 
 All of the system call classes except Yield and Exit are
 non-blocking. When a userspace process calls a Subscribe, Command,
-Allow, Read-Only Allow, or Memop syscall, the kernel will not put the process
+Read-Write Allow, Read-Only Allow, or Memop syscall, the kernel will not put the process
 on a wait queue while handling the syscall. Instead, the kernel will complete the
 syscall and prepare the return value for the syscall immediately.
 The kernel scheduler may not, however, run the process immediately after
@@ -272,7 +272,7 @@ Subscribe call in 4.2).
 Successful calls to Exit system calls do not return (the process exits).
 
 System calls implemented by system call drivers (Subscribe, Command,
-Allow, Read-Only Allow) all include two arguments, a driver identifier
+Read-Write Allow, Read-Only Allow) all include two arguments, a driver identifier
 and a syscall identifier. The driver identifier specifies which system
 call driver to invoke. The syscall identifier (which is different than
 the Syscall Class ID in the table above) specifies which instance of
