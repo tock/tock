@@ -141,8 +141,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback
-                            .schedule(kernel::retcode_into_usize(rcode), 0, 0);
+                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -344,7 +343,7 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
                 .apps
                 .enter(appid, |app| {
                     app.callback
-                        .schedule(kernel::retcode_into_usize(Ok(())), result as usize, 0);
+                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
                     app.waiting = None;
                     Ok(())
                 })

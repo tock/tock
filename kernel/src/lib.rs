@@ -110,7 +110,7 @@ mod sched;
 mod upcall;
 
 pub use crate::driver::{CommandReturn, Driver};
-pub use crate::errorcode::retcode_into_usize;
+pub use crate::errorcode::into_statuscode;
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{Grant, ProcessGrant};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};

@@ -77,7 +77,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            app.callback.schedule(0, 0, 0);
+                            app.callback.schedule(kernel::into_statuscode(Ok(())), 0, 0);
                             app.awaiting = None;
                         }
                     }
