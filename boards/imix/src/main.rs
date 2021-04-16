@@ -91,7 +91,7 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
@@ -633,7 +633,7 @@ pub unsafe fn main() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {
