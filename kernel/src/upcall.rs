@@ -15,7 +15,7 @@ use crate::ErrorCode;
 ///
 /// This should be treated as an opaque type that can be used to represent an
 /// application on the board without requiring an actual reference to a
-/// `ProcessType` object. Having this `AppId` reference type is useful for
+/// `Process` object. Having this `AppId` reference type is useful for
 /// managing ownership and type issues in Rust, but more importantly `AppId`
 /// serves as a tool for capsules to hold pointers to applications.
 ///
@@ -35,7 +35,7 @@ use crate::ErrorCode;
 /// corresponding application still exists.
 ///
 /// This type also provides capsules an interface for interacting with processes
-/// since they otherwise would have no reference to a `ProcessType`. Very limited
+/// since they otherwise would have no reference to a `Process`. Very limited
 /// operations are available through this interface since capsules should not
 /// need to know the details of any given process. However, certain information
 /// makes certain capsules possible to implement. For example, capsules can use
@@ -96,7 +96,7 @@ impl AppId {
     /// in the processes array.
     ///
     /// This constructor is public but protected with a capability so that
-    /// external implementations of `ProcessType` can use it.
+    /// external implementations of `Process` can use it.
     pub fn new_external(
         kernel: &'static Kernel,
         identifier: usize,

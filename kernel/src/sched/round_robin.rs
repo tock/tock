@@ -16,19 +16,19 @@
 
 use crate::common::list::{List, ListLink, ListNode};
 use crate::platform::Chip;
-use crate::procs::ProcessType;
+use crate::process::Process;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
 use core::cell::Cell;
 
 /// A node in the linked list the scheduler uses to track processes
 /// Each node holds a pointer to a slot in the processes array
 pub struct RoundRobinProcessNode<'a> {
-    proc: &'static Option<&'static dyn ProcessType>,
+    proc: &'static Option<&'static dyn Process>,
     next: ListLink<'a, RoundRobinProcessNode<'a>>,
 }
 
 impl<'a> RoundRobinProcessNode<'a> {
-    pub fn new(proc: &'static Option<&'static dyn ProcessType>) -> RoundRobinProcessNode<'a> {
+    pub fn new(proc: &'static Option<&'static dyn Process>) -> RoundRobinProcessNode<'a> {
         RoundRobinProcessNode {
             proc,
             next: ListLink::empty(),

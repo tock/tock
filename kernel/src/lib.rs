@@ -66,8 +66,8 @@
 //! 3. Certain internal core kernel interfaces must also be exposed. These are
 //!    needed for extensions of the core kernel that happen to be implemented in
 //!    crates outside of the kernel crate. For example, additional
-//!    implementations of `ProcessType` may live outside of the kernel crate. To
-//!    successfully implement a new `ProcessType` requires access to certain
+//!    implementations of `Process` may live outside of the kernel crate. To
+//!    successfully implement a new `Process` requires access to certain
 //!    in-core-kernel APIs, and these must be marked `pub` so that outside
 //!    crates can access them.
 //!
@@ -106,6 +106,9 @@ mod mem;
 mod memop;
 mod platform;
 mod process;
+mod process_policies;
+mod process_standard;
+mod process_utilities;
 mod sched;
 mod upcall;
 
@@ -132,8 +135,11 @@ pub use crate::upcall::{AppId, Upcall};
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, FunctionCallSource,
-        Process, ProcessLoadError, ProcessRestartPolicy, ProcessType, State, Task,
-        ThresholdRestart, ThresholdRestartThenPanic,
+        Error, FaultResponse, FunctionCall, FunctionCallSource, Process, State, Task,
     };
+    pub use crate::process_policies::{
+        AlwaysRestart, ProcessRestartPolicy, ThresholdRestart, ThresholdRestartThenPanic,
+    };
+    pub use crate::process_standard::ProcessStandard;
+    pub use crate::process_utilities::{load_processes, ProcessLoadError};
 }

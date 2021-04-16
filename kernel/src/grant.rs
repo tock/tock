@@ -112,7 +112,7 @@ use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 
-use crate::process::{Error, ProcessCustomGrantIdentifer, ProcessType};
+use crate::process::{Error, Process, ProcessCustomGrantIdentifer};
 use crate::sched::Kernel;
 use crate::upcall::AppId;
 
@@ -169,7 +169,7 @@ pub struct ProcessGrant<'a, T: 'a> {
     /// short lived. They only exist while a `Grant` is being entered, so we can
     /// be sure the process still exists while a `ProcessGrant` exists. No
     /// `ProcessGrant` can be stored.
-    process: &'a dyn ProcessType,
+    process: &'a dyn Process,
 
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
@@ -190,7 +190,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// If the grant is already allocated or could be allocated, and the process
     /// is valid, this returns `Ok(ProcessGrant)`. Otherwise it returns a
     /// relevant error.
-    fn new(grant: &Grant<T>, process: &'a dyn ProcessType) -> Result<Self, Error> {
+    fn new(grant: &Grant<T>, process: &'a dyn Process) -> Result<Self, Error> {
         // Here is an example of how the grants are laid out in the grant region
         // of process's memory:
         //
@@ -284,7 +284,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// Return an `ProcessGrant` for a grant in a process if the process is
     /// valid and that process grant has already been allocated, or `None`
     /// otherwise.
-    fn new_if_allocated(grant: &Grant<T>, process: &'a dyn ProcessType) -> Option<Self> {
+    fn new_if_allocated(grant: &Grant<T>, process: &'a dyn Process) -> Option<Self> {
         if let Some(is_allocated) = process.grant_is_allocated(grant.grant_num) {
             if is_allocated {
                 Some(ProcessGrant {
@@ -923,8 +923,8 @@ pub struct Iter<'a, T: 'a + Default> {
 
     /// Iterator over valid processes.
     subiter: core::iter::FilterMap<
-        core::slice::Iter<'a, Option<&'static dyn ProcessType>>,
-        fn(&Option<&'static dyn ProcessType>) -> Option<&'static dyn ProcessType>,
+        core::slice::Iter<'a, Option<&'static dyn Process>>,
+        fn(&Option<&'static dyn Process>) -> Option<&'static dyn Process>,
     >,
 }
 

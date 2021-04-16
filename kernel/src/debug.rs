@@ -60,7 +60,7 @@ use crate::common::cells::{MapCell, TakeCell};
 use crate::common::queue::Queue;
 use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
-use crate::process::ProcessType;
+use crate::process::Process;
 use crate::Chip;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
@@ -103,7 +103,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn ProcessType>],
+    processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
 ) {
     panic_begin(nop);
@@ -122,7 +122,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn ProcessType>],
+    processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic
@@ -177,7 +177,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static dyn ProcessType>],
+    procs: &'static [Option<&'static dyn Process>],
     writer: &mut W,
 ) {
     // print data about each process

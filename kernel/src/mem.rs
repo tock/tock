@@ -179,7 +179,7 @@ impl ReadWriteAppSlice {
     /// Publicly accessible constructor, which requires the
     /// [`capabilities::ExternalProcessCapability`] capability. This
     /// is provided to allow implementations of the
-    /// [`ProcessType`](crate::process::ProcessType) trait outside of
+    /// [`Process`](crate::process::Process) trait outside of
     /// the `kernel` crate.
     ///
     /// # Safety requirements
@@ -336,7 +336,7 @@ impl ReadOnlyAppSlice {
     /// Publicly accessible constructor, which requires the
     /// [`capabilities::ExternalProcessCapability`] capability. This
     /// is provided to allow implementations of the
-    /// [`ProcessType`](crate::process::ProcessType) trait outside of
+    /// [`Process`](crate::process::Process) trait outside of
     /// the `kernel` crate.
     ///
     /// # Safety requirements

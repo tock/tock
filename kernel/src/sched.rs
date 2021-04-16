@@ -129,7 +129,7 @@ pub struct Kernel {
     work: Cell<usize>,
 
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static dyn process::ProcessType>],
+    processes: &'static [Option<&'static dyn process::Process>],
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
@@ -173,7 +173,7 @@ pub enum StoppedExecutingReason {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
@@ -193,7 +193,7 @@ impl Kernel {
     /// Something was scheduled for a process, so there is more work to do.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// indicate there is more process work to do.
     pub fn increment_work_external(
         &self,
@@ -214,7 +214,7 @@ impl Kernel {
     /// to do.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// indicate that some process work has finished.
     pub fn decrement_work_external(
         &self,
@@ -241,7 +241,7 @@ impl Kernel {
     /// but is in any "stopped" state.
     pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
-        F: FnOnce(&dyn process::ProcessType) -> R,
+        F: FnOnce(&dyn process::Process) -> R,
     {
         // We use the index in the `appid` so we can do a direct lookup.
         // However, we are not guaranteed that the app still exists at that
@@ -273,7 +273,7 @@ impl Kernel {
     /// processes and call the closure on every process that exists.
     pub(crate) fn process_each<F>(&self, closure: F)
     where
-        F: Fn(&dyn process::ProcessType),
+        F: Fn(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -289,12 +289,12 @@ impl Kernel {
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
-        core::slice::Iter<Option<&dyn process::ProcessType>>,
-        fn(&Option<&'static dyn process::ProcessType>) -> Option<&'static dyn process::ProcessType>,
+        core::slice::Iter<Option<&dyn process::Process>>,
+        fn(&Option<&'static dyn process::Process>) -> Option<&'static dyn process::Process>,
     > {
         fn keep_some(
-            &x: &Option<&'static dyn process::ProcessType>,
-        ) -> Option<&'static dyn process::ProcessType> {
+            &x: &Option<&'static dyn process::Process>,
+        ) -> Option<&'static dyn process::Process> {
             x
         }
         self.processes.iter().filter_map(keep_some)
@@ -311,7 +311,7 @@ impl Kernel {
         _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(&dyn process::ProcessType),
+        F: Fn(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -328,7 +328,7 @@ impl Kernel {
     /// this function to the called.
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
-        F: Fn(&dyn process::ProcessType) -> Option<T>,
+        F: Fn(&dyn process::Process) -> Option<T>,
     {
         for process in self.processes.iter() {
             match process {
@@ -418,7 +418,7 @@ impl Kernel {
     /// memory is setup based on the number of current grants.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// retrieve the final number of grants.
     pub fn get_grant_count_and_finalize_external(
         &self,
@@ -559,7 +559,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         scheduler: &S,
-        process: &dyn process::ProcessType,
+        process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
@@ -760,7 +760,7 @@ impl Kernel {
     fn handle_syscall<P: Platform>(
         &self,
         platform: &P,
-        process: &dyn process::ProcessType,
+        process: &dyn process::Process,
         syscall: Syscall,
     ) {
         // Hook for process debugging.
