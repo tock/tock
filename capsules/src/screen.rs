@@ -16,7 +16,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -112,7 +112,7 @@ pub struct Screen<'a> {
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App>,
     screen_ready: Cell<bool>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -143,11 +143,11 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
@@ -181,7 +181,7 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<(), ErrorCode> {
         match command {
             ScreenCommand::SetBrightness => self.screen.set_brightness(data1),
@@ -197,7 +197,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetRotation => {
                 let rotation = self.screen.get_rotation();
-                self.run_next_command(kernel::retcode_into_usize(Ok(())), rotation as usize, 0);
+                self.run_next_command(kernel::into_statuscode(Ok(())), rotation as usize, 0);
                 Ok(())
             }
             ScreenCommand::SetResolution => {
@@ -209,7 +209,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
-                self.run_next_command(kernel::retcode_into_usize(Ok(())), width, height);
+                self.run_next_command(kernel::into_statuscode(Ok(())), width, height);
                 Ok(())
             }
             ScreenCommand::SetPixelFormat => {
@@ -225,13 +225,13 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::GetPixelFormat => {
                 let pixel_format = self.screen.get_pixel_format();
-                self.run_next_command(kernel::retcode_into_usize(Ok(())), pixel_format as usize, 0);
+                self.run_next_command(kernel::into_statuscode(Ok(())), pixel_format as usize, 0);
                 Ok(())
             }
             ScreenCommand::GetSupportedResolutionModes => {
                 if let Some(screen) = self.screen_setup {
                     let resolution_modes = screen.get_num_supported_resolutions();
-                    self.run_next_command(kernel::retcode_into_usize(Ok(())), resolution_modes, 0);
+                    self.run_next_command(kernel::into_statuscode(Ok(())), resolution_modes, 0);
                     Ok(())
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -241,7 +241,7 @@ impl<'a> Screen<'a> {
                 if let Some(screen) = self.screen_setup {
                     if let Some((width, height)) = screen.get_supported_resolution(data1) {
                         self.run_next_command(
-                            kernel::retcode_into_usize(if width > 0 && height > 0 {
+                            kernel::into_statuscode(if width > 0 && height > 0 {
                                 Ok(())
                             } else {
                                 Err(ErrorCode::INVAL)
@@ -260,7 +260,7 @@ impl<'a> Screen<'a> {
             ScreenCommand::GetSupportedPixelFormats => {
                 if let Some(screen) = self.screen_setup {
                     let color_modes = screen.get_num_supported_pixel_formats();
-                    self.run_next_command(kernel::retcode_into_usize(Ok(())), color_modes, 0);
+                    self.run_next_command(kernel::into_statuscode(Ok(())), color_modes, 0);
                     Ok(())
                 } else {
                     Err(ErrorCode::NOSUPPORT)
@@ -270,7 +270,7 @@ impl<'a> Screen<'a> {
                 if let Some(screen) = self.screen_setup {
                     if let Some(pixel_format) = screen.get_supported_pixel_format(data1) {
                         self.run_next_command(
-                            kernel::retcode_into_usize(Ok(())),
+                            kernel::into_statuscode(Ok(())),
                             pixel_format as usize,
                             0,
                         );
@@ -285,7 +285,7 @@ impl<'a> Screen<'a> {
             ScreenCommand::Fill => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         // if it is larger than 0, we know it fits
                         // the size has been verified by subscribe
                         if app.shared.len() > 0 {
@@ -302,7 +302,7 @@ impl<'a> Screen<'a> {
                                     self.screen.write(buffer, len)
                                 } else {
                                     self.buffer.replace(buffer);
-                                    self.run_next_command(kernel::retcode_into_usize(Ok(())), 0, 0);
+                                    self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
                                     Ok(())
                                 }
                             })
@@ -319,7 +319,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::Write => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     let len = if app.shared.len() < data1 {
                         app.shared.len()
                     } else {
@@ -334,7 +334,7 @@ impl<'a> Screen<'a> {
                                 self.screen.write(buffer, len)
                             } else {
                                 self.buffer.replace(buffer);
-                                self.run_next_command(kernel::retcode_into_usize(Ok(())), 0, 0);
+                                self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
                                 Ok(())
                             }
                         })
@@ -345,7 +345,7 @@ impl<'a> Screen<'a> {
                 .unwrap_or_else(|err| err.into()),
             ScreenCommand::SetWriteFrame => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.write_position = 0;
                     app.x = (data1 >> 16) & 0xFFFF;
                     app.y = data1 & 0xFFFF;
@@ -364,7 +364,7 @@ impl<'a> Screen<'a> {
             self.screen_ready.set(true);
         } else {
             self.current_app.take().map(|appid| {
-                let _ = self.apps.enter(appid, |app, _| {
+                let _ = self.apps.enter(appid, |app| {
                     app.pending_command = false;
                     app.callback.schedule(data1, data2, data3);
                 });
@@ -373,11 +373,12 @@ impl<'a> Screen<'a> {
 
         // Check if there are any pending events.
         for app in self.apps.iter() {
-            let started_command = app.enter(|app, _| {
+            let appid = app.processid();
+            let started_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
-                    let r = self.call_screen(app.command, app.data1, app.data2, app.appid());
+                    self.current_app.set(appid);
+                    let r = self.call_screen(app.command, app.data1, app.data2, appid);
                     if r != Ok(()) {
                         self.current_app.clear();
                     }
@@ -397,7 +398,7 @@ impl<'a> Screen<'a> {
             || 0,
             |appid| {
                 self.apps
-                    .enter(*appid, |app, _| {
+                    .enter(*appid, |app| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {
@@ -473,7 +474,7 @@ impl<'a> Screen<'a> {
 
 impl<'a> hil::screen::ScreenClient for Screen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.run_next_command(kernel::retcode_into_usize(r), 0, 0);
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 
     fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>) {
@@ -483,18 +484,18 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
             let _ = self.screen.write_continue(buffer, len);
         } else {
             self.buffer.replace(buffer);
-            self.run_next_command(kernel::retcode_into_usize(r), 0, 0);
+            self.run_next_command(kernel::into_statuscode(r), 0, 0);
         }
     }
 
     fn screen_is_ready(&self) {
-        self.run_next_command(kernel::retcode_into_usize(Ok(())), 0, 0);
+        self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
     }
 }
 
 impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.run_next_command(kernel::retcode_into_usize(r), 0, 0);
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 }
 
@@ -503,12 +504,12 @@ impl<'a> Driver for Screen<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                 })
                 .map_err(ErrorCode::from),
@@ -526,7 +527,7 @@ impl<'a> Driver for Screen<'a> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 =>
@@ -581,7 +582,7 @@ impl<'a> Driver for Screen<'a> {
 
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -590,7 +591,7 @@ impl<'a> Driver for Screen<'a> {
             0 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let depth =
                             pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
                         let len = slice.len();

@@ -26,7 +26,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
     ReadWriteAppSlice, Upcall,
 };
 
@@ -52,7 +52,7 @@ pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
     apps: Grant<App>,
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -107,7 +107,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Provide a RX buffer.
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_type: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -116,7 +116,7 @@ impl Driver for Nrf51822Serialization<'_> {
             0 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         core::mem::swap(&mut app.rx_buffer, &mut slice);
                     })
                     .map_err(ErrorCode::from)
@@ -142,7 +142,7 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `0`: Provide a TX buffer.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_type: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -151,9 +151,7 @@ impl Driver for Nrf51822Serialization<'_> {
             0 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app, _| {
-                        core::mem::swap(&mut app.tx_buffer, &mut slice)
-                    })
+                    .enter(appid, |app| core::mem::swap(&mut app.tx_buffer, &mut slice))
                     .map_err(ErrorCode::from)
             }
 
@@ -179,7 +177,7 @@ impl Driver for Nrf51822Serialization<'_> {
         &self,
         subscribe_type: usize,
         mut callback: Upcall,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_type {
             // Add a callback
@@ -187,7 +185,7 @@ impl Driver for Nrf51822Serialization<'_> {
                 // Save the callback for the app.
                 let result = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         core::mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -208,13 +206,19 @@ impl Driver for Nrf51822Serialization<'_> {
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Received from the nRF into the allowed buffer.
     /// - `3`: Reset the nRF51822.
-    fn command(&self, command_type: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_type: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_type {
             0 /* check if present */ => CommandReturn::success(),
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                self.apps.enter(appid, |app, _| {
+                self.apps.enter(appid, |app| {
                     app.tx_buffer.map_or(CommandReturn::failure(ErrorCode::FAIL), |slice| {
                         let write_len = slice.len();
                         self.tx_buffer.take().map_or(CommandReturn::failure(ErrorCode::FAIL), |buffer| {
@@ -263,7 +267,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app| {
                 // Call the callback after TX has finished
                 app.callback.schedule(1, 0, 0);
             });
@@ -285,7 +289,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         self.rx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app| {
                 let len = app.rx_buffer.mut_map_or(0, |rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());

@@ -61,7 +61,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
     Upcall,
 };
 
@@ -81,7 +81,7 @@ pub enum NonvolatileCommand {
 
 #[derive(Clone, Copy)]
 pub enum NonvolatileUser {
-    App { app_id: AppId },
+    App { app_id: ProcessId },
     Kernel,
 }
 
@@ -183,7 +183,7 @@ impl<'a> NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-        app_id: Option<AppId>,
+        app_id: Option<ProcessId>,
     ) -> Result<(), ErrorCode> {
         // Do bounds check.
         match command {
@@ -216,7 +216,7 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 app_id.map_or(Err(ErrorCode::FAIL), |appid| {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
                                 NonvolatileCommand::UserspaceRead => app.buffer_read.len(),
@@ -371,12 +371,12 @@ impl<'a> NonvolatileStorage<'a> {
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let started_command = cntr.enter(|app, _| {
+                let appid = cntr.processid();
+                let started_command = cntr.enter(|app| {
                     if app.pending_command {
                         app.pending_command = false;
-                        self.current_user.set(NonvolatileUser::App {
-                            app_id: app.appid(),
-                        });
+                        self.current_user
+                            .set(NonvolatileUser::App { app_id: appid });
                         if let Ok(()) =
                             self.userspace_call_driver(app.command, app.offset, app.length)
                         {
@@ -408,7 +408,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Need to copy in the contents of the buffer
                         app.buffer_read.mut_map_or((), |app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
@@ -442,7 +442,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Replace the buffer we used to do this write.
                         self.buffer.replace(buffer);
 
@@ -494,14 +494,14 @@ impl Driver for NonvolatileStorage<'_> {
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.buffer_read);
                     Ok(())
                 })
@@ -522,14 +522,14 @@ impl Driver for NonvolatileStorage<'_> {
     /// - `0`: Setup a buffer to write bytes to the nonvolatile storage.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.buffer_write);
                     Ok(())
                 })
@@ -553,11 +553,11 @@ impl Driver for NonvolatileStorage<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app, _| match subscribe_num {
+            .enter(app_id, |app| match subscribe_num {
                 0 => {
                     mem::swap(&mut app.callback_read, &mut callback);
                     Ok(())
@@ -591,7 +591,7 @@ impl Driver for NonvolatileStorage<'_> {
         command_num: usize,
         offset: usize,
         length: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {

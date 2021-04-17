@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
@@ -94,7 +94,7 @@ pub struct App {
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
@@ -128,7 +128,8 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            let appid = app.processid();
+            app.enter(|app| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
                         .buffer
@@ -136,12 +137,11 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
 
                     if rcode == Ok(()) {
                         // The unit is now computing a CRC for this app
-                        self.serving_app.set(app.appid());
+                        self.serving_app.set(appid);
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback
-                            .schedule(kernel::retcode_into_usize(rcode), 0, 0);
+                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -172,7 +172,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -180,7 +180,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -215,13 +215,13 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for CRC result
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                 })
                 .map_err(ErrorCode::from),
@@ -299,7 +299,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         command_num: usize,
         algorithm: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver is present
@@ -309,7 +309,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             if app.waiting.is_some() {
                                 // Each app may make only one request at a time
                                 Err(ErrorCode::BUSY)
@@ -341,9 +341,9 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
         self.serving_app.take().map(|appid| {
             let _ = self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.callback
-                        .schedule(kernel::retcode_into_usize(Ok(())), result as usize, 0);
+                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
                     app.waiting = None;
                     Ok(())
                 })

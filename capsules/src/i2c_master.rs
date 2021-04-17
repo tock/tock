@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -22,7 +22,7 @@ pub static mut BUF: [u8; 64] = [0; 64];
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
     /// the client
-    app_id: AppId,
+    app_id: ProcessId,
     /// The total amount to transmit
     read_len: OptionalCell<usize>,
 }
@@ -44,12 +44,20 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         }
     }
 
-    fn operation(&self, app_id: AppId, app: &mut App, command: Cmd, addr: u8, wlen: u8, rlen: u8) {
+    fn operation(
+        &self,
+        app_id: ProcessId,
+        app: &mut App,
+        command: Cmd,
+        addr: u8,
+        wlen: u8,
+        rlen: u8,
+    ) {
         // TODO(alevy) this function used to try and return Result<(), ErrorCode>s, but would always return
         // ENOSUPPORT and all call-sites simply ignore the return value. Nonetheless, some error
         // handling is probably useful. Comments inline where there used to be non-success results.
         self.apps
-            .enter(app_id, |_, _| {
+            .enter(app_id, |_| {
                 // TODO(alevy): if app.slice.map doesn't have a slice, we would have returned
                 // INVAL here. I.e., the driver is attempting an operation without sharing memory.
                 app.slice.map_or((), |app_buffer| {
@@ -99,14 +107,14 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     /// - `1`: buffer for command
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     core::mem::swap(&mut app.slice, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -128,11 +136,11 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 /* write_read_done */ => {
-                self.apps.enter(app_id, |app, _| {
+                self.apps.enter(app_id, |app| {
                     core::mem::swap(&mut app.callback, &mut callback);
                 }).map_err(ErrorCode::from)
             },
@@ -146,13 +154,13 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     }
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: ProcessId) -> CommandReturn {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
                 Cmd::Ping => CommandReturn::success(),
                 Cmd::Write => self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
                         self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
@@ -161,7 +169,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
                         self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
@@ -173,7 +181,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             self.operation(
                                 appid,
                                 app,
@@ -196,7 +204,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
 impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
-            self.apps.enter(tx.app_id, |app, _| {
+            self.apps.enter(tx.app_id, |app| {
                 if let Some(read_len) = tx.read_len.take() {
                     app.slice.mut_map_or((), |app_buffer| {
                         app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);

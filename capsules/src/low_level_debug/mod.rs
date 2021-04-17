@@ -5,7 +5,7 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, CommandReturn, ErrorCode, Grant};
+use kernel::{CommandReturn, ErrorCode, Grant, ProcessId};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -41,7 +41,13 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
 }
 
 impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        minor_num: usize,
+        r2: usize,
+        r3: usize,
+        caller_id: ProcessId,
+    ) -> CommandReturn {
         match minor_num {
             0 => return CommandReturn::success(),
             1 => self.push_entry(DebugEntry::AlertCode(r2), caller_id),
@@ -76,13 +82,11 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
             return;
         }
 
-        for applied_grant in self.grant.iter() {
-            let (app_num, first_entry) = applied_grant.enter(|owned_app_data, _| {
+        for process_grant in self.grant.iter() {
+            let appid = process_grant.processid();
+            let (app_num, first_entry) = process_grant.enter(|owned_app_data| {
                 owned_app_data.queue.rotate_left(1);
-                (
-                    owned_app_data.appid().id(),
-                    owned_app_data.queue[QUEUE_SIZE - 1].take(),
-                )
+                (appid.id(), owned_app_data.queue[QUEUE_SIZE - 1].take())
             });
             let to_print = match first_entry {
                 None => continue,
@@ -102,7 +106,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     // If the UART is not busy (the buffer is available), transmits the entry.
     // Otherwise, adds it to the app's queue.
-    fn push_entry(&self, entry: DebugEntry, appid: AppId) {
+    fn push_entry(&self, entry: DebugEntry, appid: ProcessId) {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {
@@ -110,7 +114,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
             return;
         }
 
-        let result = self.grant.enter(appid, |borrow, _| {
+        let result = self.grant.enter(appid, |borrow| {
             for queue_entry in &mut borrow.queue {
                 if queue_entry.is_none() {
                     *queue_entry = Some(entry);

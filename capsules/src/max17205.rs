@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -382,7 +382,7 @@ impl<'a> MAX17205Driver<'a> {
 impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.callback
-            .map(|cb| cb.schedule(kernel::retcode_into_usize(error), status as usize, 0));
+            .map(|cb| cb.schedule(kernel::into_statuscode(error), status as usize, 0));
     }
 
     fn state_of_charge(
@@ -394,7 +394,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     ) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::retcode_into_usize(error),
+                kernel::into_statuscode(error),
                 percent as usize,
                 (capacity as usize) << 16 | (full_capacity as usize),
             );
@@ -404,7 +404,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::retcode_into_usize(error),
+                kernel::into_statuscode(error),
                 voltage as usize,
                 current as usize,
             )
@@ -413,13 +413,13 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.callback
-            .map(|cb| cb.schedule(kernel::retcode_into_usize(error), coulomb as usize, 0));
+            .map(|cb| cb.schedule(kernel::into_statuscode(error), coulomb as usize, 0));
     }
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.callback.map(|cb| {
             cb.schedule(
-                kernel::retcode_into_usize(error),
+                kernel::into_statuscode(error),
                 (rid & 0xffffffff) as usize,
                 (rid >> 32) as usize,
             )
@@ -437,7 +437,7 @@ impl Driver for MAX17205Driver<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -466,7 +466,7 @@ impl Driver for MAX17205Driver<'_> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
 

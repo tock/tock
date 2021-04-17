@@ -28,7 +28,7 @@ use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -67,7 +67,7 @@ impl rng::Client for RngDriver<'_> {
     ) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 // Check if this app needs random values.
                 if app.remaining > 0 {
                     // Provide the current application values to the closure
@@ -157,7 +157,7 @@ impl rng::Client for RngDriver<'_> {
 impl<'a> Driver for RngDriver<'a> {
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -165,7 +165,7 @@ impl<'a> Driver for RngDriver<'a> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.buffer, &mut slice);
                     Ok(())
                 })
@@ -183,12 +183,12 @@ impl<'a> Driver for RngDriver<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                     Ok(())
                 })
@@ -202,7 +202,13 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 /* Check if exists */ =>
             {
@@ -211,7 +217,7 @@ impl<'a> Driver for RngDriver<'a> {
 
             1 /* Ask for a given number of random bytes */ => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.remaining = data;
                     app.idx = 0;
 

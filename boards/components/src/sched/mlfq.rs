@@ -10,7 +10,7 @@ use core::mem::MaybeUninit;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time;
-use kernel::procs::ProcessType;
+use kernel::procs::Process;
 use kernel::static_init_half;
 use kernel::{MLFQProcessNode, MLFQSched};
 
@@ -31,13 +31,13 @@ macro_rules! mlfq_component_helper {
 
 pub struct MLFQComponent<A: 'static + time::Alarm<'static>> {
     alarm_mux: &'static MuxAlarm<'static, A>,
-    processes: &'static [Option<&'static dyn ProcessType>],
+    processes: &'static [Option<&'static dyn Process>],
 }
 
 impl<A: 'static + time::Alarm<'static>> MLFQComponent<A> {
     pub fn new(
         alarm_mux: &'static MuxAlarm<'static, A>,
-        processes: &'static [Option<&'static dyn ProcessType>],
+        processes: &'static [Option<&'static dyn Process>],
     ) -> MLFQComponent<A> {
         MLFQComponent {
             alarm_mux,

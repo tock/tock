@@ -31,7 +31,7 @@ const NUM_PROCS: usize = 4;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.

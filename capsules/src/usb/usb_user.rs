@@ -29,7 +29,7 @@
 use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
@@ -43,7 +43,7 @@ pub struct App {
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C> UsbSyscallDriver<'a, C>
@@ -67,7 +67,7 @@ where
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if let Some(request) = app.awaiting {
                     found = true;
                     match request {
@@ -77,7 +77,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            app.callback.schedule(0, 0, 0);
+                            app.callback.schedule(kernel::into_statuscode(Ok(())), 0, 0);
                             app.awaiting = None;
                         }
                     }
@@ -107,13 +107,13 @@ where
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for result
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                     Ok(())
                 })
@@ -127,7 +127,13 @@ where
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _arg: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // This driver is present
             0 => CommandReturn::success(),
@@ -136,7 +142,7 @@ where
             1 => {
                 let result = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
                             Err(ErrorCode::BUSY)

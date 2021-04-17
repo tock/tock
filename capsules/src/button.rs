@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -117,12 +117,12 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |cntr, _| {
+                .enter(app_id, |cntr| {
                     core::mem::swap(&mut cntr.0, &mut callback);
                 })
                 .map_err(|err| err.into()),
@@ -153,7 +153,13 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         let pins = self.pins;
         match command_num {
             // return button count
@@ -163,7 +169,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 |= 1 << data;
                             let _ = pins[data]
                                 .0
@@ -183,7 +189,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 &= !(1 << data);
                             CommandReturn::success()
                         })
@@ -191,7 +197,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
-                    self.apps.each(|cntr| {
+                    self.apps.each(|_, cntr| {
                         if cntr.1 & (1 << data) != 0 {
                             interrupt_count.set(interrupt_count.get() + 1);
                         }
@@ -229,7 +235,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
-        self.apps.each(|cntr| {
+        self.apps.each(|_, cntr| {
             if cntr.1 & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 cntr.0.schedule(pin_num as usize, button_state as usize, 0);

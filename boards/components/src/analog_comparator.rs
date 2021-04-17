@@ -19,11 +19,15 @@
 //! .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
 //! ```
 
-use capsules::analog_comparator;
 use core::mem::MaybeUninit;
+
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::static_init_half;
+
+use capsules::analog_comparator;
 
 #[macro_export]
 macro_rules! acomp_component_helper {
@@ -54,11 +58,20 @@ macro_rules! acomp_component_buf {
 pub struct AcComponent<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> {
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
+    board_kernel: &'static kernel::Kernel,
 }
 
 impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> AcComponent<AC> {
-    pub fn new(comp: &'static AC, ac_channels: &'static [&'static AC::Channel]) -> Self {
-        Self { comp, ac_channels }
+    pub fn new(
+        comp: &'static AC,
+        ac_channels: &'static [&'static AC::Channel],
+        board_kernel: &'static kernel::Kernel,
+    ) -> Self {
+        Self {
+            comp,
+            ac_channels,
+            board_kernel,
+        }
     }
 }
 
@@ -69,10 +82,13 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Co
     type Output = &'static analog_comparator::AnalogComparator<'static, AC>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_ac = self.board_kernel.create_grant(&grant_cap);
+
         let analog_comparator = static_init_half!(
             static_buffer,
             analog_comparator::AnalogComparator<'static, AC>,
-            analog_comparator::AnalogComparator::new(self.comp, self.ac_channels)
+            analog_comparator::AnalogComparator::new(self.comp, self.ac_channels, grant_ac)
         );
         self.comp.set_client(analog_comparator);
 

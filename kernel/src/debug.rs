@@ -60,7 +60,7 @@ use crate::common::cells::{MapCell, TakeCell};
 use crate::common::queue::Queue;
 use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
-use crate::process::ProcessType;
+use crate::process::Process;
 use crate::Chip;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
@@ -88,6 +88,32 @@ pub trait IoWrite {
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
 
+/// Tock panic routine, without the infinite LED-blinking loop.
+///
+/// This is useful for boards which do not feature LEDs to blink or
+/// want to implement their own behaviour. This method returns after
+/// performing the panic dump.
+///
+/// After this method returns, the system is no longer in a
+/// well-defined state. Care must be taken on how one interacts with
+/// the system once this function returns.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic_print<W: Write + IoWrite, C: Chip>(
+    writer: &mut W,
+    panic_info: &PanicInfo,
+    nop: &dyn Fn(),
+    processes: &'static [Option<&'static dyn Process>],
+    chip: &'static Option<&'static C>,
+) {
+    panic_begin(nop);
+    panic_banner(writer, panic_info);
+    // Flush debug buffer if needed
+    flush(writer);
+    panic_cpu_state(chip, writer);
+    panic_process_info(processes, writer);
+}
+
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
@@ -96,15 +122,17 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn ProcessType>],
+    processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
 ) -> ! {
-    panic_begin(nop);
-    panic_banner(writer, panic_info);
-    // Flush debug buffer if needed
-    flush(writer);
-    panic_cpu_state(chip, writer);
-    panic_process_info(processes, writer);
+    // Call `panic_print` first which will print out the panic
+    // information and return
+    panic_print(writer, panic_info, nop, processes, chip);
+
+    // The system is no longer in a well-defined state, we cannot
+    // allow this function to return
+    //
+    // Forever blink LEDs in an infinite loop
     panic_blink_forever(leds)
 }
 
@@ -149,7 +177,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static dyn ProcessType>],
+    procs: &'static [Option<&'static dyn Process>],
     writer: &mut W,
 ) {
     // print data about each process

@@ -27,7 +27,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{AppId, CommandReturn, Driver, Grant, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -44,7 +44,7 @@ pub struct App {
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -65,9 +65,9 @@ impl<'a> AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: AppId) -> Result<(), ErrorCode> {
+    fn enqueue_write(&self, flash_address: usize, appid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.len();
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
@@ -119,17 +119,18 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.callback.schedule(0, 0, 0);
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let started_command = cntr.enter(|app, _| {
+            let appid = cntr.processid();
+            let started_command = cntr.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
+                    self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
                     app.buffer.map_or(false, |app_buffer| {
@@ -171,14 +172,14 @@ impl Driver for AppFlash<'_> {
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.buffer, &mut slice);
                     Ok(())
                 })
@@ -201,12 +202,12 @@ impl Driver for AppFlash<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                     Ok(())
                 })
@@ -226,7 +227,13 @@ impl Driver for AppFlash<'_> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {
                 CommandReturn::success()

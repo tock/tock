@@ -27,10 +27,11 @@ use crate::platform::mpu::MPU;
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::platform::{Chip, Platform};
+use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
-use crate::upcall::{AppId, Upcall, UpcallId};
+use crate::upcall::{Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -45,7 +46,7 @@ pub trait Scheduler<C: Chip> {
     /// one. If the scheduler chooses not to run a process, it can request that
     /// the chip enter sleep mode.
     ///
-    /// If the scheduler selects a process to run it must provide its `AppId`
+    /// If the scheduler selects a process to run it must provide its `ProcessId`
     /// and an optional timeslice length in microseconds to provide to that
     /// process. If the timeslice is `None`, the process will be run
     /// cooperatively (i.e. without preemption). Otherwise the process will run
@@ -101,7 +102,7 @@ pub trait Scheduler<C: Chip> {
     /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
-    unsafe fn continue_process(&self, _id: AppId, chip: &C) -> bool {
+    unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
         !(chip.has_pending_interrupts()
             || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false))
     }
@@ -114,7 +115,7 @@ pub enum SchedulingDecision {
     /// Tell the kernel to run the specified process with the passed timeslice.
     /// If `None` is passed as a timeslice, the process will be run
     /// cooperatively.
-    RunProcess((AppId, Option<u32>)),
+    RunProcess((ProcessId, Option<u32>)),
 
     /// Tell the kernel to go to sleep. Notably, if the scheduler asks the
     /// kernel to sleep when kernel tasks are ready, the kernel will not sleep,
@@ -129,7 +130,7 @@ pub struct Kernel {
     work: Cell<usize>,
 
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static dyn process::ProcessType>],
+    processes: &'static [Option<&'static dyn process::Process>],
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
@@ -173,7 +174,7 @@ pub enum StoppedExecutingReason {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
@@ -193,7 +194,7 @@ impl Kernel {
     /// Something was scheduled for a process, so there is more work to do.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// indicate there is more process work to do.
     pub fn increment_work_external(
         &self,
@@ -214,7 +215,7 @@ impl Kernel {
     /// to do.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// indicate that some process work has finished.
     pub fn decrement_work_external(
         &self,
@@ -230,8 +231,8 @@ impl Kernel {
     }
 
     /// Run a closure on a specific process if it exists. If the process with a
-    /// matching `AppId` does not exist at the index specified within the
-    /// `AppId`, then `default` will be returned.
+    /// matching `ProcessId` does not exist at the index specified within the
+    /// `ProcessId`, then `default` will be returned.
     ///
     /// A match will not be found if the process was removed (and there is a
     /// `None` in the process array), if the process changed its identifier
@@ -239,9 +240,9 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: ProcessId, closure: F) -> R
     where
-        F: FnOnce(&dyn process::ProcessType) -> R,
+        F: FnOnce(&dyn process::Process) -> R,
     {
         // We use the index in the `appid` so we can do a direct lookup.
         // However, we are not guaranteed that the app still exists at that
@@ -259,7 +260,7 @@ impl Kernel {
                 process_entry.map_or(None, |process| {
                     // Check that the process stored here matches the identifier
                     // in the `appid`.
-                    if process.appid() == appid {
+                    if process.processid() == appid {
                         Some(closure(process))
                     } else {
                         None
@@ -273,7 +274,7 @@ impl Kernel {
     /// processes and call the closure on every process that exists.
     pub(crate) fn process_each<F>(&self, closure: F)
     where
-        F: Fn(&dyn process::ProcessType),
+        F: Fn(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -289,12 +290,12 @@ impl Kernel {
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
-        core::slice::Iter<Option<&dyn process::ProcessType>>,
-        fn(&Option<&'static dyn process::ProcessType>) -> Option<&'static dyn process::ProcessType>,
+        core::slice::Iter<Option<&dyn process::Process>>,
+        fn(&Option<&'static dyn process::Process>) -> Option<&'static dyn process::Process>,
     > {
         fn keep_some(
-            &x: &Option<&'static dyn process::ProcessType>,
-        ) -> Option<&'static dyn process::ProcessType> {
+            &x: &Option<&'static dyn process::Process>,
+        ) -> Option<&'static dyn process::Process> {
             x
         }
         self.processes.iter().filter_map(keep_some)
@@ -311,7 +312,7 @@ impl Kernel {
         _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(&dyn process::ProcessType),
+        F: Fn(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -328,7 +329,7 @@ impl Kernel {
     /// this function to the called.
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
-        F: Fn(&dyn process::ProcessType) -> Option<T>,
+        F: Fn(&dyn process::Process) -> Option<T>,
     {
         for process in self.processes.iter() {
             match process {
@@ -344,15 +345,15 @@ impl Kernel {
         None
     }
 
-    /// Retrieve the `AppId` of the given app based on its identifier. This is
+    /// Retrieve the `ProcessId` of the given app based on its identifier. This is
     /// useful if an app identifier is passed to the kernel from somewhere (such
-    /// as from userspace) and needs to be expanded to a full `AppId` for use
+    /// as from userspace) and needs to be expanded to a full `ProcessId` for use
     /// with other APIs.
-    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<ProcessId> {
         self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
-                if p2.appid().id() == identifier {
-                    Some(p2.appid())
+                if p2.processid().id() == identifier {
+                    Some(p2.processid())
                 } else {
                     None
                 }
@@ -360,15 +361,15 @@ impl Kernel {
         })
     }
 
-    /// Checks if the provided `AppId` is still valid given the processes stored
-    /// in the processes array. Returns `true` if the AppId still refers to
+    /// Checks if the provided `ProcessId` is still valid given the processes stored
+    /// in the processes array. Returns `true` if the ProcessId still refers to
     /// a valid process, and `false` if not.
     ///
-    /// This is needed for `AppId` itself to implement the `.index()` command to
+    /// This is needed for `ProcessId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    pub(crate) fn appid_is_valid(&self, appid: &AppId) -> bool {
+    pub(crate) fn processid_is_valid(&self, appid: &ProcessId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.appid().id() == appid.id())
+            p.map_or(false, |process| process.processid().id() == appid.id())
         })
     }
 
@@ -418,7 +419,7 @@ impl Kernel {
     /// memory is setup based on the number of current grants.
     ///
     /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `ProcessType` need to be able to
+    /// is that external implementations of `Process` need to be able to
     /// retrieve the final number of grants.
     pub fn get_grant_count_and_finalize_external(
         &self,
@@ -559,7 +560,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         scheduler: &S,
-        process: &dyn process::ProcessType,
+        process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
@@ -602,7 +603,7 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe { scheduler.continue_process(process.appid(), chip) };
+            let continue_process = unsafe { scheduler.continue_process(process.processid(), chip) };
             if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
@@ -677,7 +678,7 @@ impl Kernel {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
                                         "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                        process.appid(),
+                                        process.processid(),
                                         ccb.pc,
                                         ccb.argument0,
                                         ccb.argument1,
@@ -701,7 +702,7 @@ impl Kernel {
                                         // https://github.com/tock/tock/issues/1993
                                         unsafe {
                                             let _ = ipc.schedule_upcall(
-                                                process.appid(),
+                                                process.processid(),
                                                 otherapp,
                                                 ipc_type,
                                             );
@@ -760,7 +761,7 @@ impl Kernel {
     fn handle_syscall<P: Platform>(
         &self,
         platform: &P,
-        process: &dyn process::ProcessType,
+        process: &dyn process::Process,
         syscall: Syscall,
     ) {
         // Hook for process debugging.
@@ -810,7 +811,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] memop({}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         operand,
                         arg0,
                         rval
@@ -820,7 +821,7 @@ impl Kernel {
             }
             Syscall::Yield { which, address } => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield. which: {}", process.appid(), which);
+                    debug!("[{:?}] yield. which: {}", process.processid(), which);
                 }
                 if which > (YieldCall::Wait as usize) {
                     // Only 0 and 1 are valid, so this is not a valid
@@ -882,11 +883,11 @@ impl Kernel {
 
                 let ptr = NonNull::new(upcall_ptr);
                 let upcall = ptr.map_or(Upcall::default(), |ptr| {
-                    Upcall::new(process.appid(), upcall_id, appdata, ptr.cast())
+                    Upcall::new(process.processid(), upcall_id, appdata, ptr.cast())
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.appid());
+                        let res = d.subscribe(subdriver_number, upcall, process.processid());
                         match res {
                             // An Ok() returns the previous upcall, while
                             // Err() returns the one that was just passed
@@ -895,12 +896,12 @@ impl Kernel {
                             Err((newcb, err)) => newcb.into_subscribe_failure(err),
                         }
                     }
-                    None => upcall.into_subscribe_failure(ErrorCode::NOSUPPORT),
+                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         upcall_ptr as usize,
@@ -918,8 +919,8 @@ impl Kernel {
                 arg1,
             } => {
                 let cres = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, process.appid()),
-                    None => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
+                    None => CommandReturn::failure(ErrorCode::NODEVICE),
                 });
 
                 let res = SyscallReturn::from_command_return(cres);
@@ -927,7 +928,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         arg0,
@@ -955,8 +956,11 @@ impl Kernel {
                             Ok(appslice) => {
                                 // Creating the [`ReadWriteAppSlice`] worked,
                                 // provide it to the capsule.
-                                match d.allow_readwrite(process.appid(), subdriver_number, appslice)
-                                {
+                                match d.allow_readwrite(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
                                     Ok(returned_appslice) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
@@ -985,7 +989,7 @@ impl Kernel {
                         }
                     }
                     None => SyscallReturn::AllowReadWriteFailure(
-                        ErrorCode::NOSUPPORT,
+                        ErrorCode::NODEVICE,
                         allow_address,
                         allow_size,
                     ),
@@ -994,7 +998,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         allow_address as usize,
@@ -1022,8 +1026,11 @@ impl Kernel {
                             Ok(appslice) => {
                                 // Creating the [`ReadOnlyAppSlice`] worked,
                                 // provide it to the capsule.
-                                match d.allow_readonly(process.appid(), subdriver_number, appslice)
-                                {
+                                match d.allow_readonly(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
                                     Ok(returned_appslice) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
@@ -1058,7 +1065,7 @@ impl Kernel {
                         }
                     }
                     None => SyscallReturn::AllowReadOnlyFailure(
-                        ErrorCode::NOSUPPORT,
+                        ErrorCode::NODEVICE,
                         allow_address,
                         allow_size,
                     ),
@@ -1067,7 +1074,7 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
-                        process.appid(),
+                        process.processid(),
                         driver_number,
                         subdriver_number,
                         allow_address as usize,

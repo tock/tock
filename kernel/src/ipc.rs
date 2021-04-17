@@ -7,8 +7,9 @@ use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
 use crate::mem::Read;
 use crate::process;
+use crate::process::ProcessId;
 use crate::sched::Kernel;
-use crate::upcall::{AppId, Upcall};
+use crate::upcall::Upcall;
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
@@ -67,12 +68,12 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     /// scheduler loop if an IPC task was queued for the process.
     pub(crate) unsafe fn schedule_upcall(
         &self,
-        schedule_on: AppId,
-        called_from: AppId,
+        schedule_on: ProcessId,
+        called_from: ProcessId,
         cb_type: IPCUpcallType,
     ) -> Result<(), process::Error> {
         self.data
-            .enter(schedule_on, |mydata, _| {
+            .enter(schedule_on, |mydata| {
                 let mut upcall = match cb_type {
                     IPCUpcallType::Service => mydata.upcall,
                     IPCUpcallType::Client => match called_from.index() {
@@ -80,7 +81,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                         None => Upcall::default(),
                     },
                 };
-                self.data.enter(called_from, |called_from_data, _| {
+                self.data.enter(called_from, |called_from_data| {
                     // If the other app shared a buffer with us, make
                     // sure we have access to that slice and then call
                     // the upcall. If no slice was shared then just
@@ -128,7 +129,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         &self,
         subscribe_num: usize,
         mut upcall: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe(0)
@@ -141,7 +142,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             // process notifies the server process.
             0 => self
                 .data
-                .enter(app_id, |data, _| {
+                .enter(app_id, |data| {
                     core::mem::swap(&mut data.upcall, &mut upcall);
                     upcall
                 })
@@ -164,7 +165,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
 
                 // This type annotation is here for documentation, it's not actually necessary
                 let result: Result<Result<Upcall, ErrorCode>, process::Error> =
-                    self.data.enter(app_id, |data, _| {
+                    self.data.enter(app_id, |data| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
                                 if i >= NUM_PROCS {
@@ -212,7 +213,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         command_number: usize,
         target_id: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
@@ -220,7 +221,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             /* Discover */
             {
                 self.data
-                    .enter(appid, |data, _| {
+                    .enter(appid, |data| {
                         data.search_slice.map_or(
                             CommandReturn::failure(ErrorCode::INVAL),
                             |slice| {
@@ -233,7 +234,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
                                             && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
                                         {
                                             Some(CommandReturn::success_u32(
-                                                p.appid().id() as u32 + 1,
+                                                p.processid().id() as u32 + 1,
                                             ))
                                         } else {
                                             None
@@ -299,13 +300,13 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// The buffer should contain the package name of a process that exports an IPC service.
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         subdriver: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         if subdriver == 0 {
             // Package name for discovery
-            let res = self.data.enter(appid, |data, _| {
+            let res = self.data.enter(appid, |data| {
                 core::mem::swap(&mut data.search_slice, &mut slice);
             });
             match res {
@@ -328,14 +329,14 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// target_id == 0 is currently unsupported and reserved for future use.
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         target_id: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         if target_id == 0 {
             Err((slice, ErrorCode::NOSUPPORT))
         } else {
-            match self.data.enter(appid, |data, _| {
+            match self.data.enter(appid, |data| {
                 // Lookup the index of the app based on the passed in
                 // identifier. This also let's us check that the other app is
                 // actually valid.

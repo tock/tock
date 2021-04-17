@@ -10,7 +10,7 @@ use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
-use kernel::AppId;
+use kernel::ProcessId;
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
@@ -133,7 +133,7 @@ pub struct MPU<const NUM_REGIONS: usize> {
     /// Optimization logic. This is used to indicate which application the MPU
     /// is currently configured for so that the MPU can skip updating when the
     /// kernel returns to the same app.
-    hardware_is_configured_for: OptionalCell<AppId>,
+    hardware_is_configured_for: OptionalCell<ProcessId>,
 }
 
 impl<const NUM_REGIONS: usize> MPU<NUM_REGIONS> {
@@ -687,7 +687,7 @@ impl<const NUM_REGIONS: usize> kernel::mpu::MPU for MPU<NUM_REGIONS> {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
         if !self.hardware_is_configured_for.contains(app_id) || config.is_dirty.get() {

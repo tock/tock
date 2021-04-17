@@ -52,7 +52,7 @@
 
 use kernel::common::cells::TakeCell;
 use kernel::hil::led;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -91,7 +91,7 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
     ///        `INVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         self.leds
             .map(|leds| {
                 match command_num {

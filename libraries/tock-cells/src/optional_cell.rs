@@ -148,8 +148,8 @@ impl<T> OptionalCell<T> {
 }
 
 impl<T: Copy> OptionalCell<T> {
-    /// Returns a copy the contained [`Option`].
-    pub fn get(&self) -> Option<T> {
+    /// Returns a copy of the contained [`Option`].
+    pub fn extract(&self) -> Option<T> {
         self.value.get()
     }
 

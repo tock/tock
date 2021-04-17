@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Grant, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +63,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // are multiple alarms in the past, just store one of them
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
-            alarm.enter(|alarm, _| match alarm.expiration {
+            alarm.enter(|alarm| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
                     // Do this because `reference` shadowed below
                     let current_reference = reference;
@@ -154,12 +154,12 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res: Result<(), ErrorCode> = match subscribe_num {
             0 => self
                 .app_alarms
-                .enter(app_id, |td, _allocator| {
+                .enter(app_id, |td| {
                     mem::swap(&mut callback, &mut td.callback);
                 })
                 .map_err(ErrorCode::from),
@@ -188,7 +188,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         cmd_type: usize,
         data: usize,
         data2: usize,
-        caller_id: AppId,
+        caller_id: ProcessId,
     ) -> CommandReturn {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
@@ -196,7 +196,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         //   - the underlying alarm is currently disabled and we're enabling the first alarm, or
         //   - on an error (i.e. no change to the alarms).
         self.app_alarms
-            .enter(caller_id, |td, _alloc| {
+            .enter(caller_id, |td| {
                 // helper function to rearm alarm
                 let mut rearm = |reference: usize, dt: usize| {
                     if let Expiration::Disabled = td.expiration {
@@ -276,7 +276,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
-        self.app_alarms.each(|alarm| {
+        self.app_alarms.each(|_, alarm| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)

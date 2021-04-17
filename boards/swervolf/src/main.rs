@@ -24,8 +24,7 @@ pub const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static swervolf_eh1::chip::SweRVolf<SweRVolfDefaultPeripherals>> = None;

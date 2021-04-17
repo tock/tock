@@ -54,7 +54,7 @@ pub unsafe trait ProcessManagementCapability {}
 /// The `MainLoopCapability` capability allows the holder to start executing as
 /// well as manage the main scheduler loop in Tock. This is needed in a board's
 /// main.rs file to start the kernel. It also allows an external implementation
-/// of `ProcessType` to update state in the kernel struct used by the main loop.
+/// of `Process` to update state in the kernel struct used by the main loop.
 pub unsafe trait MainLoopCapability {}
 
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
@@ -62,7 +62,7 @@ pub unsafe trait MainLoopCapability {}
 pub unsafe trait MemoryAllocationCapability {}
 
 /// The `ExternalProcessCapability` capability allows the holder to use the core
-/// kernel resources needed to successfully implement the `ProcessType` trait
+/// kernel resources needed to successfully implement the `Process` trait
 /// from outside of the core kernel crate. Many of these operations are very
 /// sensitive, that is they cannot just be made public. In particular, certain
 /// objects can be used outside of the core kernel, but the constructors must be

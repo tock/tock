@@ -31,7 +31,7 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.

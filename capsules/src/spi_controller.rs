@@ -7,7 +7,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -93,7 +93,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn allow_readwrite(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -111,7 +111,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
 
     fn allow_readonly(
         &self,
-        _appid: AppId,
+        _appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -131,7 +131,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        _app_id: AppId,
+        _app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
@@ -180,7 +180,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     // x+1: unlock spi
     //   - does nothing if lock not held
     //
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: ProcessId) -> CommandReturn {
         match cmd_num {
             0 /* check if present */ => CommandReturn::success(),
             // No longer supported, wrap inside a read_write_bytes
