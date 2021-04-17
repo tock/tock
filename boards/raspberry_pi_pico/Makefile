@@ -9,7 +9,7 @@ include ../Makefile.common
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
-APP=../../../libtock-c/examples/sensors/build/cortex-m0/cortex-m0.tbf
+APP=../../../libtock-c/examples/blink/build/cortex-m0/cortex-m0.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
 
