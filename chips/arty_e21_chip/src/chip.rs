@@ -146,6 +146,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();
     type WatchDog = ();
+    type Core = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -196,6 +197,10 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
         rv32i::print_riscv_state(write);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }
 

@@ -110,6 +110,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'a>;
+    type Core = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -168,5 +169,9 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
         cortexm4::print_cortexm4_state(write);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }

@@ -101,6 +101,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for SweRVolf<'a, I> {
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
+    type Core = ();
 
     fn mpu(&self) -> &Self::MPU {
         &()
@@ -188,6 +189,10 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for SweRVolf<'a, I> {
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }
 

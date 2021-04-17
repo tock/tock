@@ -110,6 +110,7 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::Wdt;
+    type Core = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -164,5 +165,9 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
         cortexm4::print_cortexm4_state(write);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }

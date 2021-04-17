@@ -93,6 +93,7 @@ impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type Core = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -146,5 +147,9 @@ impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
         cortexm7::print_cortexm7_state(write);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }

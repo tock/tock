@@ -240,6 +240,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type Core = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -309,5 +310,9 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         cortexm4::print_cortexm4_state(writer);
+    }
+
+    fn current_core(&self) -> &Self::Core {
+        &()
     }
 }

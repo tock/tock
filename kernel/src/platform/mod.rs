@@ -126,6 +126,10 @@ pub trait Chip {
     /// of the kernel.
     type WatchDog: watchdog::WatchDog;
 
+    /// The description of a core
+    /// For now this is an opaque type used by the implementation
+    type Core;
+
     /// The kernel calls this function to tell the chip to check for all pending
     /// interrupts and to correctly dispatch them to the peripheral drivers for
     /// the chip.
@@ -176,6 +180,61 @@ pub trait Chip {
     /// the Display trait.
     /// Used by panic.
     unsafe fn print_state(&self, writer: &mut dyn Write);
+
+    /// Get the number of available cores
+    /// The default implementation returns 1 as most of
+    /// the MCUs have only one available core
+    #[inline(always)]
+    fn core_count(&self) -> usize {
+        1
+    }
+
+    /// Get the current Core
+    /// The actual data type depends on the implementation
+    fn current_core(&self) -> &Self::Core;
+
+    /// Get the number of available spinlocks
+    /// The default implemenation returns 1 spinlock
+    /// so that this function may be transparently used
+    /// by the kernel
+    #[inline(always)]
+    fn spinlock_count() -> usize {
+        1
+    }
+
+    /// Execute on a single core at the same time
+    /// As different MCUs provide different number hardware spinlock,
+    /// the spinlock_id is a hint about what spinlock number to use
+    /// A simple algorithm would be using the remainder
+    ///   actual_spinlock = spinlock_id % self.spinlock_count
+    /// The default implementation panics if there are more than 1 cores avialable
+    /// otherwise simple executes the provided function
+    #[allow(unused_variables)]
+    #[inline(always)]
+    fn spinlock<F, R>(&self, spinlock_id: usize, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        if self.core_count() > 1 {
+            panic!("no spinlocks available");
+        } else {
+            f()
+        }
+    }
+
+    /// Start a core and use a function for its entry point
+    /// The stack frame setup is left up to the implementation
+    /// The function that is run on the core recevises two arguments:
+    ///   a pointer to the stack bottom
+    ///   the length of the stack
+    /// The function that is ran on the core should never return
+    #[allow(unused_variables)]
+    unsafe fn start_core<F>(&self, core: &Self::Core, f: F) -> Result<(), ()>
+    where
+        F: Fn(*const u8, usize) -> !,
+    {
+        Err(())
+    }
 }
 
 /// Interface for handling interrupts and deferred calls on a hardware chip.
