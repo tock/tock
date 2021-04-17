@@ -14,6 +14,24 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
+#[macro_export]
+macro_rules! interrupt_mask {
+    ($($interrupt: expr),+) => {{
+        let mut high_interrupt: u128 = 0;
+        let mut low_interrupt: u128 = 0;
+        $(
+            if ($interrupt < 128) {
+                low_interrupt = low_interrupt | (1 << $interrupt) as u128
+            }
+            else
+            {
+                high_interrupt = high_interrupt | (1 << ($interrupt-128)) as u128
+            }
+        );+
+        (high_interrupt, low_interrupt)
+    }};
+}
+
 register_structs! {
     /// NVIC Registers.
     ///
@@ -134,11 +152,55 @@ pub unsafe fn next_pending() -> Option<u32> {
     None
 }
 
+pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
+    for (block, ispr) in NVIC
+        .ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .enumerate()
+    {
+        let interrupt_mask = if block < 4 {
+            mask.1
+        }
+        else
+        {
+            mask.0
+        };
+        let ispr = ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32);
+
+        // If there are any high bits there is a pending interrupt
+        if ispr != 0 {
+            // trailing_zeros == index of first high bit
+            let bit = ispr.trailing_zeros();
+            return Some(block as u32 * 32 + bit);
+        }
+    }
+    None
+}
+
 pub unsafe fn has_pending() -> bool {
     NVIC.ispr
         .iter()
         .take(number_of_nvic_registers())
         .fold(0, |i, ispr| ispr.get() | i)
+        != 0
+}
+
+pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
+    NVIC.ispr
+        .iter()
+        .take(number_of_nvic_registers()).enumerate()
+        .fold(0, |i, (block, ispr)| {
+            let interrupt_mask = 
+            if block < 4 {
+                mask.1
+            }
+            else
+            {
+                mask.0
+            };
+            (ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32)) | i
+        })
         != 0
 }
 

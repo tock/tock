@@ -49,6 +49,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 #[link_section = ".flash_bootloader"]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
+// State for loading and holding applications.
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -259,11 +263,14 @@ pub unsafe fn main() {
     //     <RPTimer as Time>::ticks_from_ms(1000),
     // );
 
-    let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals));
+    let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals, &peripherals.sio));
 
     CHIP = Some(chip);
 
     let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES));
+
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
@@ -330,6 +337,38 @@ pub unsafe fn main() {
         gpio: gpio,
         led: led
     };
+
+    /// These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    kernel::procs::load_processes(
+        board_kernel,
+        chip,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ),
+        core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        ),
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+        &process_management_capability,
+    )
+    .unwrap_or_else(|err| {
+        panic!("Error loading processes!");
+        // debug!("{:?}", err);
+    });
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
