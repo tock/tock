@@ -7,7 +7,7 @@ use kernel::InterruptService;
 
 use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
-use crate::gpio::{SIO, RPPins};
+use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
 use crate::resets::Resets;
 use crate::timer::RPTimer;
@@ -28,7 +28,7 @@ pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     interrupt_service: &'a I,
     sio: &'a SIO,
     processor0_interrupt_mask: (u128, u128),
-    processor1_interrupt_mask: (u128, u128)
+    processor1_interrupt_mask: (u128, u128),
 }
 
 impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
@@ -39,8 +39,8 @@ impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
             scheduler_timer: cortexm0p::systick::SysTick::new(),
             interrupt_service,
             sio: sio,
-            processor0_interrupt_mask: interrupt_mask! (interrupts::SIO_IRQ_PROC1),
-            processor1_interrupt_mask: interrupt_mask! (interrupts::SIO_IRQ_PROC0),
+            processor0_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC1),
+            processor1_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC0),
         }
     }
 }
@@ -53,9 +53,9 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            let mask = match self.sio.get_processor () {
+            let mask = match self.sio.get_processor() {
                 Processor::Processor0 => self.processor0_interrupt_mask,
-                Processor::Processor1 => self.processor1_interrupt_mask
+                Processor::Processor1 => self.processor1_interrupt_mask,
             };
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {
@@ -83,14 +83,11 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
         // ignore SIO_IRQ_PROC1 as it is intended for processor 1
         // not able to unset its pending status
         // probably only processor 1 can unset the pending by reading the fifo
-        let mask = match self.sio.get_processor () {
+        let mask = match self.sio.get_processor() {
             Processor::Processor0 => self.processor0_interrupt_mask,
-            Processor::Processor1 => self.processor1_interrupt_mask
+            Processor::Processor1 => self.processor1_interrupt_mask,
         };
-        unsafe {
-            cortexm0p::nvic::has_pending_with_mask(mask)
-                || deferred_call::has_tasks()
-        }
+        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) || deferred_call::has_tasks() }
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -134,7 +131,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub xosc: Xosc,
     pub timer: RPTimer<'a>,
     pub watchdog: Watchdog,
-    pub pins: RPPins<'a>
+    pub pins: RPPins<'a>,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -146,7 +143,7 @@ impl Rp2040DefaultPeripherals<'_> {
             xosc: Xosc::new(),
             timer: RPTimer::new(),
             watchdog: Watchdog::new(),
-            pins: RPPins::new()
+            pins: RPPins::new(),
         }
     }
 }
@@ -154,10 +151,10 @@ impl Rp2040DefaultPeripherals<'_> {
 impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            // interrupts::TIMER_IRQ_0 => {
-            //     self.timer.handle_interrupt();
-            //     true
-            // }
+            interrupts::TIMER_IRQ_0 => {
+                self.timer.handle_interrupt();
+                true
+            }
             interrupts::SIO_IRQ_PROC0 => {
                 self.sio.handle_proc_interrupt(Processor::Processor0);
                 true

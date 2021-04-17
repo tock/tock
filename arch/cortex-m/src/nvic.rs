@@ -159,13 +159,7 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
         .take(number_of_nvic_registers())
         .enumerate()
     {
-        let interrupt_mask = if block < 4 {
-            mask.1
-        }
-        else
-        {
-            mask.0
-        };
+        let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
         let ispr = ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32);
 
         // If there are any high bits there is a pending interrupt
@@ -189,16 +183,10 @@ pub unsafe fn has_pending() -> bool {
 pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
     NVIC.ispr
         .iter()
-        .take(number_of_nvic_registers()).enumerate()
+        .take(number_of_nvic_registers())
+        .enumerate()
         .fold(0, |i, (block, ispr)| {
-            let interrupt_mask = 
-            if block < 4 {
-                mask.1
-            }
-            else
-            {
-                mask.0
-            };
+            let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
             (ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32)) | i
         })
         != 0

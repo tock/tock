@@ -402,48 +402,48 @@ register_bitfields![u32,
 ];
 
 pub struct RPPins<'a> {
-    pub pins: [RPGpioPin<'a>; 30]
+    pub pins: [RPGpioPin<'a>; 30],
 }
 
 impl<'a> RPPins<'a> {
-    pub const fn new ()-> Self{
+    pub const fn new() -> Self {
         Self {
             pins: [
-                RPGpioPin::new (RPGpio::GPIO0),
-                RPGpioPin::new (RPGpio::GPIO1),
-                RPGpioPin::new (RPGpio::GPIO2),
-                RPGpioPin::new (RPGpio::GPIO3),
-                RPGpioPin::new (RPGpio::GPIO4),
-                RPGpioPin::new (RPGpio::GPIO5),
-                RPGpioPin::new (RPGpio::GPIO6),
-                RPGpioPin::new (RPGpio::GPIO7),
-                RPGpioPin::new (RPGpio::GPIO8),
-                RPGpioPin::new (RPGpio::GPIO9),
-                RPGpioPin::new (RPGpio::GPIO10),
-                RPGpioPin::new (RPGpio::GPIO11),
-                RPGpioPin::new (RPGpio::GPIO12),
-                RPGpioPin::new (RPGpio::GPIO13),
-                RPGpioPin::new (RPGpio::GPIO14),
-                RPGpioPin::new (RPGpio::GPIO15),
-                RPGpioPin::new (RPGpio::GPIO16),
-                RPGpioPin::new (RPGpio::GPIO17),
-                RPGpioPin::new (RPGpio::GPIO18),
-                RPGpioPin::new (RPGpio::GPIO19),
-                RPGpioPin::new (RPGpio::GPIO20),
-                RPGpioPin::new (RPGpio::GPIO21),
-                RPGpioPin::new (RPGpio::GPIO22),
-                RPGpioPin::new (RPGpio::GPIO23),
-                RPGpioPin::new (RPGpio::GPIO24),
-                RPGpioPin::new (RPGpio::GPIO25),
-                RPGpioPin::new (RPGpio::GPIO26),
-                RPGpioPin::new (RPGpio::GPIO27),
-                RPGpioPin::new (RPGpio::GPIO28),
-                RPGpioPin::new (RPGpio::GPIO29)
-            ]
+                RPGpioPin::new(RPGpio::GPIO0),
+                RPGpioPin::new(RPGpio::GPIO1),
+                RPGpioPin::new(RPGpio::GPIO2),
+                RPGpioPin::new(RPGpio::GPIO3),
+                RPGpioPin::new(RPGpio::GPIO4),
+                RPGpioPin::new(RPGpio::GPIO5),
+                RPGpioPin::new(RPGpio::GPIO6),
+                RPGpioPin::new(RPGpio::GPIO7),
+                RPGpioPin::new(RPGpio::GPIO8),
+                RPGpioPin::new(RPGpio::GPIO9),
+                RPGpioPin::new(RPGpio::GPIO10),
+                RPGpioPin::new(RPGpio::GPIO11),
+                RPGpioPin::new(RPGpio::GPIO12),
+                RPGpioPin::new(RPGpio::GPIO13),
+                RPGpioPin::new(RPGpio::GPIO14),
+                RPGpioPin::new(RPGpio::GPIO15),
+                RPGpioPin::new(RPGpio::GPIO16),
+                RPGpioPin::new(RPGpio::GPIO17),
+                RPGpioPin::new(RPGpio::GPIO18),
+                RPGpioPin::new(RPGpio::GPIO19),
+                RPGpioPin::new(RPGpio::GPIO20),
+                RPGpioPin::new(RPGpio::GPIO21),
+                RPGpioPin::new(RPGpio::GPIO22),
+                RPGpioPin::new(RPGpio::GPIO23),
+                RPGpioPin::new(RPGpio::GPIO24),
+                RPGpioPin::new(RPGpio::GPIO25),
+                RPGpioPin::new(RPGpio::GPIO26),
+                RPGpioPin::new(RPGpio::GPIO27),
+                RPGpioPin::new(RPGpio::GPIO28),
+                RPGpioPin::new(RPGpio::GPIO29),
+            ],
         }
     }
 
-    pub fn get_pin (&self, pin:RPGpio) -> &'a RPGpioPin{
+    pub fn get_pin(&self, pin: RPGpio) -> &'a RPGpioPin {
         &self.pins[pin as usize]
     }
 }

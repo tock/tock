@@ -7,7 +7,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::interrupts::TIMER_IRQ_0;
 
@@ -244,11 +244,11 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
         Self::Ticks::from(self.registers.alarm0.get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.armed.set(1);
         self.disable_interrupt();
         self.disable_timer_interrupt();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

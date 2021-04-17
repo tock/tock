@@ -56,8 +56,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 
@@ -69,10 +68,7 @@ pub struct RaspberryPiPico {
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedHigh<'static, RPGpioPin<'static>>,
-    >
+    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
 }
 
 impl Platform for RaspberryPiPico {
@@ -85,7 +81,7 @@ impl Platform for RaspberryPiPico {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            
+
             _ => f(None),
         }
     }
@@ -263,7 +259,10 @@ pub unsafe fn main() {
     //     <RPTimer as Time>::ticks_from_ms(1000),
     // );
 
-    let chip = static_init!(Rp2040<Rp2040DefaultPeripherals>, Rp2040::new(peripherals, &peripherals.sio));
+    let chip = static_init!(
+        Rp2040<Rp2040DefaultPeripherals>,
+        Rp2040::new(peripherals, &peripherals.sio)
+    );
 
     CHIP = Some(chip);
 
@@ -274,12 +273,11 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer).finalize(
-        components::alarm_mux_component_helper!(RPTimer),
-    );
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
+        .finalize(components::alarm_mux_component_helper!(RPTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-    .finalize(components::alarm_component_helper!(RPTimer));
+        .finalize(components::alarm_component_helper!(RPTimer));
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -317,17 +315,15 @@ pub unsafe fn main() {
             27 => &peripherals.pins.get_pin(RPGpio::GPIO27),
             28 => &peripherals.pins.get_pin(RPGpio::GPIO28),
             29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
-        )
+        ),
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
     let led = LedsComponent::new(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(
-            &peripherals.pins.get_pin(RPGpio::GPIO25)
-        )
+        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
     ))
-    .finalize (components::led_component_buf!(
+    .finalize(components::led_component_buf!(
         LedHigh<'static, RPGpioPin<'static>>
     ));
 
@@ -335,7 +331,7 @@ pub unsafe fn main() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         alarm: alarm,
         gpio: gpio,
-        led: led
+        led: led,
     };
 
     /// These symbols are defined in the linker script.
