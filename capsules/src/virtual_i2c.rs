@@ -10,6 +10,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
+use kernel::ErrorCode;
 
 pub struct MuxI2C<'a> {
     i2c: &'a dyn i2c::I2CMaster,
@@ -89,10 +90,34 @@ impl<'a> MuxI2C<'a> {
             mnode.map(|node| {
                 node.buffer.take().map(|buf| {
                     match node.operation.get() {
-                        Op::Write(len) => self.i2c.write(node.addr, buf, len),
-                        Op::Read(len) => self.i2c.read(node.addr, buf, len),
+                        Op::Write(len) => match self.i2c.write(node.addr, buf, len) {
+                            Ok(_) => {}
+                            Err((error, buffer)) => {
+                                node.buffer.replace(buffer);
+                                node.operation
+                                    .set(Op::CommandComplete(Error::Request(error)));
+                                node.mux.do_next_op_async();
+                            }
+                        },
+                        Op::Read(len) => match self.i2c.read(node.addr, buf, len) {
+                            Ok(_) => {}
+                            Err((error, buffer)) => {
+                                node.buffer.replace(buffer);
+                                node.operation
+                                    .set(Op::CommandComplete(Error::Request(error)));
+                                node.mux.do_next_op_async();
+                            }
+                        },
                         Op::WriteRead(wlen, rlen) => {
-                            self.i2c.write_read(node.addr, buf, wlen, rlen)
+                            match self.i2c.write_read(node.addr, buf, wlen, rlen) {
+                                Ok(_) => {}
+                                Err((error, buffer)) => {
+                                    node.buffer.replace(buffer);
+                                    node.operation
+                                        .set(Op::CommandComplete(Error::Request(error)));
+                                    node.mux.do_next_op_async();
+                                }
+                            }
                         }
                         Op::CommandComplete(err) => {
                             self.command_complete(buf, err);
@@ -244,22 +269,50 @@ impl i2c::I2CDevice for I2CDevice<'_> {
         }
     }
 
-    fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.buffer.replace(data);
-        self.operation.set(Op::WriteRead(write_len, read_len));
-        self.mux.do_next_op();
+    fn write_read(
+        &self,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::WriteRead(write_len, read_len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
-    fn write(&self, data: &'static mut [u8], len: u8) {
-        self.buffer.replace(data);
-        self.operation.set(Op::Write(len));
-        self.mux.do_next_op();
+    fn write(
+        &self,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::Write(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
-    fn read(&self, buffer: &'static mut [u8], len: u8) {
-        self.buffer.replace(buffer);
-        self.operation.set(Op::Read(len));
-        self.mux.do_next_op();
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(buffer);
+            self.operation.set(Op::Read(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, buffer))
+        }
     }
 }
 
@@ -325,22 +378,50 @@ impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
         }
     }
 
-    fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.buffer.replace(data);
-        self.operation.set(Op::WriteRead(write_len, read_len));
-        self.mux.do_next_op();
+    fn write_read(
+        &self,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::WriteRead(write_len, read_len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
-    fn write(&self, data: &'static mut [u8], len: u8) {
-        self.buffer.replace(data);
-        self.operation.set(Op::Write(len));
-        self.mux.do_next_op();
+    fn write(
+        &self,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::Write(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
-    fn read(&self, buffer: &'static mut [u8], len: u8) {
-        self.buffer.replace(buffer);
-        self.operation.set(Op::Read(len));
-        self.mux.do_next_op();
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(buffer);
+            self.operation.set(Op::Read(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, buffer))
+        }
     }
 }
 
@@ -350,32 +431,44 @@ impl<'a> i2c::SMBusDevice for SMBusDevice<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])> {
-        self.buffer.replace(data);
-        self.operation.set(Op::WriteRead(write_len, read_len));
-        self.mux.do_next_op();
-        Ok(())
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::WriteRead(write_len, read_len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
     fn smbus_write(
         &self,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])> {
-        self.buffer.replace(data);
-        self.operation.set(Op::Write(len));
-        self.mux.do_next_op();
-        Ok(())
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(data);
+            self.operation.set(Op::Write(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
     }
 
     fn smbus_read(
         &self,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])> {
-        self.buffer.replace(buffer);
-        self.operation.set(Op::Read(len));
-        self.mux.do_next_op();
-        Ok(())
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.operation.get() == Op::Idle {
+            self.buffer.replace(buffer);
+            self.operation.set(Op::Read(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, buffer))
+        }
     }
 }

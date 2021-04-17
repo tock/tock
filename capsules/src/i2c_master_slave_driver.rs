@@ -84,6 +84,8 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
             hil::i2c::Error::Overrun => -4,
             hil::i2c::Error::NotSupported => -5,
             hil::i2c::Error::CommandComplete => 0,
+            // TODO most probaly this should not occur as this is used for the mux
+            hil::i2c::Error::Request(_) => unreachable!(),
         };
 
         // Signal the application layer. Need to copy read in bytes if this
