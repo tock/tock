@@ -26,6 +26,7 @@ pub struct Msp432DefaultPeripherals<'a> {
     pub timer_a3: crate::timer::TimerA<'a>,
     pub gpio: crate::gpio::GpioManager<'a>,
     pub i2c0: crate::i2c::I2c<'a>,
+    pub spi1: crate::spi::Spi<'a>,
 }
 
 impl<'a> Msp432DefaultPeripherals<'a> {
@@ -42,6 +43,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
             timer_a3: crate::timer::TimerA::new(crate::timer::TIMER_A3_BASE),
             gpio: crate::gpio::GpioManager::new(),
             i2c0: crate::i2c::I2c::new(crate::usci::USCI_B0_BASE),
+            spi1: crate::spi::Spi::new(&crate::usci::USCI_B1_BASE, 2, 3, 2, 2),
         }
     }
 
@@ -53,6 +55,14 @@ impl<'a> Msp432DefaultPeripherals<'a> {
         );
         self.dma_channels[self.uart0.tx_dma_chan].set_client(&self.uart0);
         self.dma_channels[self.uart0.rx_dma_chan].set_client(&self.uart0);
+
+        // Setup DMA channels for SPI
+        self.spi1.set_dma(
+            &self.dma_channels[self.spi1.tx_dma_chan],
+            &self.dma_channels[self.spi1.rx_dma_chan],
+        );
+        self.dma_channels[self.spi1.tx_dma_chan].set_client(&self.spi1);
+        self.dma_channels[self.spi1.rx_dma_chan].set_client(&self.spi1);
 
         // Setup Reference Module, Timer and DMA for ADC
         self.adc.set_modules(

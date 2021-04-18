@@ -102,6 +102,147 @@ register_structs! {
 }
 
 register_bitfields![u16,
+    pub(crate) UCSPIxCTLW0 [
+        /// Software reset enable
+        UCSWRST OFFSET(0) NUMBITS(1) [
+            /// Disabled. eUSCI reset released for operation
+            Disabled = 0,
+            /// Enabled. eUSCI logic held in reset state
+            Enabled = 1
+        ],
+        /// STE mode select in master mode
+        UCSTEM OFFSET(1) NUMBITS(1) [
+            /// STE pin is used to prevent conflicts with other masters
+            PreventConflicts = 0,
+            /// STE pin is used to generate the enable signal for a 4-wire slave
+            ChipSelect = 1
+        ],
+        /// eUSCI clock source select
+        UCSSEL OFFSET(6) NUMBITS(2) [
+            /// UCLK
+            UCLK = 0,
+            /// ACLK
+            ACLK = 1,
+            /// SMCLK
+            SMCLK = 2
+        ],
+        /// Synchronous mode enable
+        UCSYNC OFFSET(8) NUMBITS(1) [
+            /// Asynchronous mode
+            AsynchronousMode = 0,
+            /// Synchronous mode
+            SynchronousMode = 1
+        ],
+        /// eUSCI mode
+        UCMODE OFFSET(9) NUMBITS(2) [
+            /// 3-pin SPI
+            _3PinSPI = 0,
+            /// 4-pin SPI (master or slave enabled if STE = 1)
+            _4PinSPIMasterOrSlaveEnabledIfSTE1 = 1,
+            /// 4-pin SPI (master or slave enabled if STE = 0)
+            _4PinSPIMasterOrSlaveEnabledIfSTE0 = 2,
+            /// I2C mode
+            I2CMode = 3
+        ],
+        /// Master mode select
+        UCMST OFFSET(11) NUMBITS(1) [
+            /// Slave mode
+            Slave = 0,
+            /// Master mode
+            Master = 1
+        ],
+        /// Character length. Selects 7-bit or 8-bit character length
+        UC7BIT OFFSET(12) NUMBITS(1) [
+            /// 8-bit data
+            _8Bit = 0,
+            /// 7-bit data
+            _7Bit = 1
+        ],
+        /// MSB first select. Controls the direction of the receive and transmit shift register
+        UCMSB OFFSET(13) NUMBITS(1) [
+            /// LSB first
+            LSBFirst = 0,
+            /// MSB first
+            MSBFirst = 1
+        ],
+        /// Clock polarity select
+        UCCKPL OFFSET(14) NUMBITS(1) [
+            /// The inactive state is low
+            InactiveLow = 0,
+            /// The inactive state is high
+            InactiveHigh = 1
+        ],
+        /// Clock phase select
+        UCCKPH OFFSET(15) NUMBITS(1) [
+            /// Data is changed on the first UCLK edge and captured on the following edge
+            ChangeFirstCaptureFollowing = 0,
+            /// Data is captured on the first UCLK edge and changed on the following edge
+            CaptureFirstChangeFollowing = 1
+
+        ]
+    ],
+    pub(crate) UCSPIxSTATW [
+        /// eUSCI busy
+        UCBUSY OFFSET(0) NUMBITS(1) [
+            /// eUSCI inactive
+            Inactive = 0,
+            /// eUSCI transmitting or receiving
+            TransmittingOrReceiving = 1
+        ],
+        /// Overrun error flag
+        UCOE OFFSET(5) NUMBITS(1) [
+            /// No error
+            NoError = 0,
+            /// Overrun error occurred
+            OverrunError = 1
+        ],
+        /// Framing error flag
+        UCFE OFFSET(6) NUMBITS(1) [
+            /// No error
+            NoError = 0,
+            /// Bus conflict occurred
+            BusConflict = 1
+        ],
+        /// Listen enable
+        UCLISTEN OFFSET(7) NUMBITS(1) [
+            /// Disabled
+            Disabled = 0,
+            /// Enabled. The transmitter output is internally fed back to the receiver
+            Enabled = 1
+        ]
+    ],
+    pub(crate) UCSPIxIE [
+        /// Receive interrupt enable
+        UCRXIE OFFSET(0) NUMBITS(1) [
+            /// Interrupt disabled
+            InterruptDisabled = 0,
+            /// Interrupt enabled
+            InterruptEnabled = 1
+        ],
+        /// Transmit interrupt enable
+        UCTXIE OFFSET(1) NUMBITS(1) [
+            /// Interrupt disabled
+            InterruptDisabled = 0,
+            /// Interrupt enabled
+            InterruptEnabled = 1
+        ]
+    ],
+    pub(crate) UCSPIxIFG [
+        /// Receive interrupt flag
+        UCRXIFG OFFSET(0) NUMBITS(1) [
+            /// No interrupt pending
+            NoInterruptPending = 0,
+            /// Interrupt pending
+            InterruptPending = 1
+        ],
+        /// Transmit interrupt flag
+        UCTXIFG OFFSET(1) NUMBITS(1) [
+            /// No interrupt pending
+            NoInterruptPending = 0,
+            /// Interrupt pending
+            InterruptPending = 1
+        ]
+    ],
     pub(crate) UCAxCTLW0 [
         /// Software reset enable
         UCSWRST OFFSET(0) NUMBITS(1) [
