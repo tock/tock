@@ -2,6 +2,7 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
 use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
+use kernel::hil::time::Alarm;
 use kernel::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
@@ -53,12 +54,12 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
-    pub fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+    pub fn new() -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(),
             pwr_clk: crate::power::Power::new(),
-            ieee802154_radio: crate::ieee802154_radio::Radio::new(ppi),
+            ieee802154_radio: crate::ieee802154_radio::Radio::new(),
             ble_radio: crate::ble_radio::Radio::new(),
             trng: crate::trng::Trng::new(),
             rtc: crate::rtc::Rtc::new(),
@@ -81,6 +82,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
     // Necessary for setting up circular dependencies
     pub fn init(&'a self) {
         self.ieee802154_radio.set_timer_ref(&self.timer0);
+        self.timer0.set_alarm_client(&self.ieee802154_radio);
     }
 }
 impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<'a> {

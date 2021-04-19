@@ -7,10 +7,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::ErrorCode;
 
-use crate::ppi;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -674,11 +673,16 @@ pub struct Radio<'p> {
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
     timer0: OptionalCell<&'p crate::timer::TimerAlarm<'p>>,
-    ppi: &'p crate::ppi::Ppi,
+}
+
+impl<'a> AlarmClient for Radio<'a> {
+    fn alarm(&self) {
+        self.rx();
+    }
 }
 
 impl<'p> Radio<'p> {
-    pub const fn new(ppi: &'p crate::ppi::Ppi) -> Self {
+    pub const fn new() -> Self {
         Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
@@ -695,7 +699,6 @@ impl<'p> Radio<'p> {
             channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
             timer0: OptionalCell::empty(),
-            ppi,
         }
     }
 
@@ -776,9 +779,6 @@ impl<'p> Radio<'p> {
             if self.transmitting.get()
                 && self.registers.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE
             {
-                if self.cca_count.get() > 0 {
-                    self.ppi.disable(ppi::Channel::CH21::SET);
-                }
                 self.registers.task_ccastart.write(Task::ENABLE::SET);
             } else {
                 self.registers.task_start.write(Task::ENABLE::SET);
@@ -798,6 +798,10 @@ impl<'p> Radio<'p> {
 
         if self.registers.event_ccabusy.is_set(Event::READY) {
             self.registers.event_ccabusy.write(Event::READY::CLEAR);
+            self.registers.event_ready.write(Event::READY::CLEAR);
+            self.registers.task_disable.write(Task::ENABLE::SET);
+            while self.registers.event_disabled.get() == 0 {}
+            self.registers.event_disabled.write(Event::READY::CLEAR);
             //need to back off for a period of time outlined
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the
@@ -806,7 +810,6 @@ impl<'p> Radio<'p> {
                 self.cca_count.set(self.cca_count.get() + 1);
                 self.cca_be.set(self.cca_be.get() + 1);
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                self.ppi.enable(ppi::Channel::CH21::SET);
                 self.timer0
                     .expect("Missing timer reference for CSMA")
                     .set_alarm(
@@ -827,8 +830,6 @@ impl<'p> Radio<'p> {
                     });
             }
 
-            self.registers.event_ready.write(Event::READY::CLEAR);
-            self.registers.task_disable.write(Task::ENABLE::SET);
             self.enable_interrupts();
         }
 
