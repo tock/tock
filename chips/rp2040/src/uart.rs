@@ -453,22 +453,39 @@ impl<'a> Uart<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        panic!("OOF");
         if self.registers.uartfr.is_set(UARTFR::TXFE) {
             if self.tx_status.get() == UARTStateTX::Idle {
                 panic!("No data to transmit");
             } else if self.tx_status.get() == UARTStateTX::Transmitting {
-                while self.uart_is_writable() || self.tx_position.get() == self.tx_len.get() {
-                    self.tx_buffer.map(|buf| {
-                        self.registers
-                            .uartdr
-                            .set(buf[self.tx_position.get()].into());
-                        self.tx_position.replace(self.tx_position.get() + 1);
+                self.disable_transmit_interrupt();
+                if self.tx_position.get() < self.tx_len.get() {
+                    self.fill_fifo();
+                    self.enable_transmit_interrupt();
+                }
+                // transmission is done
+                else { 
+                    self.tx_status.set(UARTStateTX::Idle);
+                    self.tx_client.map(|client| {
+                        self.tx_buffer.take().map(|buf| {
+                            client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::SUCCESS);
+                        });
                     });
                 }
-
-                self.disable_transmit_interrupt();
             }
         }
+    }
+
+    fn fill_fifo(&self) {
+        while self.uart_is_writable() && self.tx_position.get() < self.tx_len.get() {
+            self.tx_buffer.map(|buf| {
+                self.registers
+                    .uartdr
+                    .set(buf[self.tx_position.get()].into());
+                self.tx_position.replace(self.tx_position.get() + 1);
+            });
+        }
+        panic!("{}", self.tx_position.get());
     }
 }
 
@@ -552,6 +569,8 @@ impl Configure for Uart<'_> {
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
 
+        
+
         ReturnCode::SUCCESS
     }
 }
@@ -566,6 +585,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
+
         if self.tx_status.get() == UARTStateTX::Idle {
             if tx_len <= tx_buffer.len() {
                 self.tx_buffer.put(Some(tx_buffer));
@@ -573,6 +593,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
                 self.tx_len.set(tx_len);
                 self.tx_status.set(UARTStateTX::Transmitting);
                 self.enable_transmit_interrupt();
+                self.fill_fifo();
                 (ReturnCode::SUCCESS, None)
             } else {
                 (ReturnCode::ESIZE, Some(tx_buffer))

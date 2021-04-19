@@ -396,6 +396,8 @@ pub unsafe fn main() {
         led: led,
         console: console,
     };
+    debug!("Initialization complete. Entering main loop");
+    //panic!("OOOOF");
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -440,5 +442,4 @@ pub unsafe fn main() {
         &main_loop_capability,
     );
 
-    debug!("Initialization complete. Entering main loop");
 }
