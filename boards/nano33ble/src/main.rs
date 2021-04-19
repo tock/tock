@@ -75,13 +75,17 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 /// UART Writer for panic!()s.
 pub mod io;
 
-// State for loading and holding applications.
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+// How should the kernel respond when a process faults. For this board we choose
+// to stop the app and print a notice, but not immediately panic. This allows
+// users to debug their apps, but avoids issues with using the USB/CDC stack
+// synchronously for panic! too early after the board boots.
+const FAULT_RESPONSE: kernel::procs::StopWithDebugFaultPolicy =
+    kernel::procs::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
+// State for loading and holding applications.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
