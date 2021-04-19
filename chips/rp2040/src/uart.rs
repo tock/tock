@@ -1,10 +1,14 @@
+use crate::interrupts::{UART0_IRQ, UART1_IRQ};
+use core::cell::Cell;
 use cortex_m_semihosting::hprintln;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Transmit, Width};
 use kernel::hil::uart::{Receive, TransmitClient};
 use kernel::ReturnCode;
+use kernel::hil::uart::Uart as OtherUart;
 
 register_structs! {
     ///controls serial port
@@ -181,8 +185,6 @@ register_bitfields! [u32,
             FIFO_1_2 = 0b010,
             FIFO_3_4 = 0b011,
             FIFO_7_8 = 0b100,
-            FIFO_full1 = 0b101,
-            FIFO_full2 = 0b111
         ],
         /// receive interrupt FIFO level select
         RXIFLSEL OFFSET(3) NUMBITS(3) [
@@ -191,8 +193,6 @@ register_bitfields! [u32,
             FIFO_1_2 = 0b010,
             FIFO_3_4 = 0b011,
             FIFO_7_8 = 0b100,
-            FIFO_full1 = 0b101,
-            FIFO_full2 = 0b111
         ]
     ],
 
@@ -359,25 +359,65 @@ enum UARTStateTX {
     AbortRequested,
 }
 
+enum UARTStateRX {
+    Idle,
+    Receiving,
+    AbortRequested,
+}
+
 const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40034000 as *const UartRegisters) };
 
 const UART1_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40038000 as *const UartRegisters) };
 
-pub struct Uart {
+pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
+    interrupt: u32,
+
+    tx_client: OptionalCell<&'a dyn TransmitClient>,
+    //rx_client: OptionalCell<&'a dyn ReceiveClient>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    tx_position: Cell<usize>,
+    tx_len: Cell<usize>,
+    tx_status: Cell<UARTStateTX>,
+    // rx_buffer: TakeCell<'static, [u8]>,
+    // rx_position: Cell<usize>,
+    // rx_len: Cell<usize>,
+    // rx_status: Cell<UARTStateRX>,
 }
 
-impl Uart {
+impl<'a> Uart<'a> {
     pub const fn new_uart0() -> Self {
         Self {
             registers: UART0_BASE,
+            tx_client: OptionalCell::empty(),
+            //rx_client: OptionalCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(UARTStateTX::Idle),
+            // rx_buffer: TakeCell::empty(),
+            // rx_position: Cell::new(0),
+            // rx_len: Cell::new(0),
+            // rx_status: Cell::new(UARTStateRX::Idle),
+            interrupt: UART0_IRQ,
         }
     }
     pub const fn new_uart1() -> Self {
         Self {
             registers: UART1_BASE,
+            tx_client: OptionalCell::empty(),
+            //rx_client: OptionalCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(UARTStateTX::Idle),
+            // rx_buffer: TakeCell::empty(),
+            // rx_position: Cell::new(0),
+            // rx_len: Cell::new(0),
+            // rx_status: Cell::new(UARTStateRX::Idle),
+            interrupt: UART1_IRQ,
         }
     }
 
@@ -388,6 +428,21 @@ impl Uart {
     pub fn disable(&self) {
         self.registers.uartcr.modify(UARTCR::UARTEN::CLEAR);
     }
+
+    pub fn enable_transmit_interrupt(&self) {
+        self.registers.uartifls.modify(UARTIFLS::TXIFLSEL::FIFO_1_8);
+
+        self.registers.uartimsc.modify(UARTIMSC::TXIM::CLEAR);
+        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
+        n.enable();
+    }
+
+    pub fn disable_transmit_interrupt(&self) {
+        self.registers.uartimsc.modify(UARTIMSC::TXIM::SET);
+        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
+        n.disable();
+    }
+
     fn uart_is_writable(&self) -> bool {
         return !self.registers.uartfr.is_set(UARTFR::TXFF);
     }
@@ -396,9 +451,28 @@ impl Uart {
         while !self.uart_is_writable() {}
         self.registers.uartdr.write(UARTDR::DATA.val(data as u32));
     }
+
+    pub fn handle_interrupt(&self) {
+        if self.registers.uartfr.is_set(UARTFR::TXFE) {
+            if self.tx_status.get() == UARTStateTX::Idle {
+                panic!("No data to transmit");
+            } else if self.tx_status.get() == UARTStateTX::Transmitting {
+                while self.uart_is_writable() || self.tx_position.get() == self.tx_len.get() {
+                    self.tx_buffer.map(|buf| {
+                        self.registers
+                            .uartdr
+                            .set(buf[self.tx_position.get()].into());
+                        self.tx_position.replace(self.tx_position.get() + 1);
+                    });
+                }
+
+                self.disable_transmit_interrupt();
+            }
+        }
+    }
 }
 
-impl Configure for Uart {
+impl Configure for Uart<'_> {
     fn configure(&self, params: Parameters) -> ReturnCode {
         self.disable();
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
@@ -466,8 +540,10 @@ impl Configure for Uart {
         }
         self.registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
 
+        // Enable FIFO
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::SET);
 
+        // Enable uart and transmit
         self.registers
             .uartcr
             .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET);
@@ -475,13 +551,14 @@ impl Configure for Uart {
         self.registers
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
+
         ReturnCode::SUCCESS
     }
 }
 
-impl<'a> Transmit<'a> for Uart {
+impl<'a> Transmit<'a> for Uart<'a> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
-        //self.tx_client.set(client);
+        self.tx_client.set(client);
     }
 
     fn transmit_buffer(
@@ -489,7 +566,20 @@ impl<'a> Transmit<'a> for Uart {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(tx_buffer))
+        if self.tx_status.get() == UARTStateTX::Idle {
+            if tx_len <= tx_buffer.len() {
+                self.tx_buffer.put(Some(tx_buffer));
+                self.tx_position.set(0);
+                self.tx_len.set(tx_len);
+                self.tx_status.set(UARTStateTX::Transmitting);
+                self.enable_transmit_interrupt();
+                (ReturnCode::SUCCESS, None)
+            } else {
+                (ReturnCode::ESIZE, Some(tx_buffer))
+            }
+        } else {
+            (ReturnCode::EBUSY, Some(tx_buffer))
+        }
     }
 
     fn transmit_word(&self, word: u32) -> ReturnCode {
@@ -501,7 +591,7 @@ impl<'a> Transmit<'a> for Uart {
     }
 }
 
-impl<'a> Receive<'a> for Uart {
+impl<'a> Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient) {}
 
     fn receive_buffer(
@@ -520,3 +610,5 @@ impl<'a> Receive<'a> for Uart {
         ReturnCode::FAIL
     }
 }
+
+impl<'a> OtherUart<'a> for Uart<'a> {}

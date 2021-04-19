@@ -11,6 +11,7 @@ use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
 use crate::resets::Resets;
 use crate::timer::RPTimer;
+use crate::uart::Uart;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
 use cortexm0p::interrupt_mask;
@@ -132,7 +133,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub timer: RPTimer<'a>,
     pub watchdog: Watchdog,
     pub pins: RPPins<'a>,
-    pub uart0: Uart,
+    pub uart0: Uart<'a>,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
