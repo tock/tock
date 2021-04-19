@@ -3,7 +3,7 @@ Syscalls
 
 This document explains how [system
 calls](https://en.wikipedia.org/wiki/System_call) work in Tock with regards
-to both the kernel and applications. [TRD104](reference/trd-syscalls.md) contains
+to both the kernel and applications. [TRD104](reference/trd104-syscalls.md) contains
 the more formal specification
 of the system call API and ABI for 32-bit systems.
 This document describes the considerations behind the system call design.
