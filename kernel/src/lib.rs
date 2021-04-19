@@ -136,10 +136,12 @@ pub use crate::upcall::Upcall;
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        Error, FaultResponse, FunctionCall, FunctionCallSource, Process, State, Task,
+        Error, FaultAction, FunctionCall, FunctionCallSource, Process, State, Task,
     };
     pub use crate::process_policies::{
-        AlwaysRestart, ProcessRestartPolicy, ThresholdRestart, ThresholdRestartThenPanic,
+        PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
+        StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
+        ThresholdRestartThenPanicFaultPolicy,
     };
     pub use crate::process_standard::ProcessStandard;
     pub use crate::process_utilities::{load_processes, ProcessLoadError};

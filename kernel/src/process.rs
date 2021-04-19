@@ -11,7 +11,6 @@ use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self};
-use crate::process_policies::ProcessRestartPolicy;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
@@ -664,28 +663,28 @@ impl<'a> ProcessStateCell<'a> {
     }
 }
 
-/// The reaction the kernel should take when an app encounters a fault.
+/// The action the kernel should take when a process encounters a fault.
 ///
-/// When an exception occurs during an app's execution (a common example is an
-/// app trying to access memory outside of its allowed regions) the system will
-/// trap back to the kernel, and the kernel has to decide what to do with the
-/// app at that point.
+/// When an exception occurs during a process's execution (a common example is a
+/// process trying to access memory outside of its allowed regions) the system
+/// will trap back to the kernel, and the kernel has to decide what to do with
+/// the process at that point.
+///
+/// The actions are separate from the policy on deciding which action to take. A
+/// separate process-specific policy should determine which action to take.
 #[derive(Copy, Clone)]
-pub enum FaultResponse {
+pub enum FaultAction {
     /// Generate a `panic!()` call and crash the entire system. This is useful
     /// for debugging applications as the error is displayed immediately after
     /// it occurs.
     Panic,
 
-    /// Attempt to cleanup and restart the app which caused the fault. This
-    /// resets the app's memory to how it was when the app was started and
-    /// schedules the app to run again from its init function.
-    ///
-    /// The provided restart policy is used to determine whether to reset the
-    /// app, and can be specified on a per-app basis.
-    Restart(&'static dyn ProcessRestartPolicy),
+    /// Attempt to cleanup and restart the process which caused the fault. This
+    /// resets the process's memory to how it was when the process was started
+    /// and schedules the process to run again from its init function.
+    Restart,
 
-    /// Stop the app by no longer scheduling it to run.
+    /// Stop the process by no longer scheduling it to run.
     Stop,
 }
 
