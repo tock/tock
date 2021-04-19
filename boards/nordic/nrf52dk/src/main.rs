@@ -184,11 +184,10 @@ impl kernel::Platform for Platform {
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn get_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
-    let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(ppi)
+        Nrf52832DefaultPeripherals::new()
     );
 
     nrf52832_peripherals
