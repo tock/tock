@@ -23,6 +23,24 @@ pub struct KernelInfo {
     kernel: &'static Kernel,
 }
 
+/// These constants are defined in the linker script.
+extern "C" {
+    // _estack is not really a function, but it makes the types work
+    // You should never actually invoke it!!
+    static _estack: u32;
+    static _sstack: u32;
+    static _stext: u32;
+    static _etext: u32;
+    static _srodata: u32;
+    static _erodata: u32;
+    static _srelocate: u32;
+    static _erelocate: u32;
+    static _szero: u32;
+    static _ezero: u32;
+    
+    
+}
+
 impl KernelInfo {
     pub fn new(kernel: &'static Kernel) -> KernelInfo {
         KernelInfo { kernel: kernel }
@@ -159,4 +177,56 @@ impl KernelInfo {
         });
         count.get()
     }
+
+    pub fn get_kernel_stack_start(&self)->u32{
+        unsafe{
+            return _sstack;
+        }
+    }
+    pub fn get_kernel_stack_end(&self)->u32{
+        unsafe{
+            return _estack;
+        }
+    }
+    pub fn get_kernel_text_start(&self)->u32{
+        unsafe{
+            return _stext;
+        }
+    }
+    pub fn get_kernel_text_end(&self)->u32{
+        unsafe{
+            return _etext;
+        }
+    }
+    pub fn get_kernel_rodata_start(&self)->u32{
+        unsafe{
+            return _srodata;
+        }
+    }
+    pub fn get_kernel_rodata_end(&self)->u32{
+        unsafe{
+            return _erodata;
+        }
+    }
+    pub fn get_kernel_init_start(&self)->u32{
+        unsafe{
+            return _srelocate;
+        }
+    }
+    pub fn get_kernel_init_end(&self)->u32{
+        unsafe{
+            return _erelocate;
+        }
+    }
+    pub fn get_kernel_bss_start(&self)->u32{
+        unsafe{
+            return _szero;
+        }
+    }
+    pub fn get_kernel_bss_end(&self)->u32{
+        unsafe{
+            return _ezero;
+        }
+    }
+
 }
