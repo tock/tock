@@ -1,3 +1,10 @@
+//! Serial Peripheral Interface (SPI)
+//!
+//! Implementation of DMA-based SPI master communication for the MSP432.
+//! Both eUSCI_A and eUSCI_B can be used for SPI communication, but the
+//! the registers have a different meaning than in UART/I2C mode.
+//!
+
 use crate::dma;
 use crate::usci::{self, UCSPIxCTLW0, UCSPIxIE, UCSPIxIFG, UCSPIxSTATW};
 use core::cell::Cell;
