@@ -37,8 +37,7 @@ extern "C" {
     static _erelocate: u32;
     static _szero: u32;
     static _ezero: u32;
-    
-    
+
 }
 
 impl KernelInfo {
@@ -178,55 +177,34 @@ impl KernelInfo {
         count.get()
     }
 
-    pub fn get_kernel_stack_start(&self)->u32{
-        unsafe{
-            return _sstack;
-        }
+    pub fn get_kernel_stack_start(&self) -> u32 {
+        unsafe { _sstack }
     }
-    pub fn get_kernel_stack_end(&self)->u32{
-        unsafe{
-            return _estack;
-        }
+    pub fn get_kernel_stack_end(&self) -> u32 {
+        unsafe { _estack }
     }
-    pub fn get_kernel_text_start(&self)->u32{
-        unsafe{
-            return _stext;
-        }
+    pub fn get_kernel_text_start(&self) -> u32 {
+        unsafe { _stext }
     }
-    pub fn get_kernel_text_end(&self)->u32{
-        unsafe{
-            return _etext;
-        }
+    pub fn get_kernel_text_end(&self) -> u32 {
+        unsafe { _etext }
     }
-    pub fn get_kernel_rodata_start(&self)->u32{
-        unsafe{
-            return _srodata;
-        }
+    pub fn get_kernel_rodata_start(&self) -> u32 {
+        unsafe { _srodata }
     }
-    pub fn get_kernel_rodata_end(&self)->u32{
-        unsafe{
-            return _erodata;
-        }
+    pub fn get_kernel_rodata_end(&self) -> u32 {
+        unsafe { _erodata }
     }
-    pub fn get_kernel_init_start(&self)->u32{
-        unsafe{
-            return _srelocate;
-        }
+    pub fn get_kernel_init_start(&self) -> u32 {
+        unsafe { _srelocate }
     }
-    pub fn get_kernel_init_end(&self)->u32{
-        unsafe{
-            return _erelocate;
-        }
+    pub fn get_kernel_init_end(&self) -> u32 {
+        unsafe { _erelocate }
     }
-    pub fn get_kernel_bss_start(&self)->u32{
-        unsafe{
-            return _szero;
-        }
+    pub fn get_kernel_bss_start(&self) -> u32 {
+        unsafe { _szero }
     }
-    pub fn get_kernel_bss_end(&self)->u32{
-        unsafe{
-            return _ezero;
-        }
+    pub fn get_kernel_bss_end(&self) -> u32 {
+        unsafe { _ezero }
     }
-
 }
