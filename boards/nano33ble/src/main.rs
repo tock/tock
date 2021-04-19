@@ -63,8 +63,14 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_19;
 
+// Constants related to the configuration of the 15.4 network stack
 /// Personal Area Network ID for the IEEE 802.15.4 radio
 const PAN_ID: u16 = 0xABCD;
+/// Gateway (or next hop) MAC Address
+const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
+    capsules::net::ieee802154::MacAddress::Short(49138);
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -124,6 +130,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -140,6 +147,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -151,11 +159,10 @@ impl kernel::Platform for Platform {
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn get_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
-    let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ppi)
+        Nrf52840DefaultPeripherals::new()
     );
 
     nrf52840_peripherals
@@ -377,10 +384,13 @@ pub unsafe fn main() {
             .register(aes_mux)
             .expect("no deferred call slot available for ccm mux"),
     );
+    use capsules::net::ieee802154::MacAddress;
+    use capsules::virtual_alarm::VirtualMuxAlarm;
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
-    let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         &base_peripherals.ieee802154_radio,
         aes_mux,
@@ -392,6 +402,45 @@ pub unsafe fn main() {
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
+    use capsules::net::ipv6::ip_utils::IPAddr;
+
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+            ]),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+                serial_num_bottom_16
+            )),
+        ]
+    );
+
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        src_mac_from_serial_num,
+        local_ip_ifaces,
+        mux_alarm,
+    )
+    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+
+    // UDP driver initialization happens here
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
@@ -411,6 +460,7 @@ pub unsafe fn main() {
         gpio,
         rng,
         alarm,
+        udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
