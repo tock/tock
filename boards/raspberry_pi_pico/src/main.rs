@@ -25,7 +25,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
-use kernel::hil::uart::Configure;
+use kernel::hil::uart;
 
 use rp2040;
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -240,15 +240,15 @@ pub unsafe fn main() {
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
 
-    let parameters = Parameters {
-        baud_rate: 115200,
-        width: Width::Eight,
-        parity: Parity::None,
-        stop_bits: StopBits::One,
-        hw_flow_control: false,
-    };
-    //configure parameters of uart for sending bytes
-    peripherals.uart0.configure(parameters);
+    // let parameters = Parameters {
+    //     baud_rate: 115200,
+    //     width: Width::Eight,
+    //     parity: Parity::None,
+    //     stop_bits: StopBits::One,
+    //     hw_flow_control: false,
+    // };
+    // //configure parameters of uart for sending bytes
+    // peripherals.uart0.configure(parameters);
 
    // panic!("un text pe care il vreau eu");    ????????????
 

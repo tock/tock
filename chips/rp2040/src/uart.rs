@@ -5,10 +5,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::uart::ReceiveClient;
-use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Transmit, Width};
-use kernel::hil::uart::{Receive, TransmitClient};
-use kernel::ReturnCode;
-use kernel::hil::uart::Uart as OtherUart;
+use kernel::hil::uart::{self, Configure, Parameters, Parity, StopBits, Transmit, Width, Receive, TransmitClient};
+use kernel::ErrorCode;
 
 register_structs! {
     ///controls serial port
@@ -432,13 +430,13 @@ impl<'a> Uart<'a> {
     pub fn enable_transmit_interrupt(&self) {
         self.registers.uartifls.modify(UARTIFLS::TXIFLSEL::FIFO_1_8);
 
-        self.registers.uartimsc.modify(UARTIMSC::TXIM::CLEAR);
+        self.registers.uartimsc.modify(UARTIMSC::TXIM::SET);
         let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
         n.enable();
     }
 
     pub fn disable_transmit_interrupt(&self) {
-        self.registers.uartimsc.modify(UARTIMSC::TXIM::SET);
+        self.registers.uartimsc.modify(UARTIMSC::TXIM::CLEAR);
         let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
         n.disable();
     }
@@ -453,7 +451,6 @@ impl<'a> Uart<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        panic!("OOF");
         if self.registers.uartfr.is_set(UARTFR::TXFE) {
             if self.tx_status.get() == UARTStateTX::Idle {
                 panic!("No data to transmit");
@@ -468,7 +465,7 @@ impl<'a> Uart<'a> {
                     self.tx_status.set(UARTStateTX::Idle);
                     self.tx_client.map(|client| {
                         self.tx_buffer.take().map(|buf| {
-                            client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::SUCCESS);
+                            client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
                         });
                     });
                 }
@@ -485,12 +482,12 @@ impl<'a> Uart<'a> {
                 self.tx_position.replace(self.tx_position.get() + 1);
             });
         }
-        panic!("{}", self.tx_position.get());
+        // panic!("{}", self.tx_position.get());
     }
 }
 
 impl Configure for Uart<'_> {
-    fn configure(&self, params: Parameters) -> ReturnCode {
+    fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
         self.disable();
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
@@ -571,7 +568,7 @@ impl Configure for Uart<'_> {
 
         
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -584,7 +581,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
 
         if self.tx_status.get() == UARTStateTX::Idle {
             if tx_len <= tx_buffer.len() {
@@ -594,21 +591,21 @@ impl<'a> Transmit<'a> for Uart<'a> {
                 self.tx_status.set(UARTStateTX::Transmitting);
                 self.enable_transmit_interrupt();
                 self.fill_fifo();
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             } else {
-                (ReturnCode::ESIZE, Some(tx_buffer))
+                Err((ErrorCode::SIZE, tx_buffer))
             }
         } else {
-            (ReturnCode::EBUSY, Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         }
     }
 
-    fn transmit_word(&self, word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -619,17 +616,17 @@ impl<'a> Receive<'a> for Uart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, Some(rx_buffer))
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
-impl<'a> OtherUart<'a> for Uart<'a> {}
+impl<'a> uart::Uart<'a> for Uart<'a> {}

@@ -166,6 +166,10 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
                 self.sio.handle_proc_interrupt(Processor::Processor1);
                 true
             }
+            interrupts::UART0_IRQ => {
+                self.uart0.handle_interrupt ();
+                true
+            }
             _ => false,
         }
         // true
