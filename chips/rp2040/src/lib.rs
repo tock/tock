@@ -1,6 +1,7 @@
 #![feature(const_fn, asm)]
 #![no_std]
 
+pub mod adc;
 pub mod chip;
 pub mod clocks;
 pub mod deferred_call_tasks;

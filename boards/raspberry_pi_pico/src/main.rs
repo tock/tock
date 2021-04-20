@@ -28,6 +28,7 @@ use kernel::hil::uart;
 
 use kernel::debug;
 use rp2040;
+use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
     AdcAuxiliaryClockSource, PeripheralAuxiliaryClockSource, PllClock,
@@ -76,6 +77,7 @@ pub struct RaspberryPiPico {
     >,
     gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
 }
 
 impl Platform for RaspberryPiPico {
@@ -89,7 +91,7 @@ impl Platform for RaspberryPiPico {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -375,6 +377,14 @@ pub unsafe fn main() {
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
+        .finalize(components::adc_mux_component_helper!(Adc));
+
+    let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
+        .finalize(components::adc_component_helper!(Adc));
+
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel)
+        .finalize(components::adc_syscall_component_helper!(adc_channel_0,));
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -382,6 +392,8 @@ pub unsafe fn main() {
         gpio: gpio,
         led: led,
         console: console,
+        adc: adc_syscall,
+        // monitor arm semihosting enable
     };
     debug!("Initialization complete. Entering main loop");
 

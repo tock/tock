@@ -5,6 +5,7 @@ use kernel::common::deferred_call;
 use kernel::Chip;
 use kernel::InterruptService;
 
+use crate::adc;
 use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::{RPPins, SIO};
@@ -134,6 +135,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub watchdog: Watchdog,
     pub pins: RPPins<'a>,
     pub uart0: Uart<'a>,
+    pub adc: adc::Adc,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -147,6 +149,7 @@ impl Rp2040DefaultPeripherals<'_> {
             watchdog: Watchdog::new(),
             pins: RPPins::new(),
             uart0: Uart::new_uart0(),
+            adc: adc::Adc::new(),
         }
     }
 }
