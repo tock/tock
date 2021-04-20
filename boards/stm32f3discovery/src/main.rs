@@ -623,7 +623,7 @@ pub unsafe fn main() {
         components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
             .finalize(components::i2c_mux_component_helper!());
 
-    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(board_kernel)
         .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
     lsm303dlhc.configure(
