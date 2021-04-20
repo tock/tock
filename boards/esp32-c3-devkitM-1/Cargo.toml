@@ -1,0 +1,14 @@
+[package]
+name = "esp32-c3-board"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[dependencies]
+components = { path = "../components" }
+rv32i = { path = "../../arch/rv32i" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+esp32 = { path = "../../chips/esp32" }
+esp32-c3 = { path = "../../chips/esp32-c3" }
