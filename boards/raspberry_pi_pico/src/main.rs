@@ -249,8 +249,6 @@ pub unsafe fn main() {
     // //configure parameters of uart for sending bytes
     // peripherals.uart0.configure(parameters);
 
-    // panic!("un text pe care il vreau eu");    ????????????
-
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         let gpio = RPGpioPin::new(RPGpio::from_usize(pin).unwrap());
