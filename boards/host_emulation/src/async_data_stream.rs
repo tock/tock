@@ -61,6 +61,10 @@ impl AsyncDataStream {
         }
     }
 
+    pub fn new_socket_stream_str(path: &str, use_stdio: bool) -> Self {
+        Self::new_socket_stream(Path::new(path), use_stdio)
+    }
+
     fn spawn_client_listener(
         listener: UnixListener,
         tx_stream: Arc<WriteMutex>,
@@ -154,6 +158,16 @@ impl AsyncDataStream {
 
     pub fn try_recv(&mut self) -> Result<u8, TryRecvError> {
         self.rx_receiver.try_recv()
+    }
+
+    pub fn try_recv_unwrapped(&mut self) -> Option<u8> {
+        match self.try_recv() {
+            Ok(byte) => Some(byte),
+            Err(TryRecvError::Empty) => None,
+            Err(err) => {
+                panic!("Receive error: {:?}", err);
+            }
+        }
     }
 
     pub fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
