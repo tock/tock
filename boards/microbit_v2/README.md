@@ -48,12 +48,6 @@ Use the `make flash-bootloader` command to flash [Tock Bootloader](https://githu
 $ make flash-bootloader
 ```
 
-> If you are using an `openocd` 0.11 or newer comment out the following lines in `openocd.cfg`
-> ```
-> # flash bank $_CHIPNAME.flash nrf51 0x00000000 0 1 1 $_TARGETNAME
-> # flash bank $_CHIPNAME.uicr nrf51 0x10001000 0 1 1 $_TARGETNAME
-> ```
-
 ## Uploading the kernal
 
 Make sure you have flashed [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
@@ -118,12 +112,6 @@ $ make flash
 $ make flash-debug
 ```
 
-> If you are using an `openocd` 0.11 or newer comment out the following lines in `openocd.cfg`
-> ```
-> # flash bank $_CHIPNAME.flash nrf51 0x00000000 0 1 1 $_TARGETNAME
-> # flash bank $_CHIPNAME.uicr nrf51 0x10001000 0 1 1 $_TARGETNAME
-> ```
-
 ### Flashing app
 
 Please refer to the [tockloader](https://github.com/tock/tockloader) documentation to flash apps.
@@ -139,4 +127,3 @@ $ tockloader --openocd --board microbit_v2 --bundle-apps install app.tab
 ```
 
 > `--bundle-apps` seems to be needed due to an [openocd issue](https://github.com/tock/tockloader/issues/67)
-
