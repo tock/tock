@@ -71,3 +71,6 @@ boards/swervolf/binary.hex
 boards/swervolf/build/
 boards/swervolf/fusesoc.conf
 boards/swervolf/fusesoc_libraries/
+
+# ESP C3 temp hex
+boards/esp32-c3-devkitM-1/binary.hex
