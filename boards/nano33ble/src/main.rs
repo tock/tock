@@ -122,6 +122,8 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -141,6 +143,8 @@ impl kernel::Platform for Platform {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -366,6 +370,12 @@ pub unsafe fn main() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
+        .finalize(components::hts221_component_helper!());
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, hts221).finalize(());
+    let humidity = components::humidity::HumidityComponent::new(board_kernel, hts221).finalize(());
+
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -456,6 +466,8 @@ pub unsafe fn main() {
         console,
         pconsole,
         proximity,
+        temperature,
+        humidity,
         led,
         gpio,
         rng,
