@@ -11,6 +11,7 @@ use crate::systick::SysTick;
 
 use crate::emulation_config::Config;
 use std::path::Path;
+
 pub trait Callback {
     fn execute(&self) -> ();
 }
@@ -21,7 +22,7 @@ const SLEEP_DURATION_US: u128 = 1;
 pub struct HostChip {
     systick: SysTick,
     syscall: SysCall,
-    service_interrupts_callbacks: Vec<&'static dyn Callback>,
+    service_interrupts_callbacks: RefCell<Vec<&'static dyn Callback>>,
     terminate: Arc<AtomicBool>,
     terminate_callbacks: RefCell<Vec<&'static dyn Fn()>>,
 }
@@ -52,7 +53,7 @@ impl HostChip {
         HostChip {
             systick: SysTick::new(),
             syscall: syscall,
-            service_interrupts_callbacks: Vec::new(),
+            service_interrupts_callbacks: RefCell::new(Vec::new()),
             terminate,
             terminate_callbacks: RefCell::new(Vec::new()),
         }
@@ -68,8 +69,10 @@ impl HostChip {
         cmd_info.apps()[0].bin_path()
     }
 
-    pub fn add_service_interrupts_callback(&mut self, callback: &'static dyn Callback) {
-        self.service_interrupts_callbacks.push(callback);
+    pub fn add_service_interrupts_callback(&self, callback: &'static dyn Callback) {
+        self.service_interrupts_callbacks
+            .borrow_mut()
+            .push(callback);
     }
 
     pub fn add_terminate_callback(&self, callback: &'static dyn Fn()) {
@@ -103,7 +106,7 @@ impl kernel::Chip for HostChip {
             std::process::exit(0);
         }
 
-        for callback in &self.service_interrupts_callbacks {
+        for callback in &*self.service_interrupts_callbacks.borrow() {
             callback.execute();
         }
         unsafe {
