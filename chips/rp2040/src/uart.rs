@@ -443,7 +443,7 @@ impl<'a> Uart<'a> {
     }
 
     fn uart_is_writable(&self) -> bool {
-        return !self.registers.uartfr.is_set(UARTFR::TXFF);
+        !self.registers.uartfr.is_set(UARTFR::TXFF)
     }
 
     pub fn send_byte(&self, data: u8) {
