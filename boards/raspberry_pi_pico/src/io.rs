@@ -9,8 +9,6 @@ use rp2040::uart::Uart;
 use crate::CHIP;
 use crate::PROCESSES;
 
-use cortex_m_semihosting::hprint;
-
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {}
 

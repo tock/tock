@@ -1,15 +1,16 @@
 use crate::interrupts::{UART0_IRQ, UART1_IRQ};
 use core::cell::Cell;
-use cortex_m_semihosting::hprintln;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::uart::ReceiveClient;
-use kernel::hil::uart::{self, Configure, Parameters, Parity, StopBits, Transmit, Width, Receive, TransmitClient};
+use kernel::hil::uart::{
+    self, Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
+};
 use kernel::ErrorCode;
 
 register_structs! {
-    ///controls serial port
+    /// controls serial port
     UartRegisters {
         (0x000 => uartdr: ReadWrite<u32, UARTDR::Register>),
 
@@ -87,7 +88,7 @@ register_bitfields! [u32,
         /// overrun error
         OE OFFSET(3) NUMBITS(1) []
     ],
-    ///flag register
+    /// flag register
     UARTFR  [
         /// clear to send
         CTS OFFSET(0) NUMBITS(1) [],
@@ -460,8 +461,8 @@ impl<'a> Uart<'a> {
                     self.fill_fifo();
                     self.enable_transmit_interrupt();
                 }
-                // transmission is done
-                else { 
+                // Transmission is done
+                else {
                     self.tx_status.set(UARTStateTX::Idle);
                     self.tx_client.map(|client| {
                         self.tx_buffer.take().map(|buf| {
@@ -482,7 +483,6 @@ impl<'a> Uart<'a> {
                 self.tx_position.replace(self.tx_position.get() + 1);
             });
         }
-        // panic!("{}", self.tx_position.get());
     }
 }
 
@@ -493,7 +493,7 @@ impl Configure for Uart<'_> {
 
         let clk = 125_000_000;
 
-        //Calculate baud rate
+        // Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
         let mut baud_ibrd = baud_rate_div >> 7;
         let mut baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
@@ -514,14 +514,14 @@ impl Configure for Uart<'_> {
             .write(UARTFBRD::BAUD_DIVFRAC.val(baud_fbrd));
 
         self.registers.uartlcr_h.modify(UARTLCR_H::BRK::SET);
-        //Configure the word length
+        // Configure the word length
         match params.width {
             Width::Six => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_6),
             Width::Seven => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_7),
             Width::Eight => self.registers.uartlcr_h.modify(UARTLCR_H::WLEN::BITS_8),
         }
 
-        //configure parity
+        // Configure parity
         match params.parity {
             Parity::None => {
                 self.registers.uartlcr_h.modify(UARTLCR_H::PEN::CLEAR);
@@ -538,7 +538,7 @@ impl Configure for Uart<'_> {
             }
         }
 
-        //Set the stop bit length - 2 stop bits
+        // Set the stop bit length - 2 stop bits
         match params.stop_bits {
             StopBits::One => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::CLEAR),
             StopBits::Two => self.registers.uartlcr_h.modify(UARTLCR_H::STP2::SET),
@@ -566,8 +566,6 @@ impl Configure for Uart<'_> {
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
 
-        
-
         Ok(())
     }
 }
@@ -582,7 +580,6 @@ impl<'a> Transmit<'a> for Uart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-
         if self.tx_status.get() == UARTStateTX::Idle {
             if tx_len <= tx_buffer.len() {
                 self.tx_buffer.put(Some(tx_buffer));

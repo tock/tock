@@ -4,7 +4,6 @@
 //! * Ioana Culic <ioana.culic@wyliodrin.com>
 
 // use core::cell::Cell;
-use cortex_m_semihosting::hprintln;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;

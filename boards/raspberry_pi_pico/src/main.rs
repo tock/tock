@@ -12,7 +12,6 @@ use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
@@ -27,6 +26,7 @@ use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 
 use kernel::hil::uart;
 
+use kernel::debug;
 use rp2040;
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -37,7 +37,6 @@ use rp2040::clocks::{
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
 use rp2040::timer::RPTimer;
-use kernel::debug;
 mod io;
 
 mod flash_bootloader;
@@ -250,10 +249,7 @@ pub unsafe fn main() {
     // //configure parameters of uart for sending bytes
     // peripherals.uart0.configure(parameters);
 
-   // panic!("un text pe care il vreau eu");    ????????????
-
-
-
+    // panic!("un text pe care il vreau eu");    ????????????
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
@@ -305,7 +301,6 @@ pub unsafe fn main() {
         create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -314,7 +309,6 @@ pub unsafe fn main() {
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_helper!(RPTimer));
@@ -369,8 +363,8 @@ pub unsafe fn main() {
     .finalize(components::led_component_buf!(
         LedHigh<'static, RPGpioPin<'static>>
     ));
-    // UART
 
+    // UART
     // Create a shared UART channel for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.uart0,
@@ -379,15 +373,10 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-
-
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
-
-
-
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -397,7 +386,6 @@ pub unsafe fn main() {
         console: console,
     };
     debug!("Initialization complete. Entering main loop");
-    //panic!("OOOOF");
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -441,5 +429,4 @@ pub unsafe fn main() {
         scheduler,
         &main_loop_capability,
     );
-
 }

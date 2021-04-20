@@ -12,4 +12,4 @@ kernel = { path = "../../kernel" }
 rp2040 = { path = "../../chips/rp2040" }
 components = { path = "../components" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
-cortex-m-semihosting = "*"
+
