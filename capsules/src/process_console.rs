@@ -12,6 +12,7 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'panic' causes the kernel to run the panic handler
 //!
 //! ### `list` Command Fields:
 //!
@@ -210,7 +211,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
                             debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help status list stop start fault");
+                            debug!("Valid commands are: help status list stop start fault panic");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -290,6 +291,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 "Timeslice expirations: {}",
                                 info.timeslice_expirations(&self.capability)
                             );
+                        } else if clean_str.starts_with("panic") {
+                            panic!("ProcessConsole forced a kernel panic.");
                         } else {
                             debug!("Valid commands are: help status list stop start fault");
                         }
