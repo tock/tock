@@ -23,14 +23,15 @@ use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
-use crate::platform::mpu::MPU;
-use crate::platform::scheduler_timer::SchedulerTimer;
-use crate::platform::watchdog::WatchDog;
-use crate::platform::{Chip, Platform};
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
+use crate::traits::chip::Chip;
+use crate::traits::mpu::MPU;
+use crate::traits::platform::Platform;
+use crate::traits::scheduler_timer::SchedulerTimer;
+use crate::traits::watchdog::WatchDog;
 use crate::upcall::{Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.

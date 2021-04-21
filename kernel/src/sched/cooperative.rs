@@ -12,9 +12,9 @@
 //! that was executing.
 
 use crate::common::list::{List, ListLink, ListNode};
-use crate::platform::Chip;
 use crate::process::Process;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::traits::chip::Chip;
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {

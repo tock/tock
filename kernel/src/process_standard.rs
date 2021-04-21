@@ -15,14 +15,14 @@ use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
-use crate::platform::mpu::{self, MPU};
-use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
+use crate::traits::chip::Chip;
+use crate::traits::mpu::{self, MPU};
 use crate::upcall::UpcallId;
 
 // The completion code for a process if it faulted.

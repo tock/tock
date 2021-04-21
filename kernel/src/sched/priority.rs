@@ -12,9 +12,9 @@
 
 use crate::common::cells::OptionalCell;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
-use crate::platform::Chip;
 use crate::process::ProcessId;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::traits::chip::Chip;
 
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
 pub struct PrioritySched {

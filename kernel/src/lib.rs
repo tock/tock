@@ -104,12 +104,12 @@ mod errorcode;
 mod grant;
 mod mem;
 mod memop;
-mod platform;
 mod process;
 mod process_policies;
 mod process_standard;
 mod process_utilities;
 mod sched;
+mod traits;
 mod upcall;
 
 pub use crate::driver::{CommandReturn, Driver};
@@ -117,16 +117,19 @@ pub use crate::errorcode::into_statuscode;
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{Grant, ProcessGrant};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
-pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
-pub use crate::platform::watchdog;
-pub use crate::platform::{mpu, Chip, InterruptService, Platform};
-pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use crate::process::ProcessId;
 pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
 pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
+pub use crate::traits::chip::{
+    Chip, ClockInterface, InterruptService, NoClockControl, NO_CLOCK_CONTROL,
+};
+pub use crate::traits::mpu;
+pub use crate::traits::platform::Platform;
+pub use crate::traits::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
+pub use crate::traits::watchdog;
 pub use crate::upcall::Upcall;
 
 // Export only select items from the process module. To remove the name conflict

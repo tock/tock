@@ -15,9 +15,9 @@
 //! interrupted.
 
 use crate::common::list::{List, ListLink, ListNode};
-use crate::platform::Chip;
 use crate::process::Process;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::traits::chip::Chip;
 use core::cell::Cell;
 
 /// A node in the linked list the scheduler uses to track processes

@@ -20,10 +20,10 @@
 use crate::common::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Ticks;
-use crate::platform::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
 use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::traits::chip::Chip;
 use core::cell::Cell;
 
 #[derive(Default)]
