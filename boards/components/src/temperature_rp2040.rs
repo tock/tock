@@ -1,4 +1,4 @@
-use capsules::temperature_pico_pi::TemperatureRp4020;
+use capsules::temperature_rp2040::TemperatureRp4020;
 use capsules::virtual_adc::AdcDevice;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
@@ -10,7 +10,7 @@ use kernel::static_init_half;
 #[macro_export]
 macro_rules! temperaturerp4020_adc_component_helper {
     ($A:ty, $channel:expr, $adc_mux:expr $(,)?) => {{
-        use capsules::temperature_pico_pi::TemperatureRp4020;
+        use capsules::temperature_rp2040::TemperatureRp4020;
         use capsules::virtual_adc::AdcDevice;
         use core::mem::MaybeUninit;
         use kernel::hil::adc::Adc;

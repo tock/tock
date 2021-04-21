@@ -27,7 +27,6 @@ use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 use kernel::hil::uart;
 
 use kernel::debug;
-use rp2040;
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -389,14 +388,12 @@ pub unsafe fn main() {
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
         .finalize(components::adc_mux_component_helper!(Adc));
 
-    let temp_sensor = components::temperature_pico_pi::TemperatureRp4020Component::new(
-        1.721, 0.706,
-    )
-    .finalize(components::temperaturerp4020_adc_component_helper!(
-        rp2040::adc::Adc,
-        Channel::Channel4,
-        adc_mux
-    ));
+    let temp_sensor = components::temperature_rp2040::TemperatureRp4020Component::new(1.721, 0.706)
+        .finalize(components::temperaturerp4020_adc_component_helper!(
+            rp2040::adc::Adc,
+            Channel::Channel4,
+            adc_mux
+        ));
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature = board_kernel.create_grant(&grant_cap);
