@@ -14,12 +14,13 @@
 //! same process is resumed with the same scheduler timer value from when it was
 //! interrupted.
 
+use core::cell::Cell;
+
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::kernel::{Kernel, StoppedExecutingReason};
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::scheduler::{Scheduler, SchedulingDecision};
-use core::cell::Cell;
 
 /// A node in the linked list the scheduler uses to track processes
 /// Each node holds a pointer to a slot in the processes array

@@ -49,9 +49,9 @@ macro_rules! static_buf {
         // Statically allocate a read-write buffer for the value, write our
         // initial value into it (without dropping the initial zeros) and
         // return a reference to it.
-        static mut BUF: $crate::common::utils::UninitializedBuffer<$T> =
-            $crate::common::utils::UninitializedBuffer::new();
-        $crate::common::utils::StaticUninitializedBuffer::new(&mut BUF)
+        static mut BUF: $crate::utilities::static_init::UninitializedBuffer<$T> =
+            $crate::utilities::static_init::UninitializedBuffer::new();
+        $crate::utilities::static_init::StaticUninitializedBuffer::new(&mut BUF)
     }};
 }
 

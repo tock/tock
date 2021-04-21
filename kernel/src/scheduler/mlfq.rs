@@ -17,15 +17,16 @@
 //! - Rule 5: After some time period S, move all the jobs in the system to the
 //!           topmost queue.
 
+use core::cell::Cell;
+
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time;
 use crate::hil::time::Ticks;
 use crate::kernel::{Kernel, StoppedExecutingReason};
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
 use crate::scheduler::{Scheduler, SchedulingDecision};
-use core::cell::Cell;
 
 #[derive(Default)]
 struct MfProcState {

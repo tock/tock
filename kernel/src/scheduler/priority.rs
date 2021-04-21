@@ -12,7 +12,7 @@
 
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::kernel::{Kernel, StoppedExecutingReason};
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::ProcessId;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::utilities::cells::OptionalCell;
