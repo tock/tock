@@ -218,7 +218,7 @@ impl Wdt {
     }
 }
 
-impl kernel::watchdog::WatchDog for Wdt {
+impl kernel::traits::watchdog::WatchDog for Wdt {
     fn setup(&self) {
         // Setup the WatchDog with a 100ms period.
         self.start(100);

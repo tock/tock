@@ -97,6 +97,7 @@ pub mod hil;
 pub mod introspection;
 pub mod ipc;
 pub mod syscall;
+pub mod traits;
 
 mod config;
 mod driver;
@@ -109,7 +110,6 @@ mod process_policies;
 mod process_standard;
 mod process_utilities;
 mod sched;
-mod traits;
 mod upcall;
 
 pub use crate::driver::{CommandReturn, Driver};
@@ -123,13 +123,6 @@ pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
-pub use crate::traits::chip::{
-    Chip, ClockInterface, InterruptService, NoClockControl, NO_CLOCK_CONTROL,
-};
-pub use crate::traits::mpu;
-pub use crate::traits::platform::Platform;
-pub use crate::traits::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
-pub use crate::traits::watchdog;
 pub use crate::upcall::Upcall;
 
 // Export only select items from the process module. To remove the name conflict

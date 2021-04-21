@@ -22,7 +22,7 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use kernel::ClockInterface;
+use kernel::traits::chip::ClockInterface;
 use kernel::ErrorCode;
 
 #[repr(C)]

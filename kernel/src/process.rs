@@ -10,9 +10,9 @@ use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
-use crate::traits::mpu::{self};
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
+use crate::traits::mpu::{self};
 use crate::upcall::UpcallId;
 
 /// Userspace process identifier.

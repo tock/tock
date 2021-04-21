@@ -19,7 +19,7 @@ use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
-use kernel::Platform;
+use kernel::traits::platform::Platform;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::adc::Channel;

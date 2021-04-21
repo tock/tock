@@ -21,7 +21,7 @@ use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::traits::chip::ClockInterface;
 
 /// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
 pub enum FilterMode {

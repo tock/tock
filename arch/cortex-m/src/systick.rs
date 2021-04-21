@@ -117,7 +117,7 @@ impl SysTick {
     }
 }
 
-impl kernel::SchedulerTimer for SysTick {
+impl kernel::traits::scheduler_timer::SchedulerTimer for SysTick {
     fn start(&self, us: u32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
