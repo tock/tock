@@ -7,7 +7,7 @@ use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::debug;
 use crate::kernel::Kernel;
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;

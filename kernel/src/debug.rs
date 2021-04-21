@@ -57,7 +57,7 @@ use core::str;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};

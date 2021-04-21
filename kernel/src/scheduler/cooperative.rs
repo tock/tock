@@ -13,7 +13,7 @@
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::kernel::{Kernel, StoppedExecutingReason};
-use crate::platform::Chip;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 

@@ -4,6 +4,8 @@ pub mod helpers;
 pub mod leasable_buffer;
 pub mod math;
 pub mod peripheral_management;
+pub mod static_init;
+pub mod storage_volume;
 
 mod static_ref;
 
