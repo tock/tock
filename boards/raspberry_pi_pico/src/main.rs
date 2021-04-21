@@ -78,6 +78,7 @@ pub struct RaspberryPiPico {
     gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
 }
 
 impl Platform for RaspberryPiPico {
@@ -92,6 +93,7 @@ impl Platform for RaspberryPiPico {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             _ => f(None),
         }
     }
@@ -233,7 +235,9 @@ pub unsafe fn main() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
     peripherals.resets.reset(&[Peripheral::Uart0]);
-    peripherals.resets.unreset(&[Peripheral::Uart0], true);
+    peripherals
+        .resets
+        .unreset(&[Peripheral::Uart0, Peripheral::Adc], true);
 
     //set RX and TX pins in UART mode
     let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
@@ -320,9 +324,9 @@ pub unsafe fn main() {
         board_kernel,
         components::gpio_component_helper!(
             RPGpioPin,
-            //Used for serial communication. Comment them out if you don't use serial.
-            //0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
-            //1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
+            // Used for serial communication. Comment them out if you don't use serial.
+            // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
+            // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
             3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
             4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
@@ -346,12 +350,14 @@ pub unsafe fn main() {
             22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
             23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
             24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
-            //LED pin
-            //25 => &peripherals.pins.get_pin(RPGpio::GPIO25),
-            26 => &peripherals.pins.get_pin(RPGpio::GPIO26),
-            27 => &peripherals.pins.get_pin(RPGpio::GPIO27),
-            28 => &peripherals.pins.get_pin(RPGpio::GPIO28),
-            29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
+            // LED pin
+            // 25 => &peripherals.pins.get_pin(RPGpio::GPIO25),
+
+            // Uncomment to use these as GPIO pins instead of ADC pins
+            // 26 => &peripherals.pins.get_pin(RPGpio::GPIO26),
+            // 27 => &peripherals.pins.get_pin(RPGpio::GPIO27),
+            // 28 => &peripherals.pins.get_pin(RPGpio::GPIO28),
+            // 29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
@@ -377,14 +383,50 @@ pub unsafe fn main() {
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+
+    peripherals.adc.init();
+
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
         .finalize(components::adc_mux_component_helper!(Adc));
+
+    let temp_sensor = components::temperature_pico_pi::TemperatureRp4020Component::new(
+        1.721, 0.706,
+    )
+    .finalize(components::temperaturerp4020_adc_component_helper!(
+        rp2040::adc::Adc,
+        Channel::Channel4,
+        adc_mux
+    ));
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_temperature = board_kernel.create_grant(&grant_cap);
+
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+    );
+    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel)
-        .finalize(components::adc_syscall_component_helper!(adc_channel_0,));
+    let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
+        .finalize(components::adc_component_helper!(Adc));
+
+    let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
+        .finalize(components::adc_component_helper!(Adc));
+
+    let adc_channel_3 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel3)
+        .finalize(components::adc_component_helper!(Adc));
+
+    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
+        components::adc_syscall_component_helper!(
+            adc_channel_0,
+            adc_channel_1,
+            adc_channel_2,
+            adc_channel_3,
+        ),
+    );
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -393,6 +435,7 @@ pub unsafe fn main() {
         led: led,
         console: console,
         adc: adc_syscall,
+        temperature: temp,
         // monitor arm semihosting enable
     };
     debug!("Initialization complete. Entering main loop");
@@ -425,8 +468,8 @@ pub unsafe fn main() {
         &process_management_capability,
     )
     .unwrap_or_else(|err| {
-        panic!("Error loading processes!");
-        // debug!("{:?}", err);
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
     });
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)

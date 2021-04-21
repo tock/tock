@@ -73,6 +73,7 @@ pub mod spi_controller;
 pub mod spi_peripheral;
 pub mod st77xx;
 pub mod temperature;
+pub mod temperature_pico_pi;
 pub mod temperature_stm;
 pub mod text_screen;
 pub mod tickv;

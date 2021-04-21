@@ -1,9 +1,10 @@
+use crate::interrupts;
 use core::cell::Cell;
 use kernel::common::{cells::OptionalCell, StaticRef};
 use kernel::hil;
 use kernel::{
     common::registers::{self, register_bitfields, register_structs, ReadWrite},
-    ReturnCode,
+    ErrorCode,
 };
 
 register_structs! {
@@ -23,13 +24,13 @@ register_structs! {
         /// Total period is 1 + INT + FRAC / 256
         (0x010 => div: ReadWrite<u32, DIV::Register>),
         /// Raw Interrupts
-        (0x014 => intr: ReadWrite<u32>),
+        (0x014 => intr: ReadWrite<u32, INTR::Register>),
         /// Interrupt Enable
-        (0x018 => inte: ReadWrite<u32>),
+        (0x018 => inte: ReadWrite<u32, INTE::Register>),
         /// Interrupt Force
-        (0x01C => intf: ReadWrite<u32>),
+        (0x01C => intf: ReadWrite<u32, INTE::Register>),
         /// Interrupt status after masking & forcing
-        (0x020 => ints: ReadWrite<u32>),
+        (0x020 => ints: ReadWrite<u32, INTE::Register>),
         (0x024 => @END),
     }
 }
@@ -164,13 +165,28 @@ impl Adc {
         self.registers.cs.modify(CS::EN::CLEAR);
     }
 
+    fn enable_interrupt(&self) {
+        let n = unsafe { cortexm0p::nvic::Nvic::new(interrupts::ADC_IRQ_FIFO) };
+        n.enable();
+    }
+
+    fn disable_interrupt(&self) {
+        let n = unsafe { cortexm0p::nvic::Nvic::new(interrupts::ADC_IRQ_FIFO) };
+        n.disable();
+    }
+
+    fn enable_temperature(&self) {
+        self.registers.cs.modify(CS::TS_EN::SET);
+    }
+
     pub fn handle_interrupt(&self) {
         if self.registers.cs.is_set(CS::READY) {
             if self.status.get() == ADCStatus::OneSample {
                 self.status.set(ADCStatus::Idle);
             }
             self.client.map(|client| {
-                client.sample_ready(self.registers.result.read(RESULT::RESULT) as u16)
+                self.disable_interrupt();
+                client.sample_ready(self.registers.fifo.read(FIFO::VAL) as u16)
             });
         }
     }
@@ -179,24 +195,36 @@ impl Adc {
 impl hil::adc::Adc for Adc {
     type Channel = Channel;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         if self.status.get() == ADCStatus::Idle {
+            if *channel as u32 == 4 {
+                self.enable_temperature();
+            }
             self.status.set(ADCStatus::OneSample);
             self.channel.set(*channel);
             self.registers.cs.modify(CS::AINSEL.val(*channel as u32));
+            self.registers
+                .fcs
+                .modify(FCS::THRESH.val(1 as u32) + FCS::EN::SET);
+            self.registers.inte.modify(INTE::FIFO::SET);
+            self.enable_interrupt();
             self.registers.cs.modify(CS::START_ONCE::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+    fn sample_continuous(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+    ) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn get_resolution_bits(&self) -> usize {
