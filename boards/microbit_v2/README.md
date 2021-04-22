@@ -90,7 +90,7 @@ The kernel memory layout is different if there is no bootloader. Change the `lay
 MEMORY
 {
   # with bootloader
-  # rom (rx)  : ORIGIN = 0x00010000, LENGTH = 192K
+  # rom (rx)  : ORIGIN = 0x00008000, LENGTH = 192K
   # without bootloader
   rom (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
   prog (rx) : ORIGIN = 0x00040000, LENGTH = 256K
@@ -123,5 +123,7 @@ $ tockloader install app.tab
 
 Without bootloader
 ```bash
-$ tockloader --openocd --board microbit_v2 install app.tab
+$ tockloader --openocd --board microbit_v2 --bundle-apps install app.tab
 ```
+
+> `--bundle-apps` seems to be needed due to an [openocd issue](https://github.com/tock/tockloader/issues/67)
