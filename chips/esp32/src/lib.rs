@@ -5,4 +5,5 @@
 #![crate_name = "esp32"]
 #![crate_type = "rlib"]
 
+pub mod rtc_cntl;
 pub mod uart;
