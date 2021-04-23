@@ -6,4 +6,5 @@
 #![crate_type = "rlib"]
 
 pub mod rtc_cntl;
+pub mod timg;
 pub mod uart;
