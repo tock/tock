@@ -32,9 +32,10 @@ use core::mem::MaybeUninit;
 use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use capsules::spi_peripheral::SpiPeripheral;
 use capsules::virtual_spi::{MuxSpiMaster, SpiSlaveDevice, VirtualSpiMasterDevice};
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::spi;
-use kernel::{static_init, static_init_half};
+use kernel::{create_capability, static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -98,6 +99,7 @@ pub struct SpiMuxComponent<S: 'static + spi::SpiMaster> {
 }
 
 pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
+    board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
 }
@@ -136,8 +138,13 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
 }
 
 impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
-    pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        mux: &'static MuxSpiMaster<'static, S>,
+        chip_select: S::ChipSelect,
+    ) -> Self {
         SpiSyscallComponent {
+            board_kernel: board_kernel,
             spi_mux: mux,
             chip_select: chip_select,
         }
@@ -152,6 +159,8 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let syscall_spi_device = static_init_half!(
             static_buffer.0,
             VirtualSpiMasterDevice<'static, S>,
@@ -161,7 +170,10 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
         let spi_syscalls = static_init_half!(
             static_buffer.1,
             Spi<'static, VirtualSpiMasterDevice<'static, S>>,
-            Spi::new(syscall_spi_device)
+            Spi::new(
+                syscall_spi_device,
+                self.board_kernel.create_grant(&grant_cap)
+            )
         );
 
         let spi_read_buf =
