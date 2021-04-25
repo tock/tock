@@ -8,24 +8,17 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
-use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
+
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
-
 use enum_primitive::cast::FromPrimitive;
-
 use kernel::component::Component;
-use kernel::hil::gpio::{Configure, Output};
 use kernel::hil::led::LedHigh;
-use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
-
-use kernel::hil::uart;
-
 use kernel::debug;
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -243,25 +236,14 @@ pub unsafe fn main() {
     let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
-
-    // let parameters = Parameters {
-    //     baud_rate: 115200,
-    //     width: Width::Eight,
-    //     parity: Parity::None,
-    //     stop_bits: StopBits::One,
-    //     hw_flow_control: false,
-    // };
-    // //configure parameters of uart for sending bytes
-    // peripherals.uart0.configure(parameters);
-
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         let gpio = RPGpioPin::new(RPGpio::from_usize(pin).unwrap());
         gpio.deactivate_pads();
     }
 
-    use kernel::hil::gpio::{Configure, Output};
-    use kernel::hil::time::{Alarm, Time};
+    // use kernel::hil::gpio::{Configure, Output};
+    // use kernel::hil::time::{Alarm, Time};
 
     // fn off (){
     //     let pin = RPGpioPin,::new(RPGpio::GPIO25);
@@ -424,6 +406,11 @@ pub unsafe fn main() {
             adc_channel_3,
         ),
     );
+    // // PROCESS CONSOLE
+    let process_console =
+    components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+        .finalize(());
+    let _ = process_console.start();
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
@@ -435,7 +422,10 @@ pub unsafe fn main() {
         temperature: temp,
         // monitor arm semihosting enable
     };
-    debug!("Initialization complete. Entering main loop");
+    
+    // debug!("D");
+    // debug!("V");
+    debug!("Initialization complete. Enter main loop");
 
     /// These symbols are defined in the linker script.
     extern "C" {

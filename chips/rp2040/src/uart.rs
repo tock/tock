@@ -3,6 +3,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
     self, Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
@@ -350,7 +351,6 @@ register_bitfields! [u32,
     ]
 ];
 
-#[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum UARTStateTX {
     Idle,
@@ -358,6 +358,7 @@ enum UARTStateTX {
     AbortRequested,
 }
 
+#[derive(Copy, Clone, PartialEq)]
 enum UARTStateRX {
     Idle,
     Receiving,
@@ -373,17 +374,18 @@ const UART1_BASE: StaticRef<UartRegisters> =
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
     interrupt: u32,
-
     tx_client: OptionalCell<&'a dyn TransmitClient>,
-    //rx_client: OptionalCell<&'a dyn ReceiveClient>,
+    rx_client: OptionalCell<&'a dyn ReceiveClient>,
+
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
     tx_status: Cell<UARTStateTX>,
-    // rx_buffer: TakeCell<'static, [u8]>,
-    // rx_position: Cell<usize>,
-    // rx_len: Cell<usize>,
-    // rx_status: Cell<UARTStateRX>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_position: Cell<usize>,
+    rx_len: Cell<usize>,
+    rx_status: Cell<UARTStateRX>,
 }
 
 impl<'a> Uart<'a> {
@@ -391,15 +393,17 @@ impl<'a> Uart<'a> {
         Self {
             registers: UART0_BASE,
             tx_client: OptionalCell::empty(),
-            //rx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
             tx_buffer: TakeCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
             tx_status: Cell::new(UARTStateTX::Idle),
-            // rx_buffer: TakeCell::empty(),
-            // rx_position: Cell::new(0),
-            // rx_len: Cell::new(0),
-            // rx_status: Cell::new(UARTStateRX::Idle),
+
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(UARTStateRX::Idle),
             interrupt: UART0_IRQ,
         }
     }
@@ -407,15 +411,16 @@ impl<'a> Uart<'a> {
         Self {
             registers: UART1_BASE,
             tx_client: OptionalCell::empty(),
-            //rx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
             tx_buffer: TakeCell::empty(),
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
             tx_status: Cell::new(UARTStateTX::Idle),
-            // rx_buffer: TakeCell::empty(),
-            // rx_position: Cell::new(0),
-            // rx_len: Cell::new(0),
-            // rx_status: Cell::new(UARTStateRX::Idle),
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(UARTStateRX::Idle),
             interrupt: UART1_IRQ,
         }
     }
@@ -432,14 +437,20 @@ impl<'a> Uart<'a> {
         self.registers.uartifls.modify(UARTIFLS::TXIFLSEL::FIFO_1_8);
 
         self.registers.uartimsc.modify(UARTIMSC::TXIM::SET);
-        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
-        n.enable();
     }
 
     pub fn disable_transmit_interrupt(&self) {
         self.registers.uartimsc.modify(UARTIMSC::TXIM::CLEAR);
-        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
-        n.disable();
+    }
+
+    pub fn enable_receive_interrupt(&self) {
+        self.registers.uartifls.modify(UARTIFLS::RXIFLSEL::FIFO_1_8);
+
+        self.registers.uartimsc.modify(UARTIMSC::RXIM::SET);
+    }
+
+    pub fn disable_receive_interrupt(&self) {
+        self.registers.uartimsc.modify(UARTIMSC::RXIM::CLEAR);
     }
 
     fn uart_is_writable(&self) -> bool {
@@ -452,26 +463,87 @@ impl<'a> Uart<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        if self.registers.uartfr.is_set(UARTFR::TXFE) {
-            if self.tx_status.get() == UARTStateTX::Idle {
-                panic!("No data to transmit");
-            } else if self.tx_status.get() == UARTStateTX::Transmitting {
-                self.disable_transmit_interrupt();
-                if self.tx_position.get() < self.tx_len.get() {
-                    self.fill_fifo();
-                    self.enable_transmit_interrupt();
-                }
-                // Transmission is done
-                else {
-                    self.tx_status.set(UARTStateTX::Idle);
-                    self.tx_client.map(|client| {
-                        self.tx_buffer.take().map(|buf| {
-                            client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
+        if self.registers.uartimsc.is_set(UARTIMSC::TXIM) {
+            if self.registers.uartfr.is_set(UARTFR::TXFE) {
+                if self.tx_status.get() == UARTStateTX::Idle {
+                    panic!("No data to transmit");
+                } else if self.tx_status.get() == UARTStateTX::Transmitting {
+                    self.disable_transmit_interrupt();
+                    if self.tx_position.get() < self.tx_len.get() {
+                        self.fill_fifo();
+                        self.enable_transmit_interrupt();
+                    }
+                    // Transmission is done
+                    else {
+                        self.tx_status.set(UARTStateTX::Idle);
+                        self.tx_client.map(|client| {
+                            self.tx_buffer.take().map(|buf| {
+                                client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
+                            });
                         });
+                    }
+                } else if self.tx_status.get() == UARTStateTX::AbortRequested {
+                    self.tx_status.replace(UARTStateTX::Idle);
+                    self.tx_client.map(|client| {
+                        if let Some(buf) = self.tx_buffer.take() {
+                            client.transmitted_buffer(
+                                buf,
+                                self.tx_position.get(),
+                                Err(ErrorCode::CANCEL),
+                            );
+                        }
                     });
                 }
+            } 
+        }
+
+        if self.registers.uartimsc.is_set(UARTIMSC::RXIM) {
+            if self.registers.uartfr.is_set(UARTFR::RXFF) {
+                let byte = self.registers.uartdr.get() as u8;
+                
+                self.disable_receive_interrupt();
+                if self.rx_status.get() == UARTStateRX::Receiving {
+                    if self.rx_position.get() < self.rx_len.get() {
+                        self.rx_buffer.map(|buf| {
+                            buf[self.rx_position.get()] = byte;
+                            self.rx_position.replace(self.rx_position.get() + 1);
+                        });
+                    }
+                    if self.rx_position.get() == self.rx_len.get() {
+                        // reception done
+                        self.rx_status.replace(UARTStateRX::Idle);
+                    } else {
+                        self.enable_receive_interrupt();
+                    }
+                    // notify client if transfer is done
+                    if self.rx_status.get() == UARTStateRX::Idle {
+                        self.rx_client.map(|client| {
+                            if let Some(buf) = self.rx_buffer.take() {
+                                client.received_buffer(
+                                    buf,
+                                    self.rx_len.get(),
+                                    Ok(()),
+                                    hil::uart::Error::None,
+                                );
+                            }
+                        });
+                    }
+                }
+            } else if self.rx_status.get() == UARTStateRX::AbortRequested {
+                self.rx_status.replace(UARTStateRX::Idle);
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_position.get(),
+                            Err(ErrorCode::CANCEL),
+                            hil::uart::Error::Aborted,
+                        );
+                    }
+                });
             }
         }
+       
     }
 
     fn fill_fifo(&self) {
@@ -482,6 +554,17 @@ impl<'a> Uart<'a> {
                     .set(buf[self.tx_position.get()].into());
                 self.tx_position.replace(self.tx_position.get() + 1);
             });
+        }
+    }
+
+    pub fn is_configured(&self) -> bool {
+        if self.registers.uartcr.is_set(UARTCR::RXE)
+            && self.registers.uartcr.is_set(UARTCR::UARTEN)
+            && self.registers.uartcr.is_set(UARTCR::TXE)
+        {
+            true
+        } else {
+            false
         }
     }
 }
@@ -554,17 +637,20 @@ impl Configure for Uart<'_> {
         }
         self.registers.uartlcr_h.modify(UARTLCR_H::BRK::CLEAR);
 
-        // Enable FIFO
-        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::SET);
+        // FIFO is not precise enough for receive
+        self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
         // Enable uart and transmit
         self.registers
             .uartcr
-            .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET);
+            .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
 
         self.registers
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
+
+        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
+        n.enable();
 
         Ok(())
     }
@@ -597,7 +683,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
@@ -607,14 +693,29 @@ impl<'a> Transmit<'a> for Uart<'a> {
 }
 
 impl<'a> Receive<'a> for Uart<'a> {
-    fn set_receive_client(&self, client: &'a dyn ReceiveClient) {}
+    fn set_receive_client(&self, client: &'a dyn ReceiveClient) {
+        self.rx_client.set(client);
+    }
 
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        Err((ErrorCode::FAIL, rx_buffer))
+        if self.rx_status.get() == UARTStateRX::Idle {
+            if rx_len <= rx_buffer.len() {
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_position.set(0);
+                self.rx_len.set(rx_len);
+                self.rx_status.set(UARTStateRX::Receiving);
+                self.enable_receive_interrupt();
+                Ok(())
+            } else {
+                Err((ErrorCode::SIZE, rx_buffer))
+            }
+        } else {
+            Err((ErrorCode::BUSY, rx_buffer))
+        }
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
@@ -622,7 +723,12 @@ impl<'a> Receive<'a> for Uart<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        if self.rx_status.get() != UARTStateRX::Idle {
+            self.rx_status.set(UARTStateRX::AbortRequested);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 }
 

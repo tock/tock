@@ -8,6 +8,7 @@ use rp2040::uart::Uart;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {}
@@ -29,7 +30,6 @@ impl IoWrite for Writer {
         let uart = Uart::new_uart0();
         for &c in buf {
             uart.send_byte(c);
-            //hprint!("{}", c as char).unwrap_or_else(|_| {}); //aici pun serialul
         }
     }
 }
@@ -45,6 +45,25 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
     let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut WRITER;
+    let uart0 = &Uart::new_uart0();
+
+    if !uart0.is_configured() {
+        let parameters = Parameters {
+            baud_rate: 115200,
+            width: Width::Eight,
+            parity: Parity::None,
+            stop_bits: StopBits::One,
+            hw_flow_control: false,
+        };
+        //configure parameters of uart for sending bytes
+        let _result = uart0.configure(parameters);
+         //set RX and TX pins in UART mode
+        let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
+        let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+        gpio_rx.set_function(GpioFunction::UART);
+        gpio_tx.set_function(GpioFunction::UART);
+
+    }
     debug::panic(
         &mut [led],
         writer,
