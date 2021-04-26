@@ -434,8 +434,6 @@ impl<'a> Uart<'a> {
     }
 
     pub fn enable_transmit_interrupt(&self) {
-        self.registers.uartifls.modify(UARTIFLS::TXIFLSEL::FIFO_1_8);
-
         self.registers.uartimsc.modify(UARTIMSC::TXIM::SET);
     }
 
