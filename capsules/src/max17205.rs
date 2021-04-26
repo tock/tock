@@ -38,9 +38,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -365,24 +365,35 @@ impl i2c::I2CClient for MAX17205<'_> {
     }
 }
 
+#[derive(Default)]
+pub struct App {
+    callback: Upcall,
+}
+
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
-    callback: MapCell<Upcall>,
+    owning_process: OptionalCell<ProcessId>,
+    apps: Grant<App>,
 }
 
 impl<'a> MAX17205Driver<'a> {
-    pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
-        MAX17205Driver {
+    pub fn new(max: &'a MAX17205, grant: Grant<App>) -> Self {
+        Self {
             max17205: max,
-            callback: MapCell::new(Upcall::default()),
+            owning_process: OptionalCell::empty(),
+            apps: grant,
         }
     }
 }
 
 impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
-        self.callback
-            .map(|cb| cb.schedule(kernel::into_statuscode(error), status as usize, 0));
+        self.owning_process.map(|pid| {
+            let _ = self.apps.enter(*pid, |app| {
+                app.callback
+                    .schedule(kernel::into_statuscode(error), status as usize, 0);
+            });
+        });
     }
 
     fn state_of_charge(
@@ -392,37 +403,47 @@ impl MAX17205Client for MAX17205Driver<'_> {
         full_capacity: u16,
         error: Result<(), ErrorCode>,
     ) {
-        self.callback.map(|cb| {
-            cb.schedule(
-                kernel::into_statuscode(error),
-                percent as usize,
-                (capacity as usize) << 16 | (full_capacity as usize),
-            );
+        self.owning_process.map(|pid| {
+            let _ = self.apps.enter(*pid, |app| {
+                app.callback.schedule(
+                    kernel::into_statuscode(error),
+                    percent as usize,
+                    (capacity as usize) << 16 | (full_capacity as usize),
+                );
+            });
         });
     }
 
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
-        self.callback.map(|cb| {
-            cb.schedule(
-                kernel::into_statuscode(error),
-                voltage as usize,
-                current as usize,
-            )
+        self.owning_process.map(|pid| {
+            let _ = self.apps.enter(*pid, |app| {
+                app.callback.schedule(
+                    kernel::into_statuscode(error),
+                    voltage as usize,
+                    current as usize,
+                );
+            });
         });
     }
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
-        self.callback
-            .map(|cb| cb.schedule(kernel::into_statuscode(error), coulomb as usize, 0));
+        self.owning_process.map(|pid| {
+            let _ = self.apps.enter(*pid, |app| {
+                app.callback
+                    .schedule(kernel::into_statuscode(error), coulomb as usize, 0);
+            });
+        });
     }
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
-        self.callback.map(|cb| {
-            cb.schedule(
-                kernel::into_statuscode(error),
-                (rid & 0xffffffff) as usize,
-                (rid >> 32) as usize,
-            )
+        self.owning_process.map(|pid| {
+            let _ = self.apps.enter(*pid, |app| {
+                app.callback.schedule(
+                    kernel::into_statuscode(error),
+                    (rid & 0xffffffff) as usize,
+                    (rid >> 32) as usize,
+                );
+            });
         });
     }
 }
@@ -436,23 +457,26 @@ impl Driver for MAX17205Driver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Upcall,
-        _app_id: ProcessId,
+        mut callback: Upcall,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => {
-                if let Some(prev) = self.callback.replace(callback) {
-                    Ok(prev)
-                } else {
-                    // TODO(alevy): This should never happen because we start with a full MapCell
-                    // and only ever replace it. This is just defensive until this module becomes
-                    // multi-user, which will preclude the need for a MapCell in the first place.
-                    Ok(Upcall::default())
-                }
-            }
+        let res = self
+            .apps
+            .enter(app_id, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
+                    }
 
-            // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -466,7 +490,30 @@ impl Driver for MAX17205Driver<'_> {
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
     /// - `5`: Read the unique 64 bit RomID.
-    fn command(&self, command_num: usize, _data: usize, _: usize, _: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _data: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
+        // Check if this non-virtualized driver is already in use by
+        // some (alive) process
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.apps
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
         match command_num {
             0 => CommandReturn::success(),
 
