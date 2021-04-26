@@ -241,11 +241,6 @@ pub unsafe fn main() {
         peripherals.pins.get_pin(RPGpio::from_usize (pin).unwrap()).deactivate_pads();
     }
 
-    // use kernel::hil::gpio::{Configure, Output};
-    // use kernel::hil::time::{Alarm, Time};
-
-    // fn off (){
-    //     let pin = RPGpioPin,::new(RPGpio::GPIO25);
     //     pin.make_output();
     //     pin.clear();
     // }
