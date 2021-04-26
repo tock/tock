@@ -27,7 +27,7 @@ use rp2040::clocks::{
     ReferenceAuxiliaryClockSource, ReferenceClockSource, RtcAuxiliaryClockSource,
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
-use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin, RPPins};
 use rp2040::resets::Peripheral;
 use rp2040::timer::RPTimer;
 mod io;
@@ -232,14 +232,13 @@ pub unsafe fn main() {
         .unreset(&[Peripheral::Uart0, Peripheral::Adc], true);
 
     //set RX and TX pins in UART mode
-    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
-    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+    let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
+    let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
-        let gpio = RPGpioPin::new(RPGpio::from_usize(pin).unwrap());
-        gpio.deactivate_pads();
+        peripherals.pins.get_pin(RPGpio::from_usize (pin).unwrap()).deactivate_pads();
     }
 
     // use kernel::hil::gpio::{Configure, Output};

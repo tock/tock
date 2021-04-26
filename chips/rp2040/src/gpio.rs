@@ -287,8 +287,22 @@ register_bitfields![u32,
     ],
 ];
 
+const GPIO_BASE_ADDRESS: usize = 0x40014000;
+const GPIO_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(GPIO_BASE_ADDRESS as *const GpioRegisters) };
+
+const GPIO_PAD_BASE_ADDRESS: usize = 0x4001c000;
+const GPIO_PAD_BASE: StaticRef<GpioPadRegisters> =
+    unsafe { StaticRef::new(GPIO_PAD_BASE_ADDRESS as *const GpioPadRegisters) };
+
+const SIO_BASE_ADDRESS: usize = 0xd0000000;
+const SIO_BASE: StaticRef<SIORegisters> =
+    unsafe { StaticRef::new(SIO_BASE_ADDRESS as *const SIORegisters) };
+
+
 pub struct RPPins<'a> {
     pub pins: [RPGpioPin<'a>; 30],
+    gpio_registers: StaticRef<GpioRegisters>,
 }
 
 impl<'a> RPPins<'a> {
@@ -326,25 +340,27 @@ impl<'a> RPPins<'a> {
                 RPGpioPin::new(RPGpio::GPIO28),
                 RPGpioPin::new(RPGpio::GPIO29),
             ],
+            gpio_registers: GPIO_BASE,
         }
     }
 
     pub fn get_pin(&self, pin: RPGpio) -> &'a RPGpioPin {
         &self.pins[pin as usize]
     }
+
+    pub fn handle_interrupt(&self) {
+        for bank_no in 0..4 {
+            let current_val = self.gpio_registers.intrs[bank_no].get();
+            let enabled_val = self.gpio_registers.intre[bank_no].get();
+            for pin in 0..8 {
+                let l_low_reg_no = pin * 4;
+                if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
+                    self.pins[pin * bank_no].handle_interrupt();
+                }  
+            }
+        }
+    }
 }
-
-const GPIO_BASE_ADDRESS: usize = 0x40014000;
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(GPIO_BASE_ADDRESS as *const GpioRegisters) };
-
-const GPIO_PAD_BASE_ADDRESS: usize = 0x4001c000;
-const GPIO_PAD_BASE: StaticRef<GpioPadRegisters> =
-    unsafe { StaticRef::new(GPIO_PAD_BASE_ADDRESS as *const GpioPadRegisters) };
-
-const SIO_BASE_ADDRESS: usize = 0xd0000000;
-const SIO_BASE: StaticRef<SIORegisters> =
-    unsafe { StaticRef::new(SIO_BASE_ADDRESS as *const SIORegisters) };
 
 enum_from_primitive! {
     #[derive(Copy, Clone, Debug, PartialEq)]
@@ -445,6 +461,10 @@ impl<'a> RPGpioPin<'a> {
 
     pub fn deactivate_pads(&self) {
         self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::SET + GPIO_PAD::IE::CLEAR);
+    }
+
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| client.fired());
     }
 }
 
