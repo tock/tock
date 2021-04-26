@@ -178,33 +178,33 @@ impl KernelInfo {
     }
 
     pub fn get_kernel_stack_start(&self) -> u32 {
-        unsafe { _sstack }
+        unsafe { (&_sstack as *const u32) as u32 }
     }
     pub fn get_kernel_stack_end(&self) -> u32 {
-        unsafe { _estack }
+        unsafe { (&_estack as *const u32) as u32 }
     }
     pub fn get_kernel_text_start(&self) -> u32 {
-        unsafe { _stext }
+        unsafe { (&_stext as *const u32) as u32 }
     }
     pub fn get_kernel_text_end(&self) -> u32 {
-        unsafe { _etext }
+        unsafe { (&_etext as *const u32) as u32 }
     }
     pub fn get_kernel_rodata_start(&self) -> u32 {
-        unsafe { _srodata }
+        unsafe { (&_srodata as *const u32) as u32 }
     }
     pub fn get_kernel_rodata_end(&self) -> u32 {
-        unsafe { _erodata }
+        unsafe { (&_erodata as *const u32) as u32 }
     }
     pub fn get_kernel_init_start(&self) -> u32 {
-        unsafe { _srelocate }
+        unsafe { (&_srelocate as *const u32) as u32 }
     }
     pub fn get_kernel_init_end(&self) -> u32 {
-        unsafe { _erelocate }
+        unsafe { (&_erelocate as *const u32) as u32 }
     }
     pub fn get_kernel_bss_start(&self) -> u32 {
-        unsafe { _szero }
+        unsafe { (&_szero as *const u32) as u32 }
     }
     pub fn get_kernel_bss_end(&self) -> u32 {
-        unsafe { _ezero }
+        unsafe { (&_ezero as *const u32) as u32 }
     }
 }
