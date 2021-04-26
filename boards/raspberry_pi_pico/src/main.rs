@@ -416,9 +416,6 @@ pub unsafe fn main() {
         temperature: temp,
         // monitor arm semihosting enable
     };
-    
-    // debug!("D");
-    // debug!("V");
     debug!("Initialization complete. Enter main loop");
 
     /// These symbols are defined in the linker script.
