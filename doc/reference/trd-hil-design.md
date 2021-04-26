@@ -7,8 +7,8 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** April 14, 2021<br/>
-**Draft-Version:** 4<br/>
+**Draft-Modified:** April 22, 2021<br/>
+**Draft-Version:** 5<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -67,7 +67,7 @@ design rules for HILs. They are:
 5. Split-phase operations with a buffer parameter take a mutable reference
    even if their access is read-only.
 6. Split-phase completion callbacks include a `Result` parameter whose
-   `Err` contains  an `ErrorCode`; these errors are a superset of the
+   `Err` contains  an error code; these errors are a superset of the
    synchronous errors.
 7. Split-phase completion callbacks for an operation with a buffer
    parameter return the buffer.
@@ -277,10 +277,14 @@ configured as expected, it is powered down, or it has been disabled. Generally
 speaking, every HIL operation should return a Rust `Result` type, whose `Err`
 variant includes an error code. The Tock kernel provides a standard set of
 error codes, oriented towards system calls, in the `kernel::ErrorCode` enum.
-Sometimes, however, these error codes don't quite fit the use case and so
-a HIL defines its own error codes. The I2C HIL, for example, defines an
-`i2c::Error` enumeration for cases such as address and data negative
-acknowledgments, which can occur in I2C.
+
+HILs SHOULD return `ErrorCode`. Sometimes, however, these error codes don't 
+quite fit the use case and so in those cases a HIL may defines its own error 
+codes. The I2C HIL, for example, defines an `i2c::Error` enumeration for cases 
+such as address and data negative acknowledgments, which can occur in I2C.
+In cases when a HIL returns its own error code type, this error code type
+should also be able to represent all of the errors returned in a callback 
+(see Rule 6 below).
 
 If a method doesn't return a synchronous error, there is no way for a caller
 to know if the operation succeeded. This is especially problematic for
@@ -479,12 +483,15 @@ access. Because the reference will not be returned back until the
 callback, the caller cannot rely on the call stack and scoping to
 retain mutability.
 
-Rule 6: Include a `Result<(), ErrorCode>` in Completion Callbacks
+Rule 6: Include a `Result` in Completion Callbacks That Includes an Error Code in its `Err`
 ===============================
 
 Any error that can occur synchronously can usually occur asynchronously too.
 Therefore, callbacks need to indicate that an error occurred and pass that
-back to the caller.
+back to the caller. Callbacks therefore should include a `Result` type,
+whose `Err` variant includes an error code. This error code type SHOULD
+be the same type that is returned synchronously, to simplify error
+processing and returning errors to userspace when needed.
 
 The common case for this is virtualization, where a capsule turns one
 instance of a trait into a set of instances that can be used by many
