@@ -100,6 +100,7 @@ pub enum Syscall {
         subdriver_number: usize,
         arg0: usize,
         arg1: usize,
+        deadline: usize,
     },
 
     /// Structure representing an invocation of the ReadWriteAllow system call
@@ -153,6 +154,7 @@ impl Syscall {
         r1: usize,
         r2: usize,
         r3: usize,
+        r4: usize,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
@@ -170,6 +172,7 @@ impl Syscall {
                 subdriver_number: r1,
                 arg0: r2,
                 arg1: r3,
+                deadline: r4,
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
