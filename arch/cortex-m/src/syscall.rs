@@ -35,7 +35,7 @@ extern "C" {
 }
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
-const SVC_FRAME_SIZE: usize = 40;
+const SVC_FRAME_SIZE: usize = 32;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -96,7 +96,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: kernel::syscall::GenericSyscallReturnValue,
+        return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
         // For the Cortex-M arch, write the return values in the same
         // place that they were originally passed in (i.e. at the
@@ -113,11 +113,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let sp = state.psp as *mut u32;
         let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
 
-        // TODO: Are these guarantees _always_ satisfied? E.g. must
-        // the stack_pointer always be properly aligned?
-
         // These operations are only safe so long as
-        // - the pointers are properly aligned
+        // - the pointers are properly aligned. This is guaranteed because the
+        //   pointers are all offset multiples of 4 bytes from the stack
+        //   pointer, which is guaranteed to be properly aligned after
+        //   exception entry on Cortex-M. See
+        //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
+        //   for more details.
         // - the pointer is dereferencable, i.e. the memory range of
         //   the given size starting at the pointer must all be within
         //   the bounds of a single allocated object
@@ -233,7 +235,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             let r1 = read_volatile(new_stack_pointer.offset(1));
             let r2 = read_volatile(new_stack_pointer.offset(2));
             let r3 = read_volatile(new_stack_pointer.offset(3));
-            let r4 = read_volatile(new_stack_pointer.offset(4));
+
             // Get the actual SVC number.
             let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
             let svc_instr = read_volatile(pcptr.offset(-1));
@@ -242,7 +244,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // Use the helper function to convert these raw values into a Tock
             // `Syscall` type.
             let syscall =
-                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3, r4);
+                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
@@ -276,11 +278,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let r1 = read_volatile(stack_pointer.offset(1));
         let r2 = read_volatile(stack_pointer.offset(2));
         let r3 = read_volatile(stack_pointer.offset(3));
-        let _r4 = read_volatile(stack_pointer.offset(4));
-        let r12 = read_volatile(stack_pointer.offset(5));
-        let lr = read_volatile(stack_pointer.offset(6));
-        let pc = read_volatile(stack_pointer.offset(7));
-        let xpsr = read_volatile(stack_pointer.offset(8));
+        let r12 = read_volatile(stack_pointer.offset(4));
+        let lr = read_volatile(stack_pointer.offset(5));
+        let pc = read_volatile(stack_pointer.offset(6));
+        let xpsr = read_volatile(stack_pointer.offset(7));
 
         let _ = writer.write_fmt(format_args!(
             "\

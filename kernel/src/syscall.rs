@@ -24,6 +24,9 @@ fn u64_to_be_u32s(src: u64) -> (u32, u32) {
 
 /// Enumeration of the system call classes based on the identifiers
 /// specified in the Tock ABI.
+///
+/// These are encoded as 8 bit values as on some architectures the value can
+/// be encoded in the instruction itself.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallClass {
@@ -38,20 +41,10 @@ pub enum SyscallClass {
 
 /// Enumeration of the yield system calls based on the Yield identifier
 /// values specified in the Tock ABI.
-#[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
-}
-
-/// Enumeration of the exit system calls based on the Exit identifier values
-/// specified in the Tock ABI.
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum ExitCall {
-    Terminate = 0,
-    Restart = 1,
 }
 
 // Required as long as no solution to
@@ -83,12 +76,12 @@ pub enum Syscall {
 
     /// Structure representing an invocation of the Subscribe system call
     /// class. `driver_number` is the driver identifier, `subdriver_number`
-    /// is the subscribe identifier, `callback_ptr` is callback pointer,
+    /// is the subscribe identifier, `upcall_ptr` is upcall pointer,
     /// and `appdata` is the application data.
     Subscribe {
         driver_number: usize,
         subdriver_number: usize,
-        callback_ptr: *mut (),
+        upcall_ptr: *mut (),
         appdata: usize,
     },
 
@@ -100,7 +93,6 @@ pub enum Syscall {
         subdriver_number: usize,
         arg0: usize,
         arg1: usize,
-        deadline: usize,
     },
 
     /// Structure representing an invocation of the ReadWriteAllow system call
@@ -154,7 +146,6 @@ impl Syscall {
         r1: usize,
         r2: usize,
         r3: usize,
-        r4: usize,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
@@ -164,7 +155,7 @@ impl Syscall {
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1,
-                callback_ptr: r2 as *mut (),
+                upcall_ptr: r2 as *mut (),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
@@ -172,7 +163,6 @@ impl Syscall {
                 subdriver_number: r1,
                 arg0: r2,
                 arg1: r3,
-                deadline: r4,
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
@@ -228,16 +218,16 @@ pub enum SyscallReturnVariant {
 /// fixed length and pointers. It is constructed by the scheduler and
 /// passed down to the architecture to be encoded into registers,
 /// using the provided
-/// [`encode_syscall_return`](GenericSyscallReturnValue::encode_syscall_return)
+/// [`encode_syscall_return`](SyscallReturn::encode_syscall_return)
 /// method.
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
-/// [`Callback`](crate::Callback)) or wrappers around this struct
+/// [`Upcall`](crate::Upcall)) or wrappers around this struct
 /// ([`CommandReturn`](crate::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
-pub enum GenericSyscallReturnValue {
+pub enum SyscallReturn {
     /// Generic error case
     Failure(ErrorCode),
     /// Generic error case, with an additional 32-bit data field
@@ -263,13 +253,13 @@ pub enum GenericSyscallReturnValue {
     // These following types are used by the scheduler so that it can
     // return values to userspace in an architecture (pointer-width)
     // independent way. The kernel passes these types (rather than
-    // AppSlice or Callback) for two reasons. First, since the
+    // AppSlice or Upcall) for two reasons. First, since the
     // kernel/scheduler makes promises about the lifetime and safety
     // of these types (e.g., an accepted allow does not overlap with
     // an existing accepted AppSlice), it does not want to leak them
     // to other code. Second, if subscribe or allow calls pass invalid
     // values (pointers out of valid memory), the kernel cannot
-    // construct an AppSlice or Callback type but needs to be able to
+    // construct an AppSlice or Upcall type but needs to be able to
     // return a failure. -pal 11/24/20
     /// Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
@@ -293,14 +283,14 @@ pub enum GenericSyscallReturnValue {
     SubscribeFailure(ErrorCode, *const u8, usize),
 }
 
-impl GenericSyscallReturnValue {
+impl SyscallReturn {
     /// Transforms a CommandReturn, which is wrapper around a subset of
-    /// GenericSyscallReturnValue, into a GenericSyscallReturnValue.
-    /// This allows CommandReturn to include only the variants of
-    /// GenericSyscallReturnValue that can be returned from a Command,
-    /// while having an inexpensive way to handle it as a
-    /// GenericSyscallReturnValue for more generic code paths.
-    pub(crate) fn from_command_result(res: CommandReturn) -> Self {
+    /// SyscallReturn, into a SyscallReturn.
+    ///
+    /// This allows CommandReturn to include only the variants of SyscallReturn
+    /// that can be returned from a Command, while having an inexpensive way to
+    /// handle it as a SyscallReturn for more generic code paths.
+    pub(crate) fn from_command_return(res: CommandReturn) -> Self {
         res.into_inner()
     }
 
@@ -309,54 +299,54 @@ impl GenericSyscallReturnValue {
     /// TRD104 are free to define their own encoding.
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
         match self {
-            &GenericSyscallReturnValue::Failure(e) => {
+            &SyscallReturn::Failure(e) => {
                 *a0 = SyscallReturnVariant::Failure as u32;
                 *a1 = usize::from(e) as u32;
             }
-            &GenericSyscallReturnValue::FailureU32(e, data0) => {
+            &SyscallReturn::FailureU32(e, data0) => {
                 *a0 = SyscallReturnVariant::FailureU32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
             }
-            &GenericSyscallReturnValue::FailureU32U32(e, data0, data1) => {
+            &SyscallReturn::FailureU32U32(e, data0, data1) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0;
                 *a3 = data1;
             }
-            &GenericSyscallReturnValue::FailureU64(e, data0) => {
+            &SyscallReturn::FailureU64(e, data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
                 *a0 = SyscallReturnVariant::FailureU64 as u32;
                 *a1 = usize::from(e) as u32;
                 *a2 = data0_lsb;
                 *a3 = data0_msb;
             }
-            &GenericSyscallReturnValue::Success => {
+            &SyscallReturn::Success => {
                 *a0 = SyscallReturnVariant::Success as u32;
             }
-            &GenericSyscallReturnValue::SuccessU32(data0) => {
+            &SyscallReturn::SuccessU32(data0) => {
                 *a0 = SyscallReturnVariant::SuccessU32 as u32;
                 *a1 = data0;
             }
-            &GenericSyscallReturnValue::SuccessU32U32(data0, data1) => {
+            &SyscallReturn::SuccessU32U32(data0, data1) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
             }
-            &GenericSyscallReturnValue::SuccessU32U32U32(data0, data1, data2) => {
+            &SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32U32 as u32;
                 *a1 = data0;
                 *a2 = data1;
                 *a3 = data2;
             }
-            &GenericSyscallReturnValue::SuccessU64(data0) => {
+            &SyscallReturn::SuccessU64(data0) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64 as u32;
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
             }
-            &GenericSyscallReturnValue::SuccessU64U32(data0, data1) => {
+            &SyscallReturn::SuccessU64U32(data0, data1) => {
                 let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
                 *a0 = SyscallReturnVariant::SuccessU64U32 as u32;
@@ -364,34 +354,34 @@ impl GenericSyscallReturnValue {
                 *a2 = data0_msb;
                 *a3 = data1;
             }
-            &GenericSyscallReturnValue::AllowReadWriteSuccess(ptr, len) => {
+            &SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
             }
-            &GenericSyscallReturnValue::AllowReadWriteFailure(err, ptr, len) => {
+            &SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
             }
-            &GenericSyscallReturnValue::AllowReadOnlySuccess(ptr, len) => {
+            &SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = len as u32;
             }
-            &GenericSyscallReturnValue::AllowReadOnlyFailure(err, ptr, len) => {
+            &SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = len as u32;
             }
-            &GenericSyscallReturnValue::SubscribeSuccess(ptr, data) => {
+            &SyscallReturn::SubscribeSuccess(ptr, data) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
                 *a1 = ptr as u32;
                 *a2 = data as u32;
             }
-            &GenericSyscallReturnValue::SubscribeFailure(err, ptr, data) => {
+            &SyscallReturn::SubscribeFailure(err, ptr, data) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
@@ -420,7 +410,7 @@ pub enum ContextSwitchReason {
 /// trait allows the kernel to switch to and from processes
 /// in an architecture-independent manner.
 ///
-/// Exactly how callbacks and return values are passed between
+/// Exactly how upcalls and return values are passed between
 /// kernelspace and userspace is architecture specific. The
 /// architecture may use process memory to store state when
 /// switching. Therefore, functions in this trait are passed the
@@ -474,6 +464,13 @@ pub trait UserspaceKernelBoundary {
     /// This function may be called multiple times on the same process. For
     /// example, if a process crashes and is to be restarted, this must be
     /// called. Or if the process is moved this may need to be called.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
         accessible_memory_start: *const u8,
@@ -489,18 +486,25 @@ pub trait UserspaceKernelBoundary {
     /// value. The `return_value` is the value that should be passed to the
     /// process so that when it resumes executing it knows the return value of
     /// the syscall it called.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: GenericSyscallReturnValue,
+        return_value: SyscallReturn,
     ) -> Result<(), ()>;
 
     /// Set the function that the process should execute when it is resumed.
     /// This has two major uses: 1) sets up the initial function call to
     /// `_start` when the process is started for the very first time; 2) tells
-    /// the process to execute a callback function after calling `yield()`.
+    /// the process to execute a upcall function after calling `yield()`.
     ///
     /// **Note:** This method cannot be called in conjunction with
     /// `set_syscall_return_value`, as the injected function will clobber the
@@ -516,7 +520,7 @@ pub trait UserspaceKernelBoundary {
     ///   memory above this address is still allocated for the process, but if
     ///   the process tries to access it an MPU fault will occur.
     /// - `state` is the stored state for this process.
-    /// - `callback` is the function that should be executed when the process
+    /// - `upcall` is the function that should be executed when the process
     ///   resumes.
     ///
     /// ### Return
@@ -524,12 +528,19 @@ pub trait UserspaceKernelBoundary {
     /// Returns `Ok(())` if the function was successfully enqueued for the
     /// process. Returns `Err(())` if the function was not, likely because there
     /// is insufficient memory available to do so.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        callback: process::FunctionCall,
+        upcall: process::FunctionCall,
     ) -> Result<(), ()>;
 
     /// Context switch to a specific process.
@@ -542,6 +553,13 @@ pub trait UserspaceKernelBoundary {
     ///    optional because it is only for debugging in process.rs. By sharing
     ///    the process's stack pointer with process.rs users can inspect the
     ///    state and see the stack depth, which might be useful for debugging.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
         accessible_memory_start: *const u8,
@@ -551,6 +569,13 @@ pub trait UserspaceKernelBoundary {
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.
+    ///
+    /// ### Safety
+    ///
+    /// This function guarantees that it if needs to change process memory, it
+    /// will only change memory starting at `accessible_memory_start` and before
+    /// `app_brk`. The caller is responsible for guaranteeing that those
+    /// pointers are valid for the process.
     unsafe fn print_context(
         &self,
         accessible_memory_start: *const u8,
