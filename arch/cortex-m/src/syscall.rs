@@ -35,7 +35,7 @@ extern "C" {
 }
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
-const SVC_FRAME_SIZE: usize = 32;
+const SVC_FRAME_SIZE: usize = 40;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -235,6 +235,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             let r1 = read_volatile(new_stack_pointer.offset(1));
             let r2 = read_volatile(new_stack_pointer.offset(2));
             let r3 = read_volatile(new_stack_pointer.offset(3));
+            let r4 = read_volatile(new_stack_pointer.offset(4));
 
             // Get the actual SVC number.
             let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
@@ -244,7 +245,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // Use the helper function to convert these raw values into a Tock
             // `Syscall` type.
             let syscall =
-                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3, r4);
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
