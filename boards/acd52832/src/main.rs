@@ -343,7 +343,10 @@ pub unsafe fn main() {
     // `gpio_async` is the object that manages all of the extenders.
     let gpio_async = static_init!(
         capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
-        capsules::gpio_async::GPIOAsync::new(async_gpio_ports)
+        capsules::gpio_async::GPIOAsync::new(
+            async_gpio_ports,
+            board_kernel.create_grant(&memory_allocation_capability)
+        ),
     );
     // Setup the clients correctly.
     for port in async_gpio_ports.iter() {
