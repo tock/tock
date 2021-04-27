@@ -20,6 +20,10 @@ use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 use kernel::debug;
+use rp2040;
+
+use kernel::hil::uart;
+
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
