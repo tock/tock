@@ -33,7 +33,19 @@
 //! command can also return more information, like the number of supported
 //! devices (useful for things like the number of LEDs).
 //!
-//! # The `yield` System-call
+//! # The `yield` system call class
+//!
+//! While drivers do not handle `yield` system calls, it is important
+//! to understand them and how they interact with `subscribe`, which
+//! registers callback functions with the kernel. When a process calls
+//! a `yield` system call, the kernel checks if there are any pending
+//! callbacks for the process. If there are pending callbacks, it
+//! pushes one callback onto the process stack. If there are no
+//! pending callbacks, `yield-wait` will cause the process to sleep
+//! until a callback is trigered, while `yield-no-wait` returns
+//! immediately.
+//!
+//! # Method result types
 //!
 //! While drivers do not handle the `yield` system call, it is important to
 //! understand its function and how it interacts with `subscribe`.
