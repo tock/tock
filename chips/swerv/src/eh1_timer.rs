@@ -1,6 +1,7 @@
 //! Internal Timer
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
 use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};

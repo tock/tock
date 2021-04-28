@@ -3,6 +3,7 @@
 use core::fmt::Write;
 use kernel;
 use kernel::common::cells::VolatileCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::StaticRef;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};

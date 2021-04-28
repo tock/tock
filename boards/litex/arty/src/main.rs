@@ -9,6 +9,7 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::StaticRef;
 use kernel::component::Component;
 use kernel::hil::time::{Alarm, Frequency, Timer};

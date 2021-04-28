@@ -1,5 +1,6 @@
 use core::fmt::Write;
 use kernel;
+use kernel::common::registers::interfaces::Readable;
 use kernel::debug;
 use kernel::InterruptService;
 use rv32i;

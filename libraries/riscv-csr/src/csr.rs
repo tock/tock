@@ -2,9 +2,7 @@
 
 use core::marker::PhantomData;
 
-use tock_registers::registers::{
-    Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue,
-};
+use tock_registers::registers::{Field, IntLike, Readable, RegisterLongName, Writeable};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
@@ -127,94 +125,9 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
         }
     }
 
-    #[cfg(all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    ))]
-    #[inline]
-    pub fn get(&self) -> usize {
-        let r: usize;
-        unsafe {
-            asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const V);
-        }
-        r
-    }
-
-    #[cfg(all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    ))]
-    #[inline]
-    pub fn set(&self, val_to_set: usize) {
-        unsafe {
-            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const V);
-        }
-    }
-
-    // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn get(&self) -> usize {
-        unimplemented!("reading RISC-V CSR {}", V)
-    }
-
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn set(&self, _val_to_set: usize) {
-        unimplemented!("writing RISC-V CSR {}", V)
-    }
-
-    #[inline]
-    pub fn read(&self, field: Field<usize, R>) -> usize {
-        field.read(self.get())
-    }
-
-    #[inline]
-    pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
-        &self,
-        field: Field<usize, R>,
-    ) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    pub fn write(&self, field: FieldValue<usize, R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    pub fn modify(&self, field: FieldValue<usize, R>) {
-        self.set(field.modify(self.get()));
-    }
-
-    #[inline]
-    pub fn modify_no_read(
-        &self,
-        original: LocalRegisterCopy<usize, R>,
-        field: FieldValue<usize, R>,
-    ) {
-        self.set(field.modify(original.get()));
-    }
-    #[inline]
-    pub fn is_set(&self, field: Field<usize, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_all(self.get())
-    }
-
     // Special methods only available on RISC-V CSRs, not found in the
-    // usual tock-registers interface
+    // usual tock-registers interface, others implemented through the
+    // respective [`Readable`] and [`Writeable`] trait implementations
 
     /// Atomically swap the contents of a CSR
     ///
@@ -350,5 +263,50 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     #[inline]
     pub fn read_and_clear_field(&self, field: Field<usize, R>) -> usize {
         field.read(self.read_and_clear_bits(field.mask << field.shift))
+    }
+}
+
+impl<R: RegisterLongName, const V: usize> Readable for ReadWriteRiscvCsr<usize, R, V> {
+    type T = usize;
+    type R = R;
+
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    fn get(&self) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const V);
+        }
+        r
+    }
+
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    fn get(&self) -> usize {
+        unimplemented!("reading RISC-V CSR {}", V)
+    }
+}
+
+impl<R: RegisterLongName, const V: usize> Writeable for ReadWriteRiscvCsr<usize, R, V> {
+    type T = usize;
+    type R = R;
+
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    fn set(&self, val_to_set: usize) {
+        unsafe {
+            asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const V);
+        }
+    }
+
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    fn set(&self, _val_to_set: usize) {
+        unimplemented!("writing RISC-V CSR {}", V)
     }
 }

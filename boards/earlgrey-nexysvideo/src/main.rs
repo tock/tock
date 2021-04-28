@@ -12,6 +12,7 @@ use capsules::virtual_hmac::VirtualMuxHmac;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;

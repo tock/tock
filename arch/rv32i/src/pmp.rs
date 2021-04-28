@@ -16,8 +16,8 @@ use kernel::common::cells::OptionalCell;
 
 use crate::csr;
 use kernel::common::cells::MapCell;
-use kernel::common::registers;
-use kernel::common::registers::register_bitfields;
+use kernel::common::registers::interfaces::Writeable;
+use kernel::common::registers::{self, register_bitfields};
 use kernel::mpu;
 use kernel::ProcessId;
 
