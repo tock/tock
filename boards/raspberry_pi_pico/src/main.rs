@@ -457,6 +457,9 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
+    // let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+    //     .finalize(components::coop_component_helper!(NUM_PROCS));
+
     board_kernel.kernel_loop(
         &raspberry_pi_pico,
         chip,

@@ -38,7 +38,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
-            scheduler_timer: cortexm0p::systick::SysTick::new(),
+            scheduler_timer: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
             interrupt_service,
             sio: sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC1),
