@@ -17,14 +17,20 @@ pub mod pmpconfig;
 pub mod stvec;
 pub mod utvec;
 
+pub const PMPCFG_REGISTER_COUNT: usize = 4;
+// Each PMP Config register use 2 bits to specify Address register use
+pub const PMPADDR_REGISTER_COUNT: usize = PMPCFG_REGISTER_COUNT * 4;
+// Each non-NAPOT region takes 2 PMP Address registers
+pub const PMP_REGION_COUNT: usize = PMPCFG_REGISTER_COUNT * 2;
+
 #[repr(C)]
 pub struct CSR {
     pub minstreth: ReadWriteRiscvCsr<u32, minstret::minstreth::Register>,
     pub minstret: ReadWriteRiscvCsr<u32, minstret::minstret::Register>,
     pub mcycleh: ReadWriteRiscvCsr<u32, mcycle::mcycleh::Register>,
     pub mcycle: ReadWriteRiscvCsr<u32, mcycle::mcycle::Register>,
-    pub pmpcfg: [ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>; 4],
-    pub pmpaddr: [ReadWriteRiscvCsr<u32, pmpaddr::pmpaddr::Register>; 16],
+    pub pmpcfg: [ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>; PMPCFG_REGISTER_COUNT],
+    pub pmpaddr: [ReadWriteRiscvCsr<u32, pmpaddr::pmpaddr::Register>; PMPADDR_REGISTER_COUNT],
     pub mie: ReadWriteRiscvCsr<u32, mie::mie::Register>,
     pub mscratch: ReadWriteRiscvCsr<u32, mscratch::mscratch::Register>,
     pub mepc: ReadWriteRiscvCsr<u32, mepc::mepc::Register>,
@@ -57,7 +63,7 @@ pub const CSR: &CSR = &CSR {
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG0),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG1),
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG2),
-        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG3)
+        ReadWriteRiscvCsr::new(riscv_csr::csr::PMPCFG3),
     ],
     pmpaddr: [
         ReadWriteRiscvCsr::new(riscv_csr::csr::PMPADDR0),
