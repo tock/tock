@@ -4,6 +4,7 @@
 //! * Ioana Culic <ioana.culic@wyliodrin.com>
 
 // use core::cell::Cell;
+use kernel::debug;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -349,12 +350,31 @@ impl<'a> RPPins<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        // let tmp_val = self.gpio_registers.intr[1].get();
+        // panic! ("Intrrrrr {}", tmp_val);
+        debug!("handle intr primul");
         for bank_no in 0..4 {
-            let current_val = self.gpio_registers.intrs[bank_no].get();
+            let current_val = self.gpio_registers.intr[bank_no].get();
             let enabled_val = self.gpio_registers.intre[bank_no].get();
+            //debug! ("Enabled {}", enabled_val);
             for pin in 0..8 {
                 let l_low_reg_no = pin * 4;
                 if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
+                    //panic!("intra {} {} {}", bank_no, pin, l_low_reg_no);
+                    self.pins[pin * bank_no].handle_interrupt();
+                }
+                else if (current_val & enabled_val & (1 << l_low_reg_no + 1)) != 0 {
+                    //panic!("intra {} {} {}", bank_no, pin, l_low_reg_no + 1);
+                    self.pins[pin * bank_no].handle_interrupt();
+                }
+                else if (current_val & enabled_val & (1 << l_low_reg_no + 2)) != 0 {
+                    self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 2));
+                   // panic!("intra {} {} {}", bank_no, pin, l_low_reg_no + 2);
+                    self.pins[pin * bank_no].handle_interrupt();
+                }
+                else if (current_val & enabled_val & (1 << l_low_reg_no + 3)) != 0 {
+                    self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 3));
+                    //debug!("intra {:b}", current_val & (1 << l_low_reg_no + 3));
                     self.pins[pin * bank_no].handle_interrupt();
                 }  
             }
@@ -464,6 +484,7 @@ impl<'a> RPGpioPin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        debug!("al doilea interrupt");
         self.client.map(|client| client.fired());
     }
 }

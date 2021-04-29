@@ -75,6 +75,7 @@ pub struct RaspberryPiPico {
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    button: &'static capsules::button::Button<'static, rp2040::gpio::RPGpioPin<'static>>,
 }
 
 impl Platform for RaspberryPiPico {
@@ -90,6 +91,7 @@ impl Platform for RaspberryPiPico {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -249,7 +251,7 @@ pub unsafe fn main() {
     //     pin.clear();
     // }
 
-    // let pin = RPGpioPin,::new(RPGpio::GPIO25);
+    // let pin = peripherals.pins.get_pin(RPGpio::GPIO25);
     // pin.make_output();
     // pin.set();
 
@@ -348,7 +350,19 @@ pub unsafe fn main() {
     .finalize(components::led_component_buf!(
         LedHigh<'static, RPGpioPin<'static>>
     ));
-
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        components::button_component_helper!(
+            rp2040::gpio::RPGpioPin,
+            // Select
+            (
+                &peripherals.pins.get_pin(RPGpio::GPIO12),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+        ),
+    )
+    .finalize(components::button_component_buf!(rp2040::gpio::RPGpioPin));
     // UART
     // Create a shared UART channel for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
@@ -418,6 +432,7 @@ pub unsafe fn main() {
         console: console,
         adc: adc_syscall,
         temperature: temp,
+        button: button
         // monitor arm semihosting enable
     };
     debug!("Initialization complete. Enter main loop");
