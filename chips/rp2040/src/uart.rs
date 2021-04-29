@@ -492,13 +492,13 @@ impl<'a> Uart<'a> {
                         }
                     });
                 }
-            } 
+            }
         }
 
         if self.registers.uartimsc.is_set(UARTIMSC::RXIM) {
             if self.registers.uartfr.is_set(UARTFR::RXFF) {
                 let byte = self.registers.uartdr.get() as u8;
-                
+
                 self.disable_receive_interrupt();
                 if self.rx_status.get() == UARTStateRX::Receiving {
                     if self.rx_position.get() < self.rx_len.get() {
@@ -541,7 +541,6 @@ impl<'a> Uart<'a> {
                 });
             }
         }
-       
     }
 
     fn fill_fifo(&self) {
@@ -556,9 +555,9 @@ impl<'a> Uart<'a> {
     }
 
     pub fn is_configured(&self) -> bool {
-        if self.registers.uartcr.is_set(UARTCR::UARTEN) 
+        if self.registers.uartcr.is_set(UARTCR::UARTEN)
             && (self.registers.uartcr.is_set(UARTCR::RXE)
-            || self.registers.uartcr.is_set(UARTCR::TXE))
+                || self.registers.uartcr.is_set(UARTCR::TXE))
         {
             true
         } else {

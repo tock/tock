@@ -291,36 +291,6 @@ impl Peripheral {
             Peripheral::UsbCtrl => RESET_DONE::usbctrl::SET,
         }
     }
-
-    fn get_reset_done_field_clear(&self) -> FieldValue<u32, RESET_DONE::Register> {
-        match self {
-            Peripheral::Adc => RESET_DONE::adc::CLEAR,
-            Peripheral::BusController => RESET_DONE::busctrl::CLEAR,
-            Peripheral::Dma => RESET_DONE::dma::CLEAR,
-            Peripheral::I2c0 => RESET_DONE::i2c0::CLEAR,
-            Peripheral::I2c1 => RESET_DONE::i2c1::CLEAR,
-            Peripheral::IOBank0 => RESET_DONE::io_bank0::CLEAR,
-            Peripheral::IOQSpi => RESET_DONE::io_qspi::CLEAR,
-            Peripheral::Jtag => RESET_DONE::jtag::CLEAR,
-            Peripheral::PadsBank0 => RESET_DONE::pads_bank0::CLEAR,
-            Peripheral::PadsQSpi => RESET_DONE::pads_qspi::CLEAR,
-            Peripheral::Pio0 => RESET_DONE::pio0::CLEAR,
-            Peripheral::Pio1 => RESET_DONE::pio1::CLEAR,
-            Peripheral::PllSys => RESET_DONE::pll_sys::CLEAR,
-            Peripheral::PllUsb => RESET_DONE::pll_usb::CLEAR,
-            Peripheral::Pwm => RESET_DONE::pwm::CLEAR,
-            Peripheral::Rtc => RESET_DONE::rtc::CLEAR,
-            Peripheral::Spi0 => RESET_DONE::spi0::CLEAR,
-            Peripheral::Spi1 => RESET_DONE::spi1::CLEAR,
-            Peripheral::Syscfg => RESET_DONE::syscfg::CLEAR,
-            Peripheral::SysInfo => RESET_DONE::sysinfo::CLEAR,
-            Peripheral::TBMan => RESET_DONE::tbman::CLEAR,
-            Peripheral::Timer => RESET_DONE::timer::CLEAR,
-            Peripheral::Uart0 => RESET_DONE::uart0::CLEAR,
-            Peripheral::Uart1 => RESET_DONE::uart1::CLEAR,
-            Peripheral::UsbCtrl => RESET_DONE::usbctrl::CLEAR,
-        }
-    }
 }
 
 pub struct Resets {
@@ -365,27 +335,24 @@ impl Resets {
     }
 
     pub fn reset_all_except(&self, peripherals: &'static [Peripheral]) {
-        if peripherals.len() > 0 {
-            let mut value = 0xFFFFFF;
-            for peripheral in peripherals {
-                value ^= peripheral.get_reset_field_set().value;
-            }
-            self.registers.reset.set(value);
+        let mut value = 0xFFFFFF;
+        for peripheral in peripherals {
+            value ^= peripheral.get_reset_field_set().value;
         }
+        self.registers.reset.set(value);
     }
 
     pub fn unreset_all_except(&self, peripherals: &'static [Peripheral], wait_for: bool) {
-        if peripherals.len() > 0 {
-            let mut value = 0;
-            for peripheral in peripherals {
-                value |= peripheral.get_reset_field_set().value;
-            }
-            self.registers.reset.set(value);
+        let mut value = 0;
+        for peripheral in peripherals {
+            value |= peripheral.get_reset_field_set().value;
+        }
 
-            if wait_for {
-                value = !value & 0xFFFFF;
-                while (self.registers.reset_done.get() & value) != value {}
-            }
+        self.registers.reset.set(value);
+
+        if wait_for {
+            value = !value & 0xFFFFF;
+            while (self.registers.reset_done.get() & value) != value {}
         }
     }
 }

@@ -186,11 +186,11 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
         // true
     }
 
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            // DeferredCallTask::Flash => self.flash.handle_interrupt(),
-            _ => false,
-        }
+    unsafe fn service_deferred_call(&self, _task: DeferredCallTask) -> bool {
+        // match task {
+        //     _ => false,
+        // }
         // true
+        false
     }
 }

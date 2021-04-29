@@ -22,8 +22,6 @@ use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
 use kernel::debug;
 use rp2040;
 
-use kernel::hil::uart;
-
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -31,7 +29,7 @@ use rp2040::clocks::{
     ReferenceAuxiliaryClockSource, ReferenceClockSource, RtcAuxiliaryClockSource,
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
-use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin, RPPins};
+use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
 use rp2040::timer::RPTimer;
 mod io;
@@ -75,7 +73,6 @@ pub struct RaspberryPiPico {
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    button: &'static capsules::button::Button<'static, rp2040::gpio::RPGpioPin<'static>>,
 }
 
 impl Platform for RaspberryPiPico {
@@ -91,24 +88,10 @@ impl Platform for RaspberryPiPico {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
             _ => f(None),
         }
     }
 }
-
-// struct AlarmTest<'a> {
-//     alarm: &'a RPTimer<'a>,
-//     led: RPGpioPin,<'a>,
-// }
-
-// impl AlarmClient for AlarmTest<'_> {
-//     fn alarm(&self) {
-//         self.led.toggle();
-//         self.alarm
-//             .set_alarm(self.alarm.now(), <RPTimer as Time>::ticks_from_ms(1000));
-//     }
-// }
 
 /// Entry point used for debuger
 #[no_mangle]
@@ -232,10 +215,6 @@ pub unsafe fn main() {
 
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
-    peripherals.resets.reset(&[Peripheral::Uart0]);
-    peripherals
-        .resets
-        .unreset(&[Peripheral::Uart0, Peripheral::Adc], true);
 
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
@@ -244,34 +223,11 @@ pub unsafe fn main() {
     gpio_tx.set_function(GpioFunction::UART);
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
-        peripherals.pins.get_pin(RPGpio::from_usize (pin).unwrap()).deactivate_pads();
+        peripherals
+            .pins
+            .get_pin(RPGpio::from_usize(pin).unwrap())
+            .deactivate_pads();
     }
-
-    //     pin.make_output();
-    //     pin.clear();
-    // }
-
-    // let pin = peripherals.pins.get_pin(RPGpio::GPIO25);
-    // pin.make_output();
-    // pin.set();
-
-    // let pin = RPGpioPin,::new(RPGpio::GPIO25);
-    // pin.make_output();
-    // // pin.set();
-
-    // let at = static_init!(
-    //     AlarmTest,
-    //     AlarmTest {
-    //         alarm: &peripherals.alarm,
-    //         led: pin
-    //     }
-    // );
-
-    // peripherals.alarm.set_alarm_client(at);
-    // peripherals.alarm.set_alarm(
-    //     peripherals.alarm.now(),
-    //     <RPTimer as Time>::ticks_from_ms(1000),
-    // );
 
     let chip = static_init!(
         Rp2040<Rp2040DefaultPeripherals>,
@@ -300,6 +256,26 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(RPTimer));
+
+    // UART
+    // Create a shared UART channel for kernel debug.
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.uart0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
+
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+
+    // // PROCESS CONSOLE
+    let process_console =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+    let _ = process_console.start();
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -350,32 +326,6 @@ pub unsafe fn main() {
     .finalize(components::led_component_buf!(
         LedHigh<'static, RPGpioPin<'static>>
     ));
-    let button = components::button::ButtonComponent::new(
-        board_kernel,
-        components::button_component_helper!(
-            rp2040::gpio::RPGpioPin,
-            // Select
-            (
-                &peripherals.pins.get_pin(RPGpio::GPIO12),
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
-                kernel::hil::gpio::FloatingState::PullNone
-            ),
-        ),
-    )
-    .finalize(components::button_component_buf!(rp2040::gpio::RPGpioPin));
-    // UART
-    // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(());
-
-    // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
-    // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     peripherals.adc.init();
 
@@ -432,7 +382,6 @@ pub unsafe fn main() {
         console: console,
         adc: adc_syscall,
         temperature: temp,
-        button: button
         // monitor arm semihosting enable
     };
     debug!("Initialization complete. Enter main loop");
@@ -471,9 +420,6 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
-
-    // let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-    //     .finalize(components::coop_component_helper!(NUM_PROCS));
 
     board_kernel.kernel_loop(
         &raspberry_pi_pico,

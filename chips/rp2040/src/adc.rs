@@ -3,7 +3,7 @@ use core::cell::Cell;
 use kernel::common::{cells::OptionalCell, StaticRef};
 use kernel::hil;
 use kernel::{
-    common::registers::{self, register_bitfields, register_structs, ReadWrite},
+    common::registers::{register_bitfields, register_structs, ReadWrite},
     ErrorCode,
 };
 

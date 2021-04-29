@@ -1039,13 +1039,6 @@ impl Clocks {
         }
     }
 
-    fn has_glitchness_mux(&self, clock: Clock) -> bool {
-        match clock {
-            Clock::System | Clock::Reference => true,
-            _ => false,
-        }
-    }
-
     fn get_divider(&self, source_freq: u32, freq: u32) -> u32 {
         // pico-sdk: Div register is 24.8 int.frac divider so multiply by 2^8 (left shift by 8)
         (((source_freq as u64) << 8) / freq as u64) as u32
@@ -1054,13 +1047,14 @@ impl Clocks {
     #[inline]
     fn loop_3_cycles(&self, clock: Clock) {
         if self.get_frequency(clock) > 0 {
-            let delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
+            let _delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
+            #[cfg(target_arch = "arm")]
             unsafe {
                 asm! (
                     "1:",
                     "subs {0}, #1",
                     "bne 1b",
-                    in (reg) delay_cyc
+                    in (reg) _delay_cyc
                 );
             }
         }

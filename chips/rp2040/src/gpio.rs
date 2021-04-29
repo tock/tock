@@ -3,8 +3,6 @@
 //! ### Author
 //! * Ioana Culic <ioana.culic@wyliodrin.com>
 
-// use core::cell::Cell;
-use kernel::debug;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
@@ -19,6 +17,7 @@ struct GpioPin {
     ctrl: ReadWrite<u32, GPIOx_CTRL::Register>,
 }
 
+#[allow(dead_code)]
 struct GpioProc {
     enable: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
     force: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
@@ -71,7 +70,7 @@ register_structs! {
         (0x000 => cpuid: ReadOnly<u32, CPUID::Register>),
 
         /// Input value for GPIO pins
-        (0x004 => gpio_in: ReadWrite<u32, GPIO_IN::Register>),
+        (0x004 => gpio_in: ReadOnly<u32, GPIO_IN::Register>),
 
         /// Not used
         (0x008 => _reserved1),
@@ -300,7 +299,6 @@ const SIO_BASE_ADDRESS: usize = 0xd0000000;
 const SIO_BASE: StaticRef<SIORegisters> =
     unsafe { StaticRef::new(SIO_BASE_ADDRESS as *const SIORegisters) };
 
-
 pub struct RPPins<'a> {
     pub pins: [RPGpioPin<'a>; 30],
     gpio_registers: StaticRef<GpioRegisters>,
@@ -350,40 +348,29 @@ impl<'a> RPPins<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        // let tmp_val = self.gpio_registers.intr[1].get();
-        // panic! ("Intrrrrr {}", tmp_val);
-        debug!("handle intr primul");
         for bank_no in 0..4 {
             let current_val = self.gpio_registers.intr[bank_no].get();
             let enabled_val = self.gpio_registers.intre[bank_no].get();
-            //debug! ("Enabled {}", enabled_val);
             for pin in 0..8 {
                 let l_low_reg_no = pin * 4;
                 if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
-                    //panic!("intra {} {} {}", bank_no, pin, l_low_reg_no);
                     self.pins[pin * bank_no].handle_interrupt();
-                }
-                else if (current_val & enabled_val & (1 << l_low_reg_no + 1)) != 0 {
-                    //panic!("intra {} {} {}", bank_no, pin, l_low_reg_no + 1);
+                } else if (current_val & enabled_val & (1 << l_low_reg_no + 1)) != 0 {
                     self.pins[pin * bank_no].handle_interrupt();
-                }
-                else if (current_val & enabled_val & (1 << l_low_reg_no + 2)) != 0 {
+                } else if (current_val & enabled_val & (1 << l_low_reg_no + 2)) != 0 {
                     self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 2));
-                   // panic!("intra {} {} {}", bank_no, pin, l_low_reg_no + 2);
+                    self.pins[pin * bank_no].handle_interrupt();
+                } else if (current_val & enabled_val & (1 << l_low_reg_no + 3)) != 0 {
+                    self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 3));
                     self.pins[pin * bank_no].handle_interrupt();
                 }
-                else if (current_val & enabled_val & (1 << l_low_reg_no + 3)) != 0 {
-                    self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 3));
-                    //debug!("intra {:b}", current_val & (1 << l_low_reg_no + 3));
-                    self.pins[pin * bank_no].handle_interrupt();
-                }  
             }
         }
     }
 }
 
 enum_from_primitive! {
-    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[derive(Copy, Clone, PartialEq)]
     #[repr(usize)]
     #[rustfmt::skip]
     pub enum RPGpio {
@@ -394,7 +381,7 @@ enum_from_primitive! {
     }
 }
 enum_from_primitive! {
-    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[derive(Copy, Clone, PartialEq)]
     #[repr(u32)]
     #[rustfmt::skip]
 
@@ -441,7 +428,6 @@ impl<'a> RPGpioPin<'a> {
             (true, true) => hil::gpio::Configuration::Output,
             (true, false) => hil::gpio::Configuration::Input,
             (false, _) => hil::gpio::Configuration::LowPower,
-            _ => panic!("Invalid GPIO state mode"),
         }
     }
 
@@ -484,7 +470,6 @@ impl<'a> RPGpioPin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        debug!("al doilea interrupt");
         self.client.map(|client| client.fired());
     }
 }
@@ -495,51 +480,52 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        let interrupt_bank_no = self.pin/8;
+        let interrupt_bank_no = self.pin / 8;
         let l_low_reg_no = (self.pin * 4) % 32;
         let current_val = self.gpio_registers.intrs[interrupt_bank_no].get();
-        if (current_val & (1 << l_low_reg_no) & (1 << l_low_reg_no + 1) & (1 << l_low_reg_no + 2) & (1 << l_low_reg_no + 3)) == 0 {
+        if (current_val
+            & (1 << l_low_reg_no)
+            & (1 << l_low_reg_no + 1)
+            & (1 << l_low_reg_no + 2)
+            & (1 << l_low_reg_no + 3))
+            == 0
+        {
             false
-        }
-        else {
+        } else {
             true
         }
-           
     }
 
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        let interrupt_bank_no = self.pin/8;
-
-        match mode{
+        let interrupt_bank_no = self.pin / 8;
+        match mode {
             hil::gpio::InterruptEdge::RisingEdge => {
                 let high_reg_no = (self.pin * 4 + 3) % 32;
                 let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
                 self.gpio_registers.intre[interrupt_bank_no].set((1 << high_reg_no) | current_val);
-            },
+            }
             hil::gpio::InterruptEdge::FallingEdge => {
                 let low_reg_no = (self.pin * 4 + 2) % 32;
                 let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
                 self.gpio_registers.intre[interrupt_bank_no].set((1 << low_reg_no) | current_val);
-            },
+            }
             hil::gpio::InterruptEdge::EitherEdge => {
                 let low_reg_no = (self.pin * 4 + 2) % 32;
                 let high_reg_no = low_reg_no + 1;
                 let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-                self.gpio_registers.intre[interrupt_bank_no].set((1 << high_reg_no) | (1 << low_reg_no) | current_val);
-            },
-            _ => {
-                panic!("Invalid GPIO interrupt mode.");
+                self.gpio_registers.intre[interrupt_bank_no]
+                    .set((1 << high_reg_no) | (1 << low_reg_no) | current_val);
             }
         }
     }
 
     fn disable_interrupts(&self) {
-        let interrupt_bank_no = self.pin/8;
-
+        let interrupt_bank_no = self.pin / 8;
         let low_reg_no = (self.pin * 4 + 2) % 32;
         let high_reg_no = low_reg_no + 1;
         let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-        self.gpio_registers.intre[interrupt_bank_no].set(current_val & !(1 << high_reg_no) & !(1 << low_reg_no));
+        self.gpio_registers.intre[interrupt_bank_no]
+            .set(current_val & !(1 << high_reg_no) & !(1 << low_reg_no));
     }
 }
 
@@ -658,16 +644,12 @@ impl hil::gpio::Input for RPGpioPin<'_> {
 }
 
 pub struct SIO {
-    // interrupt_proc_0: Cell<usize>,
-    // interrupt_proc_1: Cell<usize>,
     registers: StaticRef<SIORegisters>,
 }
 
 impl SIO {
     pub const fn new() -> Self {
         Self {
-            // interrupt_proc_0: Cell::new (0),
-            // interrupt_proc_1: Cell::new (0),
             registers: SIO_BASE,
         }
     }
@@ -678,7 +660,6 @@ impl SIO {
                 // read data from the fifo
                 self.registers.fifo_rd.get();
                 self.registers.fifo_st.set(0xff);
-                // self.interrupt_proc_0.set (self.interrupt_proc_0.get()+1);
             }
             Processor::Processor1 => {
                 if self.registers.cpuid.get() == 1 {
@@ -686,12 +667,8 @@ impl SIO {
                 } else {
                     panic!("SIO_PROC1_IRQ should be ignored for processor 1");
                 }
-                // self.interrupt_proc_1.set (self.interrupt_proc_1.get()+1);
             }
         }
-        // if (self.interrupt_proc_0.get () > 10000 || self.interrupt_proc_1.get () > 10000) {
-        //     panic! ("interrupts proc 0: {} proc 1: {} ispr: {:b}", self.interrupt_proc_0.get(), self.interrupt_proc_1.get (), cortexm0p::nvic::get_ispr());
-        // }
     }
 
     pub fn get_processor(&self) -> Processor {

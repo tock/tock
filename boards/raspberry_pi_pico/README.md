@@ -1,17 +1,10 @@
-BBC Micro:bit v2 - nRF52833 with Bluetooth LE
-==================================================
+Raspberry Pi Pico - RP2040
+==========================
 
-<img src="https://cdn.sanity.io/images/ajwvhvgo/production/a7f49eb570ce06cf107dde7babaa5201411a41a1-660x720.jpg?q=80&fit=max&auto=format" width="35%">
+<img src="https://www.raspberrypi.org/homepage-9df4b/static/bdc42b00ebe8f2312c4d229beb9325bf/53263/7d247ace-afb2-4555-b7b3-4f236eb779d6_Raspberry%2BPi%2BPico%2B1.jpg" width="35%">
 
-The [BBC Micro:bit v2 - nRF52833 with Bluetooth LE](https://microbit.org/new-microbit/) is a
-board based on the Nordic nRF52833 SoC. It includes the
-following sensors:
-
-- 5x5 LED Matrix
-- LSM303AGR compass and accelerometer
-- BLE
-- speaker
-- microphone
+The [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/) is a
+board developed by the Raspberry Pi Foundation and is based on the RP2040 chip.
 
 ## Getting Started
 
@@ -19,7 +12,7 @@ First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
-The kernel can be programmed using OpenOCD. `cd` into `boards/microbit_v2`
+The kernel can be programmed using OpenOCD. `cd` into `boards/raspberry_pi_pico`
 directory and run:
 
 ```bash

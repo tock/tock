@@ -57,12 +57,11 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         };
         //configure parameters of uart for sending bytes
         let _result = uart0.configure(parameters);
-         //set RX and TX pins in UART mode
+        //set RX and TX pins in UART mode
         let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
         let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
         gpio_rx.set_function(GpioFunction::UART);
         gpio_tx.set_function(GpioFunction::UART);
-
     }
     debug::panic(
         &mut [led],
