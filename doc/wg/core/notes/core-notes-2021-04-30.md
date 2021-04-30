@@ -81,7 +81,7 @@ Attending:
  * Gabe: printf definitely blocks. There is another put that is asynchronous.
  * Amit: So if this is a question of performance, do we have a path to benchmarking?
  * Hudson: Benchmarking the second is totally reasonable. Gives a cost for allow/unallow based on number of total AppSlices.
- * Hudson: The second is tricky. The networking stack is probably a fine stress test.
+ * Hudson: The first is tricky. The networking stack is probably a fine stress test.
  * Brad: Is there an issue that describes the two options?
  * Hudson: Just a doc for now: https://docs.google.com/document/d/1PoPjnKX3tMBtPEd7xi_O7Ff80UoK2uiWVg3UnfVV48g/edit
  * Leon: If we go with the first approach, I'm wondering if it will lead to behavior that we don't want
@@ -116,4 +116,3 @@ Attending:
  * Brad: PR 2551 https://github.com/tock/tock/pull/2551
  * Brad: Take a look. We want to agree on something, make changes quickly, and then not think about this for a while.
  * Amit: We'll put this on agenda for next week if it doesn't resolve itself by then.
-
