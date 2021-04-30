@@ -6,6 +6,7 @@ that Tock supports.
 
 | Board                                                                | Architecture    | MCU            | Interface  | App deployment | QEMU Support? |
 |----------------------------------------------------------------------|-----------------|----------------|------------|----------------|---------------|
+| [Raspberry Pi Pico](raspberry_pi_pico/README.md)                     | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [Hail](hail/README.md)                                               | ARM Cortex-M4   | SAM4LC8BA      | Bootloader | tockloader     | No            |
 | [Imix](imix/README.md)                                               | ARM Cortex-M4   | SAM4LC8CA      | Bootloader | tockloader     | No            |
 | [Nordic nRF52-DK](nordic/nrf52dk/README.md)                          | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No            |
