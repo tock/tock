@@ -72,5 +72,5 @@ Apps are built out-of-tree. Once an app is built, you can add the path to it in 
 $ make program
 ```
 
-This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](### Flash the tock kernel).
+This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](#flash-the-tock-kernel).
 
