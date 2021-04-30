@@ -12,53 +12,65 @@ First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
-The kernel can be programmed using OpenOCD. `cd` into `boards/raspberry_pi_pico`
-directory and run:
+The kernel can be programmed using a second Raspberry Pi device and OpenOCD. OpenOCD needs to be installed on the Regular Raspberry Pi device.
+
+### Raspberry Pi Setup
+
+To install OpenOCD on the Raspberry Pi run the following commands on the Pi:
+```bash
+$ sudo apt-get update
+$ sudo apt install automake autoconf build-essential texinfo libtool libftdi-dev libusb-1.0-0-dev git
+$ git clone https://github.com/raspberrypi/openocd.git --recursive --branch rp2040 --depth=1
+$ cd openocd
+$ ./bootstrap
+$ ./configure --enable-ftdi --enable-sysfsgpio --enable-bcm2835gpio
+$ make -j4
+$ sudo make install
+$ cd ~
+```
+
+Enable SSH on the Raspberry Pi by following the [instructions on the Raspberry Pi website](https://www.raspberrypi.org/documentation/remote-access/ssh/).
+
+Next, connect the Pico to the Raspberry Pi by following the instructions in the [official documentation](https://datasheets.raspberrypi.org/pico/getting-started-with-pico.pdf#%5B%7B%22num%22%3A22%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C115%2C431.757%2Cnull%5D).
+### Flash the tock kernel
+
+`cd` into `boards/raspberry_pi_pico` directory and run:
 
 ```bash
-$ make flash
+$ make
 
 (or)
 
-$ make flash-debug
+$ make debug
 ```
 
-> **Note:** Unlike other Tock platforms, the default kernel image for this
-> board will clear flashed apps when the kernel is loaded. This is to support
-> the non-tockloader based app flash procedure below. To preserve loaded apps,
-> comment out the `APP_HACK` variable in `src/main.rs`.
+Connect via ssh to the Raspberry Pi and forward port 3333. Then start OpenOCD on the Pi.
+```bash
+$ ssh pi@<pi_IP> -L 3333:localhost:3333
 
+(wait to connect)
+
+$ openocd -f interface/raspberrypi-swd.cfg -f target/rp2040.cfg
+```
+You can also open a serial console on the Raspberry Pi for debug messages.
+```bash
+$ sudo apt install minicom
+$ minicom -b 115200 -o -D /dev/serial0
+```
+
+On the local computer use gdb-multiarch on Linux or arm-none-eabi-gdb on MacOS to deploy tock.
+```bash
+$ arm-none-eabi-gdb tock/target/thumbv6m-none-eabi/release/raspberry_pi_pico.elf
+(gdb) target remote :3333
+(gdb) load
+(gdb) continue
+```
 ## Flashing app
 
-Apps are built out-of-tree. Once an app is built, you can use
-`arm-none-eabi-objcopy` with `--update-section` to create an ELF image with the
-apps included.
-
-```bash
-$ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
-    target/thumbv7em-none-eabi/debug/stm32f3discovery.elf \
-    target/thumbv7em-none-eabi/debug/stm32f3discovery-app.elf
-```
-
-For example, you can update `Makefile` as follows.
-
-```
-APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
-
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-    arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown;"
-```
-
-After setting `APP`, `KERNEL`, `KERNEL_WITH_APP`, and `program` target
-dependency, you can do
-
+Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
 $ make program
 ```
 
-to flash the image.
+This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](### Flash the tock kernel).
+
