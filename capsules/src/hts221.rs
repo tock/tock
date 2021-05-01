@@ -175,9 +175,9 @@ enum State {
 }
 
 impl<'a> I2CClient for Hts221<'a> {
-    fn command_complete(&self, buffer: &'static mut [u8], err: i2c::Error) {
-        match err {
-            i2c::Error::CommandComplete => {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+        match status {
+            Ok(()) => {
                 match self.state.get() {
                     State::Calibrating => {
                         let h0rh = buffer[0] as f32;
@@ -264,7 +264,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 }
             }
             _ => {
-                kernel::debug!("Oops, some sort of error {:?}", err);
+                kernel::debug!("Oops, some sort of error {:?}", status);
             }
         }
     }
