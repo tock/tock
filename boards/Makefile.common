@@ -108,20 +108,20 @@ endif
 # a set string which should be updated with every release.
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "1.4+")
 
-# Validate that rustup is new enough.
-MINIMUM_RUSTUP_VERSION := 1.11.0
-RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
-ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
-  $(warning Required tool `$(RUSTUP)` is out-of-date.)
-  $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
-  $(shell sleep 3s)
-  DUMMY := $(shell $(RUSTUP) update)
-endif
-
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
 ifneq ($(CUSTOM_RUST_TOOLCHAIN),true)
+  # Validate that rustup is new enough.
+  MINIMUM_RUSTUP_VERSION := 1.11.0
+  RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
+  ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+    $(warning Required tool `$(RUSTUP)` is out-of-date.)
+    $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
+    $(shell sleep 3s)
+    DUMMY := $(shell $(RUSTUP) update)
+  endif
+
   LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
   ifeq ($(LLVM_TOOLS_INSTALLED),1)
     $(shell $(RUSTUP) component add llvm-tools-preview)
