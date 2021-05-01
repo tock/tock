@@ -406,6 +406,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|proc_id| {
             let _result = self.grants.enter(*proc_id, |_app, upcalls| {

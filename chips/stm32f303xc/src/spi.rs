@@ -290,9 +290,9 @@ impl<'a> Spi<'a> {
             }
             self.transfers.set(SPI_IDLE);
             self.master_client.map(|client| {
-                self.tx_buffer
-                    .take()
-                    .map(|buf| client.read_write_done(buf, self.rx_buffer.take(), self.len.get()))
+                self.tx_buffer.take().map(|buf| {
+                    client.read_write_done(buf, self.rx_buffer.take(), self.len.get(), Ok(()))
+                })
             });
             self.transfers.set(SPI_IDLE);
         }
@@ -350,9 +350,16 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         if self.transfers.get() == 0 {
@@ -399,7 +406,7 @@ impl<'a> Spi<'a> {
 
             Ok(())
         } else {
-            Err(ErrorCode::BUSY)
+            Err((ErrorCode::BUSY, write_buffer, read_buffer))
         }
     }
 }
@@ -439,25 +446,29 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.registers.sr.is_set(SR::BSY)
     }
 
-    fn write_byte(&self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
         // debug! ("spi write byte {}", out_byte);
         // loop till TXE (Transmit Buffer Empty) becomes 1
         while !self.registers.sr.is_set(SR::TXE) {}
 
         self.registers.dr.modify(DR::DR.val(out_byte));
+        Ok(())
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
-        self.write_byte(val);
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
+        match self.write_byte(val) {
+            Ok(_) => {
+                // loop till RXNE becomes 1
+                while !self.registers.sr.is_set(SR::RXNE) {}
 
-        // loop till RXNE becomes 1
-        while !self.registers.sr.is_set(SR::RXNE) {}
-
-        self.registers.dr.read(DR::DR) as u8
+                Ok(self.registers.dr.read(DR::DR) as u8)
+            }
+            Err(err) => Err(err),
+        }
     }
 
     fn read_write_bytes(
@@ -465,13 +476,19 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         // If busy, don't start
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        if let Err((err, write_buffer, read_buffer)) =
+            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        {
+            Err((err, write_buffer.unwrap(), read_buffer))
+        } else {
+            Ok(())
+        }
     }
 
     /// We *only* support 1Mhz. If `rate` is set to any value other than

@@ -450,9 +450,16 @@ impl SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         // Start by enabling the SPI driver.
@@ -528,7 +535,7 @@ impl spi::SpiMaster for SpiHw {
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn write_byte(&self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
 
         let tdr = (out_byte as u32) & spi_consts::tdr::TD;
@@ -536,24 +543,29 @@ impl spi::SpiMaster for SpiHw {
         // for this next byte
         while !spi.registers.sr.is_set(Status::TDRE) {}
         spi.registers.tdr.set(tdr);
+        Ok(())
     }
 
     /// Write 0 to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn read_write_byte(&self, val: u8) -> u8 {
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
 
-        self.write_byte(val);
-        // Wait for receive data register full
-        while !spi.registers.sr.is_set(Status::RDRF) {}
-        // Return read value
-        spi.registers.rdr.get() as u8
+        match self.write_byte(val) {
+            Ok(_) => {
+                // Wait for receive data register full
+                while !spi.registers.sr.is_set(Status::RDRF) {}
+                // Return read value
+                Ok(spi.registers.rdr.get() as u8)
+            }
+            Err(err) => Err(err),
+        }
     }
 
     /// Asynchronous buffer read/write of SPI. `write_buffer` must be present;
@@ -571,13 +583,19 @@ impl spi::SpiMaster for SpiHw {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         // If busy, don't start.
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        if let Err((err, write_buffer, read_buffer)) =
+            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        {
+            Err((err, write_buffer.unwrap(), read_buffer))
+        } else {
+            Ok(())
+        }
     }
 
     fn set_rate(&self, rate: u32) -> u32 {
@@ -660,7 +678,14 @@ impl spi::SpiSlave for SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
@@ -713,13 +738,13 @@ impl DMAClient for SpiHw {
                 SpiRole::SpiMaster => {
                     self.client.map(|cb| {
                         txbuf.map(|txbuf| {
-                            cb.read_write_done(txbuf, rxbuf, len);
+                            cb.read_write_done(txbuf, rxbuf, len, Ok(()));
                         });
                     });
                 }
                 SpiRole::SpiSlave => {
                     self.slave_client.map(|cb| {
-                        cb.read_write_done(txbuf, rxbuf, len);
+                        cb.read_write_done(txbuf, rxbuf, len, Ok(()));
                     });
                 }
             }

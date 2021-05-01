@@ -42,7 +42,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::convert::TryInto;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
@@ -160,7 +159,10 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                 let res = self.spi.read_write_bytes(txbuffer, None, 1);
                 match res {
                     Ok(()) => Ok(()),
-                    rc => Err(rc.try_into().unwrap()),
+                    Err((err, txbuffer, _)) => {
+                        self.txbuffer.replace(txbuffer);
+                        Err(err)
+                    }
                 }
             })
     }
@@ -189,7 +191,11 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
                             .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
                         match res {
                             Ok(()) => Ok(()),
-                            rc => Err(rc.try_into().unwrap()),
+                            Err((err, txbuffer, rxbuffer)) => {
+                                self.txbuffer.replace(txbuffer);
+                                self.rxbuffer.replace(rxbuffer.unwrap());
+                                Err(err)
+                            }
                         }
                     })
             })
@@ -202,6 +208,7 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         match self.state.get() {
             State::ReadStatus => {

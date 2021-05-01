@@ -33,6 +33,7 @@ use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_L
 use capsules::spi_peripheral::SpiPeripheral;
 use capsules::virtual_spi::{MuxSpiMaster, SpiSlaveDevice, VirtualSpiMasterDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::hil::spi;
 use kernel::{create_capability, static_init, static_init_half};
@@ -96,6 +97,7 @@ macro_rules! spi_peripheral_component_helper {
 
 pub struct SpiMuxComponent<S: 'static + spi::SpiMaster> {
     spi: &'static S,
+    deferred_caller: &'static DynamicDeferredCall,
 }
 
 pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
@@ -117,8 +119,11 @@ pub struct SpiComponent<S: 'static + spi::SpiMaster> {
 }
 
 impl<S: 'static + spi::SpiMaster> SpiMuxComponent<S> {
-    pub fn new(spi: &'static S) -> Self {
-        SpiMuxComponent { spi: spi }
+    pub fn new(spi: &'static S, deferred_caller: &'static DynamicDeferredCall) -> Self {
+        SpiMuxComponent {
+            spi: spi,
+            deferred_caller: deferred_caller,
+        }
     }
 }
 
@@ -130,7 +135,13 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
         let mux_spi = static_init_half!(
             static_buffer,
             MuxSpiMaster<'static, S>,
-            MuxSpiMaster::new(self.spi)
+            MuxSpiMaster::new(self.spi, self.deferred_caller)
+        );
+
+        mux_spi.initialize_callback_handle(
+            self.deferred_caller
+                .register(mux_spi)
+                .expect("no deferred call slot available for SPI mux"),
         );
 
         self.spi.set_client(mux_spi);

@@ -1357,6 +1357,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::spi::SpiMasterClient for SDCard<'a, A> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         // unrwap so we don't have to deal with options everywhere
         read_buffer.map(move |read_buffer| {

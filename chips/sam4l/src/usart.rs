@@ -683,7 +683,7 @@ impl<'a> USART<'a> {
                         // state.
                         let len = self.tx_len.get();
                         self.tx_len.set(0);
-                        client.read_write_done(txbuffer.unwrap(), rxbuf, len);
+                        client.read_write_done(txbuffer.unwrap(), rxbuf, len, Ok(()));
                     }
                 }
             });
@@ -1046,7 +1046,7 @@ impl spi::SpiMaster for USART<'_> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         let usart = &USARTRegManager::new(&self);
 
         self.enable_tx(usart);
@@ -1107,7 +1107,7 @@ impl spi::SpiMaster for USART<'_> {
         Ok(())
     }
 
-    fn write_byte(&self, val: u8) {
+    fn write_byte(&self, val: u8) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         usart
             .registers
@@ -1117,14 +1117,15 @@ impl spi::SpiMaster for USART<'_> {
             .registers
             .thr
             .write(TransmitHold::TXCHR.val(val as u32));
+        Ok(())
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         let usart = &USARTRegManager::new(&self);
-        usart.registers.rhr.read(ReceiverHold::RXCHR) as u8
+        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         usart
             .registers
@@ -1136,7 +1137,7 @@ impl spi::SpiMaster for USART<'_> {
             .thr
             .write(TransmitHold::TXCHR.val(val as u32));
         while !usart.registers.csr.is_set(ChannelStatus::RXRDY) {}
-        usart.registers.rhr.read(ReceiverHold::RXCHR) as u8
+        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
     }
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).

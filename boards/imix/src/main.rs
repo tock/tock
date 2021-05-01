@@ -302,7 +302,7 @@ pub unsafe fn main() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 5], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -370,7 +370,7 @@ pub unsafe fn main() {
     .finalize(());
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
     let spi_syscalls = SpiSyscallComponent::new(

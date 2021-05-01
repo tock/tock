@@ -2,6 +2,7 @@
 
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
+use kernel::ErrorCode;
 
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {
@@ -30,6 +31,7 @@ impl spi::SpiMasterClient for DummyCB {
         write: &'static mut [u8],
         read: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         unsafe {
             // do actual stuff
@@ -80,7 +82,7 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
     let len = BUF2.len();
     if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != Ok(()) {
         loop {
-            spi.write_byte(0xA5);
+            spi.write_byte(0xA5).unwrap();
         }
     }
 

@@ -275,9 +275,12 @@ impl SPIM {
 
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
-                Some(tx_buf) => {
-                    client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
-                }
+                Some(tx_buf) => client.read_write_done(
+                    tx_buf,
+                    self.rx_buf.take(),
+                    self.transfer_len.take(),
+                    Ok(()),
+                ),
             });
         }
 
@@ -350,7 +353,7 @@ impl hil::spi::SpiMaster for SPIM {
         tx_buf: &'static mut [u8],
         rx_buf: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
@@ -358,7 +361,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
-            return Err(ErrorCode::NODEVICE);
+            return Err((ErrorCode::NODEVICE, tx_buf, rx_buf));
         }
         self.chip_select.map(|cs| cs.clear());
 
@@ -391,17 +394,17 @@ impl hil::spi::SpiMaster for SPIM {
         Ok(())
     }
 
-    fn write_byte(&self, _val: u8) {
+    fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
-    fn read_write_byte(&self, _val: u8) -> u8 {
+    fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }

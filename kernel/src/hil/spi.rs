@@ -31,6 +31,7 @@ pub trait SpiMasterClient {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     );
 }
 /// The `SpiMaster` trait for interacting with SPI slave
@@ -91,10 +92,10 @@ pub trait SpiMaster {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode>;
-    fn write_byte(&self, val: u8);
-    fn read_byte(&self) -> u8;
-    fn read_write_byte(&self, val: u8) -> u8;
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)>;
+    fn write_byte(&self, val: u8) -> Result<(), ErrorCode>;
+    fn read_byte(&self) -> Result<u8, ErrorCode>;
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode>;
 
     /// Tell the SPI peripheral what to use as a chip select pin.
     /// The type of the argument is based on what makes sense for the
@@ -127,7 +128,7 @@ pub trait SpiMaster {
 /// cannot communicate with different SPI devices.
 pub trait SpiMasterDevice {
     /// Setup the SPI settings and speed of the bus.
-    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
+    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32) -> Result<(), ErrorCode>;
 
     /// Perform an asynchronous read/write operation, whose
     /// completion is signaled by invoking SpiMasterClient.read_write_done on
@@ -140,11 +141,11 @@ pub trait SpiMasterDevice {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)>;
 
-    fn set_polarity(&self, cpol: ClockPolarity);
-    fn set_phase(&self, cpal: ClockPhase);
-    fn set_rate(&self, rate: u32);
+    fn set_polarity(&self, cpol: ClockPolarity) -> Result<(), ErrorCode>;
+    fn set_phase(&self, cpal: ClockPhase) -> Result<(), ErrorCode>;
+    fn set_rate(&self, rate: u32) -> Result<(), ErrorCode>;
 
     fn get_polarity(&self) -> ClockPolarity;
     fn get_phase(&self) -> ClockPhase;
@@ -161,6 +162,7 @@ pub trait SpiSlaveClient {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     );
 }
 
@@ -177,7 +179,14 @@ pub trait SpiSlave {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode>;
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    >;
 
     fn set_clock(&self, polarity: ClockPolarity);
     fn get_clock(&self) -> ClockPolarity;
@@ -202,7 +211,14 @@ pub trait SpiSlaveDevice {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode>;
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    >;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn get_polarity(&self) -> ClockPolarity;

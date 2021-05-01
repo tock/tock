@@ -286,9 +286,16 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         self.active_slave.map(|p| {
@@ -359,24 +366,28 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.registers.sr.is_set(SR::BSY)
     }
 
-    fn write_byte(&self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
         // loop till TXE (Transmit Buffer Empty) becomes 1
         while !self.registers.sr.is_set(SR::TXE) {}
 
         self.registers.dr.modify(DR::DR.val(out_byte as u32));
+        Ok(())
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
-        self.write_byte(val);
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
+        match self.write_byte(val) {
+            Ok(()) => {
+                // loop till RXNE becomes 1
+                while !self.registers.sr.is_set(SR::RXNE) {}
 
-        // loop till RXNE becomes 1
-        while !self.registers.sr.is_set(SR::RXNE) {}
-
-        self.registers.dr.read(DR::DR) as u8
+                Ok(self.registers.dr.read(DR::DR) as u8)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     fn read_write_bytes(
@@ -384,13 +395,19 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         // If busy, don't start
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        if let Err((e, write_buffer, read_buffer)) =
+            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        {
+            Err((e, write_buffer.unwrap(), read_buffer))
+        } else {
+            Ok(())
+        }
     }
 
     /// We *only* support 1Mhz. If `rate` is set to any value other than
@@ -477,7 +494,7 @@ impl dma1::StreamClient for Spi<'_> {
 
             self.master_client.map(|client| {
                 tx_buffer.map(|t| {
-                    client.read_write_done(t, rx_buffer, length);
+                    client.read_write_done(t, rx_buffer, length, Ok(()));
                 });
             });
         }

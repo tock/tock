@@ -231,7 +231,15 @@ impl<
                         txbuffer[0] = Opcodes::RDID as u8;
 
                         self.state.set(State::ReadId);
-                        self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4)
+                        if let Err((err, txbuffer, rxbuffer)) =
+                            self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4)
+                        {
+                            self.txbuffer.replace(txbuffer);
+                            self.rxbuffer.replace(rxbuffer.unwrap());
+                            Err(err)
+                        } else {
+                            Ok(())
+                        }
                     })
             })
     }
@@ -244,7 +252,12 @@ impl<
             .take()
             .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
                 txbuffer[0] = Opcodes::WREN as u8;
-                self.spi.read_write_bytes(txbuffer, None, 1)
+                if let Err((err, txbuffer, _)) = self.spi.read_write_bytes(txbuffer, None, 1) {
+                    self.txbuffer.replace(txbuffer);
+                    Err(err)
+                } else {
+                    Ok(())
+                }
             })
     }
 
@@ -282,11 +295,17 @@ impl<
                             sector_index,
                             page_index: 0,
                         });
-                        self.spi.read_write_bytes(
+                        if let Err((err, txbuffer, rxbuffer)) = self.spi.read_write_bytes(
                             txbuffer,
                             Some(rxbuffer),
                             (PAGE_SIZE + 4) as usize,
-                        )
+                        ) {
+                            self.txbuffer.replace(txbuffer);
+                            self.rxbuffer.replace(rxbuffer.unwrap());
+                            Err(err)
+                        } else {
+                            Ok(())
+                        }
                     })
             });
 
@@ -333,6 +352,7 @@ impl<
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        read_write_status: Result<(), ErrorCode>,
     ) {
         match self.state.get() {
             State::ReadId => {
@@ -429,7 +449,7 @@ impl<
                         };
                         self.state.set(next_state);
                         self.rxbuffer.replace(read_buffer);
-                        self.read_write_done(write_buffer, None, len);
+                        self.read_write_done(write_buffer, None, len, read_write_status);
                     }
                 });
             }
@@ -525,7 +545,7 @@ impl<
                             page_index,
                         });
                         self.rxbuffer.replace(read_buffer);
-                        self.read_write_done(write_buffer, None, len);
+                        self.read_write_done(write_buffer, None, len, read_write_status);
                     }
                 });
             }

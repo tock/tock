@@ -2,8 +2,12 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::hil::spi::SpiMasterClient;
 use kernel::ErrorCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
@@ -12,6 +16,8 @@ pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: OptionalCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
+    deferred_caller: &'a DynamicDeferredCall,
+    handle: OptionalCell<DeferredCallHandle>,
 }
 
 impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Spi> {
@@ -20,20 +26,26 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Sp
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     ) {
         self.inflight.take().map(move |device| {
-            self.do_next_op();
-            device.read_write_done(write_buffer, read_buffer, len);
+            device.read_write_done(write_buffer, read_buffer, len, status);
         });
+        self.do_next_op();
     }
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
-    pub const fn new(spi: &'a Spi) -> MuxSpiMaster<'a, Spi> {
+    pub const fn new(
+        spi: &'a Spi,
+        deferred_caller: &'a DynamicDeferredCall,
+    ) -> MuxSpiMaster<'a, Spi> {
         MuxSpiMaster {
             spi: spi,
             devices: List::new(),
             inflight: OptionalCell::empty(),
+            deferred_caller: deferred_caller,
+            handle: OptionalCell::empty(),
         }
     }
 
@@ -62,7 +74,16 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         self.inflight.set(node);
                         node.txbuffer.take().map(|txbuffer| {
                             let rxbuffer = node.rxbuffer.take();
-                            let _ = self.spi.read_write_bytes(txbuffer, rxbuffer, len);
+                            if let Err((e, write_buffer, read_buffer)) =
+                                self.spi.read_write_bytes(txbuffer, rxbuffer, len)
+                            {
+                                node.txbuffer.replace(write_buffer);
+                                read_buffer.map(|buffer| {
+                                    node.rxbuffer.replace(buffer);
+                                });
+                                node.operation.set(Op::ReadWriteDone(Err(e), len));
+                                self.do_next_op_async();
+                            }
                         });
                     }
                     Op::SetPolarity(pol) => {
@@ -74,10 +95,38 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     Op::SetRate(rate) => {
                         self.spi.set_rate(rate);
                     }
+                    Op::ReadWriteDone(status, len) => {
+                        node.txbuffer.take().map(|write_buffer| {
+                            let read_buffer = node.rxbuffer.take();
+                            self.read_write_done(write_buffer, read_buffer, len, status);
+                        });
+                    }
                     Op::Idle => {} // Can't get here...
                 }
             });
         }
+    }
+
+    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+        self.handle.replace(handle);
+    }
+
+    /// Asynchronously executes the next operation, if any. Used by calls
+    /// to trigger do_next_op such that it will execute after the call
+    /// returns. This is important in case the operation triggers an error,
+    /// requiring a callback with an error condition; if the operation
+    /// is executed synchronously, the callback may be reentrant (executed
+    /// during the downcall). Please see
+    ///
+    /// https://github.com/tock/tock/issues/1496
+    fn do_next_op_async(&self) {
+        self.handle.map(|handle| self.deferred_caller.set(*handle));
+    }
+}
+
+impl<'a, Spi: hil::spi::SpiMaster> DynamicDeferredCallClient for MuxSpiMaster<'a, Spi> {
+    fn call(&self, _handle: DeferredCallHandle) {
+        self.do_next_op();
     }
 }
 
@@ -89,6 +138,7 @@ enum Op {
     SetPolarity(hil::spi::ClockPolarity),
     SetPhase(hil::spi::ClockPhase),
     SetRate(u32),
+    ReadWriteDone(Result<(), ErrorCode>, usize),
 }
 
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
@@ -129,9 +179,10 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDev
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     ) {
         self.client.map(move |client| {
-            client.read_write_done(write_buffer, read_buffer, len);
+            client.read_write_done(write_buffer, read_buffer, len, status);
         });
     }
 }
@@ -145,9 +196,19 @@ impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
 }
 
 impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'_, Spi> {
-    fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
-        self.operation.set(Op::Configure(cpol, cpal, rate));
-        self.mux.do_next_op();
+    fn configure(
+        &self,
+        cpol: hil::spi::ClockPolarity,
+        cpal: hil::spi::ClockPhase,
+        rate: u32,
+    ) -> Result<(), ErrorCode> {
+        if self.operation.get() == Op::Idle {
+            self.operation.set(Op::Configure(cpol, cpal, rate));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     fn read_write_bytes(
@@ -155,27 +216,46 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
-        self.txbuffer.replace(write_buffer);
-        self.rxbuffer.put(read_buffer);
-        self.operation.set(Op::ReadWriteBytes(len));
-        self.mux.do_next_op();
-        Ok(())
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        if self.operation.get() == Op::Idle {
+            self.txbuffer.replace(write_buffer);
+            self.rxbuffer.put(read_buffer);
+            self.operation.set(Op::ReadWriteBytes(len));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, write_buffer, read_buffer))
+        }
     }
 
-    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
-        self.operation.set(Op::SetPolarity(cpol));
-        self.mux.do_next_op();
+    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
+        if self.operation.get() == Op::Idle {
+            self.operation.set(Op::SetPolarity(cpol));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn set_phase(&self, cpal: hil::spi::ClockPhase) {
-        self.operation.set(Op::SetPhase(cpal));
-        self.mux.do_next_op();
+    fn set_phase(&self, cpal: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
+        if self.operation.get() == Op::Idle {
+            self.operation.set(Op::SetPhase(cpal));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn set_rate(&self, rate: u32) {
-        self.operation.set(Op::SetRate(rate));
-        self.mux.do_next_op();
+    fn set_rate(&self, rate: u32) -> Result<(), ErrorCode> {
+        if self.operation.get() == Op::Idle {
+            self.operation.set(Op::SetRate(rate));
+            self.mux.do_next_op();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     fn get_polarity(&self) -> hil::spi::ClockPolarity {
@@ -215,9 +295,10 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Sp
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     ) {
         self.client.map(move |client| {
-            client.read_write_done(write_buffer, read_buffer, len);
+            client.read_write_done(write_buffer, read_buffer, len, status);
         });
     }
 
@@ -239,7 +320,14 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         self.spi.read_write_bytes(write_buffer, read_buffer, len)
     }
 

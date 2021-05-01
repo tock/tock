@@ -260,6 +260,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
         writebuf: Option<&'static mut [u8]>,
         readbuf: Option<&'static mut [u8]>,
         length: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(*process_id, move |app, upcalls| {

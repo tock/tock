@@ -213,6 +213,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for SpiMasterBus<'a, S> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         // debug!("write done {}", len);
         match self.status.get() {

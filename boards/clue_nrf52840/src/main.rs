@@ -271,7 +271,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 5], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -458,8 +458,9 @@ pub unsafe fn main() {
     // TFT
     //--------------------------------------------------------------------------
 
-    let spi_mux = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+    let spi_mux =
+        components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),

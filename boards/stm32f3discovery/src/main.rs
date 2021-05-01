@@ -340,7 +340,7 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -603,7 +603,7 @@ pub unsafe fn main() {
     ));
 
     // L3GD20 sensor
-    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
+    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
     let l3gd20 =

@@ -285,6 +285,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
         mut _write: &'static mut [u8],
         mut read: Option<&'static mut [u8]>,
         _len: usize,
+        _spi_status: Result<(), ErrorCode>,
     ) {
         self.spi_busy.set(false);
         let rbuf = read.take().unwrap();
