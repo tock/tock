@@ -9,7 +9,7 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::common::{List, ListLink, ListNode};
-use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
+use kernel::hil::i2c::{self, I2CClient, I2CHwMasterClient};
 use kernel::ErrorCode;
 
 pub struct MuxI2C<'a> {
@@ -25,14 +25,14 @@ pub struct MuxI2C<'a> {
 }
 
 impl I2CHwMasterClient for MuxI2C<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         if self.i2c_inflight.is_some() {
             self.i2c_inflight.take().map(move |device| {
-                device.command_complete(buffer, error);
+                device.command_complete(buffer, status);
             });
         } else if self.smbus_inflight.is_some() {
             self.smbus_inflight.take().map(move |device| {
-                device.command_complete(buffer, error);
+                device.command_complete(buffer, status);
             });
         }
         self.do_next_op();
@@ -94,8 +94,7 @@ impl<'a> MuxI2C<'a> {
                             Ok(_) => {}
                             Err((error, buffer)) => {
                                 node.buffer.replace(buffer);
-                                node.operation
-                                    .set(Op::CommandComplete(Error::Request(error)));
+                                node.operation.set(Op::CommandComplete(Err(error)));
                                 node.mux.do_next_op_async();
                             }
                         },
@@ -103,8 +102,7 @@ impl<'a> MuxI2C<'a> {
                             Ok(_) => {}
                             Err((error, buffer)) => {
                                 node.buffer.replace(buffer);
-                                node.operation
-                                    .set(Op::CommandComplete(Error::Request(error)));
+                                node.operation.set(Op::CommandComplete(Err(error)));
                                 node.mux.do_next_op_async();
                             }
                         },
@@ -113,8 +111,7 @@ impl<'a> MuxI2C<'a> {
                                 Ok(_) => {}
                                 Err((error, buffer)) => {
                                     node.buffer.replace(buffer);
-                                    node.operation
-                                        .set(Op::CommandComplete(Error::Request(error)));
+                                    node.operation.set(Op::CommandComplete(Err(error)));
                                     node.mux.do_next_op_async();
                                 }
                             }
@@ -142,7 +139,7 @@ impl<'a> MuxI2C<'a> {
                                 Ok(_) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
-                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
                             };
@@ -152,7 +149,7 @@ impl<'a> MuxI2C<'a> {
                                 Ok(_) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
-                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
                             };
@@ -166,7 +163,7 @@ impl<'a> MuxI2C<'a> {
                                 Ok(_) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
-                                    node.operation.set(Op::CommandComplete(e.0));
+                                    node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
                             };
@@ -208,7 +205,7 @@ enum Op {
     Write(u8),
     Read(u8),
     WriteRead(u8, u8),
-    CommandComplete(i2c::Error),
+    CommandComplete(Result<(), ErrorCode>),
 }
 
 pub struct I2CDevice<'a> {
@@ -241,9 +238,9 @@ impl<'a> I2CDevice<'a> {
 }
 
 impl I2CClient for I2CDevice<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         self.client.map(move |client| {
-            client.command_complete(buffer, error);
+            client.command_complete(buffer, status);
         });
     }
 }
@@ -350,9 +347,9 @@ impl<'a> SMBusDevice<'a> {
 }
 
 impl<'a> I2CClient for SMBusDevice<'a> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         self.client.map(move |client| {
-            client.command_complete(buffer, error);
+            client.command_complete(buffer, status);
         });
     }
 }

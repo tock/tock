@@ -75,18 +75,9 @@ impl<'a> I2CMasterSlaveDriver<'a> {
 }
 
 impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         // Map I2C error to a number we can pass back to the application
-        let err: isize = match error {
-            hil::i2c::Error::AddressNak => -1,
-            hil::i2c::Error::DataNak => -2,
-            hil::i2c::Error::ArbitrationLost => -3,
-            hil::i2c::Error::Overrun => -4,
-            hil::i2c::Error::NotSupported => -5,
-            hil::i2c::Error::CommandComplete => 0,
-            // TODO most probaly this should not occur as this is used for the mux
-            hil::i2c::Error::Request(_) => unreachable!(),
-        };
+        let status = kernel::into_statuscode(status);
 
         // Signal the application layer. Need to copy read in bytes if this
         // was a read call.
@@ -96,7 +87,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
 
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |app| {
-                        app.callback.schedule(0, err as usize, 0);
+                        app.callback.schedule(0, status, 0);
                     });
                 });
             }
@@ -121,8 +112,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                             self.master_buffer.replace(buffer);
                             0
                         });
-
-                        app.callback.schedule(1, err as usize, 0);
+                        app.callback.schedule(1, status, 0);
                     });
                 });
             }
@@ -143,7 +133,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                             self.master_buffer.replace(buffer);
                             0
                         });
-                        app.callback.schedule(7, err as usize, 0);
+                        app.callback.schedule(7, status, 0);
                     });
                 });
             }

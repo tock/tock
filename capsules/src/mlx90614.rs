@@ -20,7 +20,7 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
-use kernel::hil::i2c::{self, Error};
+use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
@@ -113,13 +113,13 @@ impl<'a> Mlx90614SMBus<'_> {
 }
 
 impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         match self.state.get() {
             State::Idle => {
                 self.buffer.replace(buffer);
             }
             State::IsPresent => {
-                let present = if error == Error::CommandComplete && buffer[0] == 60 {
+                let present = if status == Ok(()) && buffer[0] == 60 {
                     true
                 } else {
                     false
@@ -136,7 +136,7 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
             State::ReadAmbientTemp | State::ReadObjTemp => {
                 let mut temp: usize = 0;
 
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     // Convert to centi celsius
                     temp = ((buffer[0] as usize | (buffer[1] as usize) << 8) * 2) - 27300;
                     self.temperature_client.map(|client| {

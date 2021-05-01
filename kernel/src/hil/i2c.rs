@@ -1,56 +1,6 @@
 //! Interface for I2C master and slave peripherals.
 
 use crate::ErrorCode;
-use core::fmt;
-use core::fmt::{Display, Formatter};
-
-/// The type of error encoutered during I2C communication.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Error {
-    /// The slave did not acknowledge the chip address. Most likely the address
-    /// is incorrect or the slave is not properly connected.
-    AddressNak,
-
-    /// The data was not acknowledged by the slave.
-    DataNak,
-
-    /// Arbitration lost, meaning the state of the data line does not correspond
-    /// to the data driven onto it. This can happen, for example, when a
-    /// higher-priority transmission is in progress by a different master.
-    ArbitrationLost,
-
-    /// A start condition was received before received data has been read
-    /// from the receive register.
-    Overrun,
-
-    /// The requested operation wasn't supported.
-    NotSupported,
-
-    /// No error occured and the command completed successfully.
-    CommandComplete,
-
-    /// Error reported when a virtual device fails synchronously
-    Request(ErrorCode),
-}
-
-impl Display for Error {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-        if let Error::Request(error) = self {
-            write!(fmt, "I2C Request {:?}", error)
-        } else {
-            let display_str = match *self {
-                Error::AddressNak => "I2C Address Not Acknowledged",
-                Error::DataNak => "I2C Data Not Acknowledged",
-                Error::ArbitrationLost => "I2C Bus Arbitration Lost",
-                Error::Overrun => "I2C receive overrun",
-                Error::NotSupported => "I2C/SMBus command not supported",
-                Error::CommandComplete => "I2C Command Completed",
-                _ => unreachable!(),
-            };
-            write!(fmt, "{}", display_str)
-        }
-    }
-}
 
 /// This specifies what type of transmission just finished from a Master device.
 #[derive(Copy, Clone, Debug)]
@@ -109,7 +59,7 @@ pub trait SMBusMaster: I2CMaster {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Write data via the I2C Master device in an SMBus compatible way.
     ///
@@ -127,7 +77,7 @@ pub trait SMBusMaster: I2CMaster {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Read data via the I2C Master device in an SMBus compatible way.
     ///
@@ -145,7 +95,7 @@ pub trait SMBusMaster: I2CMaster {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (Error, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 /// Interface for an I2C Slave hardware driver.
@@ -175,7 +125,7 @@ pub trait I2CMasterSlave: I2CMaster + I2CSlave {}
 pub trait I2CHwMasterClient {
     /// Called when an I2C command completed. The `error` denotes whether the command completed
     /// successfully or if an error occured.
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error);
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>);
 }
 
 /// Client interface for capsules that use I2CSlave devices.
@@ -282,5 +232,5 @@ pub trait SMBusDevice: I2CDevice {
 pub trait I2CClient {
     /// Called when an I2C command completed. The `error` denotes whether the command completed
     /// successfully or if an error occured.
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error);
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>);
 }

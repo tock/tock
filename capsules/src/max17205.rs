@@ -134,7 +134,7 @@ impl<'a> MAX17205<'a> {
         self.client.set(client);
     }
 
-    fn setup_read_status(&self) -> Result<(), ErrorCode> {
+    fn setup_readstatus(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
@@ -203,7 +203,7 @@ impl<'a> MAX17205<'a> {
 }
 
 impl i2c::I2CClient for MAX17205<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], error: Result<(), ErrorCode>) {
         match self.state.get() {
             State::SetupReadStatus => {
                 // Read status
@@ -212,12 +212,6 @@ impl i2c::I2CClient for MAX17205<'_> {
             }
             State::ReadStatus => {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
-
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
 
                 self.client.map(|client| client.status(status, error));
 
@@ -257,12 +251,6 @@ impl i2c::I2CClient for MAX17205<'_> {
             State::ReadCap => {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
                 self.client.map(|client| {
                     client.state_of_charge(self.soc.get(), self.soc_mah.get(), full_mah, error);
                 });
@@ -279,12 +267,6 @@ impl i2c::I2CClient for MAX17205<'_> {
             State::ReadCoulomb => {
                 // Read of voltage memory address complete
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
-
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
 
                 self.client.map(|client| {
                     client.coulomb(coulomb, error);
@@ -323,12 +305,6 @@ impl i2c::I2CClient for MAX17205<'_> {
             State::ReadCurrent => {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
                 self.client
                     .map(|client| client.voltage_current(self.voltage.get(), current, error));
 
@@ -348,12 +324,6 @@ impl i2c::I2CClient for MAX17205<'_> {
                     .enumerate()
                     .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
                 self.buffer.replace(buffer);
-
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
 
                 self.client.map(|client| client.romid(rid, error));
 
@@ -518,7 +488,7 @@ impl Driver for MAX17205Driver<'_> {
             0 => CommandReturn::success(),
 
             // read status
-            1 => self.max17205.setup_read_status().into(),
+            1 => self.max17205.setup_readstatus().into(),
 
             // get soc
             2 => self.max17205.setup_read_soc().into(),

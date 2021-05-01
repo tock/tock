@@ -165,9 +165,9 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: i2c::Error) {
-        match error {
-            i2c::Error::CommandComplete => {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+        match status {
+            Ok(()) => {
                 let state = self.state.get();
 
                 match state {

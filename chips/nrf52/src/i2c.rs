@@ -92,7 +92,7 @@ impl TWIM {
             self.client.map(|client| match self.buf.take() {
                 None => (),
                 Some(buf) => {
-                    client.command_complete(buf, hil::i2c::Error::CommandComplete);
+                    client.command_complete(buf, Ok(()));
                 }
             });
         }
@@ -106,14 +106,14 @@ impl TWIM {
             self.client.map(|client| match self.buf.take() {
                 None => (),
                 Some(buf) => {
-                    let i2c_error = if errorsrc.is_set(ERRORSRC::ANACK) {
-                        hil::i2c::Error::AddressNak
+                    let status = if errorsrc.is_set(ERRORSRC::ANACK) {
+                        Err(ErrorCode::NOACK)
                     } else if errorsrc.is_set(ERRORSRC::DNACK) {
-                        hil::i2c::Error::DataNak
+                        Err(ErrorCode::NOACK)
                     } else {
-                        hil::i2c::Error::CommandComplete
+                        Ok(())
                     };
-                    client.command_complete(buf, i2c_error);
+                    client.command_complete(buf, status);
                 }
             });
         }

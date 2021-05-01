@@ -151,7 +151,7 @@ impl<'a, A: time::Alarm<'a>> SI7021<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
         match self.state.get() {
             State::SelectElectronicId1 => {
                 self.i2c.read(buffer, 8);

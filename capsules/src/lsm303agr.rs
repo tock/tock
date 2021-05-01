@@ -83,7 +83,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::i2c::{self, Error};
+use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
@@ -317,10 +317,10 @@ impl<'a> Lsm303agrI2C<'a> {
 }
 
 impl i2c::I2CClient for Lsm303agrI2C<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
         match self.state.get() {
             State::IsPresent => {
-                let present = if error == Error::CommandComplete && buffer[0] == 60 {
+                let present = if status == Ok(()) && buffer[0] == 60 {
                     true
                 } else {
                     false
@@ -370,7 +370,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
                 let mut z: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let scale_factor = self.accel_scale.get() as usize;
@@ -443,7 +443,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             }
             State::ReadTemperature => {
                 let mut temp: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     temp = (buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as usize;
                     self.temperature_client.map(|client| {
                         client.callback((temp as i16 / 8) as usize);
@@ -472,7 +472,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
                 let mut z: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let range = self.mag_range.get() as usize;

@@ -4,8 +4,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
-use kernel::ClockInterface;
+use kernel::hil::i2c::{self, I2CHwMasterClient, I2CMaster};
+use kernel::{ClockInterface, ErrorCode};
 
 use crate::rcc;
 
@@ -363,7 +363,7 @@ impl<'a> I2C<'a> {
                         self.master_client.map(|client| {
                             self.buffer
                                 .take()
-                                .map(|buf| client.command_complete(buf, Error::DataNak))
+                                .map(|buf| client.command_complete(buf, Err(ErrorCode::NOACK)))
                         });
                     } else {
                         if self.status.get() == I2CStatus::Writing {
@@ -372,7 +372,7 @@ impl<'a> I2C<'a> {
                             self.master_client.map(|client| {
                                 self.buffer
                                     .take()
-                                    .map(|buf| client.command_complete(buf, Error::CommandComplete))
+                                    .map(|buf| client.command_complete(buf, Ok(())))
                             });
                         } else {
                             self.status.set(I2CStatus::Reading);
@@ -381,17 +381,17 @@ impl<'a> I2C<'a> {
                     }
                 }
                 I2CStatus::Reading => {
-                    let error = if self.rx_position.get() == self.rx_len.get() {
-                        Error::CommandComplete
+                    let status = if self.rx_position.get() == self.rx_len.get() {
+                        Ok(())
                     } else {
-                        Error::DataNak
+                        Err(ErrorCode::NOACK)
                     };
                     self.registers.cr2.modify(CR2::STOP::SET);
                     self.stop();
                     self.master_client.map(|client| {
                         self.buffer
                             .take()
-                            .map(|buf| client.command_complete(buf, error))
+                            .map(|buf| client.command_complete(buf, status))
                     });
                 }
                 _ => panic!("i2c status error"),
@@ -406,7 +406,7 @@ impl<'a> I2C<'a> {
             self.master_client.map(|client| {
                 self.buffer
                     .take()
-                    .map(|buf| client.command_complete(buf, Error::AddressNak))
+                    .map(|buf| client.command_complete(buf, Err(ErrorCode::NOACK)))
             });
         }
     }
@@ -416,7 +416,7 @@ impl<'a> I2C<'a> {
         self.master_client.map(|client| {
             self.buffer
                 .take()
-                .map(|buf| client.command_complete(buf, Error::DataNak))
+                .map(|buf| client.command_complete(buf, Err(ErrorCode::NOACK)))
         });
         self.stop();
     }
@@ -480,7 +480,13 @@ impl i2c::I2CMaster for I2C<'_> {
     fn disable(&self) {
         self.registers.cr1.modify(CR1::PE::CLEAR);
     }
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();
             self.status.set(I2CStatus::WritingReading);
@@ -490,9 +496,17 @@ impl i2c::I2CMaster for I2C<'_> {
             self.rx_len.set(read_len);
             self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
             self.start_write();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
         }
     }
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();
             self.status.set(I2CStatus::Writing);
@@ -501,9 +515,17 @@ impl i2c::I2CMaster for I2C<'_> {
             self.tx_len.set(len);
             self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
             self.start_write();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, data))
         }
     }
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();
             self.status.set(I2CStatus::Reading);
@@ -512,6 +534,9 @@ impl i2c::I2CMaster for I2C<'_> {
             self.rx_len.set(len);
             self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
             self.start_read();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, buffer))
         }
     }
 }

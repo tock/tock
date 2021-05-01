@@ -157,7 +157,7 @@ impl<'a> LPS25HB<'a> {
 }
 
 impl i2c::I2CClient for LPS25HB<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
         match self.state.get() {
             State::SelectWhoAmI => {
                 self.i2c.read(buffer, 1);

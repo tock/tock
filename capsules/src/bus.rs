@@ -27,7 +27,7 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::bus8080::{self, Bus8080};
-use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::hil::i2c::{I2CClient, I2CDevice};
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMasterClient, SpiMasterDevice};
 use kernel::ErrorCode;
 
@@ -317,9 +317,9 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
 }
 
 impl<'a, I: I2CDevice> I2CClient for I2CMasterBus<'a, I> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        let len = match error {
-            Error::CommandComplete => self.len.get(),
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+        let len = match status {
+            Ok(()) => self.len.get(),
             _ => 0,
         };
         match self.status.get() {
