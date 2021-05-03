@@ -568,10 +568,6 @@ impl<'a> Iom<'_> {
         }
 
         if write_len > 3 {
-            // We can't suppord that much data, bail out now
-            // self.master_client.map(|client| {
-            //     client.command_complete(self.buffer.take().unwrap(), Err(ErrorCode::NOSUPPORT));
-            // });
             Err((ErrorCode::NOSUPPORT, data))
         } else {
             // Save all the data and offsets we still need to send
