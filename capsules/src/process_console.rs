@@ -159,6 +159,12 @@ enum WriterState{
     ProcessProtected,
 }
 
+impl Default for WriterState {
+    fn default() -> Self {
+        WriterState::Empty
+    }
+}
+
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
@@ -859,12 +865,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             //     info.timeslice_expirations(&self.capability)
                             // );
                         } else if clean_str.starts_with("process"){
-                            // let writer = debug::get_debug_writer();
-                            // self.kernel.process_each_capability(
-                            //     &self.capability, 
-                            //     |proc| {
-                            //         self.print_memory_map(proc);
-                            // });
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
                                 self.kernel.process_each_capability(
@@ -872,33 +872,19 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
-                                            //self.print_process_memory_map(proc);
                                             self.write_state(WriterState::ProcessStart,Some(proc.appid()));
                                         }
                                     },
                                 );
                             });
                         }else if clean_str.starts_with("kernel"){
-                            
-                            //self.print_kernel_memory_map(kernel_info);
+                            let mut console_writer = ConsoleWriter::new();
+                            let _ = write(&mut console_writer,format_args!(
+                                "\r\nKernel version: {}\r\n",
+                                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
+                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            console_writer.clear();
                             self.write_state(WriterState::KernelStart,None);
-
-                            
-                            // let mut console_writer = ConsoleWriter::new();
-                            // let _ = write(&mut console_writer,format_args!(
-                            //     "{}\n",
-                            //     kernel_info.get_kernel_stack_start()));
-                            // self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
-                            // debug::panic_begin(Fn());
-                            // let _ = writer.write_fmt(format_args!(
-                            //     "\tKernel version {}\r\n",
-                            //     option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
-                            // ));
-                            // //Flush debug buffer if needed
-                            // debug::flush(writer);
-                            // debug::panic_cpu_state(chip, writer);
-                            // debug::panic_process_info(processes, writer);
                         } else {
                             debug!("Valid commands are: help status list stop start fault process kernel");
                         }
@@ -919,7 +905,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
 
         if !self.tx_in_progress.get() {
-            self.writer_state.replace(self.next_state(self.writer_state.get()));
+            self.writer_state.replace(self.next_state(self.writer_state.take()));
             self.create_state_buffer(self.writer_state.get(),self.writer_process.get());
             
         }
