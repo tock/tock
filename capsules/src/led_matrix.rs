@@ -42,6 +42,18 @@
 //! led.init();
 //! ```
 //!
+//! let single_led = static_init!(
+//!     capsules::led_matrix::LedMatrixLed<
+//!         'static,
+//!         nrf52::gpio::GPIOPin<'static>,
+//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     >,
+//!     led,
+//!     1,
+//!     2
+//! );
+//!
+//!
 //! Syscall Interface
 //! -----------------
 //!
@@ -67,13 +79,13 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
-use kernel::hil::gpio;
 use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 
-use kernel::hil::gpio::ActivationMode;
+use kernel::hil::gpio::{ActivationMode, Pin};
+use kernel::hil::led::Led;
 use kernel::hil::time::{Alarm, AlarmClient};
 
 /// Syscall driver number.
@@ -82,7 +94,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
-pub struct LedMatrixDriver<'a, L: gpio::Pin, A: Alarm<'a>> {
+pub struct LedMatrixDriver<'a, L: Pin, A: Alarm<'a>> {
     cols: &'a [&'a L],
     rows: &'a [&'a L],
     buffer: TakeCell<'a, [u8]>,
@@ -93,7 +105,7 @@ pub struct LedMatrixDriver<'a, L: gpio::Pin, A: Alarm<'a>> {
     col_activation: ActivationMode,
 }
 
-impl<'a, L: gpio::Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
+impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     pub fn new(
         cols: &'a [&'a L],
         rows: &'a [&'a L],
@@ -179,15 +191,52 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
             ActivationMode::ActiveLow => l.set(),
         }
     }
+
+    pub fn on(&self, col: usize, row: usize) {
+        if row < self.rows.len() && col < self.cols.len() {
+            let pos = row * self.rows.len() + col;
+            self.buffer
+                .map(|bits| bits[pos / 8] = bits[pos / 8] | (1 << (pos % 8)));
+        }
+    }
+
+    pub fn off(&self, col: usize, row: usize) {
+        if row < self.rows.len() && col < self.cols.len() {
+            let pos = row * self.rows.len() + col;
+            self.buffer
+                .map(|bits| bits[pos / 8] = bits[pos / 8] & !(1 << pos % 8));
+        }
+    }
+
+    pub fn toggle(&self, col: usize, row: usize) {
+        if row < self.rows.len() && col < self.cols.len() {
+            let pos = row * self.rows.len() + col;
+            self.buffer
+                .map(|bits| bits[pos / 8] = bits[pos % 8] ^ (1 << (pos % 8)));
+        }
+    }
+
+    pub fn read(&self, col: usize, row: usize) -> bool {
+        if row < self.rows.len() && col < self.cols.len() {
+            let pos = row * self.rows.len() + col;
+            self.buffer
+                .map_or(false, |bits| match bits[pos / 8] & (1 << (pos % 8)) {
+                    0 => false,
+                    _ => true,
+                })
+        } else {
+            false
+        }
+    }
 }
 
-impl<'a, L: gpio::Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
+impl<'a, L: Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     fn alarm(&self) {
         self.next_row();
     }
 }
 
-impl<'a, L: gpio::Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
+impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -241,5 +290,37 @@ impl<'a, L: gpio::Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+}
+// one Led from the matrix
+pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
+    matrix: &'a LedMatrixDriver<'a, L, A>,
+    row: usize,
+    col: usize,
+}
+
+impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
+    pub fn new(matrix: &'a LedMatrixDriver<'a, L, A>, col: usize, row: usize) -> Self {
+        LedMatrixLed { matrix, col, row }
+    }
+}
+
+impl<'a, L: Pin, A: Alarm<'a>> Led for LedMatrixLed<'a, L, A> {
+    fn init(&self) {}
+
+    fn on(&self) {
+        self.matrix.on(self.col, self.row);
+    }
+
+    fn off(&self) {
+        self.matrix.off(self.col, self.row);
+    }
+
+    fn toggle(&self) {
+        self.matrix.toggle(self.col, self.row);
+    }
+
+    fn read(&self) -> bool {
+        self.matrix.read(self.col, self.row)
     }
 }
