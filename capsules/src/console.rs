@@ -368,7 +368,36 @@ impl uart::ReceiveClient for Console<'_> {
                                         for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
                                             *a = *b;
                                         }
-                                        cb.schedule(From::from(rcode), rx_len, 0);
+
+                                        // Make sure we report the same number
+                                        // of bytes that we actually copied into
+                                        // the app's buffer. This is defensive:
+                                        // we shouldn't ever receive more bytes
+                                        // than will fit in the app buffer since
+                                        // we use the app_buffer's length when
+                                        // calling `receive()`. However, a buggy
+                                        // lower layer could return more bytes
+                                        // than we asked for, and we don't want
+                                        // to propagate that length error to
+                                        // userspace. However, we do return an
+                                        // error code so that userspace knows
+                                        // something went wrong.
+                                        let (ret, received_length) = if rx_len > app_buffer.len() {
+                                            // Return `ESIZE` indicating that
+                                            // some received bytes were dropped.
+                                            // We report the length that we
+                                            // actually copied into the buffer,
+                                            // but also indicate that there was
+                                            // an issue in the kernel with the
+                                            // receive.
+                                            (ReturnCode::ESIZE, app_buffer.len())
+                                        } else {
+                                            // This is the normal and expected
+                                            // case.
+                                            (rcode, rx_len)
+                                        };
+
+                                        cb.schedule(From::from(ret), received_length, 0);
                                     } else {
                                         // Oops, no app buffer
                                         cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);

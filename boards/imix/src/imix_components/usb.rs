@@ -17,6 +17,7 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::usb::UsbController;
 use kernel::static_init;
 
 pub struct UsbComponent {

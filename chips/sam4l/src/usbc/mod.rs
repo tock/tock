@@ -241,7 +241,7 @@ pub struct Usbc<'a> {
     descriptors: [Endpoint; N_ENDPOINTS],
     state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
-    client: Option<&'a dyn hil::usb::Client<'a>>,
+    client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -426,7 +426,7 @@ register_bitfields![u32,
 impl<'a> Usbc<'a> {
     const fn new() -> Self {
         Usbc {
-            client: None,
+            client: OptionalCell::empty(),
             state: OptionalCell::new(State::Reset),
             descriptors: [
                 new_endpoint(),
@@ -449,11 +449,6 @@ impl<'a> Usbc<'a> {
                 Cell::new(Requests::new()),
             ],
         }
-    }
-
-    /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client<'a>) {
-        self.client = Some(client);
     }
 
     fn map_state<F, R>(&self, closure: F) -> R
@@ -1443,6 +1438,10 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
+    fn set_client(&self, client: &'a dyn hil::usb::Client<'a>) {
+        self.client.set(client);
+    }
+
     fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
         if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");

@@ -20,7 +20,7 @@ use kernel::{create_capability, static_init};
 
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
-    radio: &'static nrf52::ble_radio::Radio,
+    radio: &'static nrf52::ble_radio::Radio<'static>,
     mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 }
 
@@ -42,7 +42,7 @@ impl Component for BLEComponent {
     type StaticInput = ();
     type Output = &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52::ble_radio::Radio,
+        nrf52::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
 

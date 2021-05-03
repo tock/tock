@@ -87,7 +87,7 @@ pub trait Transmit<'a> {
     /// not SUCCESS, then the `tx_buffer` argument is returned in the
     /// `Option`. Other valid `ReturnCode` values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
-    ///          because it has not been initialized or in the case of a shared
+    ///          it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
@@ -114,7 +114,7 @@ pub trait Transmit<'a> {
     /// `transmitted_word` will be called on the `TransmitClient`.
     /// Other valid `ReturnCode` values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
-    ///          because it has not been initialized or in the case of a shared
+    ///          it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
@@ -137,8 +137,8 @@ pub trait Transmit<'a> {
     /// `transmit_word` or `transmit_buffer` then a call to
     /// `abort_transmit` returns SUCCESS. If there was a `transmit`
     /// outstanding and is cancelled successfully then `EBUSY` will
-    /// be returned and a there will be a callback with a `ReturnCode`
-    /// of `ECANCEL`.  If there was a reception outstanding, which is
+    /// be returned and there will be a callback with a `ReturnCode`
+    /// of `ECANCEL`. If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
     ///
@@ -161,7 +161,7 @@ pub trait Receive<'a> {
     /// not SUCCESS, then the `rx_buffer` argument is returned in the
     /// `Option`. Other valid return values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
-    ///          because it has not been initialized or in the case of a shared
+    ///          it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already receiving and has not made a
     ///           reception `complete` callback yet.
@@ -184,7 +184,7 @@ pub trait Receive<'a> {
     /// `received_word` will be called on the `ReceiveClient`.
     /// Other valid `ReturnCode` values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
-    ///          because it has not been initialized or in the case of a shared
+    ///          it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already receiving and has not made a
     ///           reception callback yet.
@@ -199,7 +199,7 @@ pub trait Receive<'a> {
     /// SUCCESS is returned, there will be no callback (no call to
     /// `receive` was outstanding). If there was a `receive`
     /// outstanding, which is cancelled successfully then `EBUSY` will
-    /// be returned and a there will be a callback with a `ReturnCode`
+    /// be returned and there will be a callback with a `ReturnCode`
     /// of `ECANCEL`.  If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
@@ -263,7 +263,7 @@ pub trait ReceiveClient {
     /// SHOULD NOT return EBUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
-    /// The `rx_len` argument specifies how many words were transmitted.
+    /// The `rx_len` argument specifies how many words were received.
     /// An `rval` of SUCCESS indicates that every requested word was
     /// received: `rx_len` in the callback should be the same as
     /// `rx_len` in the initiating call.
@@ -273,7 +273,7 @@ pub trait ReceiveClient {
     ///     the buffer was not fully received. `rx_len` contains
     ///     how many words were received.
     ///   - ESIZE if the buffer could only be partially received. `rx_len`
-    ///     contains how many words were transmitted.
+    ///     contains how many words were received.
     ///   - FAIL if reception failed in some way: `error` may contain further
     ///     information.
     fn received_buffer(
