@@ -9,7 +9,6 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
-
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
@@ -17,9 +16,9 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
+use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
-use kernel::debug;
 use rp2040;
 
 use rp2040::adc::{Adc, Channel};
@@ -52,7 +51,7 @@ static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -370,8 +369,8 @@ pub unsafe fn main() {
     );
     // // PROCESS CONSOLE
     let process_console =
-    components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-        .finalize(());
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
     let _ = process_console.start();
 
     let raspberry_pi_pico = RaspberryPiPico {
@@ -410,7 +409,7 @@ pub unsafe fn main() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

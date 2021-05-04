@@ -18,6 +18,7 @@ struct GpioPin {
 }
 
 #[allow(dead_code)]
+#[repr(C)]
 struct GpioProc {
     enable: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
     force: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
