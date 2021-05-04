@@ -47,10 +47,7 @@ register_structs! {
 
         /// End
         (0x190 => @END),
-    }
-}
-
-register_structs! {
+    },
     /// User Bank Pad Control Registers
     GpioPadRegisters {
         /// Voltage select
@@ -61,10 +58,7 @@ register_structs! {
 
         /// End
         (0x84 => @END),
-    }
-}
-
-register_structs! {
+    },
     /// SIO Control Registers
     SIORegisters {
         /// Not used

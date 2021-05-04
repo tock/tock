@@ -12,11 +12,7 @@ register_structs! {
         (0x008 => selected: ReadOnly<u32, CLK_GPOUTx_SELECTED::Register>),
         /// Clock control, can be changed on-the-fly (except for auxsrc)
         (0x00C => @END),
-    }
-}
-
-register_structs! {
-
+    },
     ClocksRegisters {
         (0x000 => clk_gpio: [GpioClockRegisters; 4]),
         /// Clock control, can be changed on-the-fly (except for auxsrc)
@@ -98,6 +94,24 @@ register_structs! {
         /// Interrupt status after masking & forcing
         (0x0C4 => ints: ReadWrite<u32>),
         (0x0C8 => @END),
+    },
+    PllRegisters {
+        /// Control and Status\n
+        /// GENERAL CONSTRAINTS:\n
+        /// Reference clock frequency min=5MHz, max=800MHz\n
+        /// Feedback divider min=16, max=320\n
+        /// VCO frequency min=400MHz, max=1600MHz
+        (0x000 => cs: ReadWrite<u32, CS::Register>),
+        /// Controls the PLL power modes.
+        (0x004 => pwr: ReadWrite<u32, PWR::Register>),
+        /// Feedback divisor\n
+        /// (note: this PLL does not support fractional division)
+        (0x008 => fbdiv_int: ReadWrite<u32, FBDIV_INT::Register>),
+        /// Controls the PLL post dividers for the primary output\n
+        /// (note: this PLL does not have a secondary output)\n
+        /// the primary output is driven from VCO divided by postdiv1*postdiv2
+        (0x00C => prim: ReadWrite<u32, PRIM::Register>),
+        (0x010 => @END),
     }
 }
 
@@ -674,27 +688,6 @@ register_bitfields![u32,
     ]
 ];
 
-register_structs! {
-
-    PllRegisters {
-        /// Control and Status\n
-        /// GENERAL CONSTRAINTS:\n
-        /// Reference clock frequency min=5MHz, max=800MHz\n
-        /// Feedback divider min=16, max=320\n
-        /// VCO frequency min=400MHz, max=1600MHz
-        (0x000 => cs: ReadWrite<u32, CS::Register>),
-        /// Controls the PLL power modes.
-        (0x004 => pwr: ReadWrite<u32, PWR::Register>),
-        /// Feedback divisor\n
-        /// (note: this PLL does not support fractional division)
-        (0x008 => fbdiv_int: ReadWrite<u32, FBDIV_INT::Register>),
-        /// Controls the PLL post dividers for the primary output\n
-        /// (note: this PLL does not have a secondary output)\n
-        /// the primary output is driven from VCO divided by postdiv1*postdiv2
-        (0x00C => prim: ReadWrite<u32, PRIM::Register>),
-        (0x010 => @END),
-    }
-}
 register_bitfields![u32,
     CS [
         /// PLL is locked
