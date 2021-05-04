@@ -145,6 +145,14 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
         self.next_row();
     }
 
+    pub fn cols_len(&self) -> usize {
+        self.cols.len()
+    }
+
+    pub fn rows_len(&self) -> usize {
+        self.rows.len()
+    }
+
     fn next_row(&self) {
         self.row_clear(self.rows[self.current_row.get()]);
         self.current_row
@@ -192,40 +200,59 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
         }
     }
 
-    pub fn on(&self, col: usize, row: usize) {
-        if row < self.rows.len() && col < self.cols.len() {
-            let pos = row * self.rows.len() + col;
-            self.buffer
-                .map(|bits| bits[pos / 8] = bits[pos / 8] | (1 << (pos % 8)));
-        }
+    pub fn on(&self, col: usize, row: usize) -> Result<(), ErrorCode> {
+        self.on_index(row * self.rows.len() + col)
     }
 
-    pub fn off(&self, col: usize, row: usize) {
-        if row < self.rows.len() && col < self.cols.len() {
-            let pos = row * self.rows.len() + col;
+    fn on_index(&self, led_index: usize) -> Result<(), ErrorCode> {
+        if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[pos / 8] = bits[pos / 8] & !(1 << pos % 8));
-        }
-    }
-
-    pub fn toggle(&self, col: usize, row: usize) {
-        if row < self.rows.len() && col < self.cols.len() {
-            let pos = row * self.rows.len() + col;
-            self.buffer
-                .map(|bits| bits[pos / 8] = bits[pos % 8] ^ (1 << (pos % 8)));
-        }
-    }
-
-    pub fn read(&self, col: usize, row: usize) -> bool {
-        if row < self.rows.len() && col < self.cols.len() {
-            let pos = row * self.rows.len() + col;
-            self.buffer
-                .map_or(false, |bits| match bits[pos / 8] & (1 << (pos % 8)) {
-                    0 => false,
-                    _ => true,
-                })
+                .map(|bits| bits[led_index / 8] = bits[led_index / 8] | (1 << (led_index % 8)));
+            Ok(())
         } else {
-            false
+            Err(ErrorCode::INVAL)
+        }
+    }
+
+    pub fn off(&self, col: usize, row: usize) -> Result<(), ErrorCode> {
+        self.off_index(row * self.rows.len() + col)
+    }
+
+    fn off_index(&self, led_index: usize) -> Result<(), ErrorCode> {
+        if led_index < self.rows.len() * self.cols.len() {
+            self.buffer
+                .map(|bits| bits[led_index / 8] = bits[led_index / 8] & !(1 << led_index % 8));
+            Ok(())
+        } else {
+            Err(ErrorCode::INVAL)
+        }
+    }
+
+    pub fn toggle(&self, col: usize, row: usize) -> Result<(), ErrorCode> {
+        self.toggle_index(row * self.rows.len() + col)
+    }
+
+    fn toggle_index(&self, led_index: usize) -> Result<(), ErrorCode> {
+        if led_index < self.rows.len() * self.cols.len() {
+            self.buffer
+                .map(|bits| bits[led_index / 8] = bits[led_index % 8] ^ (1 << (led_index % 8)));
+            Ok(())
+        } else {
+            Err(ErrorCode::INVAL)
+        }
+    }
+
+    fn read(&self, col: usize, row: usize) -> Result<bool, ErrorCode> {
+        if row < self.rows.len() && col < self.cols.len() {
+            let pos = row * self.rows.len() + col;
+            self.buffer.map_or(Err(ErrorCode::FAIL), |bits| {
+                match bits[pos / 8] & (1 << (pos % 8)) {
+                    0 => Ok(false),
+                    _ => Ok(true),
+                }
+            })
+        } else {
+            Err(ErrorCode::INVAL)
         }
     }
 }
@@ -255,37 +282,13 @@ impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
             0 => CommandReturn::success_u32((self.cols.len() * self.rows.len()) as u32),
 
             // on
-            1 => {
-                if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
-                } else {
-                    self.buffer
-                        .map(|bits| bits[data / 8] = bits[data / 8] | (1 << (data % 8)));
-                    CommandReturn::success()
-                }
-            }
+            1 => CommandReturn::from(self.on_index(data)),
 
             // off
-            2 => {
-                if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
-                } else {
-                    self.buffer
-                        .map(|bits| bits[data / 8] = bits[data / 8] & !(1 << data % 8));
-                    CommandReturn::success()
-                }
-            }
+            2 => CommandReturn::from(self.off_index(data)),
 
             // toggle
-            3 => {
-                if data >= self.cols.len() as usize * self.rows.len() as usize {
-                    CommandReturn::failure(ErrorCode::INVAL) /* led out of range */
-                } else {
-                    self.buffer
-                        .map(|bits| bits[data / 8] = bits[data % 8] ^ (1 << (data % 8)));
-                    CommandReturn::success()
-                }
-            }
+            3 => CommandReturn::from(self.toggle_index(data)),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
@@ -301,6 +304,9 @@ pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
 
 impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
     pub fn new(matrix: &'a LedMatrixDriver<'a, L, A>, col: usize, row: usize) -> Self {
+        if col >= matrix.cols_len() || row >= matrix.rows_len() {
+            panic!("LET at position ({}, {}) does not exist", col, row);
+        }
         LedMatrixLed { matrix, col, row }
     }
 }
@@ -309,18 +315,21 @@ impl<'a, L: Pin, A: Alarm<'a>> Led for LedMatrixLed<'a, L, A> {
     fn init(&self) {}
 
     fn on(&self) {
-        self.matrix.on(self.col, self.row);
+        let _ = self.matrix.on(self.col, self.row);
     }
 
     fn off(&self) {
-        self.matrix.off(self.col, self.row);
+        let _ = self.matrix.off(self.col, self.row);
     }
 
     fn toggle(&self) {
-        self.matrix.toggle(self.col, self.row);
+        let _ = self.matrix.toggle(self.col, self.row);
     }
 
     fn read(&self) -> bool {
-        self.matrix.read(self.col, self.row)
+        match self.matrix.read(self.col, self.row) {
+            Ok(v) => v,
+            Err(_) => false,
+        }
     }
 }
