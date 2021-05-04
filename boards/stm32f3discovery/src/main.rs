@@ -594,7 +594,7 @@ pub unsafe fn main() {
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
+    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new(board_kernel).finalize(
         components::l3gd20_spi_component_helper!(
             // spi type
             stm32f303xc::spi::Spi,
