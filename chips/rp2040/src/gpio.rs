@@ -16,8 +16,6 @@ struct GpioPin {
     status: ReadOnly<u32, GPIOx_STATUS::Register>,
     ctrl: ReadWrite<u32, GPIOx_CTRL::Register>,
 }
-
-#[allow(dead_code)]
 #[repr(C)]
 struct GpioProc {
     enable: [ReadWrite<u32, GPIO_INTxx::Register>; 4],
@@ -33,14 +31,8 @@ register_structs! {
         /// Raw interrupts
         (0x0f0 => intr: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
 
-        /// Interrupt enable for proc0
-        (0x100 => intre: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
-
-        /// Interrupt status for proc0
-        (0x100 => intrs: [ReadWrite<u32, GPIO_INTxx::Register>; 4]),
-
         /// Interrupts for procs
-        (0x100 => proc: [GpioProc; 2]),
+        (0x100 => interrupt_proc: [GpioProc; 2]),
 
         /// Wake
         (0x160 => wake: GpioProc),
@@ -104,7 +96,7 @@ register_structs! {
         (0x058 => fifo_rd: ReadOnly<u32, FIFO_RD::Register>),
 
         /// End
-        (0x02c => @END),
+        (0x05c => @END),
     }
 }
 
@@ -345,7 +337,7 @@ impl<'a> RPPins<'a> {
     pub fn handle_interrupt(&self) {
         for bank_no in 0..4 {
             let current_val = self.gpio_registers.intr[bank_no].get();
-            let enabled_val = self.gpio_registers.intre[bank_no].get();
+            let enabled_val = self.gpio_registers.interrupt_proc[0].enable[bank_no].get();
             for pin in 0..8 {
                 let l_low_reg_no = pin * 4;
                 if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
@@ -477,7 +469,7 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
     fn is_pending(&self) -> bool {
         let interrupt_bank_no = self.pin / 8;
         let l_low_reg_no = (self.pin * 4) % 32;
-        let current_val = self.gpio_registers.intrs[interrupt_bank_no].get();
+        let current_val = self.gpio_registers.interrupt_proc[0].status[interrupt_bank_no].get();
         if (current_val
             & (1 << l_low_reg_no)
             & (1 << l_low_reg_no + 1)
@@ -496,19 +488,24 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
         match mode {
             hil::gpio::InterruptEdge::RisingEdge => {
                 let high_reg_no = (self.pin * 4 + 3) % 32;
-                let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-                self.gpio_registers.intre[interrupt_bank_no].set((1 << high_reg_no) | current_val);
+                let current_val =
+                    self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no].get();
+                self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no]
+                    .set((1 << high_reg_no) | current_val);
             }
             hil::gpio::InterruptEdge::FallingEdge => {
                 let low_reg_no = (self.pin * 4 + 2) % 32;
-                let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-                self.gpio_registers.intre[interrupt_bank_no].set((1 << low_reg_no) | current_val);
+                let current_val =
+                    self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no].get();
+                self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no]
+                    .set((1 << low_reg_no) | current_val);
             }
             hil::gpio::InterruptEdge::EitherEdge => {
                 let low_reg_no = (self.pin * 4 + 2) % 32;
                 let high_reg_no = low_reg_no + 1;
-                let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-                self.gpio_registers.intre[interrupt_bank_no]
+                let current_val =
+                    self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no].get();
+                self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no]
                     .set((1 << high_reg_no) | (1 << low_reg_no) | current_val);
             }
         }
@@ -518,8 +515,8 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
         let interrupt_bank_no = self.pin / 8;
         let low_reg_no = (self.pin * 4 + 2) % 32;
         let high_reg_no = low_reg_no + 1;
-        let current_val = self.gpio_registers.intre[interrupt_bank_no].get();
-        self.gpio_registers.intre[interrupt_bank_no]
+        let current_val = self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no].get();
+        self.gpio_registers.interrupt_proc[0].enable[interrupt_bank_no]
             .set(current_val & !(1 << high_reg_no) & !(1 << low_reg_no));
     }
 }
