@@ -27,6 +27,20 @@
 //!     nrf52::rtc::Rtc<'static>
 //! ));
 //! ```
+//!
+//! Single LED usage
+//! ----------------
+//!
+//! ```rust
+//! let led = components::led_matrix_led!(
+//!     nrf52::gpio::GPIOPin<'static>,
+//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     led,
+//!     1,
+//!     2
+//! );
+//! ```
+//!
 
 use capsules::led_matrix::LedMatrixDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -80,6 +94,17 @@ macro_rules! led_matrix_component_buf {
         static mut led: MaybeUninit<LedMatrixDriver<'static, $Pin, VirtualMuxAlarm<'static, $A>>> =
             MaybeUninit::uninit();
         (&mut alarm, &mut led)
+    };};
+}
+
+#[macro_export]
+macro_rules! led_matrix_led {
+    ($Pin:ty, $A: ty, $led_matrix: expr, $col: expr, $row: expr) => {{
+        use capsules::led_matrix::LedMatrixLed;
+        static_init!(
+            LedMatrixLed<'static, $Pin, $A>,
+            LedMatrixLed::new($led_matrix, $col, $row)
+        )
     };};
 }
 
