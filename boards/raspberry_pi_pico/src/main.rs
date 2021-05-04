@@ -270,12 +270,6 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    // // PROCESS CONSOLE
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
-    let _ = process_console.start();
-
     let gpio = GpioComponent::new(
         board_kernel,
         components::gpio_component_helper!(
@@ -367,7 +361,7 @@ pub unsafe fn main() {
             adc_channel_3,
         ),
     );
-    // // PROCESS CONSOLE
+    // PROCESS CONSOLE
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());

@@ -229,11 +229,16 @@ SECTIONS
         . = ALIGN(4);
         _sapps = .;
 
-        /* Include a placeholder byte in this section so that the linker
+        /* Include a placeholder byte(s) in this section so that the linker
          * includes a segment for it. Otherwise the section will be empty and
          * the linker will ignore it when defining the segments.
+         * If less then 4 bytes, some linkers set this section to size 0
+         * and openocd fails to write it.
          */
-        BYTE(0)
+        BYTE(0xFF)
+        BYTE(0xFF)
+        BYTE(0xFF)
+        BYTE(0xFF)
     } > prog
     /* _eapps symbol used by tock to calculate the length of app flash */
     _eapps = _sapps + LENGTH(prog);
