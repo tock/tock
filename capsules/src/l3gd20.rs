@@ -182,7 +182,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            upcall: Upcall::default()
+            upcall: Upcall::default(),
         }
     }
 }
@@ -220,7 +220,7 @@ impl<'a> L3gd20Spi<'a> {
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
             current_process: OptionalCell::empty(),
-            grants: grants,            
+            grants: grants,
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -331,7 +331,7 @@ impl Driver for L3gd20Spi<'_> {
         } else {
             return CommandReturn::failure(ErrorCode::RESERVE);
         }
-        
+
         match command_num {
             // Check is sensor is correctly connected
             1 => {
@@ -445,11 +445,10 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                         } else {
                             false
                         };
-                        app.upcall
-                            .schedule(1, if present { 1 } else { 0 }, 0);
+                        app.upcall.schedule(1, if present { 1 } else { 0 }, 0);
                         L3gd20Status::Idle
                     }
-                    
+
                     L3gd20Status::ReadXYZ => {
                         let mut x: usize = 0;
                         let mut y: usize = 0;
@@ -463,19 +462,22 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                                         1 => L3GD20_SCALE_500,
                                         _ => L3GD20_SCALE_2000,
                                     };
-                                    let x: usize = ((buf[1] as i16 | ((buf[2] as i16) << 8)) as isize
-                                                    * scale
-                                                    / 100000) as usize;
-                                    let y: usize = ((buf[3] as i16 | ((buf[4] as i16) << 8)) as isize
-                                                    * scale
-                                                    / 100000) as usize;
-                                    let z: usize = ((buf[5] as i16 | ((buf[6] as i16) << 8)) as isize
-                                                    * scale
-                                                    / 100000) as usize;
+                                    let x: usize =
+                                        ((buf[1] as i16 | ((buf[2] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
+                                    let y: usize =
+                                        ((buf[3] as i16 | ((buf[4] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
+                                    let z: usize =
+                                        ((buf[5] as i16 | ((buf[6] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
                                     client.callback(x, y, z);
                                 });
                                 // actual computation is this one
-                                
+
                                 x = (buf[1] as i16 | ((buf[2] as i16) << 8)) as usize;
                                 y = (buf[3] as i16 | ((buf[4] as i16) << 8)) as usize;
                                 z = (buf[5] as i16 | ((buf[6] as i16) << 8)) as usize;
@@ -496,7 +498,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                         }
                         L3gd20Status::Idle
                     }
-                    
+
                     L3gd20Status::ReadTemperature => {
                         let mut temperature: usize = 0;
                         let value = if let Some(ref buf) = read_buffer {
@@ -522,7 +524,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                         }
                         L3gd20Status::Idle
                     }
-                    
+
                     _ => {
                         app.upcall.schedule(0, 0, 0);
                         L3gd20Status::Idle
@@ -536,7 +538,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         }
     }
 }
-        
+
 impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);

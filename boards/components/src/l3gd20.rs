@@ -64,7 +64,7 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20SpiComponent<S> {
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(&grant_cap);
-        
+
         let l3gd20 = static_init_half!(
             static_buffer.1,
             L3gd20Spi<'static>,
