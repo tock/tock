@@ -116,6 +116,62 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
     }
 }
 
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
+    for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn bit_str<'a>(cfg: u8, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
+            match cfg & bit {
+                0 => off_str,
+                _ => on_str,
+            }
+        }
+
+        fn enabled_str<'a>(cfg: u8) -> &'a str {
+            if cfg & pmpcfg::a::OFF.mask() == pmpcfg::a::OFF.value {
+                "OFF"
+            } else if cfg & pmpcfg::a::TOR.mask() == pmpcfg::a::TOR.value {
+                "TOR"
+            } else if cfg & pmpcfg::a::NA4.mask() == pmpcfg::a::NA4.value {
+                "NA4"
+            } else if cfg & pmpcfg::a::NAPOT.mask() == pmpcfg::a::NAPOT.value {
+                "NAPOT"
+            } else {
+                unreachable!()
+            }
+        }
+
+        write!(f, " ePMP regions:\r\n")?;
+
+        for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+            // Read the current value
+            let pmpcfg = (csr::CSR.pmpconfig_get(i / 4) >> ((i % 4) * 8)) as u8;
+            let pmpaddr0 = if i > 0 {
+                csr::CSR.pmpaddr_get(i - 1) << 2
+            } else {
+                0
+            };
+            let pmpaddr1 = csr::CSR.pmpaddr_get(i) << 2;
+
+            write!(
+                f,
+                "  [{}]: addr={:#010X}, end={:#010X}, cfg={:#X} ({}) ({}{}{}{})\r\n",
+                i,
+                pmpaddr0,
+                pmpaddr1,
+                pmpcfg,
+                enabled_str(pmpcfg),
+                bit_str(pmpcfg, pmpcfg::l::SET.value, "l", "-"),
+                bit_str(pmpcfg, pmpcfg::r::SET.value, "r", "-"),
+                bit_str(pmpcfg, pmpcfg::w::SET.value, "w", "-"),
+                bit_str(pmpcfg, pmpcfg::x::SET.value, "x", "-"),
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Struct storing configuration for a RISC-V PMP region.
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
@@ -295,7 +351,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
     for PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, " PMP regions:\r\n")?;
+        write!(f, " App ePMP regions:\r\n")?;
         for (n, region) in self.regions.iter().enumerate() {
             match region {
                 None => write!(f, "  <unset>\r\n")?,
