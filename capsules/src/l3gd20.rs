@@ -175,16 +175,9 @@ enum L3gd20Status {
 //     Idle,
 // }
 
+#[derive(Default)]
 pub struct App {
     upcall: Upcall,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            upcall: Upcall::default(),
-        }
-    }
 }
 
 pub struct L3gd20Spi<'a> {
@@ -411,16 +404,23 @@ impl Driver for L3gd20Spi<'_> {
         mut upcall: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 /* set the one shot callback */ => {
-                let _ = self
-                    .grants.enter(process_id, |grant| {
-                    mem::swap(&mut grant.upcall, &mut upcall);
-                });
-                Ok(upcall)
-            },
-            // default
-            _ => Err((upcall, ErrorCode::NOSUPPORT)),
+        let res =
+            self
+            .grants
+            .enter(process_id, |app| {
+                match subscribe_num {
+                    0 /* set the one shot callback */ => {
+                        mem::swap(&mut app.upcall, &mut upcall);
+                        Ok(())
+                    }
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(upcall),
+            Err(e) => Err((upcall, e))
         }
     }
 }
