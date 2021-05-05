@@ -112,7 +112,7 @@ pub enum VBatAlert {
 
 #[derive(Default)]
 pub struct App {
-    upcall: Upcall
+    upcall: Upcall,
 }
 
 /// Supported events for the LTC294X.
@@ -420,7 +420,7 @@ impl<'a> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
             grants: grants,
-            owning_process: OptionalCell::empty()
+            owning_process: OptionalCell::empty(),
         }
     }
 }
@@ -449,7 +449,8 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((accumulated_charge_overflow as usize) << 4);
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(1, ret, self.ltc294x.model.get() as usize);
+                app.upcall
+                    .schedule(1, ret, self.ltc294x.model.get() as usize);
             });
         });
     }
@@ -522,7 +523,7 @@ impl Driver for LTC294XDriver<'_> {
             .unwrap_or_else(|e| Err(e.into()));
         match res {
             Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e))
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -543,15 +544,19 @@ impl Driver for LTC294XDriver<'_> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize,
-               data: usize, _: usize, process_id: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
         if command_num == 0 {
             // Handle this first as it should be returned
             // unconditionally
             return CommandReturn::success();
         }
 
-        
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.grants
                 .enter(*current_process, |_| current_process == &process_id)
@@ -562,7 +567,7 @@ impl Driver for LTC294XDriver<'_> {
         } else {
             return CommandReturn::failure(ErrorCode::NOMEM);
         }
-        
+
         match command_num {
             // Get status.
             1 => self.ltc294x.read_status().into(),
