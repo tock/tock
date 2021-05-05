@@ -59,13 +59,13 @@ macro_rules! lsm303agr_i2c_component_helper {
 }
 
 pub struct Lsm303agrI2CComponent {
-    board_kernel: &'static kernel::Kernel
+    board_kernel: &'static kernel::Kernel,
 }
 
 impl Lsm303agrI2CComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> Lsm303agrI2CComponent {
         Lsm303agrI2CComponent {
-            board_kernel: board_kernel
+            board_kernel: board_kernel,
         }
     }
 }
@@ -85,10 +85,7 @@ impl Component for Lsm303agrI2CComponent {
         let lsm303agr = static_init_half!(
             static_buffer.3,
             Lsm303agrI2C<'static>,
-            Lsm303agrI2C::new(static_buffer.0,
-                              static_buffer.1,
-                              static_buffer.2,
-                              grant)
+            Lsm303agrI2C::new(static_buffer.0, static_buffer.1, static_buffer.2, grant)
         );
         static_buffer.0.set_client(lsm303agr);
         static_buffer.1.set_client(lsm303agr);

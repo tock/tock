@@ -135,7 +135,7 @@ enum State {
 
 #[derive(Default)]
 pub struct App {
-    upcall: Upcall
+    upcall: Upcall,
 }
 
 pub struct Lsm303agrI2C<'a> {
@@ -162,7 +162,7 @@ impl<'a> Lsm303agrI2C<'a> {
         i2c_accelerometer: &'a dyn i2c::I2CDevice,
         i2c_magnetometer: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-        grant: Grant<App>
+        grant: Grant<App>,
     ) -> Lsm303agrI2C<'a> {
         // setup and return struct
         Lsm303agrI2C {
@@ -355,7 +355,8 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let set_scale_and_resolution = error == Error::CommandComplete;
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
-                        app.upcall.schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
+                        app.upcall
+                            .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
                     });
                 });
                 self.buffer.replace(buffer);
@@ -415,7 +416,8 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let set_magneto_data_rate = error == Error::CommandComplete;
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
-                        app.upcall.schedule(if set_magneto_data_rate { 1 } else { 0 }, 0, 0);
+                        app.upcall
+                            .schedule(if set_magneto_data_rate { 1 } else { 0 }, 0, 0);
                     });
                 });
                 self.buffer.replace(buffer);
@@ -528,7 +530,7 @@ impl Driver for Lsm303agrI2C<'_> {
             // unconditionally
             return CommandReturn::success();
         }
-        
+
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
                 .enter(*current_process, |_| current_process == &process_id)
