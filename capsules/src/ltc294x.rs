@@ -49,7 +49,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -108,6 +108,11 @@ pub enum VBatAlert {
     Threshold2V8 = 0x01,
     Threshold2V9 = 0x02,
     Threshold3V0 = 0x03,
+}
+
+#[derive(Default)]
+pub struct App {
+    upcall: Upcall
 }
 
 /// Supported events for the LTC294X.
@@ -406,21 +411,27 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    callback: Cell<Upcall>,
+    grants: Grant<App>,
+    owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X<'a>) -> LTC294XDriver<'a> {
+    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
-            callback: Cell::new(Upcall::default()),
+            grants: grants,
+            owning_process: OptionalCell::empty()
         }
     }
 }
 
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
-        self.callback.get().schedule(0, 0, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(0, 0, 0);
+            });
+        });
     }
 
     fn status(
@@ -436,25 +447,43 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((charge_alert_low as usize) << 2)
             | ((charge_alert_high as usize) << 3)
             | ((accumulated_charge_overflow as usize) << 4);
-        self.callback
-            .get()
-            .schedule(1, ret, self.ltc294x.model.get() as usize);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(1, ret, self.ltc294x.model.get() as usize);
+            });
+        });
     }
 
     fn charge(&self, charge: u16) {
-        self.callback.get().schedule(2, charge as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(2, charge as usize, 0);
+            });
+        });
     }
 
     fn done(&self) {
-        self.callback.get().schedule(3, 0, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(3, 0, 0);
+            });
+        });
     }
 
     fn voltage(&self, voltage: u16) {
-        self.callback.get().schedule(4, voltage as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(4, voltage as usize, 0);
+            });
+        });
     }
 
     fn current(&self, current: u16) {
-        self.callback.get().schedule(5, current as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(5, current as usize, 0);
+            });
+        });
     }
 }
 
@@ -475,14 +504,25 @@ impl Driver for LTC294XDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Upcall,
-        _app_id: ProcessId,
+        mut callback: Upcall,
+        process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => Ok(self.callback.replace(callback)),
-
-            // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+        let res = self
+            .grants
+            .enter(process_id, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.upcall, &mut callback);
+                        Ok(())
+                    }
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e))
         }
     }
 
@@ -503,11 +543,27 @@ impl Driver for LTC294XDriver<'_> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
-        match command_num {
-            // Check this driver exists.
-            0 => CommandReturn::success(),
+    fn command(&self, command_num: usize,
+               data: usize, _: usize, process_id: ProcessId) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
 
+        
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.grants
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+        
+        match command_num {
             // Get status.
             1 => self.ltc294x.read_status().into(),
 
