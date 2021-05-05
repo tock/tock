@@ -404,8 +404,7 @@ impl Driver for L3gd20Spi<'_> {
         mut upcall: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res =
-            self
+        let res = self
             .grants
             .enter(process_id, |app| {
                 match subscribe_num {
@@ -420,7 +419,7 @@ impl Driver for L3gd20Spi<'_> {
             .unwrap_or_else(|e| Err(e.into()));
         match res {
             Ok(()) => Ok(upcall),
-            Err(e) => Err((upcall, e))
+            Err(e) => Err((upcall, e)),
         }
     }
 }
