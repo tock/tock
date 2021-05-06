@@ -543,7 +543,6 @@ impl Driver for Lsm303agrI2C<'_> {
         }
 
         match command_num {
-            0 => CommandReturn::success(),
             // Check is sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
