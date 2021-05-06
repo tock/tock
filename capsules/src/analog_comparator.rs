@@ -196,8 +196,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
 {
     /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.current_process.take().map(|appid| {
-            let _ = self.grants.enter(appid, |app| {
+        self.current_process.map(|appid| {
+            let _ = self.grants.enter(*appid, |app| {
                 app.callback.schedule(channel, 0, 0);
             });
         });
