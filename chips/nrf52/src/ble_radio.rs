@@ -37,6 +37,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;

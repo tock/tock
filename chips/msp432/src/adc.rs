@@ -4,6 +4,7 @@ use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use core::{mem, slice};
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };

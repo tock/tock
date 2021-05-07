@@ -1,4 +1,5 @@
 use crate::iomuxc::{DriveStrength, MuxMode, OpenDrainEn, PullKeepEn, PullUpDown, Sion, Speed};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 

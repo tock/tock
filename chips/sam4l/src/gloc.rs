@@ -5,6 +5,7 @@
 
 use crate::pm::{self, Clock, PBAClock};
 use crate::scif::{self, ClockSource, GenericClock};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 

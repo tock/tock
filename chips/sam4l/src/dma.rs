@@ -6,6 +6,7 @@ use core::cmp;
 use core::sync::atomic;
 use kernel::common::cells::VolatileCell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

@@ -21,6 +21,7 @@
 //! - Event generation on output changes
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };

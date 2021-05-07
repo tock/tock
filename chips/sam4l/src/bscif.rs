@@ -1,5 +1,6 @@
 //! Implementation of the Backup System Control Interface (BSCIF) peripheral.
 
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

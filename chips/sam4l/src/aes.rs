@@ -12,6 +12,7 @@ use crate::pm;
 use crate::scif;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::debug;

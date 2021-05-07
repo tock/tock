@@ -26,6 +26,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;

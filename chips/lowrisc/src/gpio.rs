@@ -2,6 +2,7 @@
 
 use crate::padctrl;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, Field, ReadOnly, ReadWrite, WriteOnly,
 };

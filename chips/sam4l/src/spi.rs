@@ -14,6 +14,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::spi;

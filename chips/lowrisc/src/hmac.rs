@@ -3,6 +3,7 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };

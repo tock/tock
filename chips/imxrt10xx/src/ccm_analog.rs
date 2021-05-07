@@ -7,6 +7,7 @@
 //    a Groups struct.
 // 3. Remove unused
 
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadWrite, RegisterLongName, WriteOnly,
 };

@@ -1,6 +1,7 @@
 //! System Controller driver.
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks64};

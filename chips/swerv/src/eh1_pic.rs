@@ -1,8 +1,10 @@
 //! Platform Level Interrupt Control peripheral driver for SweRV EH1.
 
 use kernel::common::cells::VolatileCell;
-use kernel::common::registers::LocalRegisterCopy;
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::common::registers::interfaces::{Readable, Writeable};
+use kernel::common::registers::{
+    register_bitfields, register_structs, LocalRegisterCopy, ReadWrite,
+};
 use kernel::common::StaticRef;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 

@@ -2,6 +2,7 @@
 
 use core::fmt::Write;
 use kernel;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::InterruptService;

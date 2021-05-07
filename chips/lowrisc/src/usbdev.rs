@@ -2,6 +2,7 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, VolatileCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
 };

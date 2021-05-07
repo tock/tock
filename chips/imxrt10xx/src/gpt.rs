@@ -2,6 +2,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use cortexm7;
 use cortexm7::support::atomic;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;

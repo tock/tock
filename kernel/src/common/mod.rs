@@ -13,6 +13,10 @@ pub mod registers {
     pub use tock_registers::registers::{Aliased, ReadOnly, ReadWrite, WriteOnly};
     pub use tock_registers::registers::{Field, FieldValue, LocalRegisterCopy};
     pub use tock_registers::{register_bitfields, register_structs};
+
+    pub mod interfaces {
+        pub use tock_registers::registers::{ReadWriteable, Readable, Writeable};
+    }
 }
 
 pub mod deferred_call;

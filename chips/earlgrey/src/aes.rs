@@ -3,6 +3,7 @@
 //! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };

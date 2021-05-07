@@ -13,6 +13,7 @@ use crate::csr;
 use core::cell::Cell;
 use core::{cmp, fmt};
 use kernel::common::cells::{MapCell, OptionalCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::common::registers::{self, register_bitfields};
 use kernel::{mpu, ProcessId};
 

@@ -4,6 +4,7 @@ use crate::dma;
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;

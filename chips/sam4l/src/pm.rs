@@ -7,6 +7,7 @@ use crate::gpio;
 use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;

@@ -6,6 +6,7 @@ pub const UART_BASE: StaticRef<UartRegisters> =
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;

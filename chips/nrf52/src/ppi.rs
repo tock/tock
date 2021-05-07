@@ -33,6 +33,7 @@
 //! * Francine Mäkelä
 //! * Date: May 04, 2018
 
+use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 
