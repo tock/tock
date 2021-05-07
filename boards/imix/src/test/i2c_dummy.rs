@@ -3,8 +3,7 @@
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
-use kernel::hil::i2c::I2CMaster;
-use kernel::ErrorCode;
+use kernel::hil::i2c::{Error, I2CMaster};
 
 // ===========================================
 // Scan for I2C Slaves
@@ -25,7 +24,7 @@ impl ScanClient {
 }
 
 impl hil::i2c::I2CHwMasterClient for ScanClient {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         let mut dev_id = self.dev_id.get();
 
         if status == Ok(()) {
@@ -89,7 +88,7 @@ impl AccelClient {
 }
 
 impl hil::i2c::I2CHwMasterClient for AccelClient {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         let dev = self.i2c_master;
 
         match self.state.get() {
@@ -185,7 +184,7 @@ impl LiClient {
 }
 
 impl hil::i2c::I2CHwMasterClient for LiClient {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         let dev = self.i2c_master;
 
         match self.state.get() {

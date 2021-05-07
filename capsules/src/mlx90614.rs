@@ -113,7 +113,7 @@ impl<'a> Mlx90614SMBus<'_> {
 }
 
 impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::Idle => {
                 self.buffer.replace(buffer);

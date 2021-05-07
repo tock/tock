@@ -75,9 +75,12 @@ impl<'a> I2CMasterSlaveDriver<'a> {
 }
 
 impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
-        let status = kernel::into_statuscode(status);
+        let status = kernel::into_statuscode(match status {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.into()),
+        });
 
         // Signal the application layer. Need to copy read in bytes if this
         // was a read call.

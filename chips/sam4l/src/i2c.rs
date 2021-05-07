@@ -17,7 +17,7 @@ use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::{ClockInterface, ErrorCode};
+use kernel::ClockInterface;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet
@@ -769,11 +769,11 @@ impl I2CHw {
         };
 
         let err = if old_status.is_set(Status::ANAK) {
-            Some(Err(ErrorCode::NOACK))
+            Some(Err(hil::i2c::Error::AddressNak))
         } else if old_status.is_set(Status::DNAK) {
-            Some(Err(ErrorCode::NOACK))
+            Some(Err(hil::i2c::Error::DataNak))
         } else if old_status.is_set(Status::ARBLST) {
-            Some(Err(ErrorCode::BUSY))
+            Some(Err(hil::i2c::Error::ArbitrationLost))
         } else if old_status.is_set(Status::CCOMP) {
             Some(Ok(()))
         } else {
@@ -937,7 +937,7 @@ impl I2CHw {
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
             self.dma.map(move |dma| {
@@ -949,7 +949,7 @@ impl I2CHw {
             });
             Ok(())
         } else {
-            Err((ErrorCode::FAIL, data))
+            Err((hil::i2c::Error::NotSupported, data))
         }
     }
 
@@ -959,7 +959,7 @@ impl I2CHw {
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
             self.dma.map(move |dma| {
@@ -971,7 +971,7 @@ impl I2CHw {
             });
             Ok(())
         } else {
-            Err((ErrorCode::FAIL, data))
+            Err((hil::i2c::Error::NotSupported, data))
         }
     }
 
@@ -981,7 +981,7 @@ impl I2CHw {
         data: &'static mut [u8],
         split: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
             self.dma.map(move |dma| {
@@ -1006,7 +1006,7 @@ impl I2CHw {
             });
             Ok(())
         } else {
-            Err((ErrorCode::FAIL, data))
+            Err((hil::i2c::Error::NotSupported, data))
         }
     }
 
@@ -1242,7 +1242,7 @@ impl I2CHw {
         &self,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
                 self.slave_write_buffer.replace(buffer);
@@ -1260,10 +1260,10 @@ impl I2CHw {
                 }
                 Ok(())
             } else {
-                Err((ErrorCode::INVAL, buffer))
+                Err((hil::i2c::Error::AddressNak, buffer))
             }
         } else {
-            Err((ErrorCode::OFF, buffer))
+            Err((hil::i2c::Error::NotSupported, buffer))
         }
     }
 
@@ -1272,7 +1272,7 @@ impl I2CHw {
         &self,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
                 self.slave_read_buffer.replace(buffer);
@@ -1310,10 +1310,10 @@ impl I2CHw {
                 }
                 Ok(())
             } else {
-                Err((ErrorCode::INVAL, buffer))
+                Err((hil::i2c::Error::AddressNak, buffer))
             }
         } else {
-            Err((ErrorCode::OFF, buffer))
+            Err((hil::i2c::Error::NotSupported, buffer))
         }
     }
 
@@ -1389,7 +1389,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write(
             self,
             addr,
@@ -1404,7 +1404,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::read(
             self,
             addr,
@@ -1420,7 +1420,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write_read(self, addr, data, write_len, read_len)
     }
 }
@@ -1475,7 +1475,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         }
     }
 
-    fn set_address(&self, addr: u8) -> Result<(), ErrorCode> {
+    fn set_address(&self, addr: u8) -> Result<(), hil::i2c::Error> {
         self.slave_set_address(addr);
         Ok(())
     }
@@ -1484,7 +1484,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         &self,
         data: &'static mut [u8],
         max_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.slave_write_receive(data, max_len)
     }
 
@@ -1492,7 +1492,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         &self,
         data: &'static mut [u8],
         max_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.slave_read_send(data, max_len)
     }
 

@@ -13,7 +13,6 @@ use kernel::common::cells::VolatileCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ErrorCode;
 use nrf5x::pinmux::Pinmux;
 
 /// Uninitialized `TWIM` instances.
@@ -107,9 +106,9 @@ impl TWIM {
                 None => (),
                 Some(buf) => {
                     let status = if errorsrc.is_set(ERRORSRC::ANACK) {
-                        Err(ErrorCode::NOACK)
+                        Err(hil::i2c::Error::AddressNak)
                     } else if errorsrc.is_set(ERRORSRC::DNACK) {
-                        Err(ErrorCode::NOACK)
+                        Err(hil::i2c::Error::DataNak)
                     } else {
                         Ok(())
                     };
@@ -148,7 +147,7 @@ impl hil::i2c::I2CMaster for TWIM {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));
@@ -181,7 +180,7 @@ impl hil::i2c::I2CMaster for TWIM {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));
@@ -208,7 +207,7 @@ impl hil::i2c::I2CMaster for TWIM {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));

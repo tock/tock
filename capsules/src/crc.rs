@@ -199,7 +199,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     /// ```
     ///
-    /// fn callback(status: Result<(), ErrorCode>, result: usize) {}
+    /// fn callback(status: Result<(), i2c::Error>, result: usize) {}
     /// ```
     ///
     /// where

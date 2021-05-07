@@ -327,7 +327,7 @@ impl<'a> LTC294X<'a> {
 }
 
 impl i2c::I2CClient for LTC294X<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadStatus => {
                 let status = buffer[0];

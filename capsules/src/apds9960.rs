@@ -229,7 +229,7 @@ impl<'a> APDS9960<'a> {
 }
 
 impl i2c::I2CClient for APDS9960<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadId => {
                 // The ID is in `buffer[0]`, and should be 0xAB.

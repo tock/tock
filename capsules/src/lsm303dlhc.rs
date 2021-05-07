@@ -325,7 +325,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
 }
 
 impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
                 let present = if status == Ok(()) && buffer[0] == 60 {

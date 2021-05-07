@@ -132,7 +132,7 @@ impl<'a> PCA9544A<'a> {
 }
 
 impl i2c::I2CClient for PCA9544A<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadControl(field) => {
                 let ret = match field {

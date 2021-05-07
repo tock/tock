@@ -81,7 +81,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
                             Ok(_) => Ok(()),
                             Err((error, data)) => {
                                 self.buf.put(Some(data));
-                                Err(error)
+                                Err(error.into())
                             }
                         }
                     })
@@ -208,7 +208,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
 }
 
 impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app| {
                 if let Some(read_len) = tx.read_len.take() {

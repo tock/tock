@@ -354,7 +354,7 @@ impl<'a> TSL2561<'a> {
 }
 
 impl i2c::I2CClient for TSL2561<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SelectId => {
                 self.i2c.read(buffer, 1);

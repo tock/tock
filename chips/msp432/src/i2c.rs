@@ -2,8 +2,7 @@ use crate::usci::{self, UsciBRegisters};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::StaticRef;
-use kernel::hil::i2c;
-use kernel::ErrorCode;
+use kernel::hil::i2c::{self, Error};
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Speed {
@@ -124,7 +123,7 @@ impl<'a> I2c<'a> {
         self.registers.tbcnt.set(val as u16);
     }
 
-    fn invoke_callback(&self, status: Result<(), ErrorCode>) {
+    fn invoke_callback(&self, status: Result<(), Error>) {
         // Reset buffer index and set mode to Idle in order to start a new transfer properly
         self.buf_idx.set(0);
         self.mode.set(OperatingMode::Idle);
@@ -254,13 +253,13 @@ impl<'a> I2c<'a> {
 
             // Cancel i2c transfer
             self.generate_stop_condition();
-            self.invoke_callback(Err(ErrorCode::NOACK));
+            self.invoke_callback(Err(Error::DataNak));
         } else if (ifg & (1 << usci::UCBxIFG::UCALIFG.shift)) > 0 {
             // Arbitration lost  interrupt
 
             // Cancel i2c transfer
             self.generate_stop_condition();
-            self.invoke_callback(Err(ErrorCode::BUSY));
+            self.invoke_callback(Err(Error::Busy));
         } else {
             panic!("I2C: unhandled interrupt, ifg: {}", ifg);
         }
@@ -291,10 +290,10 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return Err((ErrorCode::BUSY, data));
+            return Err((Error::Busy, data));
         }
 
         self.buffer.replace(data);
@@ -329,10 +328,10 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return Err((ErrorCode::BUSY, buffer));
+            return Err((Error::Busy, buffer));
         }
 
         self.buffer.replace(buffer);
@@ -365,10 +364,10 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return Err((ErrorCode::BUSY, data));
+            return Err((Error::Busy, data));
         }
 
         self.buffer.replace(data);

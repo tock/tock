@@ -382,7 +382,7 @@ impl<'a> MCP230xx<'a> {
 }
 
 impl hil::i2c::I2CClient for MCP230xx<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
                 self.i2c.read(buffer, 1);

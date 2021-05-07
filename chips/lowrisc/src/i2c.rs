@@ -9,7 +9,6 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
-use kernel::ErrorCode;
 
 register_structs! {
     pub I2cRegisters {
@@ -395,7 +394,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Set the FIFO depth and reset the FIFO
@@ -442,7 +441,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Set the FIFO depth and reset the FIFO
@@ -479,7 +478,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Set the FIFO depth and reset the FIFO

@@ -7,7 +7,6 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, 
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
-use kernel::ErrorCode;
 
 const IOM0_BASE: StaticRef<IomRegisters> =
     unsafe { StaticRef::new(0x5000_4000 as *const IomRegisters) };
@@ -533,7 +532,7 @@ impl<'a> Iom<'_> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
         let mut offsetlo = 0;
 
@@ -568,7 +567,7 @@ impl<'a> Iom<'_> {
         }
 
         if write_len > 3 {
-            Err((ErrorCode::NOSUPPORT, data))
+            Err((i2c::Error::NotSupported, data))
         } else {
             // Save all the data and offsets we still need to send
             self.buffer.replace(data);
@@ -598,7 +597,7 @@ impl<'a> Iom<'_> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Disable DMA as we don't support it
@@ -644,7 +643,7 @@ impl<'a> Iom<'_> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Disable DMA as we don't support it
@@ -736,7 +735,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.tx_rx(addr, data, write_len, read_len)
     }
 
@@ -745,7 +744,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.tx(addr, data, len)
     }
 
@@ -754,7 +753,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.rx(addr, buffer, len)
     }
 }
@@ -766,7 +765,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz
@@ -789,7 +788,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz
@@ -812,7 +811,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz

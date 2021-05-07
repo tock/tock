@@ -25,7 +25,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
-use kernel::hil::i2c::{I2CClient, I2CDevice};
+use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
@@ -241,7 +241,7 @@ impl gpio::Client for Fxos8700cq<'_> {
 }
 
 impl I2CClient for Fxos8700cq<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         // If there's an I2C error, just reset and issue a callback
         // with all 0s. Otherwise, if there's no sensor attacherd,
         // it's possible to have nondeterminstic behavior, where

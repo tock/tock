@@ -30,7 +30,7 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::i2c::{I2CClient, I2CDevice};
+use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time;
 use kernel::ErrorCode;
@@ -114,7 +114,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), ErrorCode>) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), Error>) {
         // TODO(alevy): handle I2C errors
         match self.state.get() {
             State::Enabling => {
