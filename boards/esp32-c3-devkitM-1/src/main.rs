@@ -62,6 +62,7 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct Esp32C3Board {
+    gpio: &'static capsules::gpio::GPIO<'static, esp32::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -76,6 +77,7 @@ impl Platform for Esp32C3Board {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
@@ -122,6 +124,23 @@ unsafe fn setup() -> (
         dynamic_deferred_caller,
     )
     .finalize(());
+
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        capsules::gpio::DRIVER_NUM,
+        components::gpio_component_helper!(
+            esp32::gpio::GpioPin,
+            0 => &peripherals.gpio[0],
+            1 => &peripherals.gpio[1],
+            2 => &peripherals.gpio[2],
+            3 => &peripherals.gpio[3],
+            4 => &peripherals.gpio[4],
+            5 => &peripherals.gpio[5],
+            6 => &peripherals.gpio[6],
+            7 => &peripherals.gpio[15]
+        ),
+    )
+    .finalize(components::gpio_component_buf!(esp32::gpio::GpioPin));
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -186,7 +205,14 @@ unsafe fn setup() -> (
         static _eappmem: u8;
     }
 
-    let esp32_c3_board = static_init!(Esp32C3Board, Esp32C3Board { console, alarm });
+    let esp32_c3_board = static_init!(
+        Esp32C3Board,
+        Esp32C3Board {
+            console,
+            alarm,
+            gpio
+        }
+    );
 
     kernel::procs::load_processes(
         board_kernel,

@@ -26,6 +26,7 @@ pub struct Esp32C3<'a, I: InterruptService<()> + 'a> {
 pub struct Esp32C3DefaultPeripherals<'a> {
     pub uart0: esp32::uart::Uart<'a>,
     pub timg0: esp32::timg::TimG<'a>,
+    pub gpio: esp32::gpio::Port<'a>,
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
 }
 
@@ -34,6 +35,7 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
             timg0: esp32::timg::TimG::new(esp32::timg::TIMG0_BASE),
+            gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
         }
     }
