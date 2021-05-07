@@ -29,6 +29,7 @@ that Tock supports.
 | [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | Yes (5.1)     |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No            |
+| [ESP32-C3-DevKitM-1](esp32-c3-devkitM-1/README.md)                   | RISC-V-ish RV32I| ESP32-C3       | custom     | custom         | No            |
 
 # Out of Tree Boards
 
