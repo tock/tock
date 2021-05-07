@@ -4,7 +4,7 @@ ESP32-C3 Board
 ESP32-C3 is a system on a chip that integrates the following features:
  * Wi-Fi (2.4 GHz band)
  * Bluetooth Low Energy
- * High performance 32-bit RISC-V single-core processor
+ * High performance 32-bit RISC-V-ish single-core processor
  * Multiple peripherals
  * Built-in security hardware
 
