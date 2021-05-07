@@ -93,6 +93,15 @@ impl Platform for RaspberryPiPico {
 }
 
 /// Entry point used for debuger
+///
+/// When loaded using gdb, the Raspberry Pi Pico is not reset
+/// by default. Without this function, gdb sets the PC to the
+/// beginning of the flash. This is not correct, as the RP2040
+/// has a more complex boot process.
+///
+/// This function is set to be the entry point for gdb and is used
+/// to send the RP2040 back in the bootloader so that all the boot
+/// sqeuence is performed.
 #[no_mangle]
 #[naked]
 pub unsafe extern "C" fn reset() {
@@ -178,9 +187,8 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
         .configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
 }
 
-/// Entry point in the vector table called on hard reset.
+/// Main function called after RAM initialized.
 #[no_mangle]
-
 pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
