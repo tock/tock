@@ -4,6 +4,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::path::Path;
 use std::process::{self, Stdio};
 use std::ptr;
+use std::vec::Vec;
 
 use tock_cells::map_cell::MapCell;
 
@@ -208,7 +209,7 @@ pub struct EmulatedProcess<C: 'static + Chip> {
     stored_state: MapCell<
         &'static mut <<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState,
     >,
-    grant_region: Cell<*mut *mut u8>,
+    grant_region: RefCell<Vec<*mut u8>>,
     restart_count: Cell<usize>,
     debug: MapCell<ProcessDebug>,
     external_process_cap: &'static dyn ExternalProcessCapability,
@@ -231,7 +232,7 @@ impl<C: 'static + Chip> EmulatedProcess<C> {
             state: Cell::new(State::Unstarted),
             tasks: MapCell::new(VecDeque::with_capacity(10)),
             stored_state: MapCell::new(start_state),
-            grant_region: Cell::new(0 as *mut *mut u8),
+            grant_region: RefCell::new(Vec::new()),
             restart_count: Cell::new(0),
             debug: MapCell::new(ProcessDebug::default()),
             external_process_cap: external_process_cap,
@@ -284,6 +285,19 @@ impl<C: 'static + Chip> EmulatedProcess<C> {
     fn is_active(&self) -> bool {
         let state = self.state.get();
         state != State::StoppedFaulted && state != State::Fault
+    }
+
+    fn validate_grant_region(&self) -> usize {
+        let kernel_grants = self
+            .kernel
+            .get_grant_count_and_finalize_external(self.external_process_cap);
+
+        let mut grant_region = self.grant_region.borrow_mut();
+        if grant_region.len() < kernel_grants {
+            grant_region.resize(kernel_grants, std::ptr::null_mut());
+        }
+
+        kernel_grants
     }
 }
 
@@ -439,19 +453,19 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
             return None;
         }
 
-        if grant_num
-            >= self
-                .kernel
-                .get_grant_count_and_finalize_external(self.external_process_cap)
-        {
+        let kernel_grants = self.validate_grant_region();
+
+        if grant_num >= kernel_grants {
             return None;
         }
 
-        Some(self.grant_region.get() as *mut u8)
+        Some(self.grant_region.borrow_mut()[grant_num])
     }
 
-    unsafe fn set_grant_ptr(&self, _grant_num: usize, grant_ptr: *mut u8) {
-        self.grant_region.set(grant_ptr as *mut *mut u8);
+    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8) {
+        self.validate_grant_region();
+
+        self.grant_region.borrow_mut()[grant_num] = grant_ptr;
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
