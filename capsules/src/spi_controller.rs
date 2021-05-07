@@ -99,15 +99,20 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
-        match allow_num {
+        let res = match allow_num {
             // Pass in a read buffer to receive bytes into.
-            0 => {
-                let _ = self.grants.enter(process_id, |grant| {
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
                     mem::swap(&mut grant.app_read, &mut slice);
-                });
-                Ok(slice)
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -117,15 +122,20 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
-        match allow_num {
+        let res = match allow_num {
             // Pass in a write buffer to transmit bytes from.
-            0 => {
-                let _ = self.grants.enter(process_id, |grant| {
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
                     mem::swap(&mut grant.app_write, &mut slice);
-                });
-                Ok(slice)
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
@@ -135,14 +145,19 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         mut callback: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => {
-                let _ = self.grants.enter(process_id, |grant| {
+        let res = match subscribe_num {
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
                     mem::swap(&mut grant.callback, &mut callback);
-                });
-                Ok(callback)
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
