@@ -238,13 +238,24 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     // hardware-generated interrupt, hence it is guaranteed to be an
     // callback
     fn resume_tx(&self) {
+        // Context: when called from an interrupt, the event source
+        // has already been cleared
+
         let len = self.tx_len.get();
         let mut progress = self.tx_progress.get();
         let buffer = self.tx_buffer.take().expect("no tx buffer");
 
         // Try to transmit any remaining data
 
-        let mut fifo_full: bool; // Store this to check whether we will get another interrupt
+        // Store this to check whether we will get another interrupt
+        //
+        // An interrupt will be generated if fifo_full is true
+        // (i.e. the fifo limit has been reached) OR if after the
+        // while loop, the TX event is already pending (meaning we've
+        // reached the fifo limit AND the end of operation at the same
+        // time, but the hardware has managed to transmit a byte
+        // before we had a chance to read `fifo_full`)
+        let mut fifo_full: bool;
         while {
             fifo_full = ReadRegWrapper::wrap(&self.uart_regs.txfull).is_set(txfull::full);
             !fifo_full && progress < len
@@ -259,10 +270,10 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
             assert!(fifo_full == true);
 
             // Place all information and buffers back for the next
-            // call to `resume_tx`
+            // call to `resume_tx`, triggered by an interrupt.
             self.tx_progress.set(progress);
             self.tx_buffer.replace(buffer);
-        } else if fifo_full {
+        } else if fifo_full || self.uart_regs.ev().event_pending(EVENT_MANAGER_INDEX_TX) {
             // All data is transmitted, but an interrupt will still be
             // generated, for which we wait
 
@@ -349,6 +360,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // generated. We can transmit the rest using `resume_tx` and
         // directly call the callback there, as we are guaranteed to
         // be in a callback.
+        //
+        // An interrupt will be generated if fifo_full is true
+        // (i.e. the fifo limit has been reached) OR if after the
+        // while loop, the TX event is already pending (meaning we've
+        // reached the fifo limit AND the end of operation at the same
+        // time, but the hardware has managed to transmit a byte
+        // before we had a chance to read `fifo_full`)
         let mut fifo_full: bool;
         let mut progress: usize = 0;
         while {
@@ -369,8 +387,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // _must_ have been written to the device
         //
         // In this case, we must request a deferred call for the
-        // callback
-        if !fifo_full {
+        // callback, as an interrupt will not be generated.
+        //
+        // However, we might have reached the fifo limit but not
+        // noticed, as the device has sent a byte between writing rxtx
+        // and reading txfull. Hence, if an event is pending, rely on
+        // the fact that an interrupt will be generated.
+        if !(fifo_full || self.uart_regs.ev().event_pending(EVENT_MANAGER_INDEX_TX)) {
             assert!(progress == tx_len);
 
             self.tx_deferred_call.set(true);
