@@ -139,7 +139,50 @@ impl<'a, I: InterruptService<()> + 'a> kernel::Chip for Esp32C3<'a, I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        rv32i::print_riscv_state(writer);
+        let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
+        let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
+        let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
+        rv32i::print_mcause(mcval, writer);
+        let interrupt = csr::CSR.mcause.read(csr::mcause::mcause::is_interrupt);
+        let code = csr::CSR.mcause.read(csr::mcause::mcause::reason);
+        let _ = writer.write_fmt(format_args!(
+            " (interrupt={}, exception code={:#010X})",
+            interrupt, code
+        ));
+        let _ = writer.write_fmt(format_args!(
+            "\r\nLast value (mtval):  {:#010X}\
+         \r\n\
+         \r\nSystem register dump:\
+         \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
+         \r\n mtvec:   {:#010X}",
+            csr::CSR.mtval.get(),
+            csr::CSR.mepc.get(),
+            csr::CSR.mstatus.get(),
+            csr::CSR.mtvec.get()
+        ));
+        let mstatus = csr::CSR.mstatus.extract();
+        let uie = mstatus.is_set(csr::mstatus::mstatus::uie);
+        let sie = mstatus.is_set(csr::mstatus::mstatus::sie);
+        let mie = mstatus.is_set(csr::mstatus::mstatus::mie);
+        let upie = mstatus.is_set(csr::mstatus::mstatus::upie);
+        let spie = mstatus.is_set(csr::mstatus::mstatus::spie);
+        let mpie = mstatus.is_set(csr::mstatus::mstatus::mpie);
+        let spp = mstatus.is_set(csr::mstatus::mstatus::spp);
+        let _ = writer.write_fmt(format_args!(
+            "\r\n mstatus: {:#010X}\
+         \r\n  uie:    {:5}  upie:   {}\
+         \r\n  sie:    {:5}  spie:   {}\
+         \r\n  mie:    {:5}  mpie:   {}\
+         \r\n  spp:    {}",
+            mstatus.get(),
+            uie,
+            upie,
+            sie,
+            spie,
+            mie,
+            mpie,
+            spp
+        ));
     }
 }
 
