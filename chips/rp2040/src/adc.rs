@@ -1,5 +1,6 @@
 use crate::interrupts;
 use core::cell::Cell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::{cells::OptionalCell, StaticRef};
 use kernel::hil;
 use kernel::{

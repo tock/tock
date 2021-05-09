@@ -1,3 +1,4 @@
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 

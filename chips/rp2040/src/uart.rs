@@ -1,6 +1,7 @@
 use crate::interrupts::{UART0_IRQ, UART1_IRQ};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
