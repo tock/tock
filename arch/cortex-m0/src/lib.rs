@@ -304,19 +304,6 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         hardfault_stacked_registers.pc,
         hardfault_stacked_registers.xpsr
     );
-
-    // NOTE: Unlike Cortex-M3, `panic!` does not seem to work
-    //       here. `panic!` seems to be producing wrong `PanicInfo`
-    //       value. Therefore as a workaround, capture the stacked
-    //       registers and invoke a breakpoint.
-    //
-    //     asm!(
-    //         "
-    //          bkpt
-    // 1:
-    //          b 1b
-    //          "
-    //     );
 }
 
 // Mock implementation for tests on Travis-CI.
