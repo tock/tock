@@ -394,9 +394,18 @@ pub unsafe fn main() {
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
         .finalize(components::hts221_component_helper!());
-    let temperature =
-        components::temperature::TemperatureComponent::new(board_kernel, hts221).finalize(());
-    let humidity = components::humidity::HumidityComponent::new(board_kernel, hts221).finalize(());
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM as u32,
+        hts221,
+    )
+    .finalize(());
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM as u32,
+        hts221,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -472,6 +481,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
+        capsules::net::udp::DRIVER_NUM as u32,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,

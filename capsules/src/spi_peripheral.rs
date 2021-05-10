@@ -9,7 +9,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -23,7 +25,6 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // Since we provide an additional callback in slave mode for
 // when the chip is selected, we have added a "PeripheralApp" struct
 // that includes this new callback field.
-#[derive(Default)]
 pub struct PeripheralApp {
     callback: Upcall,
     selected_callback: Upcall,
@@ -31,6 +32,19 @@ pub struct PeripheralApp {
     app_write: ReadOnlyAppSlice,
     len: usize,
     index: usize,
+}
+
+impl GrantDefault for PeripheralApp {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        Self {
+            callback: cb_factory.build_upcall(0).unwrap(),
+            selected_callback: cb_factory.build_upcall(1).unwrap(),
+            app_read: ReadWriteAppSlice::default(),
+            app_write: ReadOnlyAppSlice::default(),
+            len: 0,
+            index: 0,
+        }
+    }
 }
 
 pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {

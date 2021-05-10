@@ -7,7 +7,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -27,13 +29,24 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // operation, while the index variable keeps track of the
 // index an ongoing operation is at in the buffers.
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
     index: usize,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        Self {
+            callback: cb_factory.build_upcall(0).unwrap(),
+            app_read: ReadWriteAppSlice::default(),
+            app_write: ReadOnlyAppSlice::default(),
+            len: 0,
+            index: 0,
+        }
+    }
 }
 
 pub struct Spi<'a, S: SpiMasterDevice> {

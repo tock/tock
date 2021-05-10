@@ -355,7 +355,10 @@ pub unsafe fn main() {
         capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
         capsules::gpio_async::GPIOAsync::new(
             async_gpio_ports,
-            board_kernel.create_grant(&memory_allocation_capability)
+            board_kernel.create_grant(
+                capsules::gpio_async::DRIVER_NUM as u32,
+                &memory_allocation_capability,
+            ),
         ),
     );
     // Setup the clients correctly.

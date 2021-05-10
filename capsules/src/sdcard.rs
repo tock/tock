@@ -48,7 +48,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{CommandReturn, Driver, Grant, ProcessId, Upcall};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    GrantDefault, ProcessUpcallFactory, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -1411,11 +1413,20 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 }
 
 /// Holds buffers and whatnot that the application has passed us.
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
     read_buffer: ReadWriteAppSlice,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        Self {
+            callback: cb_factory.build_upcall(0).unwrap(),
+            write_buffer: ReadOnlyAppSlice::default(),
+            read_buffer: ReadWriteAppSlice::default(),
+        }
+    }
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files

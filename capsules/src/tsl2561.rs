@@ -17,7 +17,9 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -201,9 +203,16 @@ enum State {
     Done,
 }
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        Self {
+            callback: cb_factory.build_upcall(0).unwrap(),
+        }
+    }
 }
 
 pub struct TSL2561<'a> {

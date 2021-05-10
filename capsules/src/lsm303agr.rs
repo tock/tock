@@ -85,7 +85,9 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 use crate::driver;
 use crate::lsm303xx::{
@@ -133,16 +135,22 @@ enum State {
     ReadMagnetometerXYZ,
 }
 
-#[derive(Default)]
 pub struct App {
     upcall: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            upcall: cb_factory.build_upcall(0).unwrap(),
+        }
+    }
 }
 
 pub struct Lsm303agrI2C<'a> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a dyn i2c::I2CDevice,
     i2c_magnetometer: &'a dyn i2c::I2CDevice,
-    callback: Cell<Upcall>,
     state: Cell<State>,
     accel_scale: Cell<Lsm303Scale>,
     mag_range: Cell<Lsm303Range>,
@@ -170,7 +178,6 @@ impl<'a> Lsm303agrI2C<'a> {
             config_in_progress: Cell::new(false),
             i2c_accelerometer: i2c_accelerometer,
             i2c_magnetometer: i2c_magnetometer,
-            callback: Cell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),

@@ -16,7 +16,10 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{CommandReturn, ProcessId, Upcall};
-use kernel::{Driver, ErrorCode, Grant, Read, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read, ReadWrite,
+    ReadWriteAppSlice,
+};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -26,13 +29,24 @@ pub static mut BUFFER3: [u8; 256] = [0; 256];
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
     master_tx_buffer: ReadWriteAppSlice,
     master_rx_buffer: ReadWriteAppSlice,
     slave_tx_buffer: ReadWriteAppSlice,
     slave_rx_buffer: ReadWriteAppSlice,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            callback: cb_factory.build_upcall(0).unwrap(),
+            master_tx_buffer: ReadWriteAppSlice::default(),
+            master_rx_buffer: ReadWriteAppSlice::default(),
+            slave_tx_buffer: ReadWriteAppSlice::default(),
+            slave_rx_buffer: ReadWriteAppSlice::default(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]

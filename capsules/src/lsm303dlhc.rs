@@ -85,7 +85,9 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -154,10 +156,10 @@ pub struct App {
     callback: Upcall,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         Self {
-            callback: Upcall::default(),
+            callback: cb_factory.build_upcall(0).unwrap(),
         }
     }
 }

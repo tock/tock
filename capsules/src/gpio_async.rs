@@ -27,7 +27,9 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -54,10 +56,18 @@ pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     configuring_process: OptionalCell<ProcessId>,
 }
 
-// TODO: impl GrantDefault
 pub struct App {
     callback: Upcall,
     interrupt_callback: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            callback: cb_factory.build_upcall(0).unwrap(),
+            interrupt_callback: cb_factory.build_upcall(1).unwrap(),
+        }
+    }
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {

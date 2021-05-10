@@ -1196,7 +1196,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
                 // set callback
                 let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
                     self.apps
-                        .enter(*id, |app, _| {
+                        .enter(*id, |app| {
                             mem::swap(&mut app.callback, &mut callback);
                         })
                         .map_err(|err| {

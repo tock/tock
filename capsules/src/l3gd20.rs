@@ -107,7 +107,9 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -175,9 +177,16 @@ enum L3gd20Status {
 //     Idle,
 // }
 
-#[derive(Default)]
 pub struct App {
     upcall: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            upcall: cb_factory.build_upcall(0).unwrap(),
+        }
+    }
 }
 
 pub struct L3gd20Spi<'a> {

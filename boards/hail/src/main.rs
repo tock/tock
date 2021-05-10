@@ -327,8 +327,13 @@ pub unsafe fn main() {
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
     // Create the SPI system call capsule.
-    let spi_syscalls = components::spi::SpiSyscallComponent::new(board_kernel, mux_spi, 0)
-        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        0,
+        capsules::spi_controller::DRIVER_NUM as u32,
+    )
+    .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(

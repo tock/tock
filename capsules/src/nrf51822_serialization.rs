@@ -46,8 +46,6 @@ impl GrantDefault for App {
             callback: cb_factory.build_upcall(0).unwrap(),
             tx_buffer: ReadOnlyAppSlice::default(),
             rx_buffer: ReadWriteAppSlice::default(),
-            rx_recv_so_far: 0,
-            rx_recv_total: 0,
         }
     }
 }

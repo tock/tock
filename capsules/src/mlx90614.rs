@@ -22,7 +22,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;
@@ -56,9 +58,16 @@ enum_from_primitive! {
     }
 }
 
-#[derive(Default)]
 pub struct App {
     callback: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            callback: cb_factory.build_upcall(0).unwrap(),
+        }
+    }
 }
 
 pub struct Mlx90614SMBus<'a> {

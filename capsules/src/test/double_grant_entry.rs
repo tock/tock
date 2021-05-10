@@ -70,7 +70,7 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, _cb_factory: &mut ProcessUpcallFactory) -> Self {
         Self { pending: false }
     }
 }

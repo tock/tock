@@ -61,7 +61,7 @@ pub struct App {
 impl GrantDefault for App {
     fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
         App {
-            callback: cb_factory.build_upcall(0),
+            callback: cb_factory.build_upcall(0).unwrap(),
         }
     }
 }

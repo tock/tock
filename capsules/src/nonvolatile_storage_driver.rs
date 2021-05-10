@@ -97,8 +97,8 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
-        App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+        Self {
             callback_read: cb_factory.build_upcall(0).unwrap(),
             callback_write: cb_factory.build_upcall(1).unwrap(),
             pending_command: false,

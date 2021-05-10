@@ -340,6 +340,7 @@ pub unsafe fn main() {
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
+        capsules::analog_comparator::DRIVER_NUM as u32,
     )
     .finalize(components::acomp_component_buf!(
         nrf52840::acomp::Comparator
