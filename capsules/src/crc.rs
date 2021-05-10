@@ -72,9 +72,9 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
 };
-use kernel::{Read, ReadOnlyAppSlice, ReturnCode};
+use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -91,7 +91,7 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         App {
             callback: cb_factory.build_upcall(0).unwrap(),
             buffer: ReadOnlyAppSlice::default(),
@@ -105,7 +105,7 @@ impl GrantDefault for App {
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
-    serving_app: OptionalCell<AppId>,
+    serving_app: OptionalCell<ProcessId>,
 }
 
 impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
@@ -139,19 +139,20 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            let appid = app.processid();
+            app.enter(|app| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
                         .buffer
-                        .map_or(ReturnCode::ENOMEM, |buf| self.crc_unit.compute(buf, alg));
+                        .map_or(Err(ErrorCode::NOMEM), |buf| self.crc_unit.compute(buf, alg));
 
-                    if rcode == ReturnCode::SUCCESS {
+                    if rcode == Ok(()) {
                         // The unit is now computing a CRC for this app
-                        self.serving_app.set(app.appid());
+                        self.serving_app.set(appid);
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback.schedule(From::from(rcode), 0, 0);
+                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -182,7 +183,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -190,7 +191,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -208,31 +209,30 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     /// result of a CRC computation.  The signature of the callback is
     ///
     /// ```
-    /// # use kernel::ReturnCode;
     ///
-    /// fn callback(status: ReturnCode, result: usize) {}
+    /// fn callback(status: Result<(), ErrorCode>, result: usize) {}
     /// ```
     ///
     /// where
     ///
     ///   * `status` is indicates whether the computation
-    ///     succeeded. The status `EBUSY` indicates the unit is already
-    ///     busy. The status `ESIZE` indicates the provided buffer is
+    ///     succeeded. The status `BUSY` indicates the unit is already
+    ///     busy. The status `SIZE` indicates the provided buffer is
     ///     too large for the unit to handle.
     ///
-    ///   * `result` is the result of the CRC computation when `status == EBUSY`.
+    ///   * `result` is the result of the CRC computation when `status == BUSY`.
     ///
     fn subscribe(
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for CRC result
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                 })
                 .map_err(ErrorCode::from),
@@ -255,21 +255,21 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///
     ///   *   `2`: Requests that a CRC be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
-    ///       this command will return `EINVAL`.
+    ///       this command will return `INVAL`.
     ///
     ///       This command's driver-specific argument indicates what CRC
     ///       algorithm to perform, as listed below.  If an invalid
     ///       algorithm specifier is provided, this command will return
-    ///       `EINVAL`.
+    ///       `INVAL`.
     ///
     ///       If a callback was not previously registered with
-    ///       `subscribe`, this command will return `EINVAL`.
+    ///       `subscribe`, this command will return `INVAL`.
     ///
     ///       If a computation has already been requested by this
     ///       application but the callback has not yet been invoked to
-    ///       receive the result, this command will return `EBUSY`.
+    ///       receive the result, this command will return `BUSY`.
     ///
-    ///       When `SUCCESS` is returned, this means the request has been
+    ///       When `Ok(())` is returned, this means the request has been
     ///       queued and the callback will be invoked when the CRC
     ///       computation is complete.
     ///
@@ -310,7 +310,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         command_num: usize,
         algorithm: usize,
         _: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver is present
@@ -320,13 +320,13 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             if app.waiting.is_some() {
                                 // Each app may make only one request at a time
                                 Err(ErrorCode::BUSY)
                             } else {
                                 app.waiting = Some(alg);
-                                Ok(ReturnCode::SUCCESS)
+                                Ok(())
                             }
                         })
                         .map_err(ErrorCode::from)
@@ -350,12 +350,13 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
 impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
         self.serving_app.take().map(|appid| {
-            self.apps
-                .enter(appid, |app, _| {
+            let _ = self
+                .apps
+                .enter(appid, |app| {
                     app.callback
-                        .schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
+                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
                     app.waiting = None;
-                    ReturnCode::SUCCESS
+                    Ok(())
                 })
                 .unwrap_or_else(|err| err.into());
             self.serve_waiting_apps();

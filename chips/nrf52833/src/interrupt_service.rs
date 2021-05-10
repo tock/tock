@@ -10,9 +10,9 @@ pub struct Nrf52833DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 impl<'a> Nrf52833DefaultPeripherals<'a> {
-    pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+    pub unsafe fn new() -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(ppi),
+            nrf52: Nrf52DefaultPeripherals::new(),
             gpio_port: crate::gpio::nrf52833_gpio_create(),
         }
     }

@@ -25,10 +25,9 @@
 //! }
 //! ```
 
-use core::cell::RefCell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, ErrorCode, Upcall};
-use kernel::{CommandReturn, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -36,37 +35,58 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    callback: RefCell<Upcall>,
-    interrupt_callback: RefCell<Upcall>,
+    grants: Grant<App>,
+    /// **Transient** ownership of the partially virtualized peripheral.
+    ///
+    /// Current GPIO HIL semantics notify *all* processes of interrupts
+    /// to any pin with interrupts configured (and it's left to higher
+    /// layers to filter activity based on which pin generated their
+    /// interrupt). For Async GPIO, this is awkward to virtualize, as
+    /// there is no owning process of a pin for activity interrupts, but
+    /// there is for configuration result interrupts. Also, the underlying
+    /// hardware likely can't handle multiple concurrent configurations
+    /// from multiple apps. Hence, this variable, which tracks a configuration
+    /// while it is in flight and notifies the correct process that their
+    /// configuration has succeeded. In the rare case where two apps attempt
+    /// concurrent configuration requests, the later app will receive `EBUSY`.
+    /// A retry loop should be sufficient for most apps to handle this rare
+    /// case.
+    configuring_process: OptionalCell<ProcessId>,
+}
+
+// TODO: impl GrantDefault
+pub struct App {
+    callback: Upcall,
+    interrupt_callback: Upcall,
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
-    pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
+    pub fn new(ports: &'a [&'a Port], grants: Grant<App>) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
-            callback: RefCell::new(Upcall::default()),
-            interrupt_callback: RefCell::new(Upcall::default()),
+            grants,
+            configuring_process: OptionalCell::empty(),
         }
     }
 
-    fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
+    fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
         let ports = self.ports.as_ref();
         let mode = match config {
             0 => hil::gpio::FloatingState::PullNone,
             1 => hil::gpio::FloatingState::PullUp,
             2 => hil::gpio::FloatingState::PullDown,
-            _ => return ReturnCode::EINVAL,
+            _ => return Err(ErrorCode::INVAL),
         };
         ports[port].make_input(pin, mode)
     }
 
-    fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
+    fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
         let ports = self.ports.as_ref();
         let mode = match config {
             0 => hil::gpio::InterruptEdge::EitherEdge,
             1 => hil::gpio::InterruptEdge::RisingEdge,
             2 => hil::gpio::InterruptEdge::FallingEdge,
-            _ => return ReturnCode::EINVAL,
+            _ => return Err(ErrorCode::INVAL),
         };
         ports[port].enable_interrupt(pin, mode)
     }
@@ -74,13 +94,21 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 
 impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
-        self.interrupt_callback
-            .borrow_mut()
-            .schedule(identifier, pin, 0);
+        // schedule callback with the pin number and value for all apps
+        self.grants.each(|_, app| {
+            app.interrupt_callback.schedule(identifier, pin, 0);
+        });
     }
 
     fn done(&self, value: usize) {
-        self.callback.borrow_mut().schedule(0, value, 0);
+        // alert currently configuring app
+        self.configuring_process.map(|pid| {
+            let _ = self.grants.enter(*pid, |app| {
+                app.callback.schedule(0, value, 0);
+            });
+        });
+        // then clear currently configuring app
+        self.configuring_process.clear();
     }
 }
 
@@ -102,18 +130,33 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Upcall,
-        _app_id: AppId,
+        mut callback: Upcall,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // Set callback for `done()` events
-            0 => Ok(self.callback.replace(callback)),
+        let res = self
+            .grants
+            .enter(app_id, |app| {
+                match subscribe_num {
+                    // Set callback for `done()` events
+                    0 => {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
+                    }
 
-            // Set callback for pin interrupts
-            1 => Ok(self.interrupt_callback.replace(callback)),
+                    // Set callback for pin interrupts
+                    1 => {
+                        core::mem::swap(&mut app.interrupt_callback, &mut callback);
+                        Ok(())
+                    }
 
-            // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -146,50 +189,67 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         command_number: usize,
         pin: usize,
         data: usize,
-        _appid: AppId,
+        process_id: ProcessId,
     ) -> CommandReturn {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
         let ports = self.ports.as_ref();
 
+        // Special case command 0; everything else results in a process-owned,
+        // split-phase call.
+        if command_number == 0 {
+            // How many ports
+            return CommandReturn::success_u32(ports.len() as u32);
+        }
+
         // On any command other than 0, we check for ports length.
-        if command_number != 0 && port >= ports.len() {
+        if port >= ports.len() {
             return CommandReturn::failure(ErrorCode::INVAL);
         }
 
-        match command_number {
-            // How many ports
-            0 => CommandReturn::success_u32(ports.len() as u32),
+        // On any command other than 0, we check if another command is in flight
+        if self.configuring_process.is_some() {
+            return CommandReturn::failure(ErrorCode::BUSY);
+        };
 
+        let res = match command_number {
             // enable output
-            1 => ports[port].make_output(pin).into(),
+            1 => ports[port].make_output(pin),
 
             // set pin
-            2 => ports[port].set(pin).into(),
+            2 => ports[port].set(pin),
 
             // clear pin
-            3 => ports[port].clear(pin).into(),
+            3 => ports[port].clear(pin),
 
             // toggle pin
-            4 => ports[port].toggle(pin).into(),
+            4 => ports[port].toggle(pin),
 
             // enable and configure input
-            5 => self.configure_input_pin(port, pin, other & 0xFF).into(),
+            5 => self.configure_input_pin(port, pin, other & 0xFF),
 
             // read input
-            6 => ports[port].read(pin).into(),
+            6 => ports[port].read(pin),
 
             // enable interrupt on pin
-            7 => self.configure_interrupt(port, pin, other & 0xFF).into(),
+            7 => self.configure_interrupt(port, pin, other & 0xFF),
 
             // disable interrupt on pin
-            8 => ports[port].disable_interrupt(pin).into(),
+            8 => ports[port].disable_interrupt(pin),
 
             // disable pin
-            9 => ports[port].disable(pin).into(),
+            9 => ports[port].disable(pin),
 
             // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+            _ => return CommandReturn::failure(ErrorCode::NOSUPPORT),
+        };
+
+        // If any async command kicked off, note that the peripheral is busy
+        // and which process to return the command result to
+        if res.is_ok() {
+            self.configuring_process.set(process_id);
         }
+
+        res.into()
     }
 }

@@ -42,8 +42,8 @@ use core::{cmp, mem};
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
-use kernel::{AppId, ErrorCode, Grant, Upcall};
-use kernel::{CommandReturn, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver};
+use kernel::{ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{
     GrantDefault, ProcessUpcallFactory, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
 };
@@ -65,7 +65,7 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         App {
             write_callback: cb_factory.build_upcall(1).unwrap(),
             write_buffer: ReadOnlyAppSlice::default(),
@@ -85,9 +85,9 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<App>,
-    tx_in_progress: OptionalCell<AppId>,
+    tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
-    rx_in_progress: OptionalCell<AppId>,
+    rx_in_progress: OptionalCell<ProcessId>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
@@ -109,16 +109,20 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn send_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         app.write_len = cmp::min(len, app.write_buffer.len());
         app.write_remaining = app.write_len;
         self.send(app_id, app);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
+    fn send_continue(
+        &self,
+        app_id: ProcessId,
+        app: &mut App,
+    ) -> Result<bool, Result<(), ErrorCode>> {
         if app.write_remaining > 0 {
             self.send(app_id, app);
             Ok(true)
@@ -129,7 +133,7 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App) {
+    fn send(&self, app_id: ProcessId, app: &mut App) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
@@ -153,7 +157,7 @@ impl<'a> Console<'a> {
                 });
 
                 app.write_remaining -= transaction_len;
-                let (_err, _opt) = self.uart.transmit_buffer(buffer, transaction_len);
+                let _ = self.uart.transmit_buffer(buffer, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -161,26 +165,26 @@ impl<'a> Console<'a> {
     }
 
     /// Internal helper function for starting a receive operation
-    fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
+    fn receive_new(&self, app_id: ProcessId, app: &mut App, len: usize) -> Result<(), ErrorCode> {
         if self.rx_buffer.is_none() {
             // For now, we tolerate only one concurrent receive operation on this console.
             // Competing apps will have to retry until success.
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         let read_len = cmp::min(len, app.read_buffer.len());
         if read_len > self.rx_buffer.map_or(0, |buf| buf.len()) {
             // For simplicity, impose a small maximum receive length
             // instead of doing incremental reads
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             // Note: We have ensured above that rx_buffer is present
             app.read_len = read_len;
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(app_id);
-                let (_err, _opt) = self.uart.receive_buffer(buffer, app.read_len);
+                let _ = self.uart.receive_buffer(buffer, app.read_len);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -193,14 +197,14 @@ impl Driver for Console<'_> {
     /// - `1`: Writeable buffer for read buffer
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.read_buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -221,14 +225,14 @@ impl Driver for Console<'_> {
     /// - `1`: Readonly buffer for write buffer
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut app.write_buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -250,13 +254,13 @@ impl Driver for Console<'_> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 => {
                 // putstr/write done
                 self.apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.write_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from)
@@ -264,7 +268,7 @@ impl Driver for Console<'_> {
             2 => {
                 // getnstr/read done
                 self.apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.read_callback, &mut callback);
                     })
                     .map_err(ErrorCode::from)
@@ -290,27 +294,27 @@ impl Driver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
         let res = match cmd_num {
-            0 => Ok(ReturnCode::SUCCESS),
+            0 => Ok(Ok(())),
             1 => {
                 // putstr
                 let len = arg1;
                 self.apps
-                    .enter(appid, |app, _| self.send_new(appid, app, len))
+                    .enter(appid, |app| self.send_new(appid, app, len))
                     .map_err(ErrorCode::from)
             }
             2 => {
                 // getnstr
                 let len = arg1;
                 self.apps
-                    .enter(appid, |app, _| self.receive_new(appid, app, len))
+                    .enter(appid, |app| self.receive_new(appid, app, len))
                     .map_err(ErrorCode::from)
             }
             3 => {
                 // Abort RX
-                self.uart.receive_abort();
-                Ok(ReturnCode::SUCCESS)
+                let _ = self.uart.receive_abort();
+                Ok(Ok(()))
             }
             _ => Err(ErrorCode::NOSUPPORT),
         };
@@ -328,12 +332,17 @@ impl Driver for Console<'_> {
 }
 
 impl uart::TransmitClient for Console<'_> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, _| {
+            self.apps.enter(appid, |app| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
                         if !more_to_send {
@@ -348,8 +357,8 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_len = 0;
                         app.write_remaining = 0;
                         app.pending_write = false;
-                        let r0 = isize::from(return_code) as usize;
-                        app.write_callback.schedule(r0, 0, 0);
+                        app.write_callback
+                            .schedule(kernel::into_statuscode(return_code), 0, 0);
                     }
                 }
             })
@@ -359,18 +368,22 @@ impl uart::TransmitClient for Console<'_> {
         // see if any other applications have pending messages.
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
-                let started_tx = cntr.enter(|app, _| {
+                let appid = cntr.processid();
+                let started_tx = cntr.enter(|app| {
                     if app.pending_write {
                         app.pending_write = false;
-                        match self.send_continue(app.appid(), app) {
+                        match self.send_continue(appid, app) {
                             Ok(more_to_send) => more_to_send,
                             Err(return_code) => {
                                 // XXX This shouldn't ever happen?
                                 app.write_len = 0;
                                 app.write_remaining = 0;
                                 app.pending_write = false;
-                                let r0 = isize::from(return_code) as usize;
-                                app.write_callback.schedule(r0, 0, 0);
+                                app.write_callback.schedule(
+                                    kernel::into_statuscode(return_code),
+                                    0,
+                                    0,
+                                );
                                 false
                             }
                         }
@@ -391,14 +404,14 @@ impl uart::ReceiveClient for Console<'_> {
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         self.rx_in_progress
             .take()
             .map(|appid| {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         // An iterator over the returned buffer yielding only the first `rx_len`
                         // bytes
                         let rx_buffer = buffer.iter().take(rx_len);
@@ -429,31 +442,37 @@ impl uart::ReceiveClient for Console<'_> {
                                 // something went wrong.
                                 //
                                 // If count < 0 this means the buffer
-                                // disappeared: return ENOMEM.
+                                // disappeared: return NOMEM.
                                 let (ret, received_length) = if count < 0 {
-                                    (ReturnCode::ENOMEM, 0)
+                                    (Err(ErrorCode::NOMEM), 0)
                                 } else if rx_len > app.read_buffer.len() {
-                                    // Return `ESIZE` indicating that
+                                    // Return `SIZE` indicating that
                                     // some received bytes were dropped.
                                     // We report the length that we
                                     // actually copied into the buffer,
                                     // but also indicate that there was
                                     // an issue in the kernel with the
                                     // receive.
-                                    (ReturnCode::ESIZE, app.read_buffer.len())
+                                    (Err(ErrorCode::SIZE), app.read_buffer.len())
                                 } else {
                                     // This is the normal and expected
                                     // case.
                                     (rcode, rx_len)
                                 };
 
-                                app.read_callback
-                                    .schedule(From::from(ret), received_length, 0);
+                                app.read_callback.schedule(
+                                    kernel::into_statuscode(ret),
+                                    received_length,
+                                    0,
+                                );
                             }
                             _ => {
                                 // Some UART error occurred
-                                app.read_callback
-                                    .schedule(From::from(ReturnCode::FAIL), 0, 0);
+                                app.read_callback.schedule(
+                                    kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                    0,
+                                    0,
+                                );
                             }
                         }
                     })

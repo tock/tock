@@ -17,17 +17,17 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::{gpio::Configure, led::LedHigh};
+use kernel::ClockInterface;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
 
 /// Actual process memory
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// What should we do if a process faults?
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -56,18 +56,70 @@ impl kernel::Platform for Teensy40 {
     }
 }
 
-type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
-static mut CHIP: Option<&'static Chip> = None;
-
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    imxrt1060::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,
         imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
+
+    peripherals
+}
+
+type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
+static mut CHIP: Option<&'static Chip> = None;
+
+/// Set the ARM clock frequency to 600MHz
+///
+/// You should use this early in program initialization, before there's a chance
+/// for preemption.
+fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::CcmAnalog) {
+    use imxrt1060::ccm::{
+        PeripheralClock2Selection, PeripheralClockSelection, PrePeripheralClockSelection,
+    };
+
+    // Switch AHB clock root to 24MHz oscillator
+    ccm.set_peripheral_clock2_divider(1);
+    ccm.set_peripheral_clock2_selection(PeripheralClock2Selection::Oscillator);
+    ccm.set_peripheral_clock_selection(PeripheralClockSelection::PeripheralClock2Divided);
+
+    // Set PLL1 output frequency, which is
+    //
+    //      24MHz * DIV_SEL / 2
+    //
+    // 24MHz is from crystal oscillator.
+    // PLL1 output == 120MHz
+    ccm_analog.restart_pll1(100);
+
+    // ARM divider is right after the PLL1 output,
+    // bringing down the clock to 600MHz
+    ccm.set_arm_divider(2);
+
+    // Divider just before the AHB clock root
+    ccm.set_ahb_divider(1);
+
+    // Switch AHB clock (back) to PLL1
+    ccm.set_pre_peripheral_clock_selection(PrePeripheralClockSelection::Pll1);
+    ccm.set_peripheral_clock_selection(PeripheralClockSelection::PrePeripheralClock);
+}
+
+#[no_mangle]
+pub unsafe fn main() {
+    imxrt1060::init();
+
+    let peripherals = get_peripherals();
     peripherals.ccm.set_low_power_mode();
+
+    peripherals.dcdc.clock().enable();
+    peripherals.dcdc.set_target_vdd_soc(1250);
+    set_arm_clock(&peripherals.ccm, &peripherals.ccm_analog);
+    // IPG clock is 600MHz / 4 == 150MHz
+    peripherals.ccm.set_ipg_divider(4);
+
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
     peripherals
@@ -218,7 +270,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap();

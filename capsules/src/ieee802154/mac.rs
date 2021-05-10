@@ -13,12 +13,12 @@ use crate::net::ieee802154::{Header, MacAddress};
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub trait Mac {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode;
+    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode>;
 
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'static dyn radio::ConfigClient);
@@ -59,7 +59,7 @@ pub trait Mac {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 ///
@@ -85,9 +85,9 @@ impl<'a, R: radio::Radio> AwakeMac<'a, R> {
 }
 
 impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
-    fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
+    fn initialize(&self, _mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
         // do nothing, extra buffer unnecessary
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_on(&self) -> bool {
@@ -142,13 +142,13 @@ impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
         &self,
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }
 
 impl<R: radio::Radio> radio::TxClient for AwakeMac<'_, R> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
         });
@@ -161,7 +161,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'_, R> {
         buf: &'static mut [u8],
         frame_len: usize,
         crc_valid: bool,
-        result: ReturnCode,
+        result: Result<(), ErrorCode>,
     ) {
         // Filter packets by destination because radio is in promiscuous mode
         let mut addr_match = false;

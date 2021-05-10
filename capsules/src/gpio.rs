@@ -55,13 +55,13 @@ use core::mem;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
 };
 
 pub struct GPIOUpcall(Upcall);
 
 impl GrantDefault for GPIOUpcall {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         GPIOUpcall(cb_factory.build_upcall(0).unwrap())
     }
 }
@@ -117,17 +117,17 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
         if let Some(pin) = pins[index] {
             match config {
                 0 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
                     CommandReturn::success()
                 }
 
                 1 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
                     CommandReturn::success()
                 }
 
                 2 => {
-                    pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
+                    let _ = pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
                     CommandReturn::success()
                 }
 
@@ -147,7 +147,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
             let pin_state = pin.read();
 
             // schedule callback with the pin number and value
-            self.apps.each(|callback| {
+            self.apps.each(|_, callback| {
                 callback.0.schedule(pin_num as usize, pin_state as usize, 0);
             });
         }
@@ -165,14 +165,14 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.0, &mut callback);
                 })
                 .map_err(ErrorCode::from),
@@ -216,7 +216,13 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        _: ProcessId,
+    ) -> CommandReturn {
         let pins = self.pins.as_ref();
         let pin_index = data1;
         match command_num {

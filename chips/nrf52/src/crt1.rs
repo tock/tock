@@ -1,7 +1,7 @@
 use cortexm4::{
-    generic_isr, hard_fault_handler, nvic, scb, svc_handler, systick_handler, unhandled_interrupt,
+    generic_isr, hard_fault_handler, initialize_ram_jump_to_main, nvic, scb, svc_handler,
+    systick_handler, unhandled_interrupt,
 };
-use tock_rt0;
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -13,14 +13,6 @@ use tock_rt0;
  */
 
 extern "C" {
-    // Symbols defined in the linker file
-    static mut _erelocate: usize;
-    static mut _etext: usize;
-    static mut _ezero: usize;
-    static mut _srelocate: usize;
-    static mut _szero: usize;
-    fn reset_handler();
-
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
@@ -37,12 +29,12 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer
     _estack,
     // Reset Handler
-    reset_handler,
+    initialize_ram_jump_to_main,
     // NMI
     unhandled_interrupt,
     // Hard Fault
     hard_fault_handler,
-    // Memory Managment Fault
+    // Memory Management Fault
     unhandled_interrupt,
     // Bus Fault
     unhandled_interrupt,
@@ -144,9 +136,6 @@ pub unsafe extern "C" fn init() {
     // "RAM: RAM content cannot be trusted upon waking up from System ON Idle
     // or System OFF mode" found at the Errata doc
     *(0x40000ee4i32 as *mut u32) = *(0x10000258i32 as *mut u32) & 0x4fu32;
-
-    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     // Explicitly tell the core where Tock's vector table is located. If Tock is the
     // only thing on the chip then this is effectively a no-op. If, however, there is

@@ -18,11 +18,11 @@
 //! sam4l::gpio::PA[10].set_client(lps25hb);
 //! ```
 
-use core::cell::{Cell, RefCell};
-use kernel::common::cells::TakeCell;
+use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -93,12 +93,18 @@ enum State {
     Done,
 }
 
+#[derive(Default)]
+pub struct App {
+    callback: Upcall,
+}
+
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: RefCell<Upcall>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
+    apps: Grant<App>,
+    owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LPS25HB<'a> {
@@ -106,14 +112,16 @@ impl<'a> LPS25HB<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> LPS25HB<'a> {
+        apps: Grant<App>,
+    ) -> Self {
         // setup and return struct
-        LPS25HB {
+        Self {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: RefCell::new(Upcall::default()),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
+            apps,
+            owning_process: OptionalCell::empty(),
         }
     }
 
@@ -188,9 +196,11 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback
-                    .borrow_mut()
-                    .schedule(pressure_ubar as usize, 0, 0);
+                self.owning_process.map(|pid| {
+                    let _ = self.apps.enter(*pid, |app| {
+                        app.callback.schedule(pressure_ubar as usize, 0, 0);
+                    });
+                });
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
@@ -226,21 +236,54 @@ impl Driver for LPS25HB<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Upcall,
-        _app_id: AppId,
+        mut callback: Upcall,
+        appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // Set a callback
-            0 => Ok(self.callback.replace(callback)),
+        let res = self
+            .apps
+            .enter(appid, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
+                    }
 
-            // default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
+        // Check if this non-virtualized driver is already in use by
+        // some (alive) process
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.apps
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
         match command_num {
-            0 /* check if present */ => CommandReturn::success(),
             // Take a pressure measurement
             1 => {
                 self.take_measurement();

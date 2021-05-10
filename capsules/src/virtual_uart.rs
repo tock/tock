@@ -43,6 +43,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{
@@ -50,7 +51,6 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::uart;
-use kernel::ReturnCode;
 
 const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
@@ -67,7 +67,12 @@ pub struct MuxUart<'a> {
 }
 
 impl<'a> uart::TransmitClient for MuxUart<'a> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+        rcode: Result<(), ErrorCode>,
+    ) {
         self.inflight.map(move |device| {
             self.inflight.clear();
             device.transmitted_buffer(tx_buffer, tx_len, rcode);
@@ -81,7 +86,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         // Likely we will issue another receive in response to the previous one
@@ -149,7 +154,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                         device.received_buffer(
                             rxbuf,
                             position,
-                            ReturnCode::ECANCEL,
+                            Err(ErrorCode::CANCEL),
                             uart::Error::Aborted,
                         );
                         // Need to check if receive was called in callback
@@ -204,7 +209,7 @@ impl<'a> MuxUart<'a> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::Parameters {
+        let _ = self.uart.configure(uart::Parameters {
             baud_rate: self.speed,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
@@ -224,17 +229,18 @@ impl<'a> MuxUart<'a> {
                 node.tx_buffer.take().map(|buf| {
                     node.operation.map(move |op| match op {
                         Operation::Transmit { len } => {
-                            let (rcode, rbuf) = self.uart.transmit_buffer(buf, *len);
-                            if rcode != ReturnCode::SUCCESS {
-                                node.tx_client.map(|client| {
-                                    node.transmitting.set(false);
-                                    client.transmitted_buffer(rbuf.unwrap(), 0, rcode);
-                                });
-                            }
+                            let _ = self.uart.transmit_buffer(buf, *len).map_err(
+                                move |(ecode, buf)| {
+                                    node.tx_client.map(move |client| {
+                                        node.transmitting.set(false);
+                                        client.transmitted_buffer(buf, 0, Err(ecode));
+                                    });
+                                },
+                            );
                         }
                         Operation::TransmitWord { word } => {
                             let rcode = self.uart.transmit_word(*word);
-                            if rcode != ReturnCode::SUCCESS {
+                            if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);
                                     client.transmitted_word(rcode);
@@ -272,14 +278,14 @@ impl<'a> MuxUart<'a> {
                     // Case (2). Stop the previous read so we can use the
                     // `received_buffer()` handler to recalculate the minimum
                     // length for a read.
-                    self.uart.receive_abort();
+                    let _ = self.uart.receive_abort();
                     true
                 }
             },
             |rxbuf| {
                 // Case (3). No ongoing receive calls, we can start one now.
                 let len = cmp::min(rx_len, rxbuf.len());
-                self.uart.receive_buffer(rxbuf, len);
+                let _ = self.uart.receive_buffer(rxbuf, len);
                 false
             },
         )
@@ -359,14 +365,19 @@ impl<'a> UartDevice<'a> {
 }
 
 impl<'a> uart::TransmitClient for UartDevice<'a> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+        rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
     }
 
-    fn transmitted_word(&self, rcode: ReturnCode) {
+    fn transmitted_word(&self, rcode: Result<(), ErrorCode>) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_word(rcode);
@@ -378,7 +389,7 @@ impl<'a> uart::ReceiveClient for UartDevice<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        rcode: ReturnCode,
+        rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         self.rx_client.map(move |client| {
@@ -399,8 +410,8 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         self.tx_client.set(client);
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
     /// Transmit data.
@@ -408,26 +419,26 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.transmitting.get() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         } else {
             self.tx_buffer.replace(tx_data);
             self.transmitting.set(true);
             self.operation.set(Operation::Transmit { len: tx_len });
             self.mux.do_next_op_async();
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn transmit_word(&self, word: u32) -> ReturnCode {
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
         if self.transmitting.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.transmitting.set(true);
             self.operation.set(Operation::TransmitWord { word: word });
             self.mux.do_next_op_async();
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -442,11 +453,11 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {
-            (ReturnCode::ESIZE, Some(rx_buffer))
+            Err((ErrorCode::SIZE, rx_buffer))
         } else {
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);
@@ -454,19 +465,19 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
             self.state.set(UartDeviceReceiveState::Idle);
             self.mux.start_receive(rx_len);
             self.state.set(UartDeviceReceiveState::Receiving);
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         self.state.set(UartDeviceReceiveState::Aborting);
-        self.mux.uart.receive_abort();
-        ReturnCode::EBUSY
+        let _ = self.mux.uart.receive_abort();
+        Err(ErrorCode::BUSY)
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }

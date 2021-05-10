@@ -1,14 +1,14 @@
 System Calls
 ========================================
 
-**TRD:** <br/>
+**TRD:** 104 <br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** Nov 1, 2020<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** April 2, 2021<br/>
+**Draft-Version:** 4<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -22,20 +22,19 @@ and RISC-V RV32I platforms.
 ===============================
 
 The Tock operating system can run multiple independent userspace applications.
-Because these applications are untrusted, the kernel uses hardware memory
-protection to isolate them from it. This allows applications written in C
-(or even assembly) to safely run on Tock.
-
 Each application image is a separate process: it has its own address space
-and thread stack. Applications invoke operations on and receive callbacks
-from the Tock kernel through the system call programming interface.
+and thread stack.  Because applications are untrusted, the kernel uses hardware 
+memory protection to isolate the kernel from processes. This allows applications 
+written in C (or even assembly) to safely run on Tock.  Applications invoke 
+operations on and receive upcalls from the Tock kernel through the system call 
+programming interface.
 
 This document describes Tock's system call programming interface (API)
-and application binary interface (ABI) for 32-bit ARM Cortex-M and RISC-V
-RV32I platforms. It describes the system calls
-that Tock implements, their semantics, and how a userspace process
-invokes them. The ABI for other architectures, if supported, will be
-described in other documents.
+and application binary interface (ABI) for 32-bit ARM Cortex-M and
+RISC-V RV32I platforms. It describes the system calls that Tock
+implements, their semantics, and how a userspace process invokes
+them. The ABI for other architectures, if supported, will be described
+in other documents.
 
 2 Design Considerations
 ===============================
@@ -43,9 +42,9 @@ described in other documents.
 Three design considerations guide the design of Tock's system call API and
 ABI.
 
-  1. Tock is currently supported on ARM CortexM and RISCV and may support
-  others in the future. Its ABI must support both architectures and be
-  flexible enough to support future ones.
+  1. Tock is currently supported on the ARM CortexM and RISCV architectures.
+  It may support others in the future. Its ABI must support both architectures 
+  and be flexible enough to support future ones.
   2. Tock userspace applications can be written in any language. The system
   call API must support their calling semantics in a safe way. Rust is
   especially important.
@@ -76,7 +75,7 @@ to regain a reference to the buffer is for the kernel to pass it back.
 
 Programming language calling conventions are
 another consideration because they affect efficiency. For
-example the C calling convention in ARM says that the first four arguments
+example, the C calling convention in ARM says that the first four arguments
 to a function are stored in r0-r3. Additional arguments are stored on
 the stack. Therefore, if the system call ABI says that arguments are stored
 in different registers than r0-r3, a C function call that invokes a system
@@ -85,9 +84,11 @@ call will need to move the C arguments into those registers.
 3 System Call ABI
 =================================
 
-This section describes the ABI for Tock on 32-bit platforms. The ABI for
-64-bit platforms is currently undefined but may be specified in a future TRD.
-
+This section describes the ABI for Tock on 32-bit platforms, including
+the exact register mappings for the CortexM and 32-bit RISC-V architectures. 
+The ABI for 64-bit platforms is currently undefined but may be specified in 
+a future TRD. The register mappings for future 32-bit architectures can be 
+specified in supplemental TRDs.
 
 3.1 Registers
 ---------------------------------
@@ -96,7 +97,7 @@ When userspace invokes a system call, it passes 4 registers to the
 kernel as arguments. It also pass an 8-bit value of which type of
 system call (see Section 4) is being invoked (the Syscall Class
 ID). When the system call returns, it returns 4 registers as return
-values. When the kernel invokes a callback on userspace, it passes 4
+values. When the kernel invokes an upcall on userspace, it passes 4
 registers to userspace as arguments and has no return value.
 
 |                        | CortexM | RISC-V |
@@ -104,8 +105,8 @@ registers to userspace as arguments and has no return value.
 | Syscall Arguments      | r0-r3   | a0-a3  |
 | Syscall Return Values  | r0-r3   | a0-a3  |
 | Syscall Class ID       | svc     | a4     |
-| Callback Arguments     | r0-r3   | a0-a3  |
-| Callback Return Values | None    | None   |
+| Upcall Arguments       | r0-r3   | a0-a3  |
+| Upcall Return Values   | None    | None   |
 
 How registers are mapped to arguments can affect performance and code size.
 For system calls implemented by capsules and drivers (`command`, `subcribe`,
@@ -117,7 +118,7 @@ have to move them between registers.
 For example, `command` has this signature:
 
 ```rust
-fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode
+fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> Result<(), ErrorCode>
 ```
 
 This means that the value which will be passed as `r2` to the command
@@ -153,7 +154,7 @@ for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 | Success with 3 u32         | 132  | Return Value 0     | Return Value 1     | Return Value 2     |
 | Success with u32 and u64   | 133  | Return Value 0     | Return Value 1 LSB | Return Value 1 MSB |
 
-There are a wide variety of failure and success variants because
+There are many failure and success variants because
 different system calls need to pass different amounts of data. A
 command that requests a 64-bit timestamp, for example, needs its
 success to return a `u64`, but its failure can return nothing. In
@@ -164,19 +165,38 @@ value so the pointer can be passed back.
 Every system call MUST return only one failure and only one success
 variant. Different system calls may use different failure and success
 variants, but any specific system call returns exactly one of each. If an
-operation might have different success return variants or failure return
-variants, then it should be split into multiple system calls.
+operation might have multiple success return variants or failure return
+variants, then it MUST be split into multiple system calls.
 
-This requirement of a single failure variant and a single success variant is to simplify
-userspace implementations and preclude them from having to handle many different cases.
-The presence of many difference cases suggests that the operation should be split up --
-there is non-determinism in its execution or its meaning is overloaded. It also fits
-well with Rust's `Result` type.
+This requirement of a single failure variant and a single success
+variant is to simplify userspace implementations and preclude them
+from having to handle many different cases.  The presence of many
+difference cases suggests that the operation should be split up, as
+there is non-determinism in its execution or its meaning is
+overloaded. The requirement of a single failure and a single success
+variant also fits well with Rust's `Result` type.
+
+If userspace tries to invoke a system call that the kernel does not
+support, the system call will return a Failure result with an error 
+code of `NODEVICE` or `NOSUPPORT` (Section 4). As the Allow and
+Subsribe system call classes have defined Failure types, the kernel can
+produce the expected type with known failure variants. Command, however,
+can return any variant. This means that Commands can appear to have
+two failure variants: the one expected (e.g., Failure with u32) as well 
+as Failure. To avoid this ambiguity for `NODEVICE`, userspace can use the 
+reserved "exists" command (Command Identifier 0), described in Section 
+4.3.1. If this command returns Success, the driver is installed and will 
+not return a Failure with `NODEVICE` for Commands. The driver may still 
+return `NOSUPPORT`, however. Because this implies a misunderstanding of
+the system call API by userspace (it is invoking system calls that do not
+exist), userspace is responsible for handling this case.
+
+For all Failure types, the passed Error code MUST be placed in `r1`.
 
 All 32-bit values not specified for `r0` in the above table are reserved.
 Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
 kernel unless specified in a TRD. Therefore, for future compatibility, userspace
-code MUST tolerate `r0` values that it does not recognize.
+code MUST handle `r0` values that it does not recognize. 
 
 3.3 Error Codes
 ---------------------------------
@@ -193,35 +213,37 @@ are additional error codes to include errors related to userspace.
 | 3     | ALREADY     | This operation is already ongoing can cannot be executed more times in parallel.        |
 | 4     | OFF         | This subsystem is powered off and must be turned on before issuing operations.          |
 | 5     | RESERVE     | Making this call requires some form of prior reservation, which has not been performed. |
-| 6     | INVALID     | One of the parameters passed to the operation was invalid.                              |
+| 6     | INVALID     | One of more of the parameters passed to the operation was invalid.                      |
 | 7     | SIZE        | The size specified is too large or too small.                                           |
 | 8     | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.        |
 | 9     | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer). |
-| 10    | NOSUPPORT   | The operation is not supported/implemented.                                             |
-| 11    | NODEVICE    | The specified device is not implemented by the kernel.                                  |
+| 10    | NOSUPPORT   | The system call is not available to or not supported for the calling process.           |
+| 11    | NODEVICE    | The driver specified by the driver identifier is not available to the calling process.  |
 | 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                             |
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
 
-Values in the range 1-1023 reflect kernel return value error codes. Kernel error
-codes not specified above are currently reserved. TRDs MAY specify reserved
-kernel error codes, but MUST NOT specify kernel error codes greater than 1023.
-The Tock kernel MUST NOT return an error code unless the error code is specified
-in a TRD.
+Values in the range 1-1023 reflect kernel return value error
+codes. Kernel error codes not specified above are reserved. TRDs MAY
+specify additional kernel error codes from these reserved values, but
+MUST NOT specify kernel error codes greater than 1023.  The Tock
+kernel MUST NOT return an error code unless the error code is
+specified in a TRD.
 
 Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
-variant than the userspace library expects.
-
+variant than the userspace library expects. 
 
 4 System Call API
 =================================
 
-Tock has 7 classes or types of system calls. When a system call is invoked, the
-class is encoded as the Syscall Class ID. Some system call classes are implemented
-by the core kernel and so always have the same operations. Others are implemented
-by peripheral syscall drivers and so the set of valid operations depends on what peripherals
-the platform has and which have drivers installed in the kernel.
+Tock has 7 classes or types of system calls. When a system call is
+invoked, the class is encoded as the Syscall Class ID. Some system
+call classes are implemented by the core kernel and so the supported
+calls are the same across kernels. Others are implemented by system
+call drivers, which can be added and removed in different kernel
+builds. The full set of valid system calls a kernel supports therefore
+depends on what system call drivers it has installed.
 
 The 6 classes are:
 
@@ -235,41 +257,49 @@ The 6 classes are:
 | Memop            |        5         |
 | Exit             |        6         |
 
-All of the system call classes except Yield and Exit are non-blocking. When a userspace
-process calls a Subscribe, Command, Allow, Read-Only Allow, or Memop syscall,
-the kernel will not put it on a wait queue. Instead, it will return immediately
-upon completion. The kernel scheduler may decide to suspend the process due to
-a timeslice expiration or the kernel thread being runnable, but the system calls
-themselves do not block. If an operation is long-running (e.g., I/O), its completion
-is signaled by a callback (see the Subscribe call in 4.2).
+All of the system call classes except Yield and Exit are
+non-blocking. When a userspace process calls a Subscribe, Command,
+Read-Write Allow, Read-Only Allow, or Memop syscall, the kernel will not put the process
+on a wait queue while handling the syscall. Instead, the kernel will complete the
+syscall and prepare the return value for the syscall immediately.
+The kernel scheduler may not, however, run the process immediately after
+handling the syscall, and may instead decide to suspend the process due
+to a timeslice expiration or the kernel thread being runnable.
+If an operation is long-running
+(e.g., I/O), its completion is signaled by an upcall (see the
+Subscribe call in 4.2).
 
 Successful calls to Exit system calls do not return (the process exits).
 
-Peripheral driver-specific system calls (Subscribe, Command, Allow, Read-Only Allow)
-all include two arguments, a driver identifier and a syscall identifier. The driver identifier
-specifies which peripheral system call driver to invoke. The syscall identifier (which
-is different than the Syscall Class ID in the table above)
-specifies which instance of that system call on that driver to invoke. Both
-arguments are unsigned 32-bit integers. For example, the
-Console driver has driver identifier `0x1` and a Command to the console driver with
+System calls implemented by system call drivers (Subscribe, Command,
+Read-Write Allow, Read-Only Allow) all include two arguments, a driver identifier
+and a syscall identifier. The driver identifier specifies which system
+call driver to invoke. The syscall identifier (which is different than
+the Syscall Class ID in the table above) specifies which instance of
+that system call on that driver to invoke. Both arguments are unsigned
+32-bit integers. For example, by convention the Console system call driver 
+has driver identifier `0x1` and a Command to the console driver with
 syscall identifier `0x2` starts receiving console data into a buffer.
 
-If userspace invokes a system call on a peripheral driver that is not installed in
-the kernel, the kernel MUST return the corresponding failure result with an error
-of `NOSUPPORT`.
+If userspace invokes a system call on a peripheral driver that is not 
+installed in the kernel, the kernel MUST return a Failure result with 
+an error of `NODEVICE`. If userspace invokes an unrecognized system call
+on a peripheral driver, the peripheral driver MUST return a Failure
+result with an error of `NOSUPPORT`.
 
 4.1 Yield (Class ID: 0)
 --------------------------------
 
 The Yield system call class is how a userspace process handles
-callbacks, relinquishes the processor to other processes, or waits for
+upcalls, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system call in Tock, `yield-wait`.
+class implements the only blocking system call in Tock that returns, 
+`yield-wait`.
 
 When a process calls a Yield system call, the kernel schedules one
-pending callback (if any) to execute on the userspace stack.  If there
-are multiple pending callbacks, each one requires a separate Yield
-call to invoke. The kernel invokes callbacks only in response to Yield
+pending upcall (if any) to execute on the userspace stack.  If there
+are multiple pending upcalls, each one requires a separate Yield
+call to invoke. The kernel invokes upcalls only in response to Yield
 system calls.  This form of very limited preemption allows userspace
 to manage concurrent access to its variables.
 
@@ -277,15 +307,16 @@ There are two Yield system calls:
   - `yield-wait`
   - `yield-no-wait`
 
-The first call, `yield-wait`, blocks until a callback executes. This is the
-only blocking system call in Tock. It is commonly used to provide a blocking
-I/O interface to userspace. A userspace library starts a long-running operation
-that has a callback, then calls `yield-wait` to wait for a callback. When the
-`yield-wait` returns, the process checks if the resuming callback was the one
-it was expecting, and if not calls `yield-wait` again.
+The first call, `yield-wait`, blocks until an upcall executes. It is 
+commonly used to provide a blocking I/O interface to userspace or to
+indicate to the kernel that the process has no work to do so the system
+can be put into a sleep state. A userspace library starts a long-running 
+operation that has an upcall, then calls `yield-wait` to wait for an upcall. 
+When the `yield-wait` returns, the process checks if the resuming upcall was 
+the one it was expecting, and if not calls `yield-wait` again. 
 
-The second call, 'yield-no-wait', executes a single callback if any is
-pending.  If no callbacks are pending it returns immediately.
+The second call, `yield-no-wait`, executes a single upcall if any is pending.
+If no upcalls are pending it returns immediately. 
 
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -307,138 +338,140 @@ The yield identifier specifies which call is invoked.
 
 
 All other yield identifier values are reserved. If an invalid
-yield indentifier is passed the kernel returns immediately.
+yield indentifier is passed the kernel MUST return immediately.
 
 The no wait field is only used by `yield-no-wait`. It contains the
 memory address of an 8-bit byte that `yield-no-wait` writes to
-indicate whether a callback was invoked. If invoking `yield-no-wait`
-resulted in a callback executing, `yield-no-wait` writes 1 to the
-field address. If invoking `yield-no-wait` resulted in no callback
+indicate whether an upcall was invoked. If invoking `yield-no-wait`
+resulted in an upcall executing, `yield-no-wait` writes 1 to the
+field address. If invoking `yield-no-wait` resulted in no upcall
 executing, `yield-no-wait` writes 0 to the field address. This field
-allows userspace loops that want to flush the callback queue to
+allows userspace loops that want to flush the upcall queue to
 execute `yield-no-wait` until the queue is empty.
 
 The Yield system call class has no return value. This is because
-invoking a callback pushes that function call onto the stack, such
+invoking an upcall pushes that function call onto the stack, such
 that the return value of a call to yield system call may be the
-return value of the callback. This is why the no wait field exists,
+return value of the upcall. This is why the no wait field exists,
 so that `yield-no-wait` can return a result to the caller. Allowing
 the kernel to pass a return value in register back to userspace
 would require either re-entering the kernel or expensive
 execution architectures (e.g., additonal stacks or additional
-stack frames) for callbacks.
+stack frames) for upcalls.
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
 
-The Subscribe system call class is how a userspace process registers callbacks
-with the kernel. Subscribe system calls are implemented by peripheral syscall
-drivers, so the set of valid Subscribe calls depends on the platform and what
-drivers were compiled into the kernel.
+The Subscribe system call class is how a userspace process registers
+upcalls with the kernel. Subscribe system calls are implemented by
+peripheral syscall drivers, so the set of valid Subscribe calls
+depends on the platform and what drivers were compiled into the
+kernel.
 
-The register arguments for Subscribe system calls are as follows. The registers
-r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
+The register arguments for Subscribe system calls are as follows. The
+registers r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
 | Argument               | Register |
 |------------------------|----------|
 | Driver identifer       | r0       |
 | Subscribe identifier   | r1       |
-| Callback pointer       | r2       |
+| Upcall pointer         | r2       |
 | Application data       | r3       |
 
 
-The `callback pointer` is the address of the first instruction of
-the callback function. The `application data` argument is a parameter
-that an application passes in and the kernel passes back in callbacks
+The `upcall pointer` is the address of the first instruction of
+the upcall function. The `application data` argument is a parameter
+that an application passes in and the kernel passes back in upcalls
 unmodified.
 
-If the passed callback is not valid (is outside process executable
-memory and is not the Null Callback described below), the kernel MUST
+If the passed upcall is not valid (is outside process executable
+memory and is not the Null Upcall described below), the kernel MUST
 NOT invoke the requested driver and MUST immediately return a failure
-with a return code of EINVAL. The currently registered callback
+with a error code of `INVALID`. The currently registered upcall
 remains registered and the kernel does not cancel any pending invocations
-of the existing callback.
+of the existing upcall.
 
-Any callback passed from a process MUST remain valid until the next successful invocation of
-`subscribe` by that process with the same syscall and driver identifier. When
-a process makes a successful subscribe system call (one which results
-in the `Success with 2 u32` return variant), the kernel MUST cancel
-all pending callbacks on that process for that driver and subscribe identifier: it
-MUST NOT invoke the previous callback after the call to `subscribe`, and
-MUST NOT invoke the new callback for events that the kernel handled before the
+Any upcall passed from a process MUST remain valid until the next
+successful invocation of `subscribe` by that process with the same
+syscall and driver identifier. When a process makes a successful
+subscribe system call (one which results in the `Success with 2 u32`
+return variant), the kernel MUST cancel all pending upcalls on that
+process for that driver and subscribe identifier: it MUST NOT invoke
+the previous upcall after the call to `subscribe`, and MUST NOT
+invoke the new upcall for events that the kernel handled before the
 call to `subscribe`.
 
-Note that these semantics create a period over which callbacks might
-be lost: any callbacks that were pending when `subscribe` was called
-will not be invoked. On one hand, losing callbacks can create strange
+Note that these semantics create a period over which upcalls might
+be lost: any upcalls that were pending when `subscribe` was called
+will not be invoked. On one hand, losing upcalls can create strange
 behavior in userspace.  On the other, ensuring correctness is
-difficult. If the pending callbacks are invoked on the old function,
-there is a safety/liveness issue; this means that a callback function
+difficult. If the pending upcalls are invoked on the old function,
+there is a safety/liveness issue; this means that an upcall function
 must exist after it has been removed, and so for safety may need to be
 static (exist for the lifetime of the process). Therefore, to allow
-dynamic callbacks, a callback can't be invoked after it's
+dynamic upcalls, an upcall can't be invoked after it's
 unregistered.
 
-At the same time, invoking the new callback in response to prior
+Invoking the new upcall in response to prior
 events has its own correctness issues. For example, suppose that
-userspace registers a callback for receiving a certain type of
+userspace registers an upcall for receiving a certain type of
 event (e.g., a rising edge on a GPIO pin). It then changes the
-type of event (to falling edge) and registers a new callback.
-Invoking the new callback on the previous events will be
+type of event (to falling edge) and registers a new upcall.
+Invoking the new upcall on the previous events will be
 incorrect.
 
-If userspace requires that it not lose any callbacks, it should
+If userspace requires that it not lose any upcalls, it should
 not re-subcribe and instead use some form of userspace dispatch.
 
 The return variants for Subscribe system calls are `Failure with 2 u32`
-and `Success with 2 u32`. For success, the first `u32` is the callback
+and `Success with 2 u32`. For success, the first `u32` is the upcall
 pointer passed in the previous call to Subscribe (the existing
-callback) and the second `u32` is the application data pointer passed
+upcall) and the second `u32` is the application data pointer passed
 in the previous call to Subscribe (the existing application data). For
-failure, the first `u32` is the passed callback pointer and the second
+failure, the first `u32` is the passed upcall pointer and the second
 `u32` is the passed application data pointer. For the first successful
-call to Subscribe for a given callback, the callback pointer and
-application data pointer returned MUST be the Null Callback (described
+call to Subscribe for a given upcall, the upcall pointer and
+application data pointer returned MUST be the Null Upcall (described
 below).
 
-4.2.1 The Null Callback
+4.2.1 The Null Upcall
 ---------------------------------
 
-The Tock kernel defines a callback pointer as the Null Callback.
-The Null Callback denotes a callback that the kernel will never invoke.
-The Null Callback is used for two reasons. First, a userspace process
-passing the Null Callback as the callback pointer for Subscribe
-indicates that there should be no more callbacks. Second, the first
-time a userspace process calls Subscribe for a particular callback,
-the kernel needs to return callback and application pointers indicating
+The Tock kernel defines an upcall pointer as the Null Upcall.
+The Null Upcall denotes an upcall that the kernel will never invoke.
+The Null Upcall is used for two reasons. First, a userspace process
+passing the Null Upcall as the upcall pointer for Subscribe
+indicates that there should be no more upcalls. Second, the first
+time a userspace process calls Subscribe for a particular upcall,
+the kernel needs to return upcall and application pointers indicating
 the current configuration; in this case, the kernel returns the Null
-Callback. The Tock kernel MUST NOT invoke the Null Callback.
+Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
 
-The Null Callback MUST be 0x0. This means it is not possible for userspace
-to pass address 0x0 as a valid code entry point. Unlike systems with
-virtual memory, where 0x0 can be reserved a special meaning, in
+The Null Upcall upcall pointer MUST be 0x0. This means it is not possible 
+for userspace to pass address 0x0 as a valid code entry point. Unlike 
+systems with virtual memory, where 0x0 can be reserved a special meaning, in
 microcontrollers with only physical memory 0x0 is a valid memory location.
 It is possible that a Tock kernel is configured so its applications
 start at address 0x0. However, even if they do begin at 0x0, the
 Tock Binary Format for application images mean that the first address
 will not be executable code and so 0x0 will not be a valid function.
 In the case that 0x0 is valid application code and where the
-linker places a callback function, the first instruction of the function
+linker places an upcall function, the first instruction of the function
 should be a no-op and the address of the second instruction passed
 instead.
 
 If a userspace process invokes subscribe on a driver ID that is not
 installed in the kernel, the kernel MUST return a failure with an
-error code of NOSUPPORT and a callback of the Null Callback.
+error code of `NODEVICE` and an upcall of the Null Upcall.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
 
-The Command system call class is how a userspace process calls a function
-in the kernel, either to return an immediate result or start a long-running
-operation. Command system calls are implemented by peripheral syscall drivers,
-so the set of valid Command calls depends on the platform and what drivers were
-compiled into the kernel.
+The Command system call class is how a userspace process calls a
+function in the kernel, either to return an immediate result or start
+a long-running operation. Command system calls are implemented by
+syscall drivers, so the set of valid Command calls depends on the
+platform and what drivers were compiled into the kernel.
 
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -459,7 +492,9 @@ Command instance (combination of major and minor identifier) specifies
 its failure variant and success variant. If userspace invokes a
 command on a peripheral that is not installed, the kernel returns a
 failure variant of `Failure`, with an associated error code of
-`NOSUPPORT`.
+`NODEVICE`. Therefore, command invocations that need to
+handle userspace/kernel mismatches should be able to handle `Failure` in
+addition to the expected failure variant (if different than `Failure`).
 
 4.3.1 Command Identifier 0
 --------------------------------
@@ -468,19 +503,21 @@ Every device driver MUST implement command identifier 0 as the
 "exists" command.  This command always returns `Success`. This command
 allows userspace to determine if a particular system call driver is
 installed; if it is, the command returns `Success`. If it is not, the
-kernel returns `Failure` with an error code of `NOSUPPORT`.
+kernel returns `Failure` with an error code of `NODEVICE`.
 
 4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
 
 The Read-Write Allow system call class is how a userspace process
-shares a read-write buffer with the kernel. When userspace shares a
-buffer, it can no longer access it. Calling a Read-Write Allow system
-call also returns a buffer (address and length).  On the first call to
-a Read-Write Allow system call, the kernel returns a zero-length
-buffer. Subsequent calls to Read-Write Allow return the previous
-buffer passed. Therefore, to regain access to the buffer, the process
-must call the same Read-Write Allow system call again.
+shares buffer with the kernel that the kernel can read and write. When
+userspace shares a buffer, it can no longer access it. Calling a
+Read-Write Allow system call returns a buffer (address and
+length).  On the first call to a Read-Write Allow system call, the
+kernel returns a zero-length buffer. Subsequent successful calls to 
+Read-Write Allow return the previous buffer passed. Therefore, to 
+regain access to a passed buffer, the process must call the same 
+Read-Write Allow system call again. It can do so with a zero-length 
+buffer if it wishes to pass no memory to the kernel.
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
@@ -496,10 +533,10 @@ on RISC-V.
 The return variants for Read-Write Allow system calls are `Failure
 with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
 contains an address and `Argument 1` contains a length.  In the case
-of failure, the address and length are those that were passed in the
-call.  In the case of success, the address and length are those that
+of failure, the address and length MUST be those that were passed in the
+call.  In the case of success, the address and length MUST be those that
 were passed in the previous call. On the first successful invocation
-of a particular Read-Write Allow system call, the kernel returns
+of a particular Read-Write Allow system call, the kernel MUST return
 address 0 and size 0.
 
 The buffer identifier specifies which buffer this is. A driver may
@@ -511,7 +548,7 @@ passed buffer must be readable and writeable by the
 process. Zero-length buffers may therefore have abitrary addresses. If
 the passed buffer is not complete within the calling process's
 writeable address space, the kernel MUST return a failure result with
-an error code of INVAL (invalid value).
+an error code of `INVALID`.
 
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
@@ -519,13 +556,15 @@ Read-Write Allow call cannot overlap with the first passed buffer.
 This is because the application does not have access to that
 memory. If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
-again to re-allow it with a different size.
-
+again to re-allow it with a different size. If userspace passes
+an overlapping buffer, the kernel MUST return a failure result with
+an error code of `INVALID`.
+ 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
-The Read-Only Allow class is identical to the Read-Write Allow class
-with two exceptions: the buffer it passes to the kernel is read-only,
+The Read-Only Allow class is very similar to the Read-Write Allow class.
+It differs in tow ways: the buffer it passes to the kernel is read-only,
 and the process retains read access to the buffer. The kernel cannot
 write to the buffer. The semantics and calling conventions of
 Read-Only Allow are otherwise identical to Read-Write Allow.
@@ -560,15 +599,14 @@ the calling process's readable address space. Every byte of the passed
 buffer must be readable and writeable by the process. Zero-length
 buffers may therefore have abitrary addresses. If the passed buffer is
 not complete within the calling process's readable address space, the
-kernel MUST return a failure result with an error code of INVAL
-(invalid value).
+kernel MUST return a failure result with an error code of `INVALID`.
 
 4.6 Memop (Class ID: 5)
 ---------------------------------
 
 The Memop class is how a userspace process requests and provides
 information about its address space.  The register arguments for
-Allow system calls are as follows. The registers r0-r3 correspond
+Memop system calls are as follows. The registers r0-r3 correspond
 to r0-r3 on CortexM and a0-a3 on RISC-V.
 
 | Argument               | Register |
@@ -598,7 +636,7 @@ are 12:
 
 The success return variant is Memop class system call specific and
 specified in the table above. All Memop class system calls have a
-_Failure_ failure type.
+`Failure` failure type.
 
 4.7 Exit (Class ID: 6)
 --------------------------------
@@ -649,67 +687,179 @@ information can be stored in the kernel and used in management or policy decisio
 The definition of these status codes is outside the scope of this document.
 
 If an exit syscall is successful, it does not return. Therefore, the return
-value of an exit syscall is always _Failure_. `exit-restart` and 
+value of an exit syscall is always `Failure`. `exit-restart` and 
 `exit-terminate` MUST always succeed and so never return. 
 
-5 Userspace Library Methods
+5 libtock-c Userspace Library Methods
 =================================
 
-This section describes the method signatures for system calls and callbacks in C and Rust.
+This section describes the method signatures for system calls and upcalls in C, as an example
+of how they appear to application/userspace code..
+
 Because C allows a single return value but Tock system calls can return multiple values,
-the low-level APIs are not idiomatic C. These low-level APIs are translated into standard C
-code by the userspace library.
+they do not easily map to idiomatic C. These low-level APIs are translated into standard C
+code by the userspace library. The general calling convention is that the complex return types
+are returned as structs. Since these structs are composite types larger than a single word, the
+ARM and RISCV calling conventions pass them on the stack.
 
-5.1 libtock-c
+The system calls are implemented as inline assembly. This assembly moves arguments into the correct
+registers and invokes the system call, and on return copies the returned data into the return type
+on the stack.
+
+
+5.1 Yield
 ---------------------------------
 
-5.1 libtock-rs
+The Yield system calls have these function prototypes:
+
+```c
+int yield_no_wait(void);
+void yield(void);
+```
+
+`yield_no_wait` returns 1 if an upcall was invoked and 0 if one was not invoked.
+
+5.2 Subscribe
 ---------------------------------
 
-6 The Driver Trait
-=================================
+The subscribe system call has this function prototype:
 
-The core kernel, in response to userspace system calls, invokes methods on the Driver
-trait implemented by system call drivers.  This section describes the Driver trait API
-and how it interacts with the core kernel's system calls. Note that
+```c
+typedef void (subscribe_upcall)(int, int, int, void*);
 
+typedef struct {
+  bool success;
+  subscribe_upcall* upcall;
+  void* userdata;
+  tock_error_t error;
+} subscribe_return_t;
 
-6.1 Return Types
+subscribe_return_t subscribe(uint32_t driver, uint32_t subscribe,
+                             subscribe_upcall uc, void* userdata);
+```
+
+The `success` field indicates whether the call to subscribe succeeded.
+If it failed, the error code is stored in `error`. If it succeeded,
+the value in `error` is undefined.
+
+5.3 Command
+-----------------------------------
+
+The subscribe system call has this function prototype:
+
+```c
+typedef struct {
+  syscall_rtype_t type;
+  uint32_t data[3];
+} syscall_return_t;
+
+syscall_return_t command(uint32_t driver, uint32_t command, int data, int arg2);
+```
+
+Because a command can return any failure or success variant, it returns a direct
+mapping of the return registers. `rtype` contains the value of `r0`, while
+`data[0]` contains what was passed in `r1`, `data[1]` contains was passed in `r2`,
+and `data[2]` contains what was passed in `r3`.
+
+5.4 Read-Write Allow
 ---------------------------------
 
-Methods in the Driver trait have return values of Rust types that
-correspond to their allowed return values and which have corresponding
-in encodings desribed in Section 3.2.
+The read-write allow system call has this function prototype:
 
-6.1.1 Return Type Values
+```c
+typedef struct {
+  bool success;
+  void* ptr;
+  size_t size;
+  tock_error_t error;
+} allow_rw_return_t;
+
+allow_rw_return_t allow_readwrite(uint32_t driver, uint32_t allow, void* ptr, size_t size);
+```
+
+The `success` field indicates whether the call succeeded.
+If it failed, the error code is stored in `error`. If it succeeded,
+the value in `error` is undefined. `ptr` and `size` contain the pointer
+and size of the passed buffer.
+
+
+5.5 Read-Only Allow
 ---------------------------------
 
+The read-only allow system call has this function prototype:
 
+```c
+typedef struct {
+  bool success;
+  const void* ptr;
+  size_t size;
+  tock_error_t error;
+} allow_ro_return_t;
 
-6.1.2 Yield Return Type
+allow_ro_return_t allow_readonly(uint32_t driver, uint32_t allow, const void* ptr, size_t size);
+```
+
+The `success` field indicates whether the call succeeded.
+If it failed, the error code is stored in `error`. If it succeeded,
+the value in `error` is undefined. `ptr` and `size` contain the pointer
+and size of the passed buffer.
+
+5.6 Memop
 ---------------------------------
 
-6.1.3 Subscribe Return Type
+Because the Memop system calls are defined by the kernel and not extensible, they are
+directly defined by libtock-c as library functions:
+
+```c
+void* tock_app_memory_begins_at(void);
+void* tock_app_memory_ends_at(void);
+void* tock_app_flash_begins_at(void);
+void* tock_app_flash_ends_at(void);
+void* tock_app_grant_begins_at(void);
+int tock_app_number_writeable_flash_regions(void);
+void* tock_app_writeable_flash_region_begins_at(int region_index);
+void* tock_app_writeable_flash_region_ends_at(int region_index);
+```
+
+They wrap around an underlying function which uses inline assembly:
+
+```c
+void* memop(uint32_t op_type, int arg1);
+```
+
+5.7 Exit
 ---------------------------------
 
-6.1.4 Command  Return Type
----------------------------------
+The Exit system calls have these function prototypes:
 
-6.1.5 Allow Return Type
----------------------------------
+```c
+void tock_exit(uint32_t completion_code);
+void tock_restart(uint32_t completion_code);
+```
 
-6.1.6 Memop Return Type
----------------------------------
+Since these two variants of Exit never return, they have
+no return value.
 
 
-
-7 Authors' Address
+6 Authors' Address
 =================================
 ```
-email - Guillaume Endignoux <guillaumee@google.com>
-email - Jon Flatley <jflat@google.com>
-email - Philip Levis <pal@cs.stanford.edu>
-email - Amit Levy <aalevy@cs.princeton.edu>
-email - Leon Schuermann <leon@is.currently.online>
-email - Johnathan Van Why <jrvanwhy@google.com>
+Guillaume Endignoux <guillaumee@google.com>
+
+Jon Flatley <jflat@google.com>
+
+Philip Levis
+414 Gates Hall 
+Stanford University
+Stanford, CA 94305
+
+Phone: +1 650 725 9046
+Email: pal@cs.stanford.edu
+
+
+Amit Levy <aalevy@cs.princeton.edu>
+
+Leon Schuermann <leon@is.currently.online>
+
+Johnathan Van Why <jrvanwhy@google.com>
 ```

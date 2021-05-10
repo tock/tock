@@ -15,9 +15,8 @@ use core::convert::From;
 use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::ReturnCode;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Read,
     ReadOnlyAppSlice, Upcall,
 };
 
@@ -45,7 +44,6 @@ pub struct App {
     callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
-    write_position: usize,
     write_len: usize,
     command: TextScreenCommand,
     data1: usize,
@@ -53,12 +51,11 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
         App {
             callback: cb_factory.build_upcall(0).unwrap(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
-            write_position: 0,
             write_len: 0,
             command: TextScreenCommand::Idle,
             data1: 1,
@@ -70,7 +67,7 @@ impl GrantDefault for App {
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
     apps: Grant<App>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -93,29 +90,28 @@ impl<'a> TextScreen<'a> {
         command: TextScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
                     let r = self.do_command(command, data1, data2, appid);
-                    if r != ReturnCode::SUCCESS {
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
                     r
                 } else {
                     if app.pending_command == true {
-                        ReturnCode::EBUSY
+                        Err(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
                         app.command = command;
-                        app.write_position = 0;
                         app.data1 = data1;
                         app.data2 = data2;
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 }
             })
@@ -132,14 +128,14 @@ impl<'a> TextScreen<'a> {
         command: TextScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
-    ) -> ReturnCode {
+        appid: ProcessId,
+    ) -> Result<(), ErrorCode> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
-                self.schedule_callback(usize::from(ReturnCode::SUCCESS), x, y);
+                self.schedule_callback(kernel::into_statuscode(Ok(())), x, y);
                 self.run_next_command();
-                ReturnCode::SUCCESS
+                Ok(())
             }
             TextScreenCommand::Display => self.text_screen.display_on(),
             TextScreenCommand::NoDisplay => self.text_screen.display_off(),
@@ -149,49 +145,49 @@ impl<'a> TextScreen<'a> {
             TextScreenCommand::NoCursor => self.text_screen.hide_cursor(),
             TextScreenCommand::Write => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if data1 > 0 {
-                        app.write_position = 0;
                         app.write_len = data1;
-                        app.shared.map_or(ReturnCode::ENOMEM, |to_write_buffer| {
-                            self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
+                        app.shared.map_or(Err(ErrorCode::NOMEM), |to_write_buffer| {
+                            self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                                 let len = cmp::min(app.write_len, buffer.len());
                                 for n in 0..len {
                                     buffer[n] = to_write_buffer[n];
                                 }
                                 match self.text_screen.print(buffer, len) {
-                                    Ok(()) => ReturnCode::SUCCESS,
-                                    Err((err, buffer)) => {
+                                    Ok(()) => Ok(()),
+                                    Err((ecode, buffer)) => {
                                         self.buffer.replace(buffer);
-                                        err
+                                        Err(ecode)
                                     }
                                 }
                             })
                         })
                     } else {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
             TextScreenCommand::Clear => self.text_screen.clear(),
             TextScreenCommand::Home => self.text_screen.clear(),
             TextScreenCommand::ShowCursor => self.text_screen.show_cursor(),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
     fn run_next_command(&self) {
         // Check for pending events.
         for app in self.apps.iter() {
-            let current_command = app.enter(|app, _| {
+            let appid = app.processid();
+            let current_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
-                    let r = self.do_command(app.command, app.data1, app.data2, app.appid());
-                    if r != ReturnCode::SUCCESS {
+                    self.current_app.set(appid);
+                    let r = self.do_command(app.command, app.data1, app.data2, appid);
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
-                    r == ReturnCode::SUCCESS
+                    r == Ok(())
                 } else {
                     false
                 }
@@ -204,7 +200,7 @@ impl<'a> TextScreen<'a> {
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.pending_command = false;
                 app.callback.schedule(data1, data2, data3);
             });
@@ -217,13 +213,13 @@ impl<'a> Driver for TextScreen<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 => {
                 let res = self
                     .apps
-                    .enter(app_id, |app, _| {
+                    .enter(app_id, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -242,7 +238,7 @@ impl<'a> Driver for TextScreen<'a> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver exists.
@@ -276,7 +272,7 @@ impl<'a> Driver for TextScreen<'a> {
 
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -284,9 +280,8 @@ impl<'a> Driver for TextScreen<'a> {
             0 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         mem::swap(&mut app.shared, &mut slice);
-                        app.write_position = 0;
                     })
                     .map_err(ErrorCode::from);
                 if let Err(e) = res {
@@ -301,14 +296,14 @@ impl<'a> Driver for TextScreen<'a> {
 }
 
 impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
-        self.schedule_callback(usize::from(r), 0, 0);
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
+        self.schedule_callback(kernel::into_statuscode(r), 0, 0);
         self.run_next_command();
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: ReturnCode) {
+    fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
-        self.schedule_callback(usize::from(r), len, 0);
+        self.schedule_callback(kernel::into_statuscode(r), len, 0);
         self.run_next_command();
     }
 }

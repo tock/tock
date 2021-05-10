@@ -37,31 +37,47 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
-use core::cell::RefCell;
+use core::mem;
+
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode, ReturnCode, Upcall};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
+};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
     analog_comparator: &'a A,
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
-    // App state
-    callback: RefCell<Upcall>,
+    grants: Grant<App>,
+    current_process: OptionalCell<ProcessId>,
+}
+
+pub struct App {
+    callback: Upcall,
+}
+
+impl GrantDefault for App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
+        App {
+            callback: cb_factory.build_upcall(0),
+        }
+    }
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
     pub fn new(
         analog_comparator: &'a A,
         channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
+        grant: Grant<App>,
     ) -> AnalogComparator<'a, A> {
         AnalogComparator {
             // Analog Comparator driver
             analog_comparator,
             channels,
-
-            // App state
-            callback: RefCell::new(Upcall::default()),
+            grants: grant,
+            current_process: OptionalCell::empty(),
         }
     }
 
@@ -78,9 +94,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 
     // Start comparing on a channel
-    fn start_comparing(&self, channel: usize) -> ReturnCode {
+    fn start_comparing(&self, channel: usize) -> Result<(), ErrorCode> {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -90,9 +106,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     }
 
     // Stop comparing on a channel
-    fn stop_comparing(&self, channel: usize) -> ReturnCode {
+    fn stop_comparing(&self, channel: usize) -> Result<(), ErrorCode> {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -117,7 +133,30 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        channel: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned unconditionally.
+            return CommandReturn::success_u32(self.channels.len() as u32);
+        }
+
+        // Check if this driver is free, or already dedicated to this process.
+        let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
+            self.grants
+                .enter(*current_process, |_| current_process == &appid)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.current_process.set(appid);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+
         match command_num {
             0 => CommandReturn::success_u32(self.channels.len() as u32),
 
@@ -138,12 +177,23 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Upcall,
-        _app_id: AppId,
+        mut callback: Upcall,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // Subscribe to all interrupts
-            0 => Ok(self.callback.replace(callback)),
+            0 => {
+                let res = self
+                    .grants
+                    .enter(app_id, |app| {
+                        mem::swap(&mut app.callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from);
+                match res {
+                    Err(err) => Err((callback, err)),
+                    _ => Ok(callback),
+                }
+            }
             // Default
             _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
@@ -155,6 +205,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
 {
     /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.callback.borrow_mut().schedule(channel, 0, 0);
+        self.current_process.map(|appid| {
+            let _ = self.grants.enter(*appid, |app| {
+                app.callback.schedule(channel, 0, 0);
+            });
+        });
     }
 }

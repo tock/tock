@@ -12,6 +12,7 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'panic' causes the kernel to run the panic handler
 //!
 //! ### `list` Command Fields:
 //!
@@ -119,8 +120,8 @@ use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
+use kernel::ErrorCode;
 use kernel::Kernel;
-use kernel::ReturnCode;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
@@ -176,16 +177,16 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    pub fn start(&self) -> ReturnCode {
+    pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
-                self.uart.receive_buffer(buffer, 1);
+                let _ = self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
                 //debug!("Starting process console");
             });
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     // Process the command in the command buffer and clear the buffer.
@@ -210,7 +211,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
                             debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help status list stop start fault");
+                            debug!("Valid commands are: help status list stop start fault panic");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -260,7 +261,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
 
                                     let pname = proc.get_process_name();
-                                    let appid = proc.appid();
+                                    let appid = proc.processid();
                                     let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
 
                                     debug!(
@@ -290,6 +291,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 "Timeslice expirations: {}",
                                 info.timeslice_expirations(&self.capability)
                             );
+                        } else if clean_str.starts_with("panic") {
+                            panic!("ProcessConsole forced a kernel panic.");
                         } else {
                             debug!("Valid commands are: help status list stop start fault");
                         }
@@ -304,37 +307,42 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         self.command_index.set(0);
     }
 
-    fn write_byte(&self, byte: u8) -> ReturnCode {
+    fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 buffer[0] = byte;
-                self.uart.transmit_buffer(buffer, 1);
+                let _ = self.uart.transmit_buffer(buffer, 1);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
-    fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
+    fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
                 // Copy elements of `bytes` into `buffer`
                 (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
-                self.uart.transmit_buffer(buffer, len);
+                let _ = self.uart.transmit_buffer(buffer, len);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
 
@@ -351,7 +359,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         &self,
         read_buf: &'static mut [u8],
         rx_len: usize,
-        _rcode: ReturnCode,
+        _rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         if error == uart::Error::None {
@@ -362,11 +370,11 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                         let index = self.command_index.get() as usize;
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
                             self.execute.set(true);
-                            self.write_bytes(&['\r' as u8, '\n' as u8]);
+                            let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
                         } else if read_buf[0] == ('\x08' as u8) && index > 0 {
                             // Backspace, echo and remove last byte
                             // Note echo is '\b \b' to erase
-                            self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                            let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
                             command[index - 1] = '\0' as u8;
                             self.command_index.set(index - 1);
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
@@ -374,7 +382,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                             // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
                             // Echo the byte and store it
-                            self.write_byte(read_buf[0]);
+                            let _ = self.write_byte(read_buf[0]);
                             command[index] = read_buf[0];
                             self.command_index.set(index + 1);
                             command[index + 1] = 0;
@@ -388,6 +396,6 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
             };
         }
         self.rx_in_progress.set(true);
-        self.uart.receive_buffer(read_buf, 1);
+        let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }

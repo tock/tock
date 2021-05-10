@@ -42,17 +42,17 @@
 //!   - Return: Number of LEDs.
 //! - `1`: Turn the LED on.
 //!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
+//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 //! - `2`: Turn the LED off.
 //!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
+//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 //! - `3`: Toggle the on/off state of the LED.
 //!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
+//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
 use kernel::common::cells::TakeCell;
 use kernel::hil::led;
-use kernel::{AppId, CommandReturn, Driver, ErrorCode};
+use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -85,13 +85,13 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
     ///
     /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
     ///        greater, and therefore also allows for checking for this driver.
-    /// - `1`: Turn the LED at index specified by `data` on. Returns `EINVAL` if
+    /// - `1`: Turn the LED at index specified by `data` on. Returns `INVAL` if
     ///        the LED index is not valid.
-    /// - `2`: Turn the LED at index specified by `data` off. Returns `EINVAL`
+    /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL`
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
-    ///        `EINVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandReturn {
+    ///        `INVAL` if the LED index is not valid.
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         self.leds
             .map(|leds| {
                 match command_num {

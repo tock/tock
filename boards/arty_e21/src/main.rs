@@ -28,10 +28,10 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.
@@ -49,7 +49,7 @@ struct ArtyE21 {
     gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
     >,
     led: &'static capsules::led::LedDriver<
         'static,
@@ -79,15 +79,12 @@ impl Platform for ArtyE21 {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// and RAM setup.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
-
+pub unsafe fn main() {
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
 
     let chip = static_init!(
@@ -135,7 +132,7 @@ pub unsafe fn reset_handler() {
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        MuxAlarm<'static, sifive::clint::Clint>,
         MuxAlarm::new(&peripherals.machinetimer)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
@@ -146,18 +143,16 @@ pub unsafe fn reset_handler() {
         capsules::alarm::DRIVER_NUM as u32,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(
-        rv32i::machine_timer::MachineTimer
-    ));
+    .finalize(components::alarm_component_helper!(sifive::clint::Clint));
 
     // TEST for timer
     //
     // let virtual_alarm_test = static_init!(
-    //     VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+    //     VirtualMuxAlarm<'static, sifive::clint::Clint>,
     //     VirtualMuxAlarm::new(mux_alarm)
     // );
     // let timertest = static_init!(
-    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>>,
+    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
     //     timer_test::TimerTest::new(virtual_alarm_test)
     // );
     // virtual_alarm_test.set_client(timertest);
@@ -251,7 +246,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

@@ -2,21 +2,19 @@
 
 use core::convert::TryFrom;
 
-use crate::ReturnCode;
-
 /// Standard errors in Tock.
 ///
-/// In contrast to [`ReturnCode`](crate::ReturnCode) this does not
-/// feature any success cases and is therefore more approriate for the
-/// Tock 2.0 system call interface, where success payloads and errors
-/// are not packed into the same 32-bit wide register.
+/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this
+/// does not feature any success cases and is therefore more appropriate for the
+/// Tock 2.0 system call interface, where success payloads and errors are not
+/// packed into the same 32-bit wide register.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(usize)]
 pub enum ErrorCode {
     // Reserved value, for when "no error" / "success" should be
     // encoded in the same numeric representation as ErrorCode
     //
-    // SUCCESS = 0,
+    // Ok(()) = 0,
     /// Generic failure condition
     FAIL = 1,
     /// Underlying system is busy; retry
@@ -35,9 +33,9 @@ pub enum ErrorCode {
     CANCEL = 8,
     /// Memory required not available
     NOMEM = 9,
-    /// Operation or command is unsupported
+    /// Operation is not supported
     NOSUPPORT = 10,
-    /// Device does not exist
+    /// Device is not available
     NODEVICE = 11,
     /// Device is not physically installed
     UNINSTALLED = 12,
@@ -51,45 +49,77 @@ impl From<ErrorCode> for usize {
     }
 }
 
-impl TryFrom<ReturnCode> for ErrorCode {
+impl TryFrom<Result<(), ErrorCode>> for ErrorCode {
     type Error = ();
 
-    fn try_from(rc: ReturnCode) -> Result<Self, Self::Error> {
+    fn try_from(rc: Result<(), ErrorCode>) -> Result<Self, Self::Error> {
         match rc {
-            ReturnCode::SUCCESS => Err(()),
-            ReturnCode::FAIL => Ok(ErrorCode::FAIL),
-            ReturnCode::EBUSY => Ok(ErrorCode::BUSY),
-            ReturnCode::EALREADY => Ok(ErrorCode::ALREADY),
-            ReturnCode::EOFF => Ok(ErrorCode::OFF),
-            ReturnCode::ERESERVE => Ok(ErrorCode::RESERVE),
-            ReturnCode::EINVAL => Ok(ErrorCode::INVAL),
-            ReturnCode::ESIZE => Ok(ErrorCode::SIZE),
-            ReturnCode::ECANCEL => Ok(ErrorCode::CANCEL),
-            ReturnCode::ENOMEM => Ok(ErrorCode::NOMEM),
-            ReturnCode::ENOSUPPORT => Ok(ErrorCode::NOSUPPORT),
-            ReturnCode::ENODEVICE => Ok(ErrorCode::NODEVICE),
-            ReturnCode::EUNINSTALLED => Ok(ErrorCode::UNINSTALLED),
-            ReturnCode::ENOACK => Ok(ErrorCode::NOACK),
+            Ok(()) => Err(()),
+            Err(ErrorCode::FAIL) => Ok(ErrorCode::FAIL),
+            Err(ErrorCode::BUSY) => Ok(ErrorCode::BUSY),
+            Err(ErrorCode::ALREADY) => Ok(ErrorCode::ALREADY),
+            Err(ErrorCode::OFF) => Ok(ErrorCode::OFF),
+            Err(ErrorCode::RESERVE) => Ok(ErrorCode::RESERVE),
+            Err(ErrorCode::INVAL) => Ok(ErrorCode::INVAL),
+            Err(ErrorCode::SIZE) => Ok(ErrorCode::SIZE),
+            Err(ErrorCode::CANCEL) => Ok(ErrorCode::CANCEL),
+            Err(ErrorCode::NOMEM) => Ok(ErrorCode::NOMEM),
+            Err(ErrorCode::NOSUPPORT) => Ok(ErrorCode::NOSUPPORT),
+            Err(ErrorCode::NODEVICE) => Ok(ErrorCode::NODEVICE),
+            Err(ErrorCode::UNINSTALLED) => Ok(ErrorCode::UNINSTALLED),
+            Err(ErrorCode::NOACK) => Ok(ErrorCode::NOACK),
         }
     }
 }
 
-impl From<ErrorCode> for ReturnCode {
+impl From<ErrorCode> for Result<(), ErrorCode> {
     fn from(ec: ErrorCode) -> Self {
         match ec {
-            ErrorCode::FAIL => ReturnCode::FAIL,
-            ErrorCode::BUSY => ReturnCode::EBUSY,
-            ErrorCode::ALREADY => ReturnCode::EALREADY,
-            ErrorCode::OFF => ReturnCode::EOFF,
-            ErrorCode::RESERVE => ReturnCode::ERESERVE,
-            ErrorCode::INVAL => ReturnCode::EINVAL,
-            ErrorCode::SIZE => ReturnCode::ESIZE,
-            ErrorCode::CANCEL => ReturnCode::ECANCEL,
-            ErrorCode::NOMEM => ReturnCode::ENOMEM,
-            ErrorCode::NOSUPPORT => ReturnCode::ENOSUPPORT,
-            ErrorCode::NODEVICE => ReturnCode::ENODEVICE,
-            ErrorCode::UNINSTALLED => ReturnCode::EUNINSTALLED,
-            ErrorCode::NOACK => ReturnCode::ENOACK,
+            ErrorCode::FAIL => Err(ErrorCode::FAIL),
+            ErrorCode::BUSY => Err(ErrorCode::BUSY),
+            ErrorCode::ALREADY => Err(ErrorCode::ALREADY),
+            ErrorCode::OFF => Err(ErrorCode::OFF),
+            ErrorCode::RESERVE => Err(ErrorCode::RESERVE),
+            ErrorCode::INVAL => Err(ErrorCode::INVAL),
+            ErrorCode::SIZE => Err(ErrorCode::SIZE),
+            ErrorCode::CANCEL => Err(ErrorCode::CANCEL),
+            ErrorCode::NOMEM => Err(ErrorCode::NOMEM),
+            ErrorCode::NOSUPPORT => Err(ErrorCode::NOSUPPORT),
+            ErrorCode::NODEVICE => Err(ErrorCode::NODEVICE),
+            ErrorCode::UNINSTALLED => Err(ErrorCode::UNINSTALLED),
+            ErrorCode::NOACK => Err(ErrorCode::NOACK),
         }
+    }
+}
+
+/// Convert a `Result<(), ErrorCode>` to a StatusCode (usize) for userspace.
+///
+/// StatusCode is a useful "pseudotype" (there is no actual Rust type called
+/// StatusCode in Tock) for three reasons:
+///
+/// 1. It can be represented in a single `usize`. This allows StatusCode to be
+///    easily passed across the syscall interface between the kernel and
+///    userspace.
+///
+/// 2. It extends ErrorCode, but keeps the same error-to-number mappings as
+///    ErrorCode. For example, in both StatusCode and ErrorCode, the `SIZE`
+///    error is always represented as 7.
+///
+/// 3. It can encode success values, whereas ErrorCode can only encode errors.
+///    Number 0 in ErrorCode is reserved, and is used for `SUCCESS` in
+///    StatusCode.
+///
+/// This helper function converts the Tock and Rust convention for a
+/// success/error type to a StatusCode. StatusCode is represented as a usize
+/// which is sufficient to send to userspace via an upcall.
+///
+/// The key to this conversion and portability between the kernel and userspace
+/// is that `ErrorCode`, which only expresses errors, is assigned fixed values,
+/// but does not use value 0 by convention. This allows us to use 0 as success
+/// in ReturnCode.
+pub fn into_statuscode(r: Result<(), ErrorCode>) -> usize {
+    match r {
+        Ok(()) => 0,
+        Err(e) => e as usize,
     }
 }

@@ -31,7 +31,7 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
@@ -39,7 +39,7 @@ static mut CHIP: Option<&'static stm32f446re::chip::Stm32f4xx<Stm32f446reDefault
     None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -167,16 +167,17 @@ unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::TIM2).enable();
 }
 
-/// Reset Handler.
+/// Statically initialize the core peripherals for the chip.
 ///
-/// This symbol is loaded into vector table by the STM32F446RE chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    stm32f446re::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> (
+    &'static mut Stm32f446reDefaultPeripherals<'static>,
+    &'static stm32f446re::syscfg::Syscfg<'static>,
+    &'static stm32f446re::dma1::Dma1<'static>,
+) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
     let syscfg = static_init!(
@@ -192,6 +193,17 @@ pub unsafe fn reset_handler() {
         Stm32f446reDefaultPeripherals,
         Stm32f446reDefaultPeripherals::new(rcc, exti, dma1)
     );
+    (peripherals, syscfg, dma1)
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    stm32f446re::init();
+
+    let (peripherals, syscfg, dma1) = get_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -355,7 +367,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

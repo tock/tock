@@ -26,6 +26,7 @@ are to:
 - Philip Levis, [phil-levis](https://github.com/phil-levis), Stanford
 - Amit Levy (chair), [alevy](https://github.com/alevy), Princeton University
 - Pat Pannuto, [ppannuto](https://github.com/ppannuto), UCSD
+- Leon Schuermann [lschuermann](https://github.com/lschuermann), University of Stuttgart
 - Johnathan Van Why, [jrvanwhy](https://github.com/jrvanwhy), Google
 
 ## Membership

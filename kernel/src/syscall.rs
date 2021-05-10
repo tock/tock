@@ -400,6 +400,9 @@ pub enum ContextSwitchReason {
     /// Process called a syscall. Also returns the syscall and relevant values.
     SyscallFired { syscall: Syscall },
     /// Process triggered the hardfault handler.
+    /// The implementation should still save registers in the event that the
+    /// `Platform` can handle the fault and allow the app to continue running.
+    /// For more details on this see `Platform::process_fault_hook()`.
     Fault,
     /// Process interrupted (e.g. by a hardware event)
     Interrupted,

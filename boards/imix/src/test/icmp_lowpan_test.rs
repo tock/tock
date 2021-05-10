@@ -22,6 +22,7 @@ use capsules::net::network_capabilities::{
 };
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
+use kernel::ErrorCode;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
@@ -31,7 +32,6 @@ use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
-use kernel::ReturnCode;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -158,9 +158,9 @@ pub unsafe fn run(
 impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     for LowpanICMPTest<'a, A>
 {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: Result<(), ErrorCode>) {
         match result {
-            ReturnCode::SUCCESS => {
+            Ok(()) => {
                 debug!("ICMP Echo Request Packet Sent!");
                 match self.test_counter.get() {
                     2 => debug!("Test completed successfully."),
@@ -230,7 +230,7 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
 
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
-        unsafe {
+        let _ = unsafe {
             self.icmp_sender
                 .send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD, self.net_cap)
         };

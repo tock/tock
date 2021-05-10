@@ -59,7 +59,7 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// the packet is sent or `send_cancel()` is called.
     ///
     /// Calling `send_buffer()` while there is an outstanding
-    /// `send_buffer()` operation will return EBUSY.
+    /// `send_buffer()` operation will return BUSY.
     ///
     /// On success returns the length of data to be sent.
     /// On failure returns an error code and the buffer passed in.
@@ -71,13 +71,13 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// return the buffer passed via `send_buffer()` and no callback
     /// will occur.
     /// If there is currently no send transaction (`send_buffer()`
-    /// hasn't been called) this will return `Err(EINVAL)`.
+    /// hasn't been called) this will return `Err(INVAL)`.
     /// If the transaction can't be cancelled cleanly, either because
     /// the send has already occured, a partial send has occured or the
     /// send can not be cancelled by the hardware this will return
-    /// `Err(EBUSY)` and the callback will still occur.
+    /// `Err(BUSY)` and the callback will still occur.
     /// Note that unless the transaction completes the callback will
-    /// indicate a result of `ECANCEL`.
+    /// indicate a result of `CANCEL`.
     fn send_cancel(&'a self) -> Result<&'static mut T, ErrorCode>;
 
     /// Sets the buffer for received data to be stored and enables receive
@@ -90,7 +90,7 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// a packet is received or `receive_cancel()` is called.
     ///
     /// Calling `receive_buffer()` while there is an outstanding
-    /// `receive_buffer()` operation will return EBUSY.
+    /// `receive_buffer()` operation will return BUSY.
     ///
     /// On success returns nothing.
     /// On failure returns an error code and the buffer passed in.
@@ -102,12 +102,12 @@ pub trait UsbHid<'a, T: UsbHidType> {
     /// return the buffer passed via `receive_buffer()` and no callback
     /// will occur.
     /// If there is currently no receive transaction (`receive_buffer()`
-    /// hasn't been called) this will return `Err(EINVAL)`.
+    /// hasn't been called) this will return `Err(INVAL)`.
     /// If the transaction can't be cancelled cleanly, either because
     /// the receive has already occured, a partial receive has occured or the
     /// receive can not be cancelled by the hardware this will return
-    /// `Err(EBUSY)` and the callback will still occur.
+    /// `Err(BUSY)` and the callback will still occur.
     /// Note that unless the transaction completes the callback will
-    /// indicate a result of `ECANCEL`.
+    /// indicate a result of `CANCEL`.
     fn receive_cancel(&'a self) -> Result<&'static mut T, ErrorCode>;
 }

@@ -3,9 +3,9 @@ Syscalls
 
 This document explains how [system
 calls](https://en.wikipedia.org/wiki/System_call) work in Tock with regards
-to both the kernel and applications. [TRD104](reference/trd-syscalls.md) contains 
+to both the kernel and applications. [TRD104](reference/trd104-syscalls.md) contains
 the more formal specification
-of the system call API and ABI for 32-bit systems. 
+of the system call API and ABI for 32-bit systems.
 This document describes the considerations behind the system call design.
 
 <!-- toc -->
@@ -19,6 +19,9 @@ This document describes the considerations behind the system call design.
   * [Cortex-M Architecture Details](#cortex-m-architecture-details)
   * [RISC-V Architecture Details](#risc-v-architecture-details)
 - [How System Calls Connect to Drivers](#how-system-calls-connect-to-drivers)
+- [Error and Return Types](#error-and-return-types)
+  * [Naming Conventions](#naming-conventions)
+  * [Type Descriptions](#type-descriptions)
 - [Allocated Driver Numbers](#allocated-driver-numbers)
 
 <!-- tocstop -->
@@ -43,7 +46,7 @@ modes](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDI
 
 Second, context switching to the kernel allows it to do other resource handling
 before returning to the application. This could include running other
-applications, servicing queued upcalls, or many other activities. 
+applications, servicing queued upcalls, or many other activities.
 
 Finally,
 and most importantly, using system calls allows applications to be built
@@ -58,30 +61,31 @@ version uploaded, all without modifying the kernel running on a platform.
 
 In Tock, a process can be in one of seven states:
 
- - **Running**: Normal operation. A Running process is eligible to be scheduled
- for execution, although is subject to being paused by Tock to allow interrupt
- handlers or other processes to run. During normal operation, a process remains
- in the Running state until it explicitly yields. Upcalls from other kernel
- operations are not delivered to Running processes (i.e. upcalls do not
- interrupt processes), rather they are enqueued until the process yields.
- - **Yielded**: Suspended operation. A Yielded process will not be scheduled by
- Tock. Processes often yield while they are waiting for I/O or other operations
- to complete and have no immediately useful work to do. Whenever the kernel issues
- an upcall to a Yielded process, the process is transitioned to the Running state.
- - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
- Tock. Processes enter the Fault state by performing an illegal operation, such
- as accessing memory outside of their address space.
- - **Terminated** The process ended itself by calling the `Exit` system call and
- the kernel has not restarted it.
- - **Unstarted** The process has not yet started; this state is typically very 
- short-lived, between process loading and it started. However, in cases when
- processes might be loaded for a long time without running, this state might
- be long-lived.
- - **StoppedRunning**, **StoppedYielded** These states correspond to a process
- that was in either the Running or Yielded state but was then explicitly stopped
- by the kernel (e.g., by the process console). A process in these states will not
- be made runnable until it is restarted, at which point it will continue execution
- where it was stopped.
+- **Running**: Normal operation. A Running process is eligible to be scheduled
+  for execution, although is subject to being paused by Tock to allow interrupt
+  handlers or other processes to run. During normal operation, a process remains
+  in the Running state until it explicitly yields. Upcalls from other kernel
+  operations are not delivered to Running processes (i.e. upcalls do not
+  interrupt processes), rather they are enqueued until the process yields.
+- **Yielded**: Suspended operation. A Yielded process will not be scheduled by
+  Tock. Processes often yield while they are waiting for I/O or other operations
+  to complete and have no immediately useful work to do. Whenever the kernel
+  issues an upcall to a Yielded process, the process is transitioned to the
+  Running state.
+- **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
+  Tock. Processes enter the Fault state by performing an illegal operation, such
+  as accessing memory outside of their address space.
+- **Terminated** The process ended itself by calling the `Exit` system call and
+  the kernel has not restarted it.
+- **Unstarted** The process has not yet started; this state is typically very
+  short-lived, between process loading and it started. However, in cases when
+  processes might be loaded for a long time without running, this state might be
+  long-lived.
+- **StoppedRunning**, **StoppedYielded** These states correspond to a process
+  that was in either the Running or Yielded state but was then explicitly
+  stopped by the kernel (e.g., by the process console). A process in these
+  states will not be made runnable until it is restarted, at which point it will
+  continue execution where it was stopped.
 
 ## Startup
 
@@ -261,9 +265,44 @@ this:
 `TestBoard` then supports one driver, the UART console, and maps it to driver
 number 0. Any `command`, `subscribe`, and `allow` sycalls to driver number 0
 will get routed to the console, and all other driver numbers will return
-`ReturnCode::ENODEVICE`.
+`Err(ErrorCode::NODEVICE)`.
 
+## Error and Return Types
 
+Tock includes some defined types and conventions for errors and return values
+between the kernel and userspace.
+
+### Naming Conventions
+
+- `*Code` (e.g. `ErrorCode`, `StatusCode`): These types are mappings between
+  numeric values and semantic meanings. These can always be encoded in a
+  `usize`.
+- `*Return` (e.g. `SyscallReturn`): These are more complex return types that can
+  include arbitrary values, errors, or `*Code` types.
+
+### Type Descriptions
+
+- `*Code` Types:
+  - `ErrorCode`: A standard set of errors and their numeric representations in
+    Tock.  This is used to represent errors for syscalls, and elsewhere in the
+    kernel.
+  - `StatusCode`: All errors in `ErrorCode` plus a Success value (represented by
+    0). This is used to pass a success/error status between the kernel and
+    userspace.
+
+    `StatusCode` is a pseudotype that is not actually defined as a concrete Rust
+    type. Instead, it is always encoded as a `usize`. Even though it is not a
+    concrete type, it is useful to be able to return to it conceptually, so we
+    give it the name `StatusCode`.
+
+    The intended use of `StatusCode` is to convey success/failure to userspace
+    in upcalls. To try to keep things simple, we use the same numeric
+    representations in `StatusCode` as we do with `ErrorCode`.
+
+- `*Return` Types:
+  - `SyscallReturn`: The return type for a syscall. Includes whether the syscall
+    succeeded or failed, optionally additional data values, and in the case of
+    failure an `ErrorCode`.
 
 ## Allocated Driver Numbers
 

@@ -6,3 +6,4 @@
 #![crate_type = "rlib"]
 
 pub mod eh1_pic;
+pub mod eh1_timer;

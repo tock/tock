@@ -2,6 +2,7 @@
 members = [
     "arch/cortex-m",
     "arch/cortex-m0",
+    "arch/cortex-m0p",
     "arch/cortex-m3",
     "arch/cortex-m4",
     "arch/cortex-m7",
@@ -61,7 +62,6 @@ members = [
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tock-register-interface",
-    "libraries/tock-rt0",
     "libraries/tickv",
 ]
 exclude = [

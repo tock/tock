@@ -17,8 +17,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
-    ReadOnlyAppSlice, ReturnCode, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Read,
+    ReadOnlyAppSlice, Upcall,
 };
 
 /// Syscall driver number.
@@ -92,7 +92,7 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> App {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> App {
         App {
             callback: cb_factory.build_upcall(0).unwrap(),
             pending_command: false,
@@ -115,7 +115,7 @@ pub struct Screen<'a> {
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App>,
     screen_ready: Cell<bool>,
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -146,16 +146,16 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
                     let r = self.call_screen(command, data1, data2, appid);
-                    if r != ReturnCode::SUCCESS {
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
                     CommandReturn::from(r)
@@ -184,8 +184,8 @@ impl<'a> Screen<'a> {
         command: ScreenCommand,
         data1: usize,
         data2: usize,
-        appid: AppId,
-    ) -> ReturnCode {
+        appid: ProcessId,
+    ) -> Result<(), ErrorCode> {
         match command {
             ScreenCommand::SetBrightness => self.screen.set_brightness(data1),
             ScreenCommand::InvertOn => self.screen.invert_on(),
@@ -195,100 +195,100 @@ impl<'a> Screen<'a> {
                     screen
                         .set_rotation(screen_rotation_from(data1).unwrap_or(ScreenRotation::Normal))
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::GetRotation => {
                 let rotation = self.screen.get_rotation();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), rotation as usize, 0);
-                ReturnCode::SUCCESS
+                self.run_next_command(kernel::into_statuscode(Ok(())), rotation as usize, 0);
+                Ok(())
             }
             ScreenCommand::SetResolution => {
                 if let Some(screen) = self.screen_setup {
                     screen.set_resolution((data1, data2))
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::GetResolution => {
                 let (width, height) = self.screen.get_resolution();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), width, height);
-                ReturnCode::SUCCESS
+                self.run_next_command(kernel::into_statuscode(Ok(())), width, height);
+                Ok(())
             }
             ScreenCommand::SetPixelFormat => {
                 if let Some(pixel_format) = screen_pixel_format_from(data1) {
                     if let Some(screen) = self.screen_setup {
                         screen.set_pixel_format(pixel_format)
                     } else {
-                        ReturnCode::ENOSUPPORT
+                        Err(ErrorCode::NOSUPPORT)
                     }
                 } else {
-                    ReturnCode::EINVAL
+                    Err(ErrorCode::INVAL)
                 }
             }
             ScreenCommand::GetPixelFormat => {
                 let pixel_format = self.screen.get_pixel_format();
-                self.run_next_command(usize::from(ReturnCode::SUCCESS), pixel_format as usize, 0);
-                ReturnCode::SUCCESS
+                self.run_next_command(kernel::into_statuscode(Ok(())), pixel_format as usize, 0);
+                Ok(())
             }
             ScreenCommand::GetSupportedResolutionModes => {
                 if let Some(screen) = self.screen_setup {
                     let resolution_modes = screen.get_num_supported_resolutions();
-                    self.run_next_command(usize::from(ReturnCode::SUCCESS), resolution_modes, 0);
-                    ReturnCode::SUCCESS
+                    self.run_next_command(kernel::into_statuscode(Ok(())), resolution_modes, 0);
+                    Ok(())
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::GetSupportedResolution => {
                 if let Some(screen) = self.screen_setup {
                     if let Some((width, height)) = screen.get_supported_resolution(data1) {
                         self.run_next_command(
-                            usize::from(if width > 0 && height > 0 {
-                                ReturnCode::SUCCESS
+                            kernel::into_statuscode(if width > 0 && height > 0 {
+                                Ok(())
                             } else {
-                                ReturnCode::EINVAL
+                                Err(ErrorCode::INVAL)
                             }),
                             width,
                             height,
                         );
-                        ReturnCode::SUCCESS
+                        Ok(())
                     } else {
-                        ReturnCode::EINVAL
+                        Err(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::GetSupportedPixelFormats => {
                 if let Some(screen) = self.screen_setup {
                     let color_modes = screen.get_num_supported_pixel_formats();
-                    self.run_next_command(usize::from(ReturnCode::SUCCESS), color_modes, 0);
-                    ReturnCode::SUCCESS
+                    self.run_next_command(kernel::into_statuscode(Ok(())), color_modes, 0);
+                    Ok(())
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::GetSupportedPixelFormat => {
                 if let Some(screen) = self.screen_setup {
                     if let Some(pixel_format) = screen.get_supported_pixel_format(data1) {
                         self.run_next_command(
-                            usize::from(ReturnCode::SUCCESS),
+                            kernel::into_statuscode(Ok(())),
                             pixel_format as usize,
                             0,
                         );
-                        ReturnCode::SUCCESS
+                        Ok(())
                     } else {
-                        ReturnCode::EINVAL
+                        Err(ErrorCode::INVAL)
                     }
                 } else {
-                    ReturnCode::ENOSUPPORT
+                    Err(ErrorCode::NOSUPPORT)
                 }
             }
             ScreenCommand::Fill => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         // if it is larger than 0, we know it fits
                         // the size has been verified by subscribe
                         if app.shared.len() > 0 {
@@ -298,19 +298,19 @@ impl<'a> Screen<'a> {
                                 self.pixel_format.get().get_bits_per_pixel(),
                             );
 
-                            self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+                            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                                 let len = self.fill_next_buffer_for_write(buffer);
 
                                 if len > 0 {
                                     self.screen.write(buffer, len)
                                 } else {
                                     self.buffer.replace(buffer);
-                                    self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
-                                    ReturnCode::SUCCESS
+                                    self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
+                                    Ok(())
                                 }
                             })
                         } else {
-                            ReturnCode::ENOMEM
+                            Err(ErrorCode::NOMEM)
                         }
                     })
                     .map_err(|err| err.into());
@@ -322,7 +322,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::Write => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     let len = if app.shared.len() < data1 {
                         app.shared.len()
                     } else {
@@ -331,24 +331,24 @@ impl<'a> Screen<'a> {
                     if len > 0 {
                         app.write_position = 0;
                         app.write_len = len;
-                        self.buffer.take().map_or(ReturnCode::FAIL, |buffer| {
+                        self.buffer.take().map_or(Err(ErrorCode::FAIL), |buffer| {
                             let len = self.fill_next_buffer_for_write(buffer);
                             if len > 0 {
                                 self.screen.write(buffer, len)
                             } else {
                                 self.buffer.replace(buffer);
-                                self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
-                                ReturnCode::SUCCESS
+                                self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
+                                Ok(())
                             }
                         })
                     } else {
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
             ScreenCommand::SetWriteFrame => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.write_position = 0;
                     app.x = (data1 >> 16) & 0xFFFF;
                     app.y = data1 & 0xFFFF;
@@ -358,7 +358,7 @@ impl<'a> Screen<'a> {
                         .set_write_frame(app.x, app.y, app.width, app.height)
                 })
                 .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -367,7 +367,7 @@ impl<'a> Screen<'a> {
             self.screen_ready.set(true);
         } else {
             self.current_app.take().map(|appid| {
-                let _ = self.apps.enter(appid, |app, _| {
+                let _ = self.apps.enter(appid, |app| {
                     app.pending_command = false;
                     app.callback.schedule(data1, data2, data3);
                 });
@@ -376,15 +376,16 @@ impl<'a> Screen<'a> {
 
         // Check if there are any pending events.
         for app in self.apps.iter() {
-            let started_command = app.enter(|app, _| {
+            let appid = app.processid();
+            let started_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(app.appid());
-                    let r = self.call_screen(app.command, app.data1, app.data2, app.appid());
-                    if r != ReturnCode::SUCCESS {
+                    self.current_app.set(appid);
+                    let r = self.call_screen(app.command, app.data1, app.data2, appid);
+                    if r != Ok(()) {
                         self.current_app.clear();
                     }
-                    r == ReturnCode::SUCCESS
+                    r == Ok(())
                 } else {
                     false
                 }
@@ -400,7 +401,7 @@ impl<'a> Screen<'a> {
             || 0,
             |appid| {
                 self.apps
-                    .enter(*appid, |app, _| {
+                    .enter(*appid, |app| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {
@@ -475,29 +476,29 @@ impl<'a> Screen<'a> {
 }
 
 impl<'a> hil::screen::ScreenClient for Screen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
-        self.run_next_command(usize::from(r), 0, 0);
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], r: ReturnCode) {
+    fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>) {
         let len = self.fill_next_buffer_for_write(buffer);
 
-        if r == ReturnCode::SUCCESS && len > 0 {
-            self.screen.write_continue(buffer, len);
+        if r == Ok(()) && len > 0 {
+            let _ = self.screen.write_continue(buffer, len);
         } else {
             self.buffer.replace(buffer);
-            self.run_next_command(usize::from(r), 0, 0);
+            self.run_next_command(kernel::into_statuscode(r), 0, 0);
         }
     }
 
     fn screen_is_ready(&self) {
-        self.run_next_command(usize::from(ReturnCode::SUCCESS), 0, 0);
+        self.run_next_command(kernel::into_statuscode(Ok(())), 0, 0);
     }
 }
 
 impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
-    fn command_complete(&self, r: ReturnCode) {
-        self.run_next_command(usize::from(r), 0, 0);
+    fn command_complete(&self, r: Result<(), ErrorCode>) {
+        self.run_next_command(kernel::into_statuscode(r), 0, 0);
     }
 }
 
@@ -506,12 +507,12 @@ impl<'a> Driver for Screen<'a> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     mem::swap(&mut app.callback, &mut callback);
                 })
                 .map_err(ErrorCode::from),
@@ -529,7 +530,7 @@ impl<'a> Driver for Screen<'a> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 =>
@@ -584,7 +585,7 @@ impl<'a> Driver for Screen<'a> {
 
     fn allow_readonly(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
@@ -593,7 +594,7 @@ impl<'a> Driver for Screen<'a> {
             0 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let depth =
                             pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
                         let len = slice.len();

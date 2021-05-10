@@ -20,6 +20,8 @@ pub const MEPC: usize = 0x341;
 pub const MCAUSE: usize = 0x342;
 pub const MTVAL: usize = 0x343;
 pub const MIP: usize = 0x344;
+pub const MSECCFG: usize = 0x39B;
+pub const MSECCFGH: usize = 0x39C;
 pub const PMPCFG0: usize = 0x3A0;
 pub const PMPCFG1: usize = 0x3A1;
 pub const PMPCFG2: usize = 0x3A2;
@@ -209,5 +211,144 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     #[inline]
     pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
         field.matches_all(self.get())
+    }
+
+    // Special methods only available on RISC-V CSRs, not found in the
+    // usual tock-registers interface
+
+    /// Atomically swap the contents of a CSR
+    ///
+    /// Reads the current value of a CSR and replaces it with the
+    /// specified value in a single instruction, returning the
+    /// previous value.
+    ///
+    /// This method corresponds to the RISC-V `CSRRW rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) value_to_set` and `rd =
+    /// out(reg) <return value>`.
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    pub fn atomic_replace(&self, val_to_set: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrw {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) val_to_set);
+        }
+        r
+    }
+
+    /// Atomically swap the contents of a CSR
+    ///
+    /// Reads the current value of a CSR and replaces it with the
+    /// specified value in a single instruction, returning the
+    /// previous value.
+    ///
+    /// This method corresponds to the RISC-V `CSRRW rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) value_to_set` and `rd =
+    /// out(reg) <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn atomic_replace(&self, _value_to_set: usize) -> usize {
+        unimplemented!("RISC-V CSR {} Atomic Read/Write", V)
+    }
+
+    /// Atomically read a CSR and set bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    pub fn read_and_set_bits(&self, bitmask: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrs {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) bitmask);
+        }
+        r
+    }
+
+    /// Atomically read a CSR and set bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn read_and_set_bits(&self, bitmask: usize) -> usize {
+        unimplemented!(
+            "RISC-V CSR {} Atomic Read and Set Bits, bitmask {:04x}",
+            V,
+            bitmask
+        )
+    }
+
+    /// Atomically read a CSR and clear bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    pub fn read_and_clear_bits(&self, bitmask: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrc {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) bitmask);
+        }
+        r
+    }
+
+    /// Atomically read a CSR and clear bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn read_and_clear_bits(&self, bitmask: usize) -> usize {
+        unimplemented!(
+            "RISC-V CSR {} Atomic Read and Clear Bits, bitmask {:04x}",
+            V,
+            bitmask
+        )
+    }
+
+    /// Atomically read field and set all bits to 1
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_set_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_set_bits(field.mask << field.shift))
+    }
+
+    /// Atomically read field and set all bits to 0
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_clear_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_clear_bits(field.mask << field.shift))
     }
 }

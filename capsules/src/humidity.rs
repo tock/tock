@@ -10,10 +10,10 @@
 //! a humidity reading.
 //! The `subscribe`call return codes indicate the following:
 //!
-//! * `SUCCESS`: the callback been successfully been configured.
+//! * `Ok(())`: the callback been successfully been configured.
 //! * `ENOSUPPORT`: Invalid allow_num.
-//! * `ENOMEM`: No sufficient memory available.
-//! * `EINVAL`: Invalid address of the buffer or other error.
+//! * `NOMEM`: No sufficient memory available.
+//! * `INVAL`: Invalid address of the buffer or other error.
 //!
 //!
 //! ### `command` System Call
@@ -27,11 +27,11 @@
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
-//! * `SUCCESS`:    The operation has been successful.
-//! * `EBUSY`:      The driver is busy.
+//! * `Ok(())`:    The operation has been successful.
+//! * `BUSY`:      The driver is busy.
 //! * `ENOSUPPORT`: Invalid `cmd`.
-//! * `ENOMEM`:     No sufficient memory available.
-//! * `EINVAL`:     Invalid address of the buffer or other error.
+//! * `NOMEM`:     No sufficient memory available.
+//! * `INVAL`:     Invalid address of the buffer or other error.
 //!
 //! Usage
 //! -----
@@ -53,7 +53,7 @@ use core::mem;
 
 use kernel::hil;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Upcall,
 };
 
 /// Syscall driver number.
@@ -72,7 +72,7 @@ pub struct App {
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         App {
             callback: cb_factory.build_upcall(0).unwrap(),
             subscribed: false,
@@ -102,10 +102,10 @@ impl<'a> HumiditySensor<'a> {
         &self,
         command: HumidityCommand,
         arg1: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -127,11 +127,11 @@ impl<'a> HumiditySensor<'a> {
     fn configure_callback(
         &self,
         mut callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 mem::swap(&mut app.callback, &mut callback);
             })
             .map_err(ErrorCode::from);
@@ -147,7 +147,7 @@ impl<'a> HumiditySensor<'a> {
 impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
@@ -163,7 +163,7 @@ impl Driver for HumiditySensor<'_> {
         &self,
         subscribe_num: usize,
         callback: Upcall,
-        app_id: AppId,
+        app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to temperature reading with callback
@@ -172,7 +172,13 @@ impl Driver for HumiditySensor<'_> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // check whether the driver exist!!
             0 => CommandReturn::success(),

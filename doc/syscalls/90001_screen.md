@@ -18,7 +18,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if it exists, otherwise ENODEVICE
+    **Returns**: Ok(()) if it exists, otherwise NODEVICE
 
   * ### Command number: `1`
 
@@ -38,7 +38,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `4`
 
@@ -48,7 +48,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
   
   * ### Command number: `5`
 
@@ -58,7 +58,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if the command was successful, EBUSY if another command is in progress.
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
   * ### Command number: `11` 
 
@@ -68,7 +68,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1), EBUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1), BUSY if another command is in progress.
 
   * ### Command number: `12` 
 
@@ -78,7 +78,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the resolution, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the resolution, BUSY if another command is in progress.
   
   * ### Command number: `13` 
 
@@ -88,7 +88,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported color depth (minimum 1), EBUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported color depth (minimum 1), BUSY if another command is in progress.
 
   * ### Command number: `14` 
 
@@ -98,7 +98,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the resolution, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the resolution, BUSY if another command is in progress.
 
   * ### Command number: `21` 
 
@@ -108,7 +108,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the rotation value, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
 
   * ### Command number: `22` 
 
@@ -118,7 +118,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
   * ### Command number: `23` 
 
@@ -128,7 +128,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the rotation value, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
 
   * ### Command number: `24` 
 
@@ -138,7 +138,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: height (pixels)
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
   * ### Command number: `25` 
 
@@ -148,7 +148,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback with the rotation value, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
 
   * ### Command number: `26` 
 
@@ -158,7 +158,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
   * ### Command number: `100` 
 
@@ -168,7 +168,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: width | height (pixels, 16 bit LE)
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
   * ### Command number: `101` 
 
@@ -180,7 +180,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
   * ### Command number: `102` 
 
@@ -192,7 +192,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS followed by a callback when it is done, EBUSY if another command is in progress.
+    **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
 ## Subscribe
 
@@ -203,7 +203,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
     **Callback signature**: The callback receives different arguments 
     depending on the issued command.
 
-    **Returns**: SUCCESS if the subscribe was successful.
+    **Returns**: Ok(()) if the subscribe was successful.
 
 ## Allow ReadOnly
 
@@ -216,5 +216,5 @@ The screen driver allows the process to write data to a framebuffer of a screen.
     completion callback is undefined (most likely either the original buffer or
     new buffer will be written in its entirety but not both).
 
-    **Returns**: SUCCESS if the subscribe was successful, INVAL if the buffer's length is not a multiple of the color depth length. 
+    **Returns**: Ok(()) if the subscribe was successful, INVAL if the buffer's length is not a multiple of the color depth length. 
 

@@ -88,7 +88,7 @@ pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 ### RISC-V
 
 All RISC-V boards are linked to run the `_start` function as the first
-function that gets run before jumping to `reset_handler`. This is currently
+function that gets run before jumping to `main`. This is currently
 inline assembly as of this writing:
 
 ```rust
@@ -128,7 +128,7 @@ things like enabling the correct clocks or setting up DMA channels.
 
 ### Peripheral and Capsule Initialization
 
-After the MCU is set up, `reset_handler` initializes peripherals and
+After the MCU is set up, `main` initializes peripherals and
 capsules. Peripherals are on-chip subsystems, such as UARTs, ADCs, and
 SPI buses; they are chip-specific code that read and write
 memory-mapped I/O registers and are found in the corresponding `chips`
@@ -147,12 +147,12 @@ chip-independent because the chip-specific code implements the SPI HIL
 API to the SPI for processes is in `capsules/src/spi.rs`.
 
 Boards that initialize many peripherals and capsules use the `Component`
-trait to encapsulate this complexity from `reset_handler`. The `Component`
+trait to encapsulate this complexity from `main`. The `Component`
 trait (`kernel/src/component.rs`) encapsulates any initialization a
 particular peripheral, capsule, or set of capsules need inside a
 call to the function `finalize()`. Changing what the build of the kernel
 includes involve changing just which Components are initialized, rather
-than changing many lines of `reset_handler`. Components are typically
+than changing many lines of `main`. Components are typically
 found in the `components` crate in the `/boards` folder, but may also be
 board-specifc and found inside a `components` subdirectory of the board
 directory, e.g. `boards/imix/src/imix_components`.

@@ -66,8 +66,8 @@
 //! 3. Certain internal core kernel interfaces must also be exposed. These are
 //!    needed for extensions of the core kernel that happen to be implemented in
 //!    crates outside of the kernel crate. For example, additional
-//!    implementations of `ProcessType` may live outside of the kernel crate. To
-//!    successfully implement a new `ProcessType` requires access to certain
+//!    implementations of `Process` may live outside of the kernel crate. To
+//!    successfully implement a new `Process` requires access to certain
 //!    in-core-kernel APIs, and these must be marked `pub` so that outside
 //!    crates can access them.
 //!
@@ -106,25 +106,28 @@ mod mem;
 mod memop;
 mod platform;
 mod process;
-mod returncode;
+mod process_policies;
+mod process_standard;
+mod process_utilities;
 mod sched;
 mod upcall;
 
 pub use crate::driver::{CommandReturn, Driver};
+pub use crate::errorcode::into_statuscode;
 pub use crate::errorcode::ErrorCode;
-pub use crate::grant::{DynamicGrant, Grant, GrantDefault};
+pub use crate::grant::{Grant, GrantDefault, ProcessGrant};
 pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};
 pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use crate::returncode::ReturnCode;
+pub use crate::process::ProcessId;
 pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
 pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
 pub use crate::sched::priority::PrioritySched;
 pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
-pub use crate::upcall::{AppId, ProcessUpcallFactory, Upcall};
+pub use crate::upcall::{ProcessUpcallFactory, Upcall};
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These
@@ -133,8 +136,13 @@ pub use crate::upcall::{AppId, ProcessUpcallFactory, Upcall};
 /// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{
-        load_processes, AlwaysRestart, Error, FaultResponse, FunctionCall, FunctionCallSource,
-        Process, ProcessLoadError, ProcessRestartPolicy, ProcessType, State, Task,
-        ThresholdRestart, ThresholdRestartThenPanic,
+        Error, FaultAction, FunctionCall, FunctionCallSource, Process, State, Task,
     };
+    pub use crate::process_policies::{
+        PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
+        StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
+        ThresholdRestartThenPanicFaultPolicy,
+    };
+    pub use crate::process_standard::ProcessStandard;
+    pub use crate::process_utilities::{load_processes, ProcessLoadError};
 }

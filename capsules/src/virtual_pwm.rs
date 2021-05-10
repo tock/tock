@@ -23,7 +23,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     pwm: &'a P,
@@ -52,7 +52,7 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
                             frequency_hz,
                             duty_cycle,
                         } => {
-                            self.pwm.start(&node.pin, frequency_hz, duty_cycle);
+                            let _ = self.pwm.start(&node.pin, frequency_hz, duty_cycle);
                             true
                         }
                         Operation::Stop => {
@@ -79,11 +79,11 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
                             duty_cycle,
                         } => {
                             // Changed some parameter.
-                            self.pwm.start(&node.pin, frequency_hz, duty_cycle);
+                            let _ = self.pwm.start(&node.pin, frequency_hz, duty_cycle);
                         }
                         Operation::Stop => {
                             // Ok we got a stop.
-                            self.pwm.stop(&node.pin);
+                            let _ = self.pwm.stop(&node.pin);
                             self.inflight.clear();
                         }
                     }
@@ -133,19 +133,19 @@ impl<'a, P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P>
 }
 
 impl<P: hil::pwm::Pwm> hil::pwm::PwmPin for PwmPinUser<'_, P> {
-    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> ReturnCode {
+    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         self.operation.set(Operation::Simple {
             frequency_hz,
             duty_cycle,
         });
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.operation.set(Operation::Stop);
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {

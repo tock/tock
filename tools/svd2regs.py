@@ -69,7 +69,12 @@ COMMENT_MAX_LENGTH = 80
 
 
 def comment(text):
-    return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+    if text:
+        lines = text.split ("\n")
+        lines = ["/// {}".format(line[:COMMENT_MAX_LENGTH].strip()) for line in lines]
+        return "\n".join (lines)
+    else:
+        return ""
 
 
 class CodeBlock(str):
@@ -86,7 +91,7 @@ class CodeBlock(str):
 class Includes(CodeBlock):
     TEMPLATE = """
 use kernel::common::StaticRef;
-use kernel::common::registers::{{self, ReadOnly, ReadWrite, WriteOnly}};
+use kernel::common::registers::{{self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly}};
     """
 
 
@@ -230,7 +235,10 @@ class Bitfield(CodeBlock):
 
     @staticmethod
     def fields(register):
-        fields = ",\n".join(BitfieldField(field) for field in register._fields)
+        if len (register._fields) > 0:
+            fields = ",\n".join(BitfieldField(field) for field in register._fields)
+        else:
+            fields = "    VALUE OFFSET (0) NUMBITS (32) []"
         return {
             "name": register.name,
             "fields": fields,
@@ -273,10 +281,13 @@ class BitfieldFieldEnum(CodeBlock):
     @staticmethod
     def fields(enum):
         def identifier(desc):
-            if any(desc.startswith(str(digit)) for digit in range(10)):
-                desc = "_{}".format(desc)
-            i = pydentifier.upper_camel(desc)
-            return i if len(i) < 80 else None
+            if desc != None:
+                if any(desc.startswith(str(digit)) for digit in range(10)):
+                    desc = "_{}".format(desc)
+                i = pydentifier.upper_camel(desc)
+                return i if len(i) < 80 else None
+            else:
+                return None
 
         def enum_identifier(e):
             for t in [e.description, e.name, e.value]:
@@ -321,8 +332,7 @@ def generate(name, peripherals, dev):
     main_peripheral = peripherals[0]
     return Includes() \
            + PeripheralStruct(name, main_peripheral, dev) \
-           + generate_bitfields_macro(filter(lambda r: len(r._fields) > 1,
-                                             main_peripheral.registers)) \
+           + generate_bitfields_macro(main_peripheral.registers) \
            + "\n".join(PeripheralBaseDeclaration(name, peripheral)
                        for peripheral in peripherals)
 

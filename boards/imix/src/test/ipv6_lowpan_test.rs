@@ -43,7 +43,7 @@ use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 
@@ -160,7 +160,7 @@ pub unsafe fn initialize_all(
     let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
-    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
+    let _ = sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
 
     let lowpan_frag_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
@@ -418,11 +418,10 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                                 self.schedule_next();
                             } else {
                                 // TODO: Handle err (not just debug statement)
-                                let (retcode, _opt) = self.radio.transmit(frame);
-                                match retcode {
-                                    ReturnCode::SUCCESS => {}
-                                    _ => debug!("Error in radio transmit"),
-                                }
+                                let _ = self
+                                    .radio
+                                    .transmit(frame)
+                                    .map_err(|_| debug!("Error in radio transmit"));
                             }
                         }
                         Err((retcode, _buf)) => {
@@ -443,7 +442,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
-    fn receive(&self, buf: &[u8], len: usize, retcode: ReturnCode) {
+    fn receive(&self, buf: &[u8], len: usize, retcode: Result<(), ErrorCode>) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
@@ -453,9 +452,9 @@ impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
 
 static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
 impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
-    fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
+    fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: Result<(), ErrorCode>) {
         match result {
-            ReturnCode::SUCCESS => {}
+            Ok(()) => {}
             _ => debug!("sendDone indicates error"),
         }
         unsafe {

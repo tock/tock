@@ -36,8 +36,8 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::hil::digest::DigestType;
 use kernel::{
-    AppId, CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessUpcallFactory, Read,
-    ReadWrite, ReadWriteAppSlice, ReturnCode, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, GrantDefault, ProcessId, ProcessUpcallFactory, Read,
+    ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
@@ -46,7 +46,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     active: Cell<bool>,
 
     apps: Grant<App>,
-    appid: OptionalCell<AppId>,
+    appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a T>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -79,7 +79,7 @@ where
     fn run(&self) -> Result<(), ErrorCode> {
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
-                .enter(*appid, |app, _| {
+                .enter(*appid, |app| {
                     app.key.map_or((), |k| {
                         self.hmac
                             .set_mode_hmacsha256(k.as_ref().try_into().unwrap())
@@ -119,7 +119,7 @@ where
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
+            let started_command = appiter.enter(|app| {
                 // If an app is already running let it complete
                 if self.appid.is_some() {
                     return true;
@@ -146,7 +146,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app, _| {
+                .enter(*id, move |app| {
                     let mut data_len = 0;
                     let mut static_buffer_len = 0;
 
@@ -221,7 +221,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                         self.appid.clear();
 
                         app.callback
-                            .schedule(usize::from(ReturnCode::from(e.0)), 0, 0);
+                            .schedule(kernel::into_statuscode(e.0.into()), 0, 0);
 
                         self.check_queue();
                         return;
@@ -241,7 +241,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     self.hmac.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
@@ -253,7 +253,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                     match result {
                         Ok(_) => app.callback.schedule(0, pointer as usize, 0),
                         Err(e) => app.callback.schedule(
-                            usize::from(ReturnCode::from(e)),
+                            kernel::into_statuscode(e.into()),
                             pointer as usize,
                             0,
                         ),
@@ -297,7 +297,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 {
     fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
@@ -305,7 +305,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the key to be in
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.key);
                     Ok(())
                 })
@@ -314,7 +314,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the data to be in
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.data);
                     Ok(())
                 })
@@ -323,7 +323,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the digest to be in.
             2 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     mem::swap(&mut slice, &mut app.dest);
                     Ok(())
                 })
@@ -349,13 +349,13 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        appid: AppId,
+        appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             0 => {
                 // set callback
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         mem::swap(&mut app.callback, &mut callback);
                         Ok(())
                     })
@@ -396,7 +396,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         command_num: usize,
         data1: usize,
         _data2: usize,
-        appid: AppId,
+        appid: ProcessId,
     ) -> CommandReturn {
         let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
@@ -417,7 +417,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -452,7 +452,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                 } else {
                     // There is an active app, so queue this request (if possible).
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             // Some app is using the storage, we must wait.
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this
@@ -476,14 +476,14 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 
 pub struct App {
     callback: Upcall,
-    pending_run_app: Option<AppId>,
+    pending_run_app: Option<ProcessId>,
     key: ReadWriteAppSlice,
     data: ReadWriteAppSlice,
     dest: ReadWriteAppSlice,
 }
 
 impl GrantDefault for App {
-    fn grant_default(_process_id: AppId, cb_factory: &mut ProcessUpcallFactory) -> Self {
+    fn grant_default(_process_id: ProcessId, cb_factory: &mut ProcessUpcallFactory) -> Self {
         App {
             callback: cb_factory.build_upcall(0).unwrap(),
             pending_run_app: None,

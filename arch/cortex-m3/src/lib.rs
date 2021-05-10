@@ -12,15 +12,15 @@ pub mod mpu {
 // valid on cortex-m3.
 pub use cortexm::support;
 
-pub use cortexm::generic_isr;
+pub use cortexm::generic_isr_arm_v7m as generic_isr;
 pub use cortexm::hard_fault_handler_arm_v7m as hard_fault_handler;
 pub use cortexm::nvic;
 pub use cortexm::print_cortexm_state as print_cortexm3_state;
 pub use cortexm::scb;
-pub use cortexm::svc_handler;
+pub use cortexm::svc_handler_arm_v7m as svc_handler;
 pub use cortexm::syscall;
 pub use cortexm::systick;
-pub use cortexm::systick_handler;
+pub use cortexm::systick_handler_arm_v7m as systick_handler;
 
 /// Provide a `switch_to_user` function with exactly that name for syscall.rs.
 #[cfg(all(target_arch = "arm", target_os = "none"))]

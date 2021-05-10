@@ -43,13 +43,13 @@ pub mod boot_header;
 const NUM_PROCS: usize = 1;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None];
 
 type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -171,20 +171,28 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
     cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
 }
 
-/// Reset Handler.
-///
-/// This symbol is loaded into vector table by the IMXRT1050 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    imxrt1050::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
         imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
+
+    peripherals
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    imxrt1050::init();
+
+    let peripherals = get_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
@@ -456,7 +464,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

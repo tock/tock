@@ -3,7 +3,7 @@
 //! Log entries are appended to the end of a log and read back sequentially. Log data persists
 //! across device reboots.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// An interface for reading from log storage.
 pub trait LogRead<'a> {
@@ -19,7 +19,7 @@ pub trait LogRead<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Returns the entry ID at the start of the log. This is the ID of the oldest remaining entry.
     fn log_start(&self) -> Self::EntryID;
@@ -33,7 +33,7 @@ pub trait LogRead<'a> {
 
     /// Seek to the entry with the given entry ID and begin reading from there. Fails without
     /// modifying the read position if the given entry ID is invalid or no longer in the log.
-    fn seek(&self, entry: Self::EntryID) -> ReturnCode;
+    fn seek(&self, entry: Self::EntryID) -> Result<(), ErrorCode>;
 
     /// Get approximate log capacity in bytes.
     fn get_size(&self) -> usize;
@@ -43,10 +43,10 @@ pub trait LogRead<'a> {
 pub trait LogReadClient {
     /// Returns a buffer containing data read and the length of the number of bytes read or an error
     /// code if the read failed.
-    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: ReturnCode);
+    fn read_done(&self, buffer: &'static mut [u8], length: usize, error: Result<(), ErrorCode>);
 
     /// Returns whether the seek succeeded or failed.
-    fn seek_done(&self, error: ReturnCode);
+    fn seek_done(&self, error: Result<(), ErrorCode>);
 }
 
 /// An interface for writing to log storage.
@@ -59,17 +59,17 @@ pub trait LogWrite<'a> {
         &self,
         buffer: &'static mut [u8],
         length: usize,
-    ) -> Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Sync log to storage, making all entries persistent (not including any entries that were
     /// previously overwritten). There is no guarantee that any changes to the log are persistent
     /// until it is synced. In the event of an error, not all pages may be synced, but the log will
     /// remain in a valid state.
-    fn sync(&self) -> ReturnCode;
+    fn sync(&self) -> Result<(), ErrorCode>;
 
     /// Erase the entire log. In the event of a failure, only some pages may be erased, but the log
     /// will remain in a valid state.
-    fn erase(&self) -> ReturnCode;
+    fn erase(&self) -> Result<(), ErrorCode>;
 }
 
 /// Receive callbacks from `LogWrite`.
@@ -81,12 +81,12 @@ pub trait LogWriteClient {
         buffer: &'static mut [u8],
         length: usize,
         records_lost: bool,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     );
 
     /// Returns whether or not all pages were correctly synced, making all changes persistent.
-    fn sync_done(&self, error: ReturnCode);
+    fn sync_done(&self, error: Result<(), ErrorCode>);
 
     /// Returns whether or not all pages of the log were erased.
-    fn erase_done(&self, error: ReturnCode);
+    fn erase_done(&self, error: Result<(), ErrorCode>);
 }

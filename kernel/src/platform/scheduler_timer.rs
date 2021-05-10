@@ -162,7 +162,7 @@ impl<A: 'static + time::Alarm<'static>> VirtualSchedulerTimer<A> {
 
 impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer<A> {
     fn reset(&self) {
-        self.alarm.disarm();
+        let _ = self.alarm.disarm();
     }
 
     fn start(&self, us: u32) {
