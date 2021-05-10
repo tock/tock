@@ -43,6 +43,8 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
+use capsules::driver_debug;
+use core::fmt;
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
@@ -103,42 +105,43 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-struct Imix {
-    pconsole: &'static capsules::process_console::ProcessConsole<
-        'static,
-        components::process_console::Capability,
-    >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
-    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
-        'static,
-        sam4l::acifc::Acifc<'static>,
-    >,
-    spi: &'static capsules::spi_controller::Spi<
-        'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
-        capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-    >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+driver_debug!{
+    struct Imix {
+        pconsole: &'static capsules::process_console::ProcessConsole<
+            'static,
+            components::process_console::Capability,
+        >,
+        console: &'static capsules::console::Console<'static>,
+        gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
+        alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        temp: &'static capsules::temperature::TemperatureSensor<'static>,
+        humidity: &'static capsules::humidity::HumiditySensor<'static>,
+        ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
+        adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+        led:
+            &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
+        button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
+        rng: &'static capsules::rng::RngDriver<'static>,
+        analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+            'static,
+            sam4l::acifc::Acifc<'static>,
+        >,
+        spi: &'static capsules::spi_controller::Spi<
+            'static,
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        >,
+        ipc: kernel::ipc::IPC<NUM_PROCS>,
+        ninedof: &'static capsules::ninedof::NineDof<'static>,
+        udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+        crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+        usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
+            'static,
+            capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        >,
+        nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
+        nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    }
 }
-
 // The RF233 radio stack requires our buffers for its SPI operations:
 //
 //   1. buf: a packet-sized buffer for SPI operations, which is
@@ -562,7 +565,7 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    imix.pconsole.start();
+    imix.pconsole.start(&imix);
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

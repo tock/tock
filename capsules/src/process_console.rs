@@ -113,7 +113,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::fmt::{write, Result, Write};
+use core::fmt::{write, Result, Write,Debug};
 use core::str;
 use kernel::AppId;
 use kernel::capabilities::ProcessManagementCapability;
@@ -125,6 +125,10 @@ use kernel::introspection::KernelInfo;
 //use kernel::procs::ProcessType;
 use kernel::Kernel;
 use kernel::ReturnCode;
+use kernel::Platform;
+//use kernel::DebugPlatform;
+
+//use crate::driver;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
@@ -177,6 +181,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
+    //platform: Cell<Option<&'a dyn Debug>>,
 
     /// Flag to mark that the process console is active and has called receive
     /// from the underlying UART.
@@ -220,6 +225,38 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
         "          "
     }
 }
+// #[macro_export]
+// macro_rules! print_drivers{
+//     (
+//      $(#[$meta:meta])* 
+//      $vis:vis struct $struct_name:ident {
+//         $(
+//         $(#[$field_meta:meta])*
+//         $field_vis:vis $field_name:ident : $field_type:ty
+//         ),*$(,)+
+//     }
+//     ) => {
+//         debug!($(#[$field_meta:meta])*)
+//     }
+// }
+#[macro_export]
+macro_rules! driver_debug {
+    (struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
+
+        struct $struct { $($field: $type),*}
+
+        impl fmt::Debug for $struct {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                $(
+                    write!(f, "\t{}\n",
+                        stringify!($field)
+                    )?;
+                )*
+                Ok(())
+            }
+        }
+    };
+}
 
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
@@ -247,17 +284,24 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             execute: Cell::new(false),
             kernel: kernel,
             capability: capability,
+            //platform: Cell::new(None),
         }
     }
 
-    pub fn start(&self) -> ReturnCode {
+    pub fn start<P: Platform+Debug>(&self,platform: &P) -> ReturnCode {
         if self.running.get() == false {
+            //self.platform.set(Some(platform));
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
                 self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
                 //debug!("Starting process console");
             });
+            let mut console_writer = ConsoleWriter::new();
+            let _ = write(&mut console_writer,format_args!(
+                "Drivers:\n{:?}",
+                platform));
+            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
         }
         ReturnCode::SUCCESS
     }
@@ -883,6 +927,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 "\r\nKernel version: {}\r\n",
                                 option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            //if self.platform.is_some(){
+                            //print_drivers!(self.platform.get().unwrap());
+                            //}
                             console_writer.clear();
                             self.write_state(WriterState::KernelStart,None);
                         } else {
