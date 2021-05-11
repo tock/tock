@@ -856,7 +856,12 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> time::AlarmClient for ST77XX<'a, A, B
 }
 
 impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
-    fn command_complete(&self, buffer: Option<&'static mut [u8]>, _len: usize) {
+    fn command_complete(
+        &self,
+        buffer: Option<&'static mut [u8]>,
+        _len: usize,
+        _status: Result<(), ErrorCode>,
+    ) {
         if let Some(buffer) = buffer {
             if self.status.get() == Status::SendParametersSlice {
                 self.write_buffer.replace(buffer);
