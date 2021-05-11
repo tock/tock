@@ -131,7 +131,8 @@ impl<'a> LPS25HB<'a> {
             self.i2c.enable();
 
             buf[0] = Registers::WhoAmI as u8;
-            self.i2c.write(buf, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buf, 1);
             self.state.set(State::SelectWhoAmI);
         });
     }
@@ -150,7 +151,8 @@ impl<'a> LPS25HB<'a> {
             buf[2] = 0;
             buf[3] = 0;
             buf[4] = CTRL_REG4_INTERRUPT1_DATAREADY;
-            self.i2c.write(buf, 5);
+            // TODO verify errors
+            let _ = self.i2c.write(buf, 5);
             self.state.set(State::TakeMeasurementInit);
         });
     }
@@ -160,7 +162,8 @@ impl i2c::I2CClient for LPS25HB<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SelectWhoAmI => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadingWhoAmI);
             }
             State::ReadingWhoAmI => {
@@ -170,22 +173,26 @@ impl i2c::I2CClient for LPS25HB<'_> {
             }
             State::TakeMeasurementInit => {
                 buffer[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
-                self.i2c.write(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 1);
                 self.state.set(State::TakeMeasurementClear);
             }
             State::TakeMeasurementClear => {
-                self.i2c.read(buffer, 3);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 3);
                 self.state.set(State::TakeMeasurementConfigure);
             }
             State::TakeMeasurementConfigure => {
                 buffer[0] = Registers::CtrlReg1 as u8 | REGISTER_AUTO_INCREMENT;
                 buffer[1] = CTRL_REG1_POWER_ON | CTRL_REG1_BLOCK_DATA_ENABLE;
                 buffer[2] = CTRL_REG2_ONE_SHOT;
-                self.i2c.write(buffer, 3);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 3);
                 self.state.set(State::Done);
             }
             State::ReadMeasurement => {
-                self.i2c.read(buffer, 3);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 3);
                 self.state.set(State::GotMeasurement);
             }
             State::GotMeasurement => {
@@ -204,7 +211,8 @@ impl i2c::I2CClient for LPS25HB<'_> {
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.interrupt_pin.disable_interrupts();
                 self.state.set(State::Done);
             }
@@ -226,7 +234,8 @@ impl gpio::Client for LPS25HB<'_> {
 
             // select sensor voltage register and read it
             buf[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
-            self.i2c.write(buf, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buf, 1);
             self.state.set(State::ReadMeasurement);
         });
     }

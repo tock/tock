@@ -174,7 +174,8 @@ impl<'a> gpio::Client for Ft6x06<'a> {
             self.state.set(State::ReadingTouches);
 
             buffer[0] = Registers::REG_GEST_ID as u8;
-            self.i2c.write_read(buffer, 1, 15);
+            // TODO verify errors
+            let _ = self.i2c.write_read(buffer, 1, 15);
         });
     }
 }

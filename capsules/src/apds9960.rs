@@ -137,7 +137,8 @@ impl<'a> APDS9960<'a> {
             self.i2c.enable();
 
             buffer[0] = Registers::ID as u8;
-            self.i2c.write_read(buffer, 1, 1);
+            // TODO verify errors
+            let _ = self.i2c.write_read(buffer, 1, 1);
 
             self.state.set(State::ReadId); // Reading ID
         });
@@ -157,7 +158,8 @@ impl<'a> APDS9960<'a> {
 
             buffer[0] = Registers::PROXPULSEREG as u8;
             buffer[1] = (length << 6 | count) as u8;
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
 
             self.state.set(State::SetPulse); // Send pulse control command to device
         });
@@ -174,7 +176,8 @@ impl<'a> APDS9960<'a> {
 
             buffer[0] = Registers::CONTROLREG1 as u8;
             buffer[1] = (ldrive << 6) as u8;
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
 
             self.state.set(State::SetLdrive); // Send LED Current Control gain
         });
@@ -189,7 +192,8 @@ impl<'a> APDS9960<'a> {
             buffer[0] = Registers::ENABLE as u8;
             buffer[1] = PON | PEN;
 
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
 
             self.state.set(State::TakeMeasurement1);
         });
@@ -221,7 +225,8 @@ impl<'a> APDS9960<'a> {
 
             buffer[0] = Registers::CONFIG3 as u8;
             buffer[1] = SAI;
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
 
             self.state.set(State::SendSAI);
         });
@@ -241,34 +246,39 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // Set persistence to 4
                 buffer[0] = Registers::PERS as u8;
                 buffer[1] = (PERS) << 4;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::StartingProximity);
             }
             State::StartingProximity => {
                 // Set low prox thresh to value in buffer
                 buffer[0] = Registers::PILT as u8;
                 buffer[1] = buffer[14];
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::ConfiguringProximity1);
             }
             State::ConfiguringProximity1 => {
                 // Set high prox thresh to value in buffer
                 buffer[0] = Registers::PIHT as u8;
                 buffer[1] = buffer[15];
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::ConfiguringProximity2);
             }
             State::ConfiguringProximity2 => {
                 // Clear proximity interrupt.
                 buffer[0] = Registers::PICCLR as u8;
-                self.i2c.write(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 1);
                 self.state.set(State::ConfiguringProximity3);
             }
             State::ConfiguringProximity3 => {
                 // Enable Device
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = PON | PEN | PIEN;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::PowerOn);
             }
             State::PowerOn => {
@@ -283,7 +293,8 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 // Clear proximity interrupt
                 buffer[0] = Registers::PICCLR as u8;
-                self.i2c.write(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 1);
                 self.interrupt_pin.disable_interrupts();
                 self.state.set(State::PowerOff);
             }
@@ -292,7 +303,8 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0 as u8;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::Done => {
@@ -308,7 +320,8 @@ impl i2c::I2CClient for APDS9960<'_> {
             State::TakeMeasurement1 => {
                 // Read status reg
                 buffer[0] = Registers::STATUS as u8;
-                self.i2c.write_read(buffer, 1, 1);
+                // TODO verify errors
+                let _ = self.i2c.write_read(buffer, 1, 1);
 
                 self.state.set(State::TakeMeasurement2);
             }
@@ -319,12 +332,14 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 if status_reg & PVALID > 0 {
                     buffer[0] = Registers::PDATA as u8;
-                    self.i2c.write_read(buffer, 1, 1);
+                    // TODO verify errors
+                    let _ = self.i2c.write_read(buffer, 1, 1);
                     self.state.set(State::TakeMeasurement3);
                 } else {
                     // If not valid then keep rechecking status reg
                     buffer[0] = Registers::STATUS as u8;
-                    self.i2c.write_read(buffer, 1, 1);
+                    // TODO verify errors
+                    let _ = self.i2c.write_read(buffer, 1, 1);
                     self.state.set(State::TakeMeasurement2);
                 }
             }
@@ -334,7 +349,8 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // Reset callback value
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::TakeMeasurement4);
             }
             State::TakeMeasurement4 => {
@@ -374,7 +390,8 @@ impl gpio::Client for APDS9960<'_> {
             self.i2c.enable();
 
             buffer[0] = Registers::PDATA as u8;
-            self.i2c.write_read(buffer, 1, 1);
+            // TODO verify errors
+            let _ = self.i2c.write_read(buffer, 1, 1);
             self.state.set(State::ReadData);
         });
     }

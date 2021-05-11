@@ -135,7 +135,8 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
                 buffer[0] = ((Registers::MEASHIGHREP as u16) >> 8) as u8;
                 buffer[1] = ((Registers::MEASHIGHREP as u16) & 0xff) as u8;
 
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
 
                 Ok(())
             },

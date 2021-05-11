@@ -224,7 +224,8 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         // just let the hardware layer have it. But, if it does happen
         // we can respond.
         self.slave_buffer1.take().map(|buffer| {
-            hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
+            // TODO verify errors
+            let _ = hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
         });
     }
 }
@@ -352,7 +353,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                             self.master_action.set(MasterAction::Write);
 
                             hil::i2c::I2CMaster::enable(self.i2c);
-                            hil::i2c::I2CMaster::write(
+                            // TODO verify errors
+                            let _ = hil::i2c::I2CMaster::write(
                                 self.i2c,
                                 address,
                                 kernel_tx,
@@ -391,7 +393,13 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                             self.master_action.set(MasterAction::Read(read_len as u8));
 
                             hil::i2c::I2CMaster::enable(self.i2c);
-                            hil::i2c::I2CMaster::read(self.i2c, address, kernel_tx, read_len as u8);
+                            // TODO verify errors
+                            let _ = hil::i2c::I2CMaster::read(
+                                self.i2c,
+                                address,
+                                kernel_tx,
+                                read_len as u8,
+                            );
                         });
                         0
                     });
@@ -405,7 +413,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // We can always handle a write since this module has a buffer.
                 // .map will handle if we have already done this.
                 self.slave_buffer1.take().map(|buffer| {
-                    hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
+                    // TODO verify errors
+                    let _ = hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
                 });
 
                 // Actually get things going
@@ -439,7 +448,9 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                                 *c = app_tx[i];
                             }
 
-                            hil::i2c::I2CSlave::read_send(self.i2c, kernel_tx, read_len as u8);
+                            // TODO verify errors
+                            let _ =
+                                hil::i2c::I2CSlave::read_send(self.i2c, kernel_tx, read_len as u8);
                         });
                         0
                     });
@@ -466,7 +477,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 if address > 0x7f {
                     return CommandReturn::failure(ErrorCode::INVAL);
                 }
-                hil::i2c::I2CSlave::set_address(self.i2c, address);
+                // TODO verify errors
+                let _ = hil::i2c::I2CSlave::set_address(self.i2c, address);
                 CommandReturn::success()
             }
 
@@ -493,7 +505,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                             self.master_action
                                 .set(MasterAction::WriteRead(read_len as u8));
                             hil::i2c::I2CMaster::enable(self.i2c);
-                            hil::i2c::I2CMaster::write_read(
+                            // TODO verify errors
+                            let _ = hil::i2c::I2CMaster::write_read(
                                 self.i2c,
                                 address,
                                 kernel_tx,

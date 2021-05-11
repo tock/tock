@@ -169,7 +169,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
-                        self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
+                        // TODO verify errors
+                        let _ = self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
                         CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
@@ -178,7 +179,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
-                        self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
+                        // TODO verify errors
+                        let _ = self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
                         CommandReturn::success()
                     })
                     .unwrap_or_else(|err| err.into()),
@@ -188,7 +190,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
                         .enter(appid, |app| {
-                            self.operation(
+                            // TODO verify errors
+                            let _ = self.operation(
                                 appid,
                                 app,
                                 Cmd::WriteRead,

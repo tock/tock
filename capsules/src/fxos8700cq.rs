@@ -208,7 +208,8 @@ impl<'a> Fxos8700cq<'a> {
             buf[0] = Registers::CtrlReg4 as u8;
             buf[1] = 1; // CtrlReg4 data ready interrupt
             buf[2] = 1; // CtrlReg5 drdy on pin 1
-            self.i2c.write(buf, 3);
+                        // TODO verify errors
+            let _ = self.i2c.write(buf, 3);
             self.state.set(State::ReadAccelSetup);
         });
     }
@@ -220,7 +221,8 @@ impl<'a> Fxos8700cq<'a> {
             buf[0] = Registers::MCtrlReg1 as u8;
             // Enable both accelerometer and magnetometer, and set one-shot read.
             buf[1] = 0b00100011;
-            self.i2c.write(buf, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buf, 2);
             self.state.set(State::ReadMagStart);
         });
     }
@@ -234,7 +236,8 @@ impl gpio::Client for Fxos8700cq<'_> {
             // When we get this interrupt we can read the sample.
             self.i2c.enable();
             buffer[0] = Registers::OutXMsb as u8;
-            self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
+            // TODO verify errors
+            let _ = self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
             self.state.set(State::ReadAccelReading);
         });
     }
@@ -264,7 +267,8 @@ impl I2CClient for Fxos8700cq<'_> {
                 // Enable the accelerometer.
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 1;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::ReadAccelWait);
             }
             State::ReadAccelWait => {
@@ -272,7 +276,8 @@ impl I2CClient for Fxos8700cq<'_> {
                     // Sample is already ready.
                     self.interrupt_pin1.disable_interrupts();
                     buffer[0] = Registers::OutXMsb as u8;
-                    self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
+                    // TODO verify errors
+                    let _ = self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
                     self.state.set(State::ReadAccelReading);
                 } else {
                     // Wait for the interrupt to trigger
@@ -293,7 +298,8 @@ impl I2CClient for Fxos8700cq<'_> {
                 // Now put the chip into standby mode.
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0; // Set the active bit to 0.
-                self.i2c.write(buffer, 2);
+                               // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state
                     .set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
             }
@@ -309,7 +315,8 @@ impl I2CClient for Fxos8700cq<'_> {
                 // One shot measurement taken, now read result.
                 buffer[0] = Registers::MOutXMsb as u8;
                 self.state.set(State::ReadMagValues);
-                self.i2c.write_read(buffer, 1, 6);
+                // TODO verify errors
+                let _ = self.i2c.write_read(buffer, 1, 6);
             }
             State::ReadMagValues => {
                 let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;

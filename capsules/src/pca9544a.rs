@@ -101,7 +101,8 @@ impl<'a> PCA9544A<'a> {
                     }
                 }
 
-                self.i2c.write(buffer, index as u8);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, index as u8);
                 self.state.set(State::Done);
 
                 CommandReturn::success()
@@ -123,7 +124,8 @@ impl<'a> PCA9544A<'a> {
                 self.i2c.enable();
 
                 // Just issuing a read to the selector reads its control register.
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadControl(field));
 
                 CommandReturn::success()

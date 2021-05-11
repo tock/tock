@@ -264,7 +264,8 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
                 .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     buffer[0] = addr as u8;
                     self.status.set(BusStatus::SetAddress);
-                    self.i2c.write(buffer, 1);
+                    // TODO verify errors
+                    let _ = self.i2c.write(buffer, 1);
                     Ok(())
                 }),
 
@@ -285,7 +286,8 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
             debug!("write len {}", len);
             self.len.set(len);
             self.status.set(BusStatus::Write);
-            self.i2c.write(buffer, (len * bytes) as u8);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, (len * bytes) as u8);
             Ok(())
         } else {
             Err(ErrorCode::NOMEM)
@@ -304,7 +306,8 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
         if len & bytes < 255 && buffer.len() >= len * bytes {
             self.len.set(len);
             self.status.set(BusStatus::Read);
-            self.i2c.read(buffer, (len * bytes) as u8);
+            // TODO verify errors
+            let _ = self.i2c.read(buffer, (len * bytes) as u8);
             Ok(())
         } else {
             Err(ErrorCode::NOMEM)

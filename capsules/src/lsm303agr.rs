@@ -216,7 +216,8 @@ impl<'a> Lsm303agrI2C<'a> {
             // turn on i2c to send commands
             buf[0] = 0x0F;
             self.i2c_magnetometer.enable();
-            self.i2c_magnetometer.write_read(buf, 1, 1);
+            // TODO verify errors
+            let _ = self.i2c_magnetometer.write_read(buf, 1, 1);
         });
     }
 
@@ -232,7 +233,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     + CTRL_REG1::XEN::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write(buf, 2);
             });
         }
     }
@@ -250,7 +252,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     + CTRL_REG4::BDU::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write(buf, 2);
             });
         }
     }
@@ -261,7 +264,8 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write_read(buf, 1, 6);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write_read(buf, 1, 6);
             });
         }
     }
@@ -273,7 +277,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
                 buf[1] = ((data_rate as u8) << 2) | 1 << 7;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write(buf, 2);
             });
         }
     }
@@ -288,7 +293,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[1] = (range as u8) << 5;
                 buf[2] = 0;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write(buf, 3);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write(buf, 3);
             });
         }
     }
@@ -299,7 +305,8 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = AgrAccelerometerRegisters::TEMP_OUT_H_A as u8;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write_read(buf, 1, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write_read(buf, 1, 2);
             });
         }
     }
@@ -310,7 +317,8 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write_read(buf, 1, 6);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write_read(buf, 1, 6);
             });
         }
     }
