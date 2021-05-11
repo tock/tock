@@ -234,6 +234,8 @@ SECTIONS
          * the linker will ignore it when defining the segments.
          * If less then 4 bytes, some linkers set this section to size 0
          * and openocd fails to write it.
+         *
+         * An issue has been submitted https://github.com/raspberrypi/openocd/issues/25
          */
         BYTE(0xFF)
         BYTE(0xFF)
