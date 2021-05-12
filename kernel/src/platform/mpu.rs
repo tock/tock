@@ -241,6 +241,27 @@ pub trait MPU {
         }
     }
 
+    /// Removes an MPU region.
+    ///
+    /// An implementation must remove the MPU region that contains `addr` from `config`.
+    ///
+    /// # Arguments
+    ///
+    /// - `addr`:   address contained in the region to be removed
+    /// - `config`: MPU region configuration
+    ///
+    /// # Return Value
+    ///
+    /// Returns an error if the region could not be found or could otherwise not be removed.
+    #[allow(unused_variables)]
+    fn remove_memory_region(
+        &self,
+        addr: *const u8,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        Ok(())
+    }
+
     /// Configures the MPU with the provided region configuration.
     ///
     /// An implementation must ensure that all memory locations not covered by

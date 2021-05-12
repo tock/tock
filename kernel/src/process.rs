@@ -439,6 +439,14 @@ pub trait ProcessType {
         min_region_size: usize,
     ) -> Option<mpu::Region>;
 
+    /// Removes the MPU region that contains the specified address `addr`.
+    ///
+    /// Returns the region that was removed, or `None` if no region matched.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
+    fn remove_mpu_region(&self, addr: *const u8) -> Option<mpu::Region>;
+
     // grants
 
     /// Create new memory in the grant region, and check that the MPU region
@@ -1073,6 +1081,33 @@ impl<C: Chip> ProcessType for Process<'_, C> {
             }
 
             // Not enough room in Process struct to store the MPU region.
+            None
+        })
+    }
+
+    fn remove_mpu_region(&self, addr: *const u8) -> Option<mpu::Region> {
+        self.mpu_config.and_then(|mut config| {
+            self.chip
+                .mpu()
+                .remove_memory_region(addr, &mut config)
+                .ok()?;
+
+            // The chip MPU successfully removed its region, so remove the
+            // corresponding mpu::Region from self.
+            for region in self.mpu_regions.iter() {
+                if region.get().is_none() {
+                    continue;
+                }
+                let r = region.get().unwrap();
+                let region_start = r.start_address() as usize;
+                let region_end = region_start + r.size();
+                let addr = addr as usize;
+                if (region_start..region_end).contains(&addr) {
+                    region.set(None);
+                    return Some(r);
+                }
+            }
+
             None
         })
     }

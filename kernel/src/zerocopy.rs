@@ -98,6 +98,18 @@ impl ZeroCopyBuffer {
                 }
             })
     }
+
+    /// Configures the MPU to disallow `app_id` from accessing the zero-copy buffer.
+    unsafe fn unmap_from_app(&'static self, app_id: AppId) -> ReturnCode {
+        app_id
+            .kernel
+            .process_map_or(ReturnCode::FAIL, app_id, |process| {
+                match process.remove_mpu_region(self.buf.as_ptr() as *const u8) {
+                    Some(_) => ReturnCode::SUCCESS,
+                    None => ReturnCode::ENOMEM,
+                }
+            })
+    }
 }
 
 /// Kernel reference to a zero-copy buffer.
@@ -173,7 +185,9 @@ impl AppRef {
 
 impl Drop for AppRef {
     fn drop(&mut self) {
-        // TODO: unmap
+        if let BufferBorrow::AppExclusive(app_id) = self.ctx.borrow.get() {
+            unsafe { self.ctx.unmap_from_app(app_id) };
+        }
         self.ctx.borrow.set(BufferBorrow::None);
     }
 }

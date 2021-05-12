@@ -114,6 +114,14 @@ impl PMPRegion {
             false
         }
     }
+
+    fn contains(&self, addr: *const u8) -> bool {
+        let addr = addr as usize;
+        let region_start = self.location.0 as usize;
+        let region_end = region_start + self.location.1;
+
+        (region_start..region_end).contains(&addr)
+    }
 }
 
 /// Struct storing region configuration for RISCV PMP.
@@ -451,6 +459,31 @@ impl kernel::mpu::MPU for PMPConfig {
         let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
 
         config.regions[region_num] = Some(region);
+        config.is_dirty.set(true);
+
+        config.sort_regions();
+
+        Ok(())
+    }
+
+    fn remove_memory_region(
+        &self,
+        addr: *const u8,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        let (region_num, _) = config
+            .regions
+            .iter()
+            .enumerate()
+            .find(|(_idx, r)| r.map_or(false, |r| r.contains(addr)))
+            .ok_or(())?;
+
+        // The app memory region can't be removed.
+        if region_num == config.app_region.unwrap_or(usize::MAX) {
+            return Err(());
+        }
+
+        config.regions[region_num] = None;
         config.is_dirty.set(true);
 
         config.sort_regions();
