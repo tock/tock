@@ -273,3 +273,15 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
         Ok(())
     }
 }
+
+impl hil::digest::HMACSha384 for Hmac<'_> {
+    fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl hil::digest::HMACSha512 for Hmac<'_> {
+    fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}

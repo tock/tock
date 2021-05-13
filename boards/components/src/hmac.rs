@@ -119,7 +119,11 @@ impl<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> H
 }
 
 impl<
-        A: kernel::hil::digest::HMACSha256 + 'static + digest::Digest<'static, T>,
+        A: kernel::hil::digest::HMACSha256
+            + digest::HMACSha384
+            + digest::HMACSha512
+            + 'static
+            + digest::Digest<'static, T>,
         T: 'static + digest::DigestType,
     > Component for HmacComponent<A, T>
 {

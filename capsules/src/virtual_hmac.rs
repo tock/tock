@@ -124,6 +124,40 @@ impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::H
     }
 }
 
+impl<'a, A: digest::Digest<'a, T> + digest::HMACSha384, T: DigestType> digest::HMACSha384
+    for VirtualMuxHmac<'a, A, T>
+{
+    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.hmac.set_mode_hmacsha384(key)
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.hmac.set_mode_hmacsha384(key)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, T> + digest::HMACSha512, T: DigestType> digest::HMACSha512
+    for VirtualMuxHmac<'a, A, T>
+{
+    fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.hmac.set_mode_hmacsha512(key)
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.hmac.set_mode_hmacsha512(key)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
 pub struct MuxHmac<'a, A: digest::Digest<'a, T>, T: DigestType> {
     hmac: &'a A,
     running: Cell<bool>,

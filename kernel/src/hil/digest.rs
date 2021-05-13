@@ -70,3 +70,17 @@ pub trait HMACSha256 {
     /// The key used for the HMAC is passed to this function.
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode>;
 }
+
+pub trait HMACSha384 {
+    /// Call before `Digest::run()` to perform HMACSha384
+    ///
+    /// The key used for the HMAC is passed to this function.
+    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode>;
+}
+
+pub trait HMACSha512 {
+    /// Call before `Digest::run()` to perform HMACSha512
+    ///
+    /// The key used for the HMAC is passed to this function.
+    fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode>;
+}

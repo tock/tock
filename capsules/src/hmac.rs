@@ -39,6 +39,12 @@ use kernel::{
     CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
+enum ShaOperation {
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
 pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     hmac: &'a H,
 
@@ -53,7 +59,11 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
     dest_buffer: TakeCell<'static, T>,
 }
 
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> HmacDriver<'a, H, T>
+impl<
+        'a,
+        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        T: DigestType,
+    > HmacDriver<'a, H, T>
 where
     T: AsMut<[u8]>,
 {
@@ -79,11 +89,26 @@ where
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
                 .enter(*appid, |app| {
-                    app.key.map_or((), |k| {
-                        self.hmac
-                            .set_mode_hmacsha256(k.as_ref().try_into().unwrap())
-                            .unwrap();
+                    let ret = app.key.map_or(Err(ErrorCode::RESERVE), |k| {
+                        if let Some(op) = &app.sha_operation {
+                            match op {
+                                ShaOperation::Sha256 => self
+                                    .hmac
+                                    .set_mode_hmacsha256(k.as_ref().try_into().unwrap()),
+                                ShaOperation::Sha384 => self
+                                    .hmac
+                                    .set_mode_hmacsha384(k.as_ref().try_into().unwrap()),
+                                ShaOperation::Sha512 => self
+                                    .hmac
+                                    .set_mode_hmacsha512(k.as_ref().try_into().unwrap()),
+                            }
+                        } else {
+                            Err(ErrorCode::INVAL)
+                        }
                     });
+                    if ret.is_err() {
+                        return ret;
+                    }
 
                     app.data.map_or(Err(ErrorCode::RESERVE), |d| {
                         self.data_buffer.map(|buf| {
@@ -139,8 +164,11 @@ where
     }
 }
 
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Client<'a, T>
-    for HmacDriver<'a, H, T>
+impl<
+        'a,
+        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        T: DigestType,
+    > digest::Client<'a, T> for HmacDriver<'a, H, T>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -291,8 +319,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 /// - `2`: Allow a buffer for storing the digest.
 ///        The kernel will fill this with the HMAC digest before calling
 ///        the `hash_done` callback.
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
-    for HmacDriver<'a, H, T>
+impl<
+        'a,
+        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        T: DigestType,
+    > Driver for HmacDriver<'a, H, T>
 {
     fn allow_readwrite(
         &self,
@@ -424,14 +455,28 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         match command_num {
             // set_algorithm
             0 => {
-                match data1 {
-                    // SHA256
-                    0 => {
-                        // Only Sha256 is supported, we don't need to do anything
-                        CommandReturn::success()
-                    }
-                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                }
+                self.apps
+                    .enter(appid, |app| {
+                        match data1 {
+                            // SHA256
+                            0 => {
+                                app.sha_operation = Some(ShaOperation::Sha256);
+                                CommandReturn::success()
+                            }
+                            // SHA384
+                            1 => {
+                                app.sha_operation = Some(ShaOperation::Sha384);
+                                CommandReturn::success()
+                            }
+                            // SHA512
+                            2 => {
+                                app.sha_operation = Some(ShaOperation::Sha512);
+                                CommandReturn::success()
+                            }
+                            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into())
             }
 
             // run
@@ -477,6 +522,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 pub struct App {
     callback: Upcall,
     pending_run_app: Option<ProcessId>,
+    sha_operation: Option<ShaOperation>,
     key: ReadWriteAppSlice,
     data: ReadWriteAppSlice,
     dest: ReadWriteAppSlice,
