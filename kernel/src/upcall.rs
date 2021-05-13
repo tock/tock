@@ -5,8 +5,6 @@ use core::ptr::NonNull;
 use crate::config;
 use crate::debug;
 use crate::process;
-use crate::syscall::SyscallReturn;
-use crate::ErrorCode;
 use crate::ProcessId;
 
 /// Type to uniquely identify an upcall subscription across all drivers.
@@ -83,20 +81,6 @@ impl Upcall {
             );
         }
         res
-    }
-
-    pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
-        match self.fn_ptr {
-            None => SyscallReturn::SubscribeSuccess(0 as *mut (), self.appdata),
-            Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata),
-        }
-    }
-
-    pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
-        match self.fn_ptr {
-            None => SyscallReturn::SubscribeFailure(err, 0 as *mut (), self.appdata),
-            Some(fp) => SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata),
-        }
     }
 }
 
