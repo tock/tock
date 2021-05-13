@@ -63,6 +63,26 @@ pub trait Digest<'a, const L: usize> {
     fn clear_data(&self);
 }
 
+pub trait Sha224 {
+    /// Call before `Digest::run()` to perform Sha224
+    fn set_mode_sha224(&self) -> Result<(), ErrorCode>;
+}
+
+pub trait Sha256 {
+    /// Call before `Digest::run()` to perform Sha256
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode>;
+}
+
+pub trait Sha384 {
+    /// Call before `Digest::run()` to perform Sha384
+    fn set_mode_sha384(&self) -> Result<(), ErrorCode>;
+}
+
+pub trait Sha512 {
+    /// Call before `Digest::run()` to perform Sha512
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode>;
+}
+
 pub trait HMACSha256 {
     /// Call before `Digest::run()` to perform HMACSha256
     ///

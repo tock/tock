@@ -159,6 +159,57 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::
     }
 }
 
+impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha256
+    for VirtualMuxDigest<'a, A, L>
+{
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.digest.set_mode_sha256()
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.digest.set_mode_sha256()
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha384
+    for VirtualMuxDigest<'a, A, L>
+{
+    fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.digest.set_mode_sha384()
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.digest.set_mode_sha384()
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha512
+    for VirtualMuxDigest<'a, A, L>
+{
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.digest.set_mode_sha512()
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.digest.set_mode_sha512()
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
 /// Calling a 'set_mode*()' function from a `VirtualMuxDigest` will mark that
 /// `VirtualMuxDigest` as the one that has been enabled and running. Until that
 /// Mux calls `clear_data()` it will be the only `VirtualMuxDigest` that can
