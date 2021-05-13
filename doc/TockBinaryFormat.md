@@ -152,6 +152,7 @@ struct TbfHeaderDriverPermission {
 // A list of permissions for this app
 struct TbfHeaderV2Permissions {
     base: TbfHeaderTlv,
+    length: u16,
     perms: [TbfHeaderDriverPermission],
 }
 ```
