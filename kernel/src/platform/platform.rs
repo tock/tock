@@ -124,6 +124,9 @@ pub trait SystemCallFilter {
     }
 }
 
+/// Implement default SystemCallFilter trait for unit.
+impl SystemCallFilter for () {}
+
 /// Trait for implementing process fault handlers to run when a process faults.
 pub trait ProcessFault {
     /// This function is called when an app faults.
@@ -163,3 +166,6 @@ pub trait ProcessFault {
         Err(())
     }
 }
+
+/// Implement default ProcessFault trait for unit.
+impl ProcessFault for () {}

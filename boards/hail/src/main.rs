@@ -19,7 +19,8 @@ use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
-use kernel::traits::platform::Platform;
+use kernel::platform::platform;
+use kernel::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::adc::Channel;
@@ -72,10 +73,12 @@ struct Hail {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for Hail {
+impl platform::SystemCallDispatch for Hail {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -104,6 +107,34 @@ impl Platform for Hail {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl platform::KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
+    type SystemCallDispatch = Self;
+    type SystemCallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn system_call_dispatch(&self) -> &Self::SystemCallDispatch {
+        &self
+    }
+    fn system_call_filter(&self) -> &Self::SystemCallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -419,6 +450,9 @@ pub unsafe fn main() {
         kernel::procs::ThresholdRestartThenPanicFaultPolicy::new(4)
     );
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let hail = Hail {
         console,
         gpio,
@@ -436,6 +470,8 @@ pub unsafe fn main() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         crc,
         dac,
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // Setup the UART bus for nRF51 serialization..
@@ -480,13 +516,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(
-        &hail,
-        chip,
-        Some(&hail.ipc),
-        scheduler,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
 }
