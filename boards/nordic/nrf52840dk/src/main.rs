@@ -90,10 +90,15 @@ const LED3_PIN: Pin = Pin::P0_15;
 const LED4_PIN: Pin = Pin::P0_16;
 
 // The nRF52840DK buttons (see back of board)
-const BUTTON1_PIN: Pin = Pin::P0_11;
-const BUTTON2_PIN: Pin = Pin::P0_12;
-const BUTTON3_PIN: Pin = Pin::P0_24;
-const BUTTON4_PIN: Pin = Pin::P0_25;
+// const BUTTON1_PIN: Pin = Pin::P0_11;
+// const BUTTON2_PIN: Pin = Pin::P0_12;
+// const BUTTON3_PIN: Pin = Pin::P0_24;
+// const BUTTON4_PIN: Pin = Pin::P0_25;
+// Using button pins for SPI, so remapping button pins to GPIO pins
+const BUTTON1_PIN: Pin = Pin::P1_01;
+const BUTTON2_PIN: Pin = Pin::P1_02;
+const BUTTON3_PIN: Pin = Pin::P1_03;
+const BUTTON4_PIN: Pin = Pin::P1_04;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 const UART_RTS: Option<Pin> = Some(Pin::P0_05);
@@ -101,9 +106,14 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-const SPI_MOSI: Pin = Pin::P0_20;
-const SPI_MISO: Pin = Pin::P0_21;
-const SPI_CLK: Pin = Pin::P0_19;
+// const SPI_MOSI: Pin = Pin::P0_20;
+// const SPI_MISO: Pin = Pin::P0_21;
+// const SPI_CLK: Pin = Pin::P0_19;
+// Remapping SPI pins to avoid unnecessary soldering and cutting
+const SPI_MOSI: Pin = Pin::P0_11;
+const SPI_MISO: Pin = Pin::P0_12;
+const SPI_CLK: Pin = Pin::P0_24;
+const SPI_CHIP_SELECT: Pin = Pin::P0_25;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
@@ -172,6 +182,7 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    // stm32discovery_spi: &'static capsules:: // TODO: add driver for stm32discovery board for lora; would add lora driver here?
 }
 
 impl kernel::Platform for Platform {
@@ -451,6 +462,13 @@ pub unsafe fn main() {
         nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
         nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
     );
+
+    // Create SPI component for stm32 Discovery board
+    let stm32discovery_spi = components::spi::SpiComponent::new(
+        mux_spi, 
+        &gpio_port[SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin
+    )
+    .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],

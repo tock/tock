@@ -42,6 +42,7 @@ pub mod l3gd20;
 pub mod led;
 pub mod led_matrix;
 pub mod log;
+pub mod lmic_spi;
 pub mod low_level_debug;
 pub mod lps25hb;
 pub mod lsm303agr;
