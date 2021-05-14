@@ -3,9 +3,67 @@
 use crate::driver::Driver;
 use crate::errorcode;
 use crate::process;
+use crate::sched::Scheduler;
 use crate::syscall;
 
-/// Interface for individual boards.
+use crate::platform::chip::Chip;
+use crate::platform::scheduler_timer;
+use crate::platform::watchdog;
+
+/// Combination trait that boards provide to the kernel that includes all of
+/// the extensible operations the kernel supports.
+///
+/// This is the primary method for configuring the kernel for a specific board.
+pub trait KernelResources<C: Chip> {
+    /// The implementation of the system call dispatch mechanism the kernel
+    /// will use.
+    type SystemCallDispatch: SystemCallDispatch;
+
+    /// The implementation of the system call filtering mechanism the kernel
+    /// will use.
+    type SystemCallFilter: SystemCallFilter;
+
+    /// The implementation of the process fault handling mechanism the kernel
+    /// will use.
+    type ProcessFault: ProcessFault;
+
+    /// The implementation of the scheduling algorithm the kernel will use.
+    type Scheduler: Scheduler<C>;
+
+    /// The implementation of the timer used to create the timeslices provided
+    /// to applications.
+    type SchedulerTimer: scheduler_timer::SchedulerTimer;
+
+    /// The implementation of the WatchDog timer used to monitor the running
+    /// of the kernel.
+    type WatchDog: watchdog::WatchDog;
+
+    /// Returns a reference to the implementation of the SystemCallDispatch this
+    /// platform will use to route syscalls.
+    fn system_call_dispatch(&self) -> &Self::SystemCallDispatch;
+
+    /// Returns a reference to the implementation of the SystemCallFilter this
+    /// platform wants the kernel to use.
+    fn system_call_filter(&self) -> &Self::SystemCallFilter;
+
+    /// Returns a reference to the implementation of the ProcessFault handler
+    /// this platform wants the kernel to use.
+    fn process_fault(&self) -> &Self::ProcessFault;
+
+    /// Returns a reference to the implementation of the Scheduler this platform
+    /// wants the kernel to use.
+    fn scheduler(&self) -> &Self::Scheduler;
+
+    /// Returns a reference to the implementation of the SchedulerTimer timer
+    /// for this platform.
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer;
+
+    /// Returns a reference to the implementation of the WatchDog on this
+    /// platform.
+    fn watchdog(&self) -> &Self::WatchDog;
+}
+
+/// Configure the system call dispatch mapping.
 ///
 /// Each board should define a struct which implements this trait. This trait is
 /// the core for how syscall dispatching is handled, and the implementation is
@@ -20,7 +78,7 @@ use crate::syscall;
 ///     dac: &'static capsules::dac::Dac<'static>,
 /// }
 ///
-/// impl Platform for Hail {
+/// impl SystemCallDispatch for Hail {
 ///     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
 ///     where
 ///         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -35,13 +93,20 @@ use crate::syscall;
 ///     }
 /// }
 /// ```
-pub trait Platform {
+pub trait SystemCallDispatch {
     /// Platform-specific mapping of syscall numbers to objects that implement
     /// the Driver methods for that syscall.
+    ///
+    ///
+    /// An implementation
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn Driver>) -> R;
+}
 
+/// Trait for implementing system call filters that the kernel uses to decide
+/// whether to handle a specific system call or not.
+pub trait SystemCallFilter {
     /// Check the platform-provided system call filter for all non-yield system
     /// calls. If the system call is allowed for the provided process then
     /// return `Ok(())`. Otherwise, return `Err()` with an `ErrorCode` that will
@@ -57,7 +122,10 @@ pub trait Platform {
     ) -> Result<(), errorcode::ErrorCode> {
         Ok(())
     }
+}
 
+/// Trait for implementing process fault handlers to run when a process faults.
+pub trait ProcessFault {
     /// This function is called when an app faults.
     ///
     /// This is an optional function that can be implemented by `Platform`s that

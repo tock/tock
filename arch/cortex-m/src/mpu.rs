@@ -10,7 +10,7 @@ use kernel::common::math;
 use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::traits::mpu;
+use kernel::platform::mpu;
 use kernel::ProcessId;
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families

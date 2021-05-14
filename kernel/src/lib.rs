@@ -96,8 +96,8 @@ pub mod debug;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod platform;
 pub mod syscall;
-pub mod traits;
 
 mod config;
 mod driver;

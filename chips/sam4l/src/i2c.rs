@@ -18,7 +18,7 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::traits::chip::ClockInterface;
+use kernel::platform::chip::ClockInterface;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

@@ -23,15 +23,16 @@ use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
+use crate::platform::chip::Chip;
+use crate::platform::mpu::MPU;
+use crate::platform::platform::KernelResources;
+use crate::platform::platform::{ProcessFault, SystemCallDispatch, SystemCallFilter};
+use crate::platform::scheduler_timer::SchedulerTimer;
+use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
-use crate::traits::chip::Chip;
-use crate::traits::mpu::MPU;
-use crate::traits::platform::Platform;
-use crate::traits::scheduler_timer::SchedulerTimer;
-use crate::traits::watchdog::WatchDog;
 use crate::upcall::{Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
@@ -459,17 +460,18 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
-    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
         &self,
-        platform: &P,
+        resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
-        scheduler: &SC,
         _capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
-        chip.watchdog().setup();
+        let scheduler = resources.scheduler();
+
+        resources.watchdog().setup();
         loop {
-            chip.watchdog().tickle();
+            resources.watchdog().tickle();
             unsafe {
                 // Ask the scheduler if we should do tasks inside of the kernel,
                 // such as handle interrupts. A scheduler may want to prioritize
@@ -487,9 +489,8 @@ impl Kernel {
                             SchedulingDecision::RunProcess((appid, timeslice_us)) => {
                                 self.process_map_or((), appid, |process| {
                                     let (reason, time_executed) = self.do_process(
-                                        platform,
+                                        resources,
                                         chip,
-                                        scheduler,
                                         process,
                                         ipc,
                                         timeslice_us,
@@ -512,9 +513,9 @@ impl Kernel {
                                         && !DynamicDeferredCall::global_instance_calls_pending()
                                             .unwrap_or(false)
                                     {
-                                        chip.watchdog().suspend();
+                                        resources.watchdog().suspend();
                                         chip.sleep();
-                                        chip.watchdog().resume();
+                                        resources.watchdog().resume();
                                     }
                                 });
                             }
@@ -556,11 +557,10 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
+    fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
         &self,
-        platform: &P,
+        resources: &KR,
         chip: &C,
-        scheduler: &S,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<u32>,
@@ -571,7 +571,7 @@ impl Kernel {
         let scheduler_timer: &dyn SchedulerTimer = if timeslice_us.is_none() {
             &() // dummy timer, no preemption
         } else {
-            chip.scheduler_timer()
+            resources.scheduler_timer()
         };
 
         // Clear the scheduler timer and then start the counter. This starts the
@@ -604,7 +604,11 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe { scheduler.continue_process(process.processid(), chip) };
+            let continue_process = unsafe {
+                resources
+                    .scheduler()
+                    .continue_process(process.processid(), chip)
+            };
             if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
@@ -639,13 +643,17 @@ impl Kernel {
                         Some(ContextSwitchReason::Fault) => {
                             // The app faulted, check if the chip wants to
                             // handle the fault.
-                            if platform.process_fault_hook(process).is_err() {
+                            if resources
+                                .process_fault()
+                                .process_fault_hook(process)
+                                .is_err()
+                            {
                                 // Let process deal with it as appropriate.
                                 process.set_fault_state();
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            self.handle_syscall(platform, process, syscall);
+                            self.handle_syscall(resources, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -759,9 +767,9 @@ impl Kernel {
     /// and dispatches peripheral driver system calls to peripheral
     /// driver capsules through the platforms `with_driver` method.
     #[inline]
-    fn handle_syscall<P: Platform>(
+    fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
-        platform: &P,
+        resources: &KR,
         process: &dyn process::Process,
         syscall: Syscall,
     ) {
@@ -797,7 +805,10 @@ impl Kernel {
             } => {} // Memop is not filterable
             _ => {
                 // Check all other syscalls for filtering
-                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                if let Err(response) = resources
+                    .system_call_filter()
+                    .filter_syscall(process, &syscall)
+                {
                     process.set_syscall_return_value(SyscallReturn::Failure(response));
 
                     return;
@@ -886,19 +897,21 @@ impl Kernel {
                 let upcall = ptr.map_or(Upcall::default(), |ptr| {
                     Upcall::new(process.processid(), upcall_id, appdata, ptr.cast())
                 });
-                let rval = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.processid());
-                        match res {
-                            // An Ok() returns the previous upcall, while
-                            // Err() returns the one that was just passed
-                            // (because the call was rejected).
-                            Ok(oldcb) => oldcb.into_subscribe_success(),
-                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                let rval = resources
+                    .system_call_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            let res = d.subscribe(subdriver_number, upcall, process.processid());
+                            match res {
+                                // An Ok() returns the previous upcall, while
+                                // Err() returns the one that was just passed
+                                // (because the call was rejected).
+                                Ok(oldcb) => oldcb.into_subscribe_success(),
+                                Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                            }
                         }
-                    }
-                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
-                });
+                        None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                    });
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -919,10 +932,12 @@ impl Kernel {
                 arg0,
                 arg1,
             } => {
-                let cres = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
-                    None => CommandReturn::failure(ErrorCode::NODEVICE),
-                });
+                let cres = resources
+                    .system_call_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
+                        None => CommandReturn::failure(ErrorCode::NODEVICE),
+                    });
 
                 let res = SyscallReturn::from_command_return(cres);
 
@@ -945,56 +960,58 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        // Try to create an appropriate [`ReadWriteAppSlice`].
-                        // This method will ensure that the memory in question
-                        // is located in the process-accessible memory space.
-                        //
-                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
-                        // undefined behavior in Rust.
-                        match process.build_readwrite_appslice(allow_address, allow_size) {
-                            Ok(appslice) => {
-                                // Creating the [`ReadWriteAppSlice`] worked,
-                                // provide it to the capsule.
-                                match d.allow_readwrite(
-                                    process.processid(),
-                                    subdriver_number,
-                                    appslice,
-                                ) {
-                                    Ok(returned_appslice) => {
-                                        // The capsule has accepted the allow
-                                        // operation. Pass the previous buffer
-                                        // information back to the process.
-                                        //
-                                        // TODO: Prevent swapping of AppSlices by
-                                        // the capsule
-                                        let (ptr, len) = returned_appslice.consume();
-                                        SyscallReturn::AllowReadWriteSuccess(ptr, len)
-                                    }
-                                    Err((rejected_appslice, err)) => {
-                                        let (ptr, len) = rejected_appslice.consume();
-                                        SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                let res = resources
+                    .system_call_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            // Try to create an appropriate [`ReadWriteAppSlice`].
+                            // This method will ensure that the memory in question
+                            // is located in the process-accessible memory space.
+                            //
+                            // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                            // undefined behavior in Rust.
+                            match process.build_readwrite_appslice(allow_address, allow_size) {
+                                Ok(appslice) => {
+                                    // Creating the [`ReadWriteAppSlice`] worked,
+                                    // provide it to the capsule.
+                                    match d.allow_readwrite(
+                                        process.processid(),
+                                        subdriver_number,
+                                        appslice,
+                                    ) {
+                                        Ok(returned_appslice) => {
+                                            // The capsule has accepted the allow
+                                            // operation. Pass the previous buffer
+                                            // information back to the process.
+                                            //
+                                            // TODO: Prevent swapping of AppSlices by
+                                            // the capsule
+                                            let (ptr, len) = returned_appslice.consume();
+                                            SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                        }
+                                        Err((rejected_appslice, err)) => {
+                                            let (ptr, len) = rejected_appslice.consume();
+                                            SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                        }
                                     }
                                 }
-                            }
-                            Err(allow_error) => {
-                                // There was an error creating the [`ReadWriteAppSlice`].
-                                // Report back to the process.
-                                SyscallReturn::AllowReadWriteFailure(
-                                    allow_error,
-                                    allow_address,
-                                    allow_size,
-                                )
+                                Err(allow_error) => {
+                                    // There was an error creating the [`ReadWriteAppSlice`].
+                                    // Report back to the process.
+                                    SyscallReturn::AllowReadWriteFailure(
+                                        allow_error,
+                                        allow_address,
+                                        allow_size,
+                                    )
+                                }
                             }
                         }
-                    }
-                    None => SyscallReturn::AllowReadWriteFailure(
-                        ErrorCode::NODEVICE,
-                        allow_address,
-                        allow_size,
-                    ),
-                });
+                        None => SyscallReturn::AllowReadWriteFailure(
+                            ErrorCode::NODEVICE,
+                            allow_address,
+                            allow_size,
+                        ),
+                    });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -1015,62 +1032,64 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        // Try to create an appropriate [`ReadOnlyAppSlice`].
-                        // This method will ensure that the memory in question
-                        // is located in the process-accessible memory space.
-                        //
-                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
-                        // undefined behavior in Rust.
-                        match process.build_readonly_appslice(allow_address, allow_size) {
-                            Ok(appslice) => {
-                                // Creating the [`ReadOnlyAppSlice`] worked,
-                                // provide it to the capsule.
-                                match d.allow_readonly(
-                                    process.processid(),
-                                    subdriver_number,
-                                    appslice,
-                                ) {
-                                    Ok(returned_appslice) => {
-                                        // The capsule has accepted the allow
-                                        // operation. Pass the previous buffer
-                                        // information back to the process.
-                                        //
-                                        // TODO: Prevent swapping of AppSlices by
-                                        // the capsule
-                                        let (ptr, len) = returned_appslice.consume();
-                                        SyscallReturn::AllowReadOnlySuccess(ptr, len)
-                                    }
-                                    Err((rejected_appslice, err)) => {
-                                        // The capsule has rejected the allow
-                                        // operation. Pass the new buffer information
-                                        // back to the process.
-                                        //
-                                        // TODO: Ensure that the capsule has passed
-                                        // the newly constructed AppSlice back
-                                        let (ptr, len) = rejected_appslice.consume();
-                                        SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                let res = resources
+                    .system_call_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            // Try to create an appropriate [`ReadOnlyAppSlice`].
+                            // This method will ensure that the memory in question
+                            // is located in the process-accessible memory space.
+                            //
+                            // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                            // undefined behavior in Rust.
+                            match process.build_readonly_appslice(allow_address, allow_size) {
+                                Ok(appslice) => {
+                                    // Creating the [`ReadOnlyAppSlice`] worked,
+                                    // provide it to the capsule.
+                                    match d.allow_readonly(
+                                        process.processid(),
+                                        subdriver_number,
+                                        appslice,
+                                    ) {
+                                        Ok(returned_appslice) => {
+                                            // The capsule has accepted the allow
+                                            // operation. Pass the previous buffer
+                                            // information back to the process.
+                                            //
+                                            // TODO: Prevent swapping of AppSlices by
+                                            // the capsule
+                                            let (ptr, len) = returned_appslice.consume();
+                                            SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                        }
+                                        Err((rejected_appslice, err)) => {
+                                            // The capsule has rejected the allow
+                                            // operation. Pass the new buffer information
+                                            // back to the process.
+                                            //
+                                            // TODO: Ensure that the capsule has passed
+                                            // the newly constructed AppSlice back
+                                            let (ptr, len) = rejected_appslice.consume();
+                                            SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                        }
                                     }
                                 }
-                            }
-                            Err(allow_error) => {
-                                // There was an error creating the [`ReadOnlyAppSlice`].
-                                // Report back to the process.
-                                SyscallReturn::AllowReadOnlyFailure(
-                                    allow_error,
-                                    allow_address,
-                                    allow_size,
-                                )
+                                Err(allow_error) => {
+                                    // There was an error creating the [`ReadOnlyAppSlice`].
+                                    // Report back to the process.
+                                    SyscallReturn::AllowReadOnlyFailure(
+                                        allow_error,
+                                        allow_address,
+                                        allow_size,
+                                    )
+                                }
                             }
                         }
-                    }
-                    None => SyscallReturn::AllowReadOnlyFailure(
-                        ErrorCode::NODEVICE,
-                        allow_address,
-                        allow_size,
-                    ),
-                });
+                        None => SyscallReturn::AllowReadOnlyFailure(
+                            ErrorCode::NODEVICE,
+                            allow_address,
+                            allow_size,
+                        ),
+                    });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
