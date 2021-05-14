@@ -29,12 +29,10 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 
 use core::cell::Cell;
 use core::convert::TryInto;
-use core::marker::PhantomData;
 use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
-use kernel::hil::digest::DigestType;
 use kernel::{
     CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
@@ -45,40 +43,36 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
+pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
     hmac: &'a H,
 
     active: Cell<bool>,
 
     apps: Grant<App>,
     appid: OptionalCell<ProcessId>,
-    phantom: PhantomData<&'a T>,
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, T>,
+    dest_buffer: TakeCell<'static, [u8; L]>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
-        T: DigestType,
-    > HmacDriver<'a, H, T>
-where
-    T: AsMut<[u8]>,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > HmacDriver<'a, H, L>
 {
     pub fn new(
         hmac: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut T,
+        dest_buffer: &'static mut [u8; L],
         grant: Grant<App>,
-    ) -> HmacDriver<'a, H, T> {
+    ) -> HmacDriver<'a, H, L> {
         HmacDriver {
             hmac: hmac,
             active: Cell::new(false),
             apps: grant,
             appid: OptionalCell::empty(),
-            phantom: PhantomData,
             data_buffer: TakeCell::new(data_buffer),
             data_copied: Cell::new(0),
             dest_buffer: TakeCell::new(dest_buffer),
@@ -166,9 +160,9 @@ where
 
 impl<
         'a,
-        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
-        T: DigestType,
-    > digest::Client<'a, T> for HmacDriver<'a, H, T>
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::Client<'a, L> for HmacDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -265,7 +259,7 @@ impl<
         });
     }
 
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |app| {
@@ -321,9 +315,9 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, T> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
-        T: DigestType,
-    > Driver for HmacDriver<'a, H, T>
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > Driver for HmacDriver<'a, H, L>
 {
     fn allow_readwrite(
         &self,
