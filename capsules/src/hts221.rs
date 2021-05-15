@@ -204,7 +204,7 @@ impl<'a> I2CClient for Hts221<'a> {
                         buffer[0] = REG_AUTO_INCREMENT | CTRL_REG1;
                         buffer[1] = 1 << 2 | 1 << 7; // BDU + PD
                         buffer[2] = 1; // ONE SHOT
-                                       // TODO verify errors
+                        // TODO verify errors
                         let _ = self.i2c.write(buffer, 3);
                         self.state.set(State::InitiateReading(CalibrationData {
                             temp_slope,
