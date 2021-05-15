@@ -208,6 +208,7 @@ impl<'a> Fxos8700cq<'a> {
             buf[0] = Registers::CtrlReg4 as u8;
             buf[1] = 1; // CtrlReg4 data ready interrupt
             buf[2] = 1; // CtrlReg5 drdy on pin 1
+
             // TODO verify errors
             let _ = self.i2c.write(buf, 3);
             self.state.set(State::ReadAccelSetup);
@@ -258,7 +259,7 @@ impl I2CClient for Fxos8700cq<'_> {
             });
             return;
         }
-        match self.state.get() { 
+        match self.state.get() {
             State::ReadAccelSetup => {
                 // Setup the interrupt so we know when the sample is ready
                 self.interrupt_pin1
@@ -298,6 +299,7 @@ impl I2CClient for Fxos8700cq<'_> {
                 // Now put the chip into standby mode.
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0; // Set the active bit to 0.
+
                 // TODO verify errors
                 let _ = self.i2c.write(buffer, 2);
                 self.state

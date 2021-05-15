@@ -125,7 +125,8 @@ impl<'a> Hts221<'a> {
                         buffer[0] = REG_AUTO_INCREMENT | CTRL_REG1;
                         buffer[1] = 1 << 2 | 1 << 7; // BDU + PD
                         buffer[2] = 1; // ONE SHOT
-                                       // TODO verify errors
+
+                        // TODO verify errors
                         let _ = self.i2c.write(buffer, 3);
                         self.state.set(State::InitiateReading(calibration_data));
                     }
@@ -204,6 +205,7 @@ impl<'a> I2CClient for Hts221<'a> {
                         buffer[0] = REG_AUTO_INCREMENT | CTRL_REG1;
                         buffer[1] = 1 << 2 | 1 << 7; // BDU + PD
                         buffer[2] = 1; // ONE SHOT
+
                         // TODO verify errors
                         let _ = self.i2c.write(buffer, 3);
                         self.state.set(State::InitiateReading(CalibrationData {
@@ -249,7 +251,8 @@ impl<'a> I2CClient for Hts221<'a> {
                         // Status register never updates to read after the first transaction. For
                         // now, leave it on and waste 2uA.
                         buffer[1] = 1 << 7; // Leave PD bit on
-                                            // TODO verify errors
+
+                        // TODO verify errors
                         let _ = self.i2c.write(buffer, 2);
                         self.state
                             .set(State::Idle(calibration_data, temperature, humidity));
