@@ -7,7 +7,12 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
+#![feature(rustc_private)]
+#![feature(asm)]
+#![allow(non_snake_case)]
+
+extern crate compiler_builtins;
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
@@ -318,6 +323,7 @@ pub unsafe fn main() {
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
 
+    debug!("Boot");
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
@@ -643,5 +649,219 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    let mut table = Table::new();
+    let mut ticks: [u32; 10] = [0; 10];
+    debug!("Booting Tock");
+    let SCS_DEMCR: *mut u32 = 0xE000EDFC as *mut u32;
+    core::ptr::write_volatile(SCS_DEMCR, core::ptr::read_volatile(SCS_DEMCR) | (1 << 24));
+    let DWT_CTRL:   *mut u32 = 0xE0001000 as *mut u32;
+    let DWT_CYCCNT: *mut u32 = 0xE0001004 as *mut u32;
+    let DWT_CTRL_CYCCNTENA: u32 = 0x1;
+    core::ptr::write_volatile(DWT_CYCCNT, 0);
+    core::ptr::write_volatile(DWT_CTRL, core::ptr::read_volatile(DWT_CTRL) | DWT_CTRL_CYCCNTENA);
+
+//    SCS_DEMCR |= SCS_DEMCR_TRCENA;
+//    SCS + 0xDF8;
+//    PPBI_BASE + 0xE000;
+//    0E000EDF8;
+    //    1 << 24;
+
+    cortexm4::nvic::disable_all();
+    ticks[0] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(0, 100);
+    ticks[1] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(200, 300);
+    ticks[2] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(150, 20);
+    ticks[3] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(1200, 500);
+    ticks[4] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(500, 500);
+    ticks[5] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.insert(1000, 100);
+    ticks[6] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.print();
+    ticks[7] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.remove(1000);
+    ticks[8] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.remove(200);
+    ticks[9] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.print();
+    table.remove(0);
+    table.remove(150);
+    table.remove(1200);
+    table.remove(500);
+    table.print();
+    cortexm4::nvic::enable_all();
+    
+    for i in 0..6 {
+        debug!("Insert {}: {} ticks", i, ticks[i + 1]- ticks[i]);
+    }
+    
+    for i in 7..9 {
+        debug!("Remove {}: {} ticks", i -7, ticks[i + 1] - ticks[i]);
+    }
+    
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+}
+
+
+
+#[derive(Default, Clone, Copy)]
+struct Region {
+    start: u32,
+    end: u32,
+}
+
+const SIZE: usize = 32;
+
+
+pub struct Table {
+    free: u32, // Stores which regions are in use; 1 means free 0 means used
+    count: usize,
+    list: [u8; SIZE],
+    regions: [Region; SIZE],
+}
+
+impl Table {
+    pub fn new() -> Self {
+        Table {
+            regions: [Region {start:0, end:0}; SIZE],
+            list: [0xff; SIZE],
+            free: 0xffffffff,
+            count: 0
+        }
+    }
+
+    pub fn get_free_region(&mut self) -> usize {
+        let zeroes: usize;
+        let mut mask: usize = 0x80000000;
+        let mut free = self.free;
+        unsafe {
+            asm!("clz {}, {}", out(reg) zeroes, in(reg) free);
+            asm!("lsr {}, {}, {}",
+                 out(reg) mask,
+                 in(reg) mask,
+                 in(reg) zeroes);
+            asm!("bic {}, {}, {}",
+                 out(reg) free,
+                 in(reg) free,
+                 in(reg) mask);
+        }
+        self.free = free;
+        return zeroes;
+    }
+
+    pub fn return_region(&mut self, region: usize) {
+        self.free = self.free | (0x80000000 >> region);
+    }
+    
+    pub fn find(&self, start: u32, end:u32) -> Result<u8, u8> {
+        let mut closest: i32 = (self.count) as i32;
+        let mut closest_start: u32 = 0xffffffff;
+        for index in self.list[0..self.count].iter() {
+            if self.free & (0x80000000 >> *index) != 0 { // Not in use
+                continue;
+            }
+            let region = self.regions[*index as usize];
+
+            if region.start.wrapping_sub(start) < closest_start.wrapping_sub(start) {
+                closest_start = region.start;
+                closest = *index as i32;
+            }
+            
+            if end <= region.start {
+                continue;
+            }
+            if start >= region.end {
+                continue;
+            }
+            return Err(*index);
+        }
+        return Ok(closest as u8);
+    }
+
+    // Given an index into the region array, return its index into the
+    // list array. If the region is not in the list, return the first
+    // unused element of the list (tail + 1).
+    pub fn lfind(&self, index: usize) -> usize {
+        for i in 0..self.count {
+            if self.list[i] as usize == index {
+                return i;
+            }
+        }
+        return self.count;
+    }
+
+    fn find_and_insert(&mut self, start: u32, end: u32) -> bool {
+        let mut lindex;
+        let mut rindex;
+        let tindex = self.find(start, end);
+        match tindex {
+            Err(_i) => {return false;},
+            Ok(i) => {
+                rindex = i as usize;
+                lindex = self.lfind(rindex);
+                let following = self.count - lindex;
+                // Shift elements in the lift forward from the insertion point
+                for i in 0..following {
+                    let dest = self.count - i;
+                    self.list[dest] = self.list[dest - 1];
+                }
+                rindex = self.get_free_region();                    
+            }
+        }
+        self.regions[rindex].start = start;
+        self.regions[rindex].end = end;
+        self.list[lindex] = rindex as u8;
+        self.count = self.count + 1;
+        true
+    }
+    
+    pub fn insert(&mut self, start: u32, size: u32) -> bool {
+        if self.count >= SIZE {
+            return false;
+        }
+        
+        let end = start + size;
+        if self.count > 0 {
+            return self.find_and_insert(start, end);
+        } else {
+            self.free = 0x7fffffff; // 0th region
+            self.regions[0].start = start;
+            self.regions[0].end = end;
+            self.list[0] = 0;
+            self.count = 1
+        }
+        true
+    }
+
+    pub fn remove(&mut self, start: u32) -> bool {
+        for (i, region) in self.regions.iter().enumerate() {
+            if region.start == start {
+                self.return_region(i);
+                let lindex = self.lfind(i);
+                let following  = self.count - lindex;
+                unsafe {
+                    compiler_builtins::mem::memmove(&mut self.list[lindex], &self.list[lindex + 1], following);
+                }
+                self.count = self.count - 1;
+//                debug!("removing {}, count is {}", start, self.count);
+//                self.print();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    pub fn print(&self) {
+    /*    let array = &self.list[0..self.count];
+        debug!("------- Table: {} entries --------", self.count);
+        for (i, _item) in array.iter().enumerate() {
+            let index = self.list[i] as usize;
+            debug!("Region[{}] = {}: {:08}-{:08}", i, index, self.regions[index].start, self.regions[index].end);
+        }
+        debug!("");*/
+    }
 }
