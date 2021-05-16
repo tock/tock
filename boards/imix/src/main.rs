@@ -714,7 +714,7 @@ struct Region {
     end: u32,
 }
 
-const SIZE: usize = 32;
+const SIZE: usize = 16;
 
 
 pub struct Table {
@@ -758,33 +758,27 @@ impl Table {
     }
     
     pub fn find(&self, start: u32, end:u32) -> Result<u8, u8> {
-        let mut closest: i32 = (self.count) as i32;
         let mut closest_start: u32 = 0xffffffff;
-        for index in self.list[0..self.count].iter() {
-            if self.free & (0x80000000 >> *index) != 0 { // Not in use
+        let mut lindex = self.count;
+        for i in 0..self.count {
+            let rindex = self.list[i] as usize;
+            if self.free & (0x80000000 >> rindex) != 0 { // Not in use
                 continue;
             }
-            let region = self.regions[*index as usize];
+            let region = self.regions[rindex];
 
             if region.start.wrapping_sub(start) < closest_start.wrapping_sub(start) {
                 closest_start = region.start;
-                closest = *index as i32;
+                lindex = i;
             }
             
-            if end <= region.start {
-                continue;
+            if end > region.start && start < region.end {
+                return Err(lindex as u8);
             }
-            if start >= region.end {
-                continue;
-            }
-            return Err(*index);
         }
-        return Ok(closest as u8);
+        return Ok(lindex as u8);
     }
 
-    // Given an index into the region array, return its index into the
-    // list array. If the region is not in the list, return the first
-    // unused element of the list (tail + 1).
     pub fn lfind(&self, index: usize) -> usize {
         for i in 0..self.count {
             if self.list[i] as usize == index {
@@ -795,15 +789,14 @@ impl Table {
     }
 
     fn find_and_insert(&mut self, start: u32, end: u32) -> bool {
-        let mut lindex;
-        let mut rindex;
+        let rindex;
+        let lindex: usize;
         let tindex = self.find(start, end);
         match tindex {
             Err(_i) => {return false;},
-            Ok(i) => {
-                rindex = i as usize;
-                lindex = self.lfind(rindex);
-                let following = self.count - lindex;
+            Ok(lclosest) => {
+                lindex = lclosest as usize;
+                let following = self.count - lindex as usize;
                 // Shift elements in the lift forward from the insertion point
                 for i in 0..following {
                     let dest = self.count - i;
@@ -825,16 +818,16 @@ impl Table {
         }
         
         let end = start + size;
-        if self.count > 0 {
-            return self.find_and_insert(start, end);
-        } else {
+        if self.count == 0 {
             self.free = 0x7fffffff; // 0th region
             self.regions[0].start = start;
             self.regions[0].end = end;
             self.list[0] = 0;
-            self.count = 1
+            self.count = 1;
+            return true;
+        } else {
+            return self.find_and_insert(start, end);
         }
-        true
     }
 
     pub fn remove(&mut self, start: u32) -> bool {
