@@ -220,6 +220,7 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
+//macro generates list of drivers used by platform
 #[macro_export]
 macro_rules! driver_debug {
     (struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
@@ -267,8 +268,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 self.rx_in_progress.set(true);
                 self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
-                //debug!("Starting process console");
             });
+            //Starts the process console while printing base information about
+            //The kernel version and the drivers installed
             let mut console_writer = ConsoleWriter::new();
             let _ = write(&mut console_writer,format_args!(
                 "Kernel version: {}\r\n",
@@ -285,6 +287,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
         ReturnCode::SUCCESS
     }
+    //simple state machine that identifies the next state
     fn next_state(&self, state: WriterState) -> WriterState{
         match state {
             WriterState::KernelStart => WriterState::KernelBss,
@@ -305,6 +308,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             WriterState::Empty => WriterState::Empty,
         }
     }
+    //defines the behavior at each state
     fn create_state_buffer(&self, state: WriterState, process_id: Option<AppId>){
         
         
@@ -871,6 +875,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
+                                            //prints process memory by moving the writer to the start state
                                             self.write_state(WriterState::ProcessStart,Some(proc.appid()));
                                         }
                                     },
@@ -893,6 +898,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     console_writer.clear();
                                 });
                             };
+                            //prints kernel memory by moving the writer to the start state
                             self.write_state(WriterState::KernelStart,None);
                         } else {
                             self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
@@ -966,11 +972,13 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
+        //if in the middle of an active state, finish the state machine
         if self.writer_state.get() != WriterState::Empty &&
             self.writer_state.get() != WriterState::KernelStart &&
             self.writer_state.get() != WriterState::ProcessStart{
             self.write_state(WriterState::Empty,None);
         }
+        //check the queue for data
         self.queue_buffer.map(|buf| {
             let len = self.queue_size.get();
             if len != 0 {
@@ -979,6 +987,8 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
             //self.uart.transmit_buffer(buf, len);
             self.queue_size.set(0);
         });
+        //when queue is empty then we can start the state machine
+        //for a new input
         if self.writer_state.get() != WriterState::Empty{
             self.write_state(WriterState::Empty,None);
         }
