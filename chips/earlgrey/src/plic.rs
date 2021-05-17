@@ -5,7 +5,6 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-//use kernel::debug;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x4101_0000 as *const PlicRegisters) };
