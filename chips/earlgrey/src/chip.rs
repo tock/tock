@@ -110,18 +110,52 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
 
     unsafe fn handle_plic_interrupts(&self) {
         while let Some(interrupt) = self.plic.get_saved_interrupts() {
-            if interrupt == interrupts::PWRMGRAONWAKEUP {
-                self.pwrmgr.handle_interrupt();
-                self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
-            } else if interrupt == interrupts::RVTIMERTIMEREXPIRED0_0 {
-                self.timer.service_interrupt();
-            } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
-                panic!("Unknown interrupt: {}", interrupt);
+            match interrupt {
+                interrupts::PWRMGRAONWAKEUP => {
+                    self.pwrmgr.handle_interrupt();
+                    self.check_until_true_or_interrupt(
+                        || self.pwrmgr.check_clock_propagation(),
+                        None,
+                    );
+                }
+                interrupts::RVTIMERTIMEREXPIRED0_0 => self.timer.service_interrupt(),
+                _ => {
+                    if interrupt >= interrupts::HMAC_HMACDONE
+                        && interrupt <= interrupts::HMAC_HMACERR
+                    {
+                        // Claim the interrupt before we handle it.
+                        // Currently the interrupt has been claimed but not completed.
+                        // This means that if the interrupt re-asserts we will loose the
+                        // re-assertion. Generally this isn't a problem, but some of the
+                        // interrupt handlers expect that interrupts could occur.
+                        // For example the HMAC interrupt handler will write data to the
+                        // HMAC buffer. We then rely on an interrupt triggering when that
+                        // buffer becomes empty. This can happen while we are still in the
+                        // interrupt handler. To ensure we don't loose the interrupt we
+                        // claim it here.
+                        // In order to stop an interrupt loop, we first disable the
+                        // interrupt. `service_pending_interrupts()` will re-enable
+                        // interrupts once they are all handled.
+                        self.atomic(|| {
+                            // Safe as interrupts are disabled
+                            self.plic.disable(interrupt);
+                            self.plic.complete(interrupt);
+                        });
+                    }
+                    if !self.plic_interrupt_service.service_interrupt(interrupt) {
+                        panic!("Unknown interrupt: {}", interrupt);
+                    }
+                }
             }
-            self.atomic(|| {
-                // Safe as interrupts are disabled
-                self.plic.complete(interrupt);
-            });
+
+            match interrupt {
+                interrupts::HMAC_HMACDONE..=interrupts::HMAC_HMACERR => {}
+                _ => {
+                    self.atomic(|| {
+                        self.plic.complete(interrupt);
+                    });
+                }
+            }
         }
     }
 

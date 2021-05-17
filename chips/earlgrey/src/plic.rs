@@ -82,6 +82,30 @@ impl Plic {
         self.registers.threshold.write(priority::Priority.val(1));
     }
 
+    /// Disable specific interrupt.
+    pub fn disable(&self, index: u32) {
+        let offset = if index < 32 {
+            0
+        } else if index < 64 {
+            1
+        } else if index < 96 {
+            2
+        } else if index < 128 {
+            3
+        } else if index < 160 {
+            4
+        } else if index < 192 {
+            5
+        } else {
+            panic!("Invalid IRQ: {}", index);
+        };
+
+        let irq = index % 32;
+        let mask = !(1 << irq);
+
+        self.registers.enable[offset].set(self.registers.enable[offset].get() & mask);
+    }
+
     /// Disable all interrupts.
     pub fn disable_all(&self) {
         for enable in self.registers.enable.iter() {
