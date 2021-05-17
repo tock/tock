@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules::driver_debug;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
@@ -75,37 +76,38 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 // debug mode requires more stack space
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// Supported drivers by the platform
-pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led_matrix::LedMatrixDriver<
-        'static,
-        nrf52::gpio::GPIOPin<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
-        'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
-    >,
-    app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
-    sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
+driver_debug! {
+    pub struct Platform {
+        ble_radio: &'static capsules::ble_advertising_driver::BLE<
+            'static,
+            nrf52::ble_radio::Radio<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+        console: &'static capsules::console::Console<'static>,
+        gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+        led: &'static capsules::led_matrix::LedMatrixDriver<
+            'static,
+            nrf52::gpio::GPIOPin<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+        button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+        rng: &'static capsules::rng::RngDriver<'static>,
+        ninedof: &'static capsules::ninedof::NineDof<'static>,
+        lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
+        temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+        ipc: kernel::ipc::IPC<NUM_PROCS>,
+        adc: &'static capsules::adc::AdcVirtualized<'static>,
+        alarm: &'static capsules::alarm::AlarmDriver<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+        buzzer: &'static capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+        >,
+        app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
+        sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
+    }
 }
 
 impl kernel::Platform for Platform {
@@ -472,7 +474,7 @@ pub unsafe fn reset_handler() {
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
-    process_console.start();
+    process_console.start(driver_debug_str);
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

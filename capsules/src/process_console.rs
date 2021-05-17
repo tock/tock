@@ -115,9 +115,9 @@ use core::cell::Cell;
 use core::cmp;
 use core::fmt::{write, Result, Write};
 use core::str;
-use kernel::AppId;
 use kernel::capabilities::ProcessManagementCapability;
-use kernel::common::cells::{TakeCell,OptionalCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::AppId;
 
 use kernel::debug;
 use kernel::hil::uart;
@@ -137,8 +137,8 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-#[derive(PartialEq,Eq,Copy,Clone)]
-enum WriterState{
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum WriterState {
     Empty,
     KernelStart,
     KernelBss,
@@ -223,9 +223,9 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 //macro generates list of drivers used by platform
 #[macro_export]
 macro_rules! driver_debug {
-    (struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
-
-        struct $struct { $($field: $type),*}
+    ($vis:vis struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
+        /// Supported drivers by the platform
+        $vis struct $struct { $($field: $type),*}
 
         static driver_debug_str : &'static str = concat!($("\t",stringify!($field),"\n"),*);
     };
@@ -261,7 +261,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    pub fn start(&self,driver_str: &'static str) -> ReturnCode {
+    pub fn start(&self, driver_str: &'static str) -> ReturnCode {
         if self.running.get() == false {
             self.drivers.set(driver_str);
             self.rx_buffer.take().map(|buffer| {
@@ -272,23 +272,27 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             //Starts the process console while printing base information about
             //The kernel version and the drivers installed
             let mut console_writer = ConsoleWriter::new();
-            let _ = write(&mut console_writer,format_args!(
-                "Kernel version: {}\r\n",
-                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
+            let _ = write(
+                &mut console_writer,
+                format_args!(
+                    "Kernel version: {}\r\n",
+                    option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+                ),
+            );
             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             console_writer.clear();
             self.write_bytes(b"Drivers:\n");
-            let _ = write(&mut console_writer,format_args!(
-                "{}",
-                driver_str));
+            let _ = write(&mut console_writer, format_args!("{}", driver_str));
             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             self.write_bytes(b"Welcome to the process console.\n");
-            self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+            self.write_bytes(
+                b"Valid commands are: help status list stop start fault process kernel\n",
+            );
         }
         ReturnCode::SUCCESS
     }
     //simple state machine that identifies the next state
-    fn next_state(&self, state: WriterState) -> WriterState{
+    fn next_state(&self, state: WriterState) -> WriterState {
         match state {
             WriterState::KernelStart => WriterState::KernelBss,
             WriterState::KernelBss => WriterState::KernelInit,
@@ -309,11 +313,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
     //defines the behavior at each state
-    fn create_state_buffer(&self, state: WriterState, process_id: Option<AppId>){
-        
-        
-        match state{
-            
+    fn create_state_buffer(&self, state: WriterState, process_id: Option<AppId>) {
+        match state {
             WriterState::KernelBss => {
                 let mut console_writer = ConsoleWriter::new();
                 let kernel_info = KernelInfo::new(self.kernel);
@@ -324,7 +325,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 let _ = write(
                     &mut console_writer,
                     format_args!(
-                "\r\n ╔═══════════╤══════════════════════════════╗\
+                        "\r\n ╔═══════════╤══════════════════════════════╗\
                     \r\n ║  Address  │ Region Name    Used (bytes)  ║\
                     \r\n ╚{:#010X}═╪══════════════════════════════╝\
                     \r\n             │   Bss        {:6}",
@@ -332,10 +333,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     ),
                 );
                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                
-                
-            },
-            WriterState::KernelInit =>{
+            }
+            WriterState::KernelInit => {
                 let mut console_writer = ConsoleWriter::new();
                 let kernel_info = KernelInfo::new(self.kernel);
                 let init_bottom: usize = kernel_info.get_kernel_init_end() as usize;
@@ -353,8 +352,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     ),
                 );
                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                
-            },
+            }
             WriterState::KernelStack => {
                 let mut console_writer = ConsoleWriter::new();
                 let kernel_info = KernelInfo::new(self.kernel);
@@ -370,12 +368,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     \r\n  {:#010X} ┼─────────────────────────────── A\
                     \r\n             │ ▼ Stack      {:6}            M\
                     \r\n  {:#010X} ┼───────────────────────────────",
-                        stack_bottom, stack_size,stack_start
+                        stack_bottom, stack_size, stack_start
                     ),
                 );
                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                
-            },
+            }
             WriterState::KernelRoData => {
                 let mut console_writer = ConsoleWriter::new();
                 let kernel_info = KernelInfo::new(self.kernel);
@@ -395,8 +392,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     ),
                 );
                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                
-            },
+            }
             WriterState::KernelText => {
                 let mut console_writer = ConsoleWriter::new();
                 let kernel_info = KernelInfo::new(self.kernel);
@@ -405,7 +401,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 let rodata_start: usize = kernel_info.get_kernel_rodata_start() as usize;
 
                 let text_size = rodata_start - text_start;
-        
+
                 let _ = write(
                     &mut console_writer,
                     format_args!(
@@ -414,26 +410,22 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                      \r\n             │   Text       {:6}            S\
                      \r\n  {:#010X} ┼─────────────────────────────── H\
                      \r\n",
-                     rodata_start, text_size, text_start
+                        rodata_start, text_size, text_start
                     ),
                 );
                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                
-            },
+            }
             WriterState::ProcessGrant => {
                 if process_id.is_none() {
-                    
-                }else{
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
+                } else {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
                             let proc_id = process.appid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
                                 // SRAM addresses
                                 let sram_end = process.mem_end() as usize;
                                 let sram_grant_start = process.kernel_memory_break() as usize;
-
 
                                 // SRAM sizes
                                 let sram_grant_size = sram_end - sram_grant_start;
@@ -453,19 +445,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     ),
                                 );
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
                             }
-                        },
-                    );
+                        });
                 }
-            },
+            }
             WriterState::ProcessHeapUnused => {
                 if process_id.is_none() {
-                    
-                }else{
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
+                } else {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
                             let proc_id = process.appid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
@@ -476,25 +464,21 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 let _ = write(
                                     &mut console_writer,
                                     format_args!(
-                                    "\
+                                        "\
                                     \r\n  {:#010X} ┼───────────────────────────────────────────\
                                     \r\n             │ Unused\
                                     \r\n  {:#010X} ┼───────────────────────────────────────────",
-                                        sram_grant_start,
-                                        sram_heap_end,
+                                        sram_grant_start, sram_heap_end,
                                     ),
                                 );
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
                             }
-                        },
-                    );
+                        });
                 }
-            },
+            }
             WriterState::ProcessHeap => {
                 if process_id.is_none() {
-                    
-                }else{
+                } else {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
@@ -504,8 +488,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 let sram_grant_start = process.kernel_memory_break() as usize;
                                 let sram_heap_end = process.app_memory_break() as usize;
                                 let sram_heap_start: Option<usize> = process.get_app_heap_start();
-                                
-
 
                                 match sram_heap_start {
                                     Some(sram_heap_start) => {
@@ -537,16 +519,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     }
                                 }
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
+
                             }
                         },
                     );
                 }
-            },
+            }
             WriterState::ProcessData => {
                 if process_id.is_none() {
-                    
-                }else{
+                } else {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
@@ -556,8 +537,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
                                 let sram_heap_start: Option<usize> = process.get_app_heap_start();
                                 let sram_stack_start: Option<usize> = process.get_app_stack_start();
-                                
-                            
 
                                 match (sram_heap_start, sram_stack_start) {
                                     (Some(sram_heap_start), Some(sram_stack_start)) => {
@@ -584,16 +563,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     }
                                 }
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
+
                             }
                         },
                     );
                 }
-            },
-            WriterState::ProcessStack =>{
+            }
+            WriterState::ProcessStack => {
                 if process_id.is_none() {
-                    
-                }else{
+                } else {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
@@ -604,7 +582,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 let sram_stack_start: Option<usize> = process.get_app_stack_start();
                                 let sram_stack_bottom: Option<usize> = process.get_app_stack_end();
                                 let sram_start = process.mem_start() as usize;
-                            
 
                                 match (sram_stack_start, sram_stack_bottom) {
                                     (Some(sram_stack_start), Some(sram_stack_bottom)) => {
@@ -636,20 +613,18 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     }
                                 }
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
+
                             }
                         },
                     );
                 }
-            },
+            }
 
             WriterState::ProcessStackUnused => {
                 if process_id.is_none() {
-                    
-                }else{
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
+                } else {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
                             let proc_id = process.appid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
@@ -670,16 +645,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     ),
                                 );
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
                             }
-                        },
-                    );
+                        });
                 }
-            },
+            }
             WriterState::ProcessFlash => {
                 if process_id.is_none() {
-                    
-                }else{
+                } else {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
@@ -704,16 +676,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     ),
                                 );
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
+
                             }
                         },
                     );
                 }
-            },
+            }
             WriterState::ProcessProtected => {
                 if process_id.is_none() {
-                    
-                }else{
+                } else {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
@@ -741,17 +712,14 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     ),
                                 );
                                 self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                
+
                             }
                         },
                     );
                 }
-            },
-            _ => {},
-            
+            }
+            _ => {}
         }
-
-        
     }
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
@@ -917,16 +885,16 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         });
         self.command_index.set(0);
     }
-    fn write_state(&self, state: WriterState, process: Option<AppId>){
+    fn write_state(&self, state: WriterState, process: Option<AppId>) {
         if self.writer_state.get() == WriterState::Empty {
             self.writer_state.replace(state);
             self.writer_process.replace(process);
         }
 
         if !self.tx_in_progress.get() {
-            self.writer_state.replace(self.next_state(self.writer_state.take()));
-            self.create_state_buffer(self.writer_state.get(),self.writer_process.get());
-            
+            self.writer_state
+                .replace(self.next_state(self.writer_state.take()));
+            self.create_state_buffer(self.writer_state.get(), self.writer_process.get());
         }
     }
     fn write_byte(&self, byte: u8) -> ReturnCode {
@@ -973,10 +941,11 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
         //if in the middle of an active state, finish the state machine
-        if self.writer_state.get() != WriterState::Empty &&
-            self.writer_state.get() != WriterState::KernelStart &&
-            self.writer_state.get() != WriterState::ProcessStart{
-            self.write_state(WriterState::Empty,None);
+        if self.writer_state.get() != WriterState::Empty
+            && self.writer_state.get() != WriterState::KernelStart
+            && self.writer_state.get() != WriterState::ProcessStart
+        {
+            self.write_state(WriterState::Empty, None);
         }
         //check the queue for data
         self.queue_buffer.map(|buf| {
@@ -989,8 +958,8 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         });
         //when queue is empty then we can start the state machine
         //for a new input
-        if self.writer_state.get() != WriterState::Empty{
-            self.write_state(WriterState::Empty,None);
+        if self.writer_state.get() != WriterState::Empty {
+            self.write_state(WriterState::Empty, None);
         }
 
         // Check if we just received and echoed a newline character, and

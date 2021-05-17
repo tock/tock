@@ -33,6 +33,7 @@ use kernel::hil::Controller;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
 
+use capsules::driver_debug;
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleComponent, UartMuxComponent};
@@ -43,7 +44,6 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
-use capsules::driver_debug;
 
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
@@ -105,7 +105,7 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-driver_debug!{
+driver_debug! {
     struct Imix {
         pconsole: &'static capsules::process_console::ProcessConsole<
             'static,
