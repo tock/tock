@@ -169,6 +169,7 @@ impl<
             self.apps
                 .enter(*id, move |app| {
                     let mut data_len = 0;
+                    let mut exit = false;
                     let mut static_buffer_len = 0;
 
                     self.data_buffer.replace(data);
@@ -201,9 +202,13 @@ impl<
                             // No data buffer, clear the appid and data
                             self.hmac.clear_data();
                             self.appid.clear();
-                            self.check_queue();
+                            exit = true;
                         }
                     });
+
+                    if exit {
+                        return;
+                    }
 
                     if static_buffer_len > 0 {
                         let copied_data = self.data_copied.get();
@@ -224,7 +229,6 @@ impl<
                                 // Error, clear the appid and data
                                 self.hmac.clear_data();
                                 self.appid.clear();
-                                self.check_queue();
                                 return;
                             }
 
@@ -243,9 +247,6 @@ impl<
 
                         app.callback
                             .schedule(kernel::into_statuscode(e.0.into()), 0, 0);
-
-                        self.check_queue();
-                        return;
                     }
                 })
                 .map_err(|err| {
@@ -253,10 +254,11 @@ impl<
                         || err == kernel::procs::Error::InactiveApp
                     {
                         self.appid.clear();
-                        self.check_queue();
                     }
                 })
         });
+
+        self.check_queue();
     }
 
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
@@ -282,18 +284,17 @@ impl<
 
                     // Clear the current appid as it has finished running
                     self.appid.clear();
-                    self.check_queue();
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
                         || err == kernel::procs::Error::InactiveApp
                     {
                         self.appid.clear();
-                        self.check_queue();
                     }
                 })
         });
 
+        self.check_queue();
         self.dest_buffer.replace(digest);
     }
 }
