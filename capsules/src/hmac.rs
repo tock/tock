@@ -269,7 +269,7 @@ impl<
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
-                    app.data.mut_map_or((), |dest| {
+                    app.dest.mut_map_or((), |dest| {
                         dest.as_mut().copy_from_slice(digest.as_ref());
                     });
 
