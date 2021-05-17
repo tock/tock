@@ -427,6 +427,10 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
         None
     }
 
+    fn remove_mpu_region(&self, addr: *const u8) -> Option<mpu::Region> {
+        None
+    }
+
     fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         if !self.is_active() {
             return None;
