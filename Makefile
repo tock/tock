@@ -501,7 +501,7 @@ ci-job-miri: ci-setup-miri
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=a05f8ecd88f15273d033b6f044b850a8af84a5b8
+QEMU_COMMIT_HASH=3e9f48bcdabe57f8f90cf19f01bbbf3c86937267
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
