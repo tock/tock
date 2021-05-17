@@ -113,27 +113,22 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::fmt::{write, Result, Write,Debug};
+use core::fmt::{write, Result, Write};
 use core::str;
 use kernel::AppId;
 use kernel::capabilities::ProcessManagementCapability;
-use kernel::common::cells::TakeCell;
-//use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{TakeCell,OptionalCell};
+
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
-//use kernel::procs::ProcessType;
 use kernel::Kernel;
 use kernel::ReturnCode;
-use kernel::Platform;
-//use kernel::DebugPlatform;
-
-//use crate::driver;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
 pub static mut WRITE_BUF: [u8; 500] = [0; 500];
-pub static mut QUEUE_BUF: [u8; 100] = [0; 100];
+pub static mut QUEUE_BUF: [u8; 300] = [0; 300];
 pub static mut SIZE: usize = 0;
 // Since reads are byte-by-byte, to properly echo what's typed,
 // we can use a very small read buffer.
@@ -141,8 +136,7 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // Commands can be up to 32 bytes long: since commands themselves are 4-5
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
-//const BUF_LEN :usize = 500;
-//static mut STATIC_BUF: [u8; BUF_LEN] = [0; BUF_LEN];
+
 #[derive(PartialEq,Eq,Copy,Clone)]
 enum WriterState{
     Empty,
@@ -181,7 +175,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
-    //platform: Cell<Option<&'a dyn Debug>>,
+    drivers: OptionalCell<&'static str>,
 
     /// Flag to mark that the process console is active and has called receive
     /// from the underlying UART.
@@ -225,36 +219,14 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
         "          "
     }
 }
-// #[macro_export]
-// macro_rules! print_drivers{
-//     (
-//      $(#[$meta:meta])* 
-//      $vis:vis struct $struct_name:ident {
-//         $(
-//         $(#[$field_meta:meta])*
-//         $field_vis:vis $field_name:ident : $field_type:ty
-//         ),*$(,)+
-//     }
-//     ) => {
-//         debug!($(#[$field_meta:meta])*)
-//     }
-// }
+
 #[macro_export]
 macro_rules! driver_debug {
     (struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
 
         struct $struct { $($field: $type),*}
 
-        impl fmt::Debug for $struct {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                $(
-                    write!(f, "\t{}\n",
-                        stringify!($field)
-                    )?;
-                )*
-                Ok(())
-            }
-        }
+        static driver_debug_str : &'static str = concat!($("\t",stringify!($field),"\n"),*);
     };
 }
 
@@ -284,13 +256,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             execute: Cell::new(false),
             kernel: kernel,
             capability: capability,
-            //platform: Cell::new(None),
+            drivers: OptionalCell::empty(),
         }
     }
 
-    pub fn start<P: Platform+Debug>(&self,platform: &P) -> ReturnCode {
+    pub fn start(&self,driver_str: &'static str) -> ReturnCode {
         if self.running.get() == false {
-            //self.platform.set(Some(platform));
+            self.drivers.set(driver_str);
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
                 self.uart.receive_buffer(buffer, 1);
@@ -299,9 +271,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             });
             let mut console_writer = ConsoleWriter::new();
             let _ = write(&mut console_writer,format_args!(
-                "Drivers:\n{:?}",
-                platform));
+                "Kernel version: {}\r\n",
+                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+            console_writer.clear();
+            self.write_bytes(b"Drivers:\n");
+            let _ = write(&mut console_writer,format_args!(
+                "{}",
+                driver_str));
+            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+            self.write_bytes(b"Welcome to the process console.\n");
+            self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
         }
         ReturnCode::SUCCESS
     }
@@ -438,7 +418,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessGrant => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -477,7 +457,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessHeapUnused => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -509,7 +489,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessHeap => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -561,7 +541,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessData => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -608,7 +588,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessStack =>{
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -661,7 +641,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
             WriterState::ProcessStackUnused => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -694,7 +674,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessFlash => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -728,7 +708,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             },
             WriterState::ProcessProtected => {
                 if process_id.is_none() {
-                    debug!("This shouldn't happen");
+                    
                 }else{
                     self.kernel.process_each_capability(
                         &self.capability,
@@ -780,10 +760,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     break;
                 }
             }
-            //debug!("Command: {}-{} {:?}", start, terminator, command);
-            // A command is valid only if it starts inside the buffer,
-            // ends before the beginning of the buffer, and ends after
-            // it starts.
+
             if terminator > 0 {
                 let cmd_str = str::from_utf8(&command[0..terminator]);
 
@@ -792,14 +769,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
 
                         if clean_str.starts_with("help") {
-                            // unsafe{
-                            //     let buf = b"hello_";
-                            //     STATIC_BUF[..].copy_from_slice(&buf[..]);
-                            //     // STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
-                            //     // let static_buf = &mut STATIC_PANIC_BUF;
-                            //     let static_buf = &mut STATIC_BUF;
-                            //     self.uart.transmit_buffer(static_buf, 6);
-                            // }
                             self.write_bytes(b"Welcome to the process console.\n");
                             self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
                         } else if clean_str.starts_with("start") {
@@ -832,7 +801,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                             let _ = write(&mut console_writer,format_args!("Process {} stopped\n", proc_name));
 
                                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                            //debug!("Process {} stopped", proc_name);
                                         }
                                     },
                                 );
@@ -850,7 +818,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                             let _ = write(&mut console_writer,format_args!("Process {} now faulted\n", proc_name));
 
                                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                            //debug!("Process {} now faulted", proc_name);
                                         }
                                     },
                                 );
@@ -886,28 +853,16 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 "Total processes: {}\n",
                                 info.number_loaded_processes(&self.capability)));
                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            // debug!(
-                            //     "Total processes: {}",
-                            //     info.number_loaded_processes(&self.capability)
-                            // );
                             console_writer.clear();
                             let _ = write(&mut console_writer,format_args!(
                                 "Active processes: {}\n",
                                 info.number_active_processes(&self.capability)));
                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            // debug!(
-                            //     "Active processes: {}",
-                            //     info.number_active_processes(&self.capability)
-                            // );
                             console_writer.clear();
                             let _ = write(&mut console_writer,format_args!(
                                 "Timeslice expirations: {}\n",
                                 info.timeslice_expirations(&self.capability)));
                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            // debug!(
-                            //     "Timeslice expirations: {}",
-                            //     info.timeslice_expirations(&self.capability)
-                            // );
                         } else if clean_str.starts_with("process"){
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -924,19 +879,30 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         }else if clean_str.starts_with("kernel"){
                             let mut console_writer = ConsoleWriter::new();
                             let _ = write(&mut console_writer,format_args!(
-                                "\r\nKernel version: {}\r\n",
+                                "Kernel version: {}\r\n",
                                 option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
                             self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            //if self.platform.is_some(){
-                            //print_drivers!(self.platform.get().unwrap());
-                            //}
                             console_writer.clear();
+                            if self.drivers.is_some() {
+                                self.drivers.map(|driver| {
+                                    self.write_bytes(b"Drivers:\n");
+                                    let _ = write(&mut console_writer,format_args!(
+                                        "{}",
+                                        driver));
+                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                    console_writer.clear();
+                                });
+                            };
                             self.write_state(WriterState::KernelStart,None);
                         } else {
-                            debug!("Valid commands are: help status list stop start fault process kernel");
+                            self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
                         }
                     }
-                    Err(_e) => debug!("Invalid command: {:?}", command),
+                    Err(_e) => {
+                        let mut console_writer = ConsoleWriter::new();
+                        let _ = write(&mut console_writer,format_args!("Invalid command: {:?}", command));
+                        self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                    }
                 }
             }
         });
@@ -1000,7 +966,9 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
-        if self.writer_state.get() != WriterState::Empty {
+        if self.writer_state.get() != WriterState::Empty &&
+            self.writer_state.get() != WriterState::KernelStart &&
+            self.writer_state.get() != WriterState::ProcessStart{
             self.write_state(WriterState::Empty,None);
         }
         self.queue_buffer.map(|buf| {
@@ -1011,6 +979,9 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
             //self.uart.transmit_buffer(buf, len);
             self.queue_size.set(0);
         });
+        if self.writer_state.get() != WriterState::Empty{
+            self.write_state(WriterState::Empty,None);
+        }
 
         // Check if we just received and echoed a newline character, and
         // therefore need to process the received message.

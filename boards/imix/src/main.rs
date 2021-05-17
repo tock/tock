@@ -44,7 +44,7 @@ use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use capsules::driver_debug;
-use core::fmt;
+
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
@@ -565,7 +565,7 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    imix.pconsole.start(&imix);
+    imix.pconsole.start(driver_debug_str);
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
