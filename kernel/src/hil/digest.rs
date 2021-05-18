@@ -68,5 +68,5 @@ pub trait HMACSha256 {
     /// Call before `Digest::run()` to perform HMACSha256
     ///
     /// The key used for the HMAC is passed to this function.
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode>;
+    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode>;
 }

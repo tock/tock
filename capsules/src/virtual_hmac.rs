@@ -110,7 +110,7 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T>
 impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::HMACSha256
     for VirtualMuxHmac<'a, A, T>
 {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);

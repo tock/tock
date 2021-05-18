@@ -248,8 +248,12 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
+
+        if key.len() != 32 {
+            return Err(ErrorCode::NOSUPPORT);
+        }
 
         // Ensure the HMAC is setup
         regs.cfg
