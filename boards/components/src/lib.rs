@@ -13,6 +13,7 @@ pub mod crc;
 pub mod ctap;
 pub mod debug_queue;
 pub mod debug_writer;
+pub mod digest;
 pub mod ft6x06;
 pub mod fxos8700;
 pub mod gpio;
