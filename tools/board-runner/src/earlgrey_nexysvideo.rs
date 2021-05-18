@@ -371,6 +371,62 @@ fn earlgrey_nexysvideo_multi_alarm_test() -> Result<(), Error> {
     Ok(())
 }
 
+fn earlgrey_nexysvideo_sha_hmac_test() -> Result<(), Error> {
+    let app = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("app")
+        .unwrap();
+
+    let mut build = Command::new("cat")
+        .arg(format!(
+            "{}/{}",
+            env::var("LIBTOCK_C_TREE").unwrap(),
+            "examples/tests/hmac/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
+        ))
+        .stdout(app)
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let app = OpenOptions::new()
+        .append(true)
+        .create(false)
+        .open("app")
+        .unwrap();
+
+    let mut build = Command::new("cat")
+        .arg(format!(
+            "{}/{}",
+            env::var("LIBTOCK_C_TREE").unwrap(),
+            "examples/tests/sha/build/rv32imc/rv32imc.0x20040080.0x1000B000.tbf"
+        ))
+        .stdout(app)
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
+
+    p.exp_string("HMAC Example Test")?;
+    p.exp_string("SHA Example Test")?;
+
+    p.exp_string("Running HMAC...")?;
+    p.exp_string("0: 0xbb")?;
+    p.exp_string("10: 0x53")?;
+
+    p.exp_string("Running SHA...")?;
+    p.exp_string("0: 0x68")?;
+    p.exp_string("10: 0x8f")?;
+    p.exp_string("31: 0x15")?;
+
+    let timeout = time::Duration::from_secs(10);
+    thread::sleep(timeout);
+
+    Ok(())
+}
+
 pub fn all_earlgrey_nexysvideo_tests() {
     println!("Tock board-runner starting...");
     println!();
@@ -443,6 +499,9 @@ pub fn all_earlgrey_nexysvideo_tests() {
 
     earlgrey_nexysvideo_multi_alarm_test()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_multi_alarm_test job failed with {}", e));
+
+    earlgrey_nexysvideo_sha_hmac_test()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_sha_hmac_test job failed with {}", e));
 
     println!("earlgrey_nexysvideo SUCCESS.");
 }
