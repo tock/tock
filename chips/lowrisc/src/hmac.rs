@@ -290,3 +290,28 @@ impl hil::digest::HMACSha512 for Hmac<'_> {
         Err(ErrorCode::NOSUPPORT)
     }
 }
+
+impl hil::digest::Sha256 for Hmac<'_> {
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
+        let regs = self.registers;
+
+        // Ensure the SHA is setup
+        regs.cfg.write(
+            CFG::HMAC_EN::CLEAR + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::SET + CFG::DIGEST_SWAP::SET,
+        );
+
+        Ok(())
+    }
+}
+
+impl hil::digest::Sha384 for Hmac<'_> {
+    fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl hil::digest::Sha512 for Hmac<'_> {
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
