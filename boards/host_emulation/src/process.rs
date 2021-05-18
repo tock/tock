@@ -112,15 +112,7 @@ impl<'a> UnixProcess<'a> {
     /// each slice to the app. First kernel sends information about number of
     /// allowed slices, then each meta data of slice `AllowsInfo` after which
     /// raw slice bytes follow.
-    ///
-    /// The apps do not maintain any information about what slices they have
-    /// ALLOWED TO THE KERNEL. iT is the kernel's sole responsibility to track
-    /// that information and only request valid slices from the apps.
     pub fn send_allows(&self, transport: &SyscallTransport) {
-        if self.allow_count.get() == 0 {
-            return;
-        }
-
         let app_id = self.get_id();
         let allows_number = ipc::AllowsInfo {
             number_of_slices: self.allow_count.get(),
