@@ -84,9 +84,8 @@ impl<'a> UnixProcess<'a> {
             .arg(socket_tx)
             .arg("--log")
             .arg(config.app_log_level.to_string());
-
         if config.app_log_level != 0 {
-            proc.env("RUST_BACKTRACE", "1");
+            proc.env("RUST_BACKTRACE", "full");
         } else {
             proc.stdout(Stdio::null());
         }
