@@ -66,6 +66,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules::lmic_spi; // LMIC SPI capsule that sends LMIC commands over SPI
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -128,6 +129,10 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 
 /// Debug Writer
 pub mod io;
+
+// Unit test for lmic_spi driver
+#[allow(dead_code)]
+mod test_lmic_spi;
 
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
@@ -465,10 +470,16 @@ pub unsafe fn main() {
 
     // Create SPI component for stm32 Discovery board
     let stm32discovery_spi = components::spi::SpiComponent::new(
-        mux_spi, 
-        &gpio_port[SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin
+        mux_spi,
+        &gpio_port[SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
     )
     .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
+    // Create lmic_spi component
+    // let lmic_spi = lmic_spi::LMICSpi::new(
+    //     stm32discovery_spi,
+    //     // &mut capsules::lmic_spi::TXBUFFER,
+    //     // &mut capsules::lmic_spi::RXBUFFER,
+    // );
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],
