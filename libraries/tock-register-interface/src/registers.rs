@@ -64,6 +64,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
+use crate::interfaces::{Readable, Writeable};
+
 /// IntLike properties needed to read/write/modify a register.
 pub trait IntLike:
     BitAnd<Output = Self>
@@ -109,132 +111,11 @@ pub trait TryFromValue<V> {
     fn try_from(v: V) -> Option<Self::EnumType>;
 }
 
-/// Readable register
-///
-/// Register which at least supports reading the current value. Only
-/// [`Readable::get`] must be implemented, as for other methods a
-/// default implementation is provided.
-///
-/// A register that is both [`Readable`] and [`Writeable`] will also
-/// automatically be [`ReadWriteable`], if the [`RegisterLongName`] of
-/// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
-/// [`Aliased`] registers).
-pub trait Readable {
-    type T: IntLike;
-    type R: RegisterLongName;
-
-    /// Get the raw register value
-    fn get(&self) -> Self::T;
-
-    #[inline]
-    /// Read the value of the given field
-    fn read(&self, field: Field<Self::T, Self::R>) -> Self::T {
-        field.read(self.get())
-    }
-
-    #[inline]
-    /// Set the raw register value
-    fn read_as_enum<E: TryFromValue<Self::T, EnumType = E>>(
-        &self,
-        field: Field<Self::T, Self::R>,
-    ) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    /// Make a local copy of the register
-    fn extract(&self) -> LocalRegisterCopy<Self::T, Self::R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    /// Check if one or more bits in a field are set
-    fn is_set(&self, field: Field<Self::T, Self::R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    /// Check if any specified parts of a field match
-    fn matches_any(&self, field: FieldValue<Self::T, Self::R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    /// Check if all specified parts of a field match
-    fn matches_all(&self, field: FieldValue<Self::T, Self::R>) -> bool {
-        field.matches_all(self.get())
-    }
-}
-
-/// Writeable register
-///
-/// Register which at least supports setting a value. Only
-/// [`Writeable::set`] must be implemented, as for other methods a
-/// default implementation is provided.
-///
-/// A register that is both [`Readable`] and [`Writeable`] will also
-/// automatically be [`ReadWriteable`], if the [`RegisterLongName`] of
-/// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
-/// [`Aliased`] registers).
-pub trait Writeable {
-    type T: IntLike;
-    type R: RegisterLongName;
-
-    /// Set the raw register value
-    fn set(&self, value: Self::T);
-
-    #[inline]
-    /// Write the value of one or more fields, overwriting the other fields with zero
-    fn write(&self, field: FieldValue<Self::T, Self::R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, maintaining the value of unchanged fields via a
-    /// provided original value, rather than a register read.
-    fn modify_no_read(
-        &self,
-        original: LocalRegisterCopy<Self::T, Self::R>,
-        field: FieldValue<Self::T, Self::R>,
-    ) {
-        self.set(field.modify(original.get()));
-    }
-}
-
-/// [`Readable`] and [`Writeable`] register, over the same
-/// [`RegisterLongName`]
-///
-/// Register which supports both reading and setting a value.
-///
-/// **This trait does not have to be implemented manually!** It is
-/// automatically implemented for every type that is both [`Readable`]
-/// and [`Writeable`], as long as [`Readable::R`] == [`Writeable::R`]
-/// (i.e. not for [`Aliased`] registers).
-pub trait ReadWriteable {
-    type T: IntLike;
-    type R: RegisterLongName;
-
-    /// Write the value of one or more fields, leaving the other fields unchanged
-    fn modify(&self, field: FieldValue<Self::T, Self::R>);
-}
-
-impl<T: IntLike, R: RegisterLongName, S> ReadWriteable for S
-where
-    S: Readable<T = T, R = R> + Writeable<T = T, R = R>,
-{
-    type T = T;
-    type R = R;
-
-    #[inline]
-    fn modify(&self, field: FieldValue<Self::T, Self::R>) {
-        self.set(field.modify(self.get()));
-    }
-}
-
 /// Read/Write registers.
 ///
 /// For accessing and manipulating the register contents, the
-/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// [`Readable`], [`Writeable`] and
+/// [`ReadWriteable`](crate::interfaces::ReadWriteable) traits are
 /// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
@@ -313,8 +194,9 @@ impl<T: IntLike, R: RegisterLongName> Writeable for WriteOnly<T, R> {
 /// respectively.
 ///
 /// This register implements [`Readable`] and [`Writeable`], but in
-/// general does not implement [`ReadWriteable`] (only if the type
-/// parameters `R` and `W` are identical, in which case a
+/// general does not implement
+/// [`ReadWriteable`](crate::interfaces::ReadWriteable) (only if the
+/// type parameters `R` and `W` are identical, in which case a
 /// [`ReadWrite`] register might be a better choice).
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
@@ -349,7 +231,8 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased
 /// the passed in, well-defined initial value.
 ///
 /// For accessing and manipulating the register contents, the
-/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// [`Readable`], [`Writeable`] and
+/// [`ReadWriteable`](crate::interfaces::ReadWriteable) traits are
 /// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
@@ -402,7 +285,7 @@ impl<T: IntLike, R: RegisterLongName> Writeable for InMemoryRegister<T, R> {
 /// traits because it requires a mutable reference to modify the
 /// contained value. It still mirrors the interface which would be
 /// exposed by a type implementing [`Readable`], [`Writeable`] and
-/// [`ReadWriteable`].
+/// [`ReadWriteable`](crate::interfaces::ReadWriteable).
 #[derive(Copy, Clone)]
 pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     value: T,
