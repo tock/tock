@@ -143,8 +143,6 @@ impl<
             )
         );
 
-        digest::Digest::set_client(virtual_sha_user, sha);
-
         sha
     }
 }

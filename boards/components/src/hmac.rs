@@ -143,8 +143,6 @@ impl<
             )
         );
 
-        digest::Digest::set_client(virtual_hmac_user, hmac);
-
         hmac
     }
 }

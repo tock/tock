@@ -8,10 +8,18 @@ use kernel::common::{ListLink, ListNode};
 use kernel::hil::digest;
 use kernel::ErrorCode;
 
+#[derive(Clone, Copy)]
+enum Mode {
+    Hmac,
+    Sha,
+}
+
 pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxDigest<'a, A, L>,
     next: ListLink<'a, VirtualMuxDigest<'a, A, L>>,
-    client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    sha_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    hmac_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    mode: Cell<Mode>,
     id: u32,
 }
 
@@ -31,9 +39,19 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
         VirtualMuxDigest {
             mux: mux_digest,
             next: ListLink::empty(),
-            client: OptionalCell::empty(),
+            sha_client: OptionalCell::empty(),
+            hmac_client: OptionalCell::empty(),
+            mode: Cell::new(Mode::Hmac),
             id: id,
         }
+    }
+
+    pub fn set_hmac_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+        self.hmac_client.set(client);
+    }
+
+    pub fn set_sha_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+        self.sha_client.set(client);
     }
 }
 
@@ -42,8 +60,8 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
-        self.client.set(client);
+    fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
+        unimplemented!()
     }
 
     /// Add data to the digest IP.
@@ -98,13 +116,29 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Client<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
-        self.client
-            .map(move |client| client.add_data_done(result, data));
+        match self.mode.get() {
+            Mode::Hmac => {
+                self.hmac_client
+                    .map(move |client| client.add_data_done(result, data));
+            }
+            Mode::Sha => {
+                self.sha_client
+                    .map(move |client| client.add_data_done(result, data));
+            }
+        }
     }
 
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
-        self.client
-            .map(move |client| client.hash_done(result, digest));
+        match self.mode.get() {
+            Mode::Hmac => {
+                self.hmac_client
+                    .map(move |client| client.hash_done(result, digest));
+            }
+            Mode::Sha => {
+                self.sha_client
+                    .map(move |client| client.hash_done(result, digest));
+            }
+        }
     }
 }
 
@@ -116,8 +150,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha256(key)
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha256(key)
         } else {
             Err(ErrorCode::BUSY)
@@ -133,8 +169,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha384(key)
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha384(key)
         } else {
             Err(ErrorCode::BUSY)
@@ -150,8 +188,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha512(key)
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Hmac);
             self.mux.digest.set_mode_hmacsha512(key)
         } else {
             Err(ErrorCode::BUSY)
@@ -167,8 +207,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha2
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha256()
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha256()
         } else {
             Err(ErrorCode::BUSY)
@@ -184,8 +226,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha3
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha384()
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha384()
         } else {
             Err(ErrorCode::BUSY)
@@ -201,8 +245,10 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha5
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha512()
         } else if self.mux.running_id.get() == self.id {
+            self.mode.set(Mode::Sha);
             self.mux.digest.set_mode_sha512()
         } else {
             Err(ErrorCode::BUSY)
