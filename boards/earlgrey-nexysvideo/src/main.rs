@@ -12,12 +12,14 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
+use capsules::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Alarm;
@@ -93,7 +95,20 @@ struct EarlGreyNexysVideo {
     >,
     hmac: &'static capsules::hmac::HmacDriver<
         'static,
-        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, 32>,
+        VirtualMuxHmac<
+            'static,
+            capsules::virtual_digest::VirtualMuxDigest<'static, lowrisc::hmac::Hmac<'static>, 32>,
+            32,
+        >,
+        32,
+    >,
+    sha: &'static capsules::sha::ShaDriver<
+        'static,
+        VirtualMuxSha<
+            'static,
+            capsules::virtual_digest::VirtualMuxDigest<'static, lowrisc::hmac::Hmac<'static>, 32>,
+            32,
+        >,
         32,
     >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
@@ -112,6 +127,7 @@ impl Platform for EarlGreyNexysVideo {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules::sha::DRIVER_NUM => f(Some(self.sha)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -269,11 +285,21 @@ unsafe fn setup() -> (
     )
     .finalize(());
 
+    let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
+        components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
+    );
+
+    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
+        components::digest_component_helper!(lowrisc::hmac::Hmac, 32,),
+    );
+
+    peripherals.hmac.set_client(digest);
+
     let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
     let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
 
-    let mux_hmac = components::hmac::HmacMuxComponent::new(&peripherals.hmac).finalize(
-        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, 32),
+    let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
+        components::hmac_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let hmac = components::hmac::HmacComponent::new(
@@ -283,7 +309,30 @@ unsafe fn setup() -> (
         hmac_data_buffer,
         hmac_dest_buffer,
     )
-    .finalize(components::hmac_component_helper!(lowrisc::hmac::Hmac, 32,));
+    .finalize(components::hmac_component_helper!(
+        capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
+        32,
+    ));
+
+    digest.set_hmac_client(hmac);
+
+    let sha_data_buffer = static_init!([u8; 64], [0; 64]);
+    let sha_dest_buffer = static_init!([u8; 32], [0; 32]);
+
+    let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
+        components::sha_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+    );
+
+    let sha = components::sha::ShaComponent::new(
+        board_kernel,
+        capsules::sha::DRIVER_NUM,
+        &mux_sha,
+        sha_data_buffer,
+        sha_dest_buffer,
+    )
+    .finalize(components::sha_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
+
+    digest.set_sha_client(sha);
 
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
@@ -388,6 +437,7 @@ unsafe fn setup() -> (
             console: console,
             alarm: alarm,
             hmac,
+            sha,
             lldb: lldb,
             i2c_master,
         }
