@@ -200,10 +200,6 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 
-        // Ensure the HMAC is setup
-        regs.cfg
-            .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
-
         regs.cmd.modify(CMD::START::SET);
 
         // Clear the FIFO empty interrupt
@@ -264,8 +260,9 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
         }
 
         // Ensure the HMAC is setup
-        regs.cfg
-            .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
+        regs.cfg.write(
+            CFG::HMAC_EN::SET + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::SET + CFG::DIGEST_SWAP::SET,
+        );
 
         for i in 0..8 {
             let idx = i * 4;
