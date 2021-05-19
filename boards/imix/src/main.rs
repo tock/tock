@@ -16,8 +16,6 @@ extern crate compiler_builtins;
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
@@ -90,10 +88,6 @@ const NUM_PROCS: usize = 4;
 // onto each device. This makes MAC address configuration a good target for capabilities -
 // only allow one app per board to have control of MAC address configuration?
 const RADIO_CHANNEL: u8 = 26;
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
-const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
-const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
@@ -133,7 +127,7 @@ struct Imix {
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    //udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
         'static,
@@ -176,7 +170,7 @@ impl kernel::Platform for Imix {
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
-            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            //capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
@@ -445,10 +439,6 @@ pub unsafe fn main() {
     // of the serial number of the sam4l for this device.  In the
     // future, we could generate the MAC address by hashing the full
     // 120-bit serial number
-    let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
-    let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
-    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
-
     let aes_mux = static_init!(
         MuxAES128CCM<'static, sam4l::aes::Aes>,
         MuxAES128CCM::new(&peripherals.aes, dynamic_deferred_caller)
@@ -462,19 +452,6 @@ pub unsafe fn main() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
-        board_kernel,
-        rf233,
-        aes_mux,
-        PAN_ID,
-        serial_num_bottom_16,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::ieee802154_component_helper!(
-        capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        sam4l::aes::Aes<'static>
-    ));
-
     let usb_driver = UsbComponent::new(board_kernel, &peripherals.usbc).finalize(());
 
     // Kernel storage region, allocated with the storage_volume!
@@ -497,22 +474,7 @@ pub unsafe fn main() {
         sam4l::flashcalw::FLASHCALW
     ));
 
-    let local_ip_ifaces = static_init!(
-        [IPAddr; 3],
-        [
-            IPAddr([
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-                0x0e, 0x0f,
-            ]),
-            IPAddr([
-                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-                0x1e, 0x1f,
-            ]),
-            IPAddr::generate_from_mac(src_mac_from_serial_num),
-        ]
-    );
-
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+/*    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -532,7 +494,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
+    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));*/
 
     let imix = Imix {
         pconsole,
@@ -551,7 +513,7 @@ pub unsafe fn main() {
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof,
-        udp_driver,
+//        udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage,
@@ -650,8 +612,6 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    let mut table = Table::new();
-    let mut ticks: [u32; 10] = [0; 10];
     debug!("Booting Tock");
     let SCS_DEMCR: *mut u32 = 0xE000EDFC as *mut u32;
     core::ptr::write_volatile(SCS_DEMCR, core::ptr::read_volatile(SCS_DEMCR) | (1 << 24));
@@ -666,7 +626,15 @@ pub unsafe fn main() {
 //    PPBI_BASE + 0xE000;
 //    0E000EDF8;
     //    1 << 24;
+    run_table_test();
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+}
 
+#[inline(never)]
+unsafe fn run_table_test() {
+    let mut table = Table::new();
+    let mut ticks: [u32; 14] = [0; 14];
+    let DWT_CYCCNT: *mut u32 = 0xE0001004 as *mut u32;
     cortexm4::nvic::disable_all();
     ticks[0] = core::ptr::read_volatile(DWT_CYCCNT);
     table.insert(0, 100);
@@ -681,12 +649,18 @@ pub unsafe fn main() {
     ticks[5] = core::ptr::read_volatile(DWT_CYCCNT);
     table.insert(1000, 100);
     ticks[6] = core::ptr::read_volatile(DWT_CYCCNT);
-    table.print();
+    table.insert(100, 30);
     ticks[7] = core::ptr::read_volatile(DWT_CYCCNT);
-    table.remove(1000);
+    table.insert(3000, 200);
     ticks[8] = core::ptr::read_volatile(DWT_CYCCNT);
-    table.remove(200);
+    table.insert(2000, 500);
     ticks[9] = core::ptr::read_volatile(DWT_CYCCNT);
+    ticks[10] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.remove(1000);
+    ticks[11] = core::ptr::read_volatile(DWT_CYCCNT);
+    table.remove(200);
+    ticks[12] = core::ptr::read_volatile(DWT_CYCCNT);
+    ticks[13] = core::ptr::read_volatile(DWT_CYCCNT);
     table.print();
     table.remove(0);
     table.remove(150);
@@ -695,18 +669,16 @@ pub unsafe fn main() {
     table.print();
     cortexm4::nvic::enable_all();
     
-    for i in 0..6 {
+    for i in 0..10 {
         debug!("Insert {}: {} ticks", i, ticks[i + 1]- ticks[i]);
     }
     
-    for i in 7..9 {
+    for i in 10..12 {
         debug!("Remove {}: {} ticks", i -7, ticks[i + 1] - ticks[i]);
     }
-    
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+
+    debug!("Baseline: {} ticks", ticks[13] - ticks[12]);   
 }
-
-
 
 #[derive(Default, Clone, Copy)]
 struct Region {
@@ -734,10 +706,10 @@ impl Table {
         }
     }
 
-    pub fn get_free_region(&mut self) -> usize {
-        let zeroes: usize;
-        let mut mask: usize = 0x80000000;
-        let mut free = self.free;
+    pub fn get_free_region_asm(&mut self) -> usize {
+        let mut mask: u32 = 0x80000000;
+        let zeroes: u32;
+        let mut free: u32 = self.free;
         unsafe {
             asm!("clz {}, {}", out(reg) zeroes, in(reg) free);
             asm!("lsr {}, {}, {}",
@@ -750,33 +722,57 @@ impl Table {
                  in(reg) mask);
         }
         self.free = free;
-        return zeroes;
+        return zeroes as usize;
+    }
+    
+    pub fn get_free_region(&mut self) -> usize {
+        let mask: u32 = 0x80000000;
+        let zeroes: u32 = self.free.leading_zeros();
+        self.free = self.free & !(mask >> zeroes);
+/*        unsafe {
+            asm!("clz {}, {}", out(reg) zeroes, in(reg) free);
+            asm!("lsr {}, {}, {}",
+                 out(reg) mask,
+                 in(reg) mask,
+                 in(reg) zeroes);
+            asm!("bic {}, {}, {}",
+                 out(reg) free,
+                 in(reg) free,
+                 in(reg) mask);
+        }
+        self.free = free;*/
+        return zeroes as usize;
     }
 
     pub fn return_region(&mut self, region: usize) {
         self.free = self.free | (0x80000000 >> region);
     }
-    
-    pub fn find(&self, start: u32, end:u32) -> Result<u8, u8> {
-        let mut closest_start: u32 = 0xffffffff;
+
+    // Returns a signed 32-bit integer indicating the matching
+    // index for the range. If the result is negative, it means
+    // the region is invalid: the value returned is
+    // -(overlapping index + 1). The +1 is so that index 0 is
+    // encoded as -1. If the result is positive, the result is
+    // is the index in the list array where the region should be
+    // inserted.
+    pub fn find(&self, start: u32, end:u32) -> i32 {
         let mut lindex = self.count;
         for i in 0..self.count {
             let rindex = self.list[i] as usize;
-            if self.free & (0x80000000 >> rindex) != 0 { // Not in use
-                continue;
-            }
             let region = self.regions[rindex];
-
-            if region.start.wrapping_sub(start) < closest_start.wrapping_sub(start) {
-                closest_start = region.start;
-                lindex = i;
+            if end > region.start && start < region.end {
+                // Overlapping
+                return -((lindex + 1) as i32);
             }
             
-            if end > region.start && start < region.end {
-                return Err(lindex as u8);
+            if start < region.start {
+                // We reached a region that's after us: we should insert
+                // here (and bump everything from here forward).
+                lindex = i;
+                break;
             }
         }
-        return Ok(lindex as u8);
+        return lindex as i32;
     }
 
     pub fn lfind(&self, index: usize) -> usize {
@@ -788,45 +784,45 @@ impl Table {
         return self.count;
     }
 
-    fn find_and_insert(&mut self, start: u32, end: u32) -> bool {
-        let rindex;
-        let lindex: usize;
-        let tindex = self.find(start, end);
-        match tindex {
-            Err(_i) => {return false;},
-            Ok(lclosest) => {
-                lindex = lclosest as usize;
-                let following = self.count - lindex as usize;
-                // Shift elements in the lift forward from the insertion point
-                for i in 0..following {
-                    let dest = self.count - i;
-                    self.list[dest] = self.list[dest - 1];
-                }
-                rindex = self.get_free_region();                    
-            }
-        }
-        self.regions[rindex].start = start;
-        self.regions[rindex].end = end;
-        self.list[lindex] = rindex as u8;
-        self.count = self.count + 1;
-        true
-    }
-    
-    pub fn insert(&mut self, start: u32, size: u32) -> bool {
+    fn insert_into(&mut self, start: u32, end: u32) -> bool {
         if self.count >= SIZE {
             return false;
         }
         
-        let end = start + size;
-        if self.count == 0 {
-            self.free = 0x7fffffff; // 0th region
-            self.regions[0].start = start;
-            self.regions[0].end = end;
-            self.list[0] = 0;
-            self.count = 1;
-            return true;
+        let tindex = self.find(start, end);
+        if tindex < 0 {
+            false
         } else {
-            return self.find_and_insert(start, end);
+            let lindex = tindex as usize;
+            let following = self.count - lindex;
+            // Shift elements in the lift forward from the insertion point
+            for i in 0..following {
+                let dest = self.count - i;
+                self.list[dest] = self.list[dest - 1];
+            }
+            let rindex = self.get_free_region_asm();
+            self.regions[rindex].start = start;
+            self.regions[rindex].end = end;
+            self.list[lindex] = rindex as u8;
+            self.count = self.count + 1;
+            true
+        }
+    }
+
+    pub fn insert_first(&mut self, start: u32, end: u32) -> bool {
+        self.free = 0x7fffffff; // 0th region
+        self.regions[0].start = start;
+        self.regions[0].end = end;
+        self.list[0] = 0;
+        self.count = 1;
+        true
+    }
+
+    pub fn insert(&mut self, start: u32, size: u32) -> bool {
+        let end = start + size;
+        match self.count {
+            0 => self.insert_first(start, end),
+            _ => self.insert_into(start, end)
         }
     }
 
@@ -835,9 +831,9 @@ impl Table {
             if region.start == start {
                 self.return_region(i);
                 let lindex = self.lfind(i);
-                let following  = self.count - lindex;
-                unsafe {
-                    compiler_builtins::mem::memmove(&mut self.list[lindex], &self.list[lindex + 1], following);
+                // Shift elements in the lift forward from the insertion point
+                for i in lindex..self.count {
+                    self.list[i] = self.list[i + 1];
                 }
                 self.count = self.count - 1;
 //                debug!("removing {}, count is {}", start, self.count);
@@ -849,12 +845,12 @@ impl Table {
     }
     
     pub fn print(&self) {
-    /*    let array = &self.list[0..self.count];
+        let array = &self.list[0..self.count];
         debug!("------- Table: {} entries --------", self.count);
         for (i, _item) in array.iter().enumerate() {
             let index = self.list[i] as usize;
             debug!("Region[{}] = {}: {:08}-{:08}", i, index, self.regions[index].start, self.regions[index].end);
         }
-        debug!("");*/
+        debug!("");
     }
 }
