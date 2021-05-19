@@ -895,7 +895,6 @@ impl Kernel {
                         SyscallReturn::SubscribeFailure(ErrorCode::NOSUPPORT, upcall_ptr, appdata)
                     }
                 });
-
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -907,7 +906,6 @@ impl Kernel {
                         res
                     );
                 }
-
                 process.set_syscall_return_value(res);
             }
             Syscall::Command {
@@ -934,7 +932,6 @@ impl Kernel {
                         res,
                     );
                 }
-
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadWriteAllow {
@@ -1005,7 +1002,6 @@ impl Kernel {
                         res
                     );
                 }
-
                 process.set_syscall_return_value(res);
             }
             Syscall::ReadOnlyAllow {

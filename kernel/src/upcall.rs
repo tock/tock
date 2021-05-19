@@ -21,9 +21,21 @@ pub struct UpcallId {
 /// This is essentially a wrapper around a function pointer with
 /// associated process data.
 pub struct Upcall {
+    /// The ProcessId of the process that issued this upcall
     pub(crate) app_id: ProcessId,
+
+    /// A unique identifier of this particular upcall, representing the
+    /// driver_num and subdriver_num used to submit it.
     pub(crate) upcall_id: UpcallId,
+
+    /// The application data passed by the app when `subscribe()` was called
     pub(crate) appdata: usize,
+
+    /// A pointer to the first instruction of a function in the app
+    /// associated with app_id.
+    /// If this value is `None`, this is a null upcall, which cannot actually be
+    /// scheduled. An `Upcall` can be null when it is first created,
+    /// or after an app unsubscribes from an upcall.
     pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
@@ -98,20 +110,23 @@ impl Upcall {
 /// exists. This has the implication of requiring the requested
 /// `subscribe_num` Upcalls to be strictly increasing.
 pub struct ProcessUpcallFactory {
-    process: ProcessId,
+    process_id: ProcessId,
     driver_num: u32,
     next_subscribe_num: u32,
 }
 
 impl ProcessUpcallFactory {
-    pub(crate) fn new(process: ProcessId, driver_num: u32) -> Self {
-        ProcessUpcallFactory {
-            process,
+    pub(crate) fn new(process_id: ProcessId, driver_num: u32) -> Self {
+        Self {
+            process_id,
             driver_num,
             next_subscribe_num: 0,
         }
     }
 
+    /// Construct a null-`Upcall` with the passed `subscribe_num`. This function
+    /// must be called in order of increasing `subscribe_num`, or else it will
+    /// return `None`.
     pub fn build_upcall(&mut self, subscribe_num: u32) -> Option<Upcall> {
         if subscribe_num >= self.next_subscribe_num {
             self.next_subscribe_num = subscribe_num + 1;
@@ -122,10 +137,10 @@ impl ProcessUpcallFactory {
             };
 
             Some(Upcall::new(
-                self.process,
+                self.process_id,
                 upcall_id,
                 0,    // Default appdata value
-                None, // No fnptr, this is a null-callback
+                None, // No fnptr, this is a null-upcall
             ))
         } else {
             None

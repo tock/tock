@@ -311,8 +311,6 @@ pub trait Process {
     /// Also optional.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
 
-    // additional memop like functions
-
     /// Process a `Subscribe` request for a given process.
     ///
     /// This function is called as a result of a `Subscribe`-type
@@ -414,6 +412,8 @@ pub trait Process {
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+
+    // additional memop like functions
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and

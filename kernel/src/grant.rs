@@ -122,11 +122,7 @@ use crate::upcall::ProcessUpcallFactory;
 /// information about the process the Grant is created over, as well
 /// as factories for creating structures relating to a process.
 pub trait GrantDefault {
-    fn grant_default(
-        process_id: ProcessId,
-        upcall_factory: &mut ProcessUpcallFactory,
-        //appslice_factory: ProcessAppSliceFactory,
-    ) -> Self;
+    fn grant_default(process_id: ProcessId, upcall_factory: &mut ProcessUpcallFactory) -> Self;
 }
 
 /// This GrantMemory object provides access to the memory allocated for a grant
@@ -230,10 +226,6 @@ impl<'a, T: GrantDefault> ProcessGrant<'a, T> {
         // memory is not allocated until the actual grant region is actually
         // used.
 
-        // Get the GrantPointer to start. Since process.rs does not know
-        // anything about the datatype of the grant, and the grant
-        // memory may not yet be allocated, it can only return a `*mut
-        // u8` here. We will eventually convert this to a `*mut T`.
         let driver_num = grant.driver_num;
         let grant_num = grant.grant_num;
         let processid = process.processid();
@@ -832,7 +824,9 @@ pub struct Grant<T: GrantDefault> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
 
-    /// Track the driver number associated with this grant
+    /// Keep track of the syscall driver number assigned to the
+    /// capsule that is using this grant. This allows us to uniquely
+    /// identify upcalls stored in this grant.
     driver_num: u32,
 
     /// The identifier for this grant. Having an identifier allows the Process
