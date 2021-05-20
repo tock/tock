@@ -11,6 +11,7 @@ pub(crate) mod priority;
 pub(crate) mod round_robin;
 
 use core::cell::Cell;
+use core::ptr::NonNull;
 
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
@@ -30,6 +31,7 @@ use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
+use crate::upcall::{Upcall, UpcallId};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -881,20 +883,99 @@ impl Kernel {
                 upcall_ptr,
                 appdata,
             } => {
-                let res = platform.with_driver(driver_number as usize, |driver| match driver {
-                    Some(d) => process.subscribe(
-                        driver_number,
-                        subdriver_number,
-                        upcall_ptr,
-                        appdata,
-                        &|upcall| {
-                            d.subscribe(subdriver_number as usize, upcall, process.processid())
-                        },
-                    ),
+                // Construct the upcall pointer
+                //
+                // The pointer may be NULL, in which case this is a
+                // _null upcall_.
+                //
+                // The pointer is not verified to be in bounds of
+                // process accessible memory. If a process passes an
+                // invalid pointer (outside of its memory regions),
+                // the MPU must catch this memory access and fault the
+                // process accordingly.
+                let fn_ptr: Option<NonNull<()>> = NonNull::new(upcall_ptr);
+
+                // A upcall is identified as a tuple of the driver
+                // number and the subdriver number.
+                let upcall_id = UpcallId {
+                    driver_num: driver_number,
+                    subscribe_num: subdriver_number,
+                };
+
+                // Construct the upcall struct
+                let upcall = Upcall::new(process.processid(), upcall_id, appdata, fn_ptr);
+
+                let rval = platform.with_driver(driver_number as usize, |driver| match driver {
+                    Some(d) => {
+                        let res =
+                            d.subscribe(subdriver_number as usize, upcall, process.processid());
+
+                        match res {
+                            Err((returned_upcall, err)) => {
+                                // The capsule has refused the subscribe operation,
+                                // verify that it passed back the new upcall
+                                if returned_upcall.app_id != process.processid()
+                                    || returned_upcall.upcall_id != upcall_id
+                                    || returned_upcall.appdata != appdata
+                                    || returned_upcall.fn_ptr != fn_ptr
+                                {
+                                    // The capsule did not return the Upcall passed in
+                                    //
+                                    // TODO: How to handle this?
+                                    panic!(
+                                        "Driver {}, subscribe num {}: Upcall swapped in error case",
+                                        driver_number, subdriver_number
+                                    );
+                                } else {
+                                    // Capsule returned the correct Upcall
+
+                                    // TODO: The capsule might have already scheduled
+                                    // upcalls on the new instance, and we must not
+                                    // clear upcalls on the previous instance in
+                                    // this branch (capsule refused the subscribe
+                                    // operation). However, if the two upcalls are
+                                    // identical, we can't distinguish the two and
+                                    // will cancel upcalls on _both_ the previous
+                                    // and the new instance.
+                                    process.remove_pending_upcalls(returned_upcall.upcall_id);
+
+                                    SyscallReturn::SubscribeFailure(err, upcall_ptr, appdata)
+                                }
+                            }
+                            Ok(returned_upcall) => {
+                                // The capsule indicated that the subscribe operation
+                                // succeeded and returned some other upcall
+                                //
+                                // Ensure that it belongs to the same process, driver
+                                // and subdriver number
+                                if returned_upcall.app_id != process.processid()
+                                    || returned_upcall.upcall_id != upcall_id
+                                {
+                                    // The capsule returned some other Upcall
+                                    //
+                                    // TODO: how to handle this?
+                                    panic!(
+                                        "Driver {}, subscribe num {}: unknown Upcall returned",
+                                        driver_number, subdriver_number
+                                    );
+                                } else {
+                                    // The capsule returned a matching Upcall,
+                                    // return it to userspace
+                                    SyscallReturn::SubscribeSuccess(
+                                        returned_upcall
+                                            .fn_ptr
+                                            .map_or(0x0 as *mut (), |nonnull| nonnull.as_ptr()),
+                                        returned_upcall.appdata,
+                                    )
+                                }
+                            }
+                        }
+                    }
                     None => {
-                        SyscallReturn::SubscribeFailure(ErrorCode::NOSUPPORT, upcall_ptr, appdata)
+                        SyscallReturn::SubscribeFailure(ErrorCode::NODEVICE, upcall_ptr, appdata)
                     }
                 });
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -903,10 +984,11 @@ impl Kernel {
                         subdriver_number,
                         upcall_ptr as usize,
                         appdata,
-                        res
+                        rval
                     );
                 }
-                process.set_syscall_return_value(res);
+
+                process.set_syscall_return_value(rval);
             }
             Syscall::Command {
                 driver_number,

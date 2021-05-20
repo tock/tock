@@ -23,7 +23,7 @@ use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
-use crate::upcall::{Upcall, UpcallId};
+use crate::upcall::UpcallId;
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -478,105 +478,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     Ok(old_break)
                 }
             })
-    }
-
-    fn subscribe(
-        &self,
-        driver_num: u32,
-        subscribe_num: u32,
-        upcall_ptr: *mut (),
-        appdata: usize,
-        driver_invoc_closure: &dyn Fn(Upcall) -> Result<Upcall, (Upcall, ErrorCode)>,
-    ) -> SyscallReturn {
-        if !self.is_active() {
-            // Do not operate on an inactive process
-            return SyscallReturn::SubscribeFailure(ErrorCode::FAIL, upcall_ptr, appdata);
-        }
-
-        // Construct the upcall pointer
-        //
-        // The pointer may be NULL, in which case this is a _null
-        // upcall_.
-        //
-        // The pointer is not verified to be in bounds of process
-        // accessible memory. If a process passes an invalid pointer
-        // (outside of its memory regions), the MPU must catch this
-        // memory access and fault the process accordingly.
-        let fn_ptr: Option<NonNull<()>> = NonNull::new(upcall_ptr);
-
-        // A upcall is identified by a tuple of the driver number
-        // and the subscribe number
-        let upcall_id = UpcallId {
-            driver_num,
-            subscribe_num,
-        };
-
-        // Construct the upcall struct
-        let upcall = Upcall::new(self.processid(), upcall_id, appdata, fn_ptr);
-
-        // Invoke the capsule
-        let driver_res = driver_invoc_closure(upcall);
-
-        match driver_res {
-            Err((returned_upcall, err)) => {
-                // The capsule has refused the subscribe operation,
-                // verify that it passed back the new upcall
-                if returned_upcall.app_id != self.processid()
-                    || returned_upcall.upcall_id != upcall_id
-                    || returned_upcall.appdata != appdata
-                    || returned_upcall.fn_ptr != fn_ptr
-                {
-                    // The capsule did not return the Upcall passed in
-                    //
-                    // TODO: How to handle this?
-                    panic!(
-                        "Driver {}, subscribe num {}: Upcall swapped in error case",
-                        driver_num, subscribe_num
-                    );
-                } else {
-                    // Capsule returned the correct Upcall
-
-                    // TODO: The capsule might have already scheduled
-                    // upcalls on the new instance, and we must not
-                    // clear upcalls on the previous instance in
-                    // this branch (capsule refused the subscribe
-                    // operation). However, if the two upcalls are
-                    // identical, we can't distinguish the two and
-                    // will cancel upcalls on _both_ the previous
-                    // and the new instance.
-                    self.remove_pending_upcalls(returned_upcall.upcall_id);
-
-                    SyscallReturn::SubscribeFailure(err, upcall_ptr, appdata)
-                }
-            }
-            Ok(returned_upcall) => {
-                // The capsule indicated that the subscribe operation
-                // succeeded and returned some other upcall
-                //
-                // Ensure that it belongs to the same process, driver
-                // and subdriver number
-                if returned_upcall.app_id != self.processid()
-                    || returned_upcall.upcall_id != upcall_id
-                {
-                    // The capsule returned some other Upcall
-                    //
-                    // TODO: how to handle this?
-                    panic!(
-                        "Driver {}, subscribe num {}: unknown Upcall returned",
-                        driver_num, subscribe_num
-                    );
-                } else {
-                    // The capsule returned a matching Upcall,
-                    // return it to userspace
-                    SyscallReturn::SubscribeSuccess(
-                        returned_upcall
-                            .fn_ptr
-                            .map_or(0x0 as *mut (), |nonnull| nonnull.as_ptr()),
-                        returned_upcall.appdata,
-                    )
-                }
-            }
-        }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
