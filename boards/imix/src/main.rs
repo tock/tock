@@ -674,7 +674,7 @@ unsafe fn run_table_test() {
     }
     
     for i in 10..12 {
-        debug!("Remove {}: {} ticks", i -7, ticks[i + 1] - ticks[i]);
+        debug!("Remove {}: {} ticks", i - 9, ticks[i + 1] - ticks[i]);
     }
 
     debug!("Baseline: {} ticks", ticks[13] - ticks[12]);   
@@ -756,23 +756,27 @@ impl Table {
     // is the index in the list array where the region should be
     // inserted.
     pub fn find(&self, start: u32, end:u32) -> i32 {
-        let mut lindex = self.count;
         for i in 0..self.count {
             let rindex = self.list[i] as usize;
             let region = self.regions[rindex];
-            if end > region.start && start < region.end {
-                // Overlapping
-                return -((lindex + 1) as i32);
-            }
-            
+                        
             if start < region.start {
-                // We reached a region that's after us: we should insert
-                // here (and bump everything from here forward).
-                lindex = i;
-                break;
+                if end <= region.start {
+                    // We reached a region that's after us: we should insert
+                    // here (and bump everything from here forward).
+                    return i as i32;
+                } else {
+                    // The region starts after us, but we end inside it:
+                    // we overlap, return an error.
+                    return -((i + 1) as i32);
+                }
+            } else if start < region.end {
+                // We start after this region starts but before it
+                // ends: we overlap, return an error.
+                return -((i + 1) as i32);
             }
         }
-        return lindex as i32;
+        return self.count as i32;
     }
 
     pub fn lfind(&self, index: usize) -> usize {
@@ -827,10 +831,10 @@ impl Table {
     }
 
     pub fn remove(&mut self, start: u32) -> bool {
-        for (i, region) in self.regions.iter().enumerate() {
+        for lindex in 0..self.count {
+            let region = self.regions[self.list[lindex] as usize];
             if region.start == start {
-                self.return_region(i);
-                let lindex = self.lfind(i);
+                self.return_region(self.list[lindex] as usize);
                 // Shift elements in the lift forward from the insertion point
                 for i in lindex..self.count {
                     self.list[i] = self.list[i + 1];
