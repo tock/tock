@@ -84,9 +84,8 @@ impl<'a> UnixProcess<'a> {
             .arg(socket_tx)
             .arg("--log")
             .arg(config.app_log_level.to_string());
-
         if config.app_log_level != 0 {
-            proc.env("RUST_BACKTRACE", "1");
+            proc.env("RUST_BACKTRACE", "full");
         } else {
             proc.stdout(Stdio::null());
         }
@@ -112,15 +111,7 @@ impl<'a> UnixProcess<'a> {
     /// each slice to the app. First kernel sends information about number of
     /// allowed slices, then each meta data of slice `AllowsInfo` after which
     /// raw slice bytes follow.
-    ///
-    /// The apps do not maintain any information about what slices they have
-    /// ALLOWED TO THE KERNEL. iT is the kernel's sole responsibility to track
-    /// that information and only request valid slices from the apps.
     pub fn send_allows(&self, transport: &SyscallTransport) {
-        if self.allow_count.get() == 0 {
-            return;
-        }
-
         let app_id = self.get_id();
         let allows_number = ipc::AllowsInfo {
             number_of_slices: self.allow_count.get(),
