@@ -15,7 +15,7 @@
 //!   functioning as a type to identify this register's descriptive
 //!   name and semantic meaning. It is further used to impose type
 //!   constraints on values passed through the API, such as
-//!   [`FieldValue`](crate::registers::FieldValue).
+//!   [`FieldValue`](crate::fields::FieldValue).
 //!
 //! Registers can have different access levels, which are mapped to
 //! different traits respectively:
@@ -149,9 +149,8 @@
 //! assert!(dummy.read(DummyReg::HIGH) == 0xb);
 //! ```
 
-use crate::registers::{
-    Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue,
-};
+use crate::fields::{Field, FieldValue};
+use crate::registers::{IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue};
 
 /// Readable register
 ///
