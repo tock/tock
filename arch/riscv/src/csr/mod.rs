@@ -2,18 +2,19 @@
 
 use riscv_csr::csr::{
     ReadWriteRiscvCsr, MCAUSE, MCYCLE, MCYCLEH, MEPC, MIE, MINSTRET, MINSTRETH, MIP, MSCRATCH,
-    MSTATUS, MTVAL, MTVEC, PMPADDR0, PMPADDR1, PMPADDR10, PMPADDR11, PMPADDR12, PMPADDR13,
-    PMPADDR14, PMPADDR15, PMPADDR16, PMPADDR17, PMPADDR18, PMPADDR19, PMPADDR2, PMPADDR20,
-    PMPADDR21, PMPADDR22, PMPADDR23, PMPADDR24, PMPADDR25, PMPADDR26, PMPADDR27, PMPADDR28,
-    PMPADDR29, PMPADDR3, PMPADDR30, PMPADDR31, PMPADDR32, PMPADDR33, PMPADDR34, PMPADDR35,
-    PMPADDR36, PMPADDR37, PMPADDR38, PMPADDR39, PMPADDR4, PMPADDR40, PMPADDR41, PMPADDR42,
-    PMPADDR43, PMPADDR44, PMPADDR45, PMPADDR46, PMPADDR47, PMPADDR48, PMPADDR49, PMPADDR5,
-    PMPADDR50, PMPADDR51, PMPADDR52, PMPADDR53, PMPADDR54, PMPADDR55, PMPADDR56, PMPADDR57,
-    PMPADDR58, PMPADDR59, PMPADDR6, PMPADDR60, PMPADDR61, PMPADDR62, PMPADDR63, PMPADDR7, PMPADDR8,
-    PMPADDR9, PMPCFG0, PMPCFG1, PMPCFG10, PMPCFG11, PMPCFG12, PMPCFG13, PMPCFG14, PMPCFG15,
-    PMPCFG2, PMPCFG3, PMPCFG4, PMPCFG5, PMPCFG6, PMPCFG7, PMPCFG8, PMPCFG9, STVEC, UTVEC,
+    MSECCFG, MSECCFGH, MSTATUS, MTVAL, MTVEC, PMPADDR0, PMPADDR1, PMPADDR10, PMPADDR11, PMPADDR12,
+    PMPADDR13, PMPADDR14, PMPADDR15, PMPADDR16, PMPADDR17, PMPADDR18, PMPADDR19, PMPADDR2,
+    PMPADDR20, PMPADDR21, PMPADDR22, PMPADDR23, PMPADDR24, PMPADDR25, PMPADDR26, PMPADDR27,
+    PMPADDR28, PMPADDR29, PMPADDR3, PMPADDR30, PMPADDR31, PMPADDR32, PMPADDR33, PMPADDR34,
+    PMPADDR35, PMPADDR36, PMPADDR37, PMPADDR38, PMPADDR39, PMPADDR4, PMPADDR40, PMPADDR41,
+    PMPADDR42, PMPADDR43, PMPADDR44, PMPADDR45, PMPADDR46, PMPADDR47, PMPADDR48, PMPADDR49,
+    PMPADDR5, PMPADDR50, PMPADDR51, PMPADDR52, PMPADDR53, PMPADDR54, PMPADDR55, PMPADDR56,
+    PMPADDR57, PMPADDR58, PMPADDR59, PMPADDR6, PMPADDR60, PMPADDR61, PMPADDR62, PMPADDR63,
+    PMPADDR7, PMPADDR8, PMPADDR9, PMPCFG0, PMPCFG1, PMPCFG10, PMPCFG11, PMPCFG12, PMPCFG13,
+    PMPCFG14, PMPCFG15, PMPCFG2, PMPCFG3, PMPCFG4, PMPCFG5, PMPCFG6, PMPCFG7, PMPCFG8, PMPCFG9,
+    STVEC, UTVEC,
 };
-use tock_registers::registers::FieldValue;
+use tock_registers::registers::{FieldValue, ReadWriteable, Readable, Writeable};
 
 pub mod mcause;
 pub mod mcycle;
@@ -22,6 +23,7 @@ pub mod mie;
 pub mod minstret;
 pub mod mip;
 pub mod mscratch;
+pub mod mseccfg;
 pub mod mstatus;
 pub mod mtval;
 pub mod mtvec;
@@ -144,6 +146,11 @@ pub struct CSR {
     pub mip: ReadWriteRiscvCsr<usize, mip::mip::Register, MIP>,
     pub mtvec: ReadWriteRiscvCsr<usize, mtvec::mtvec::Register, MTVEC>,
     pub mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS>,
+
+    pub mseccfg: ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG>,
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub mseccfgh: ReadWriteRiscvCsr<usize, mseccfg::mseccfgh::Register, MSECCFGH>,
+
     pub utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC>,
     pub stvec: ReadWriteRiscvCsr<usize, stvec::stvec::Register, STVEC>,
 }
@@ -256,6 +263,10 @@ pub const CSR: &CSR = &CSR {
     mip: ReadWriteRiscvCsr::new(),
     mtvec: ReadWriteRiscvCsr::new(),
     mstatus: ReadWriteRiscvCsr::new(),
+
+    mseccfg: ReadWriteRiscvCsr::new(),
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    mseccfgh: ReadWriteRiscvCsr::new(),
 
     utvec: ReadWriteRiscvCsr::new(),
     stvec: ReadWriteRiscvCsr::new(),
@@ -461,6 +472,76 @@ impl CSR {
             61 => self.pmpaddr61.set(value),
             62 => self.pmpaddr62.set(value),
             63 => self.pmpaddr63.set(value),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn pmpaddr_get(&self, index: usize) -> usize {
+        match index {
+            0 => self.pmpaddr0.get(),
+            1 => self.pmpaddr1.get(),
+            2 => self.pmpaddr2.get(),
+            3 => self.pmpaddr3.get(),
+            4 => self.pmpaddr4.get(),
+            5 => self.pmpaddr5.get(),
+            6 => self.pmpaddr6.get(),
+            7 => self.pmpaddr7.get(),
+            8 => self.pmpaddr8.get(),
+            9 => self.pmpaddr9.get(),
+            10 => self.pmpaddr10.get(),
+            11 => self.pmpaddr11.get(),
+            12 => self.pmpaddr12.get(),
+            13 => self.pmpaddr13.get(),
+            14 => self.pmpaddr14.get(),
+            15 => self.pmpaddr15.get(),
+            16 => self.pmpaddr16.get(),
+            17 => self.pmpaddr17.get(),
+            18 => self.pmpaddr18.get(),
+            19 => self.pmpaddr19.get(),
+            20 => self.pmpaddr20.get(),
+            21 => self.pmpaddr21.get(),
+            22 => self.pmpaddr22.get(),
+            23 => self.pmpaddr23.get(),
+            24 => self.pmpaddr24.get(),
+            25 => self.pmpaddr25.get(),
+            26 => self.pmpaddr26.get(),
+            27 => self.pmpaddr27.get(),
+            28 => self.pmpaddr28.get(),
+            29 => self.pmpaddr29.get(),
+            30 => self.pmpaddr30.get(),
+            31 => self.pmpaddr31.get(),
+            32 => self.pmpaddr32.get(),
+            33 => self.pmpaddr33.get(),
+            34 => self.pmpaddr34.get(),
+            35 => self.pmpaddr35.get(),
+            36 => self.pmpaddr36.get(),
+            37 => self.pmpaddr37.get(),
+            38 => self.pmpaddr38.get(),
+            39 => self.pmpaddr39.get(),
+            40 => self.pmpaddr40.get(),
+            41 => self.pmpaddr41.get(),
+            42 => self.pmpaddr42.get(),
+            43 => self.pmpaddr43.get(),
+            44 => self.pmpaddr44.get(),
+            45 => self.pmpaddr45.get(),
+            46 => self.pmpaddr46.get(),
+            47 => self.pmpaddr47.get(),
+            48 => self.pmpaddr48.get(),
+            49 => self.pmpaddr49.get(),
+            50 => self.pmpaddr50.get(),
+            51 => self.pmpaddr51.get(),
+            52 => self.pmpaddr52.get(),
+            53 => self.pmpaddr53.get(),
+            54 => self.pmpaddr54.get(),
+            55 => self.pmpaddr55.get(),
+            56 => self.pmpaddr56.get(),
+            57 => self.pmpaddr57.get(),
+            58 => self.pmpaddr58.get(),
+            59 => self.pmpaddr59.get(),
+            60 => self.pmpaddr60.get(),
+            61 => self.pmpaddr61.get(),
+            62 => self.pmpaddr62.get(),
+            63 => self.pmpaddr63.get(),
             _ => unreachable!(),
         }
     }

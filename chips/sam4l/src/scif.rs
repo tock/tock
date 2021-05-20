@@ -8,6 +8,7 @@
 //! - Date: Aug 2, 2015
 
 use crate::bscif;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

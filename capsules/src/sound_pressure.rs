@@ -10,10 +10,10 @@
 //! a sound_pressure sensor reading.
 //! The `subscribe`call return codes indicate the following:
 //!
-//! * `SUCCESS`: the callback been successfully been configured.
+//! * `Ok(())`: the callback been successfully been configured.
 //! * `ENOSUPPORT`: Invalid allow_num.
-//! * `ENOMEM`: No sufficient memory available.
-//! * `EINVAL`: Invalid address of the buffer or other error.
+//! * `NOMEM`: No sufficient memory available.
+//! * `INVAL`: Invalid address of the buffer or other error.
 //!
 //!
 //! ### `command` System Call
@@ -27,11 +27,11 @@
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
-//! * `SUCCESS`:    The operation has been successful.
-//! * `EBUSY`:      The driver is busy.
+//! * `Ok(())`:    The operation has been successful.
+//! * `BUSY`:      The driver is busy.
 //! * `ENOSUPPORT`: Invalid `cmd`.
-//! * `ENOMEM`:     No sufficient memory available.
-//! * `EINVAL`:     Invalid address of the buffer or other error.
+//! * `NOMEM`:     No sufficient memory available.
+//! * `INVAL`:     Invalid address of the buffer or other error.
 //!
 //! Usage
 //! -----
@@ -53,9 +53,10 @@
 //! ```
 
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::mem;
 use kernel::hil;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver, Grant};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +64,7 @@ pub const DRIVER_NUM: usize = driver::NUM::SoundPressure as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     subscribed: bool,
     enable: bool,
 }
@@ -86,56 +87,51 @@ impl<'a> SoundPressureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
-                    self.driver.read_sound_pressure()
+                    let res = self.driver.read_sound_pressure();
+                    if let Ok(err) = ErrorCode::try_from(res) {
+                        CommandReturn::failure(err)
+                    } else {
+                        CommandReturn::success()
+                    }
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                app.callback = callback;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
 
     fn enable(&self) {
         let mut enable = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if app.enable {
                     enable = true;
                 }
             });
             if enable {
-                self.driver.enable();
+                let _ = self.driver.enable();
             } else {
-                self.driver.disable();
+                let _ = self.driver.disable();
             }
         }
     }
 }
 
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
-    fn callback(&self, ret: ReturnCode, sound_val: u8) {
+    fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    if ret == ReturnCode::SUCCESS {
-                        app.callback
-                            .map(|mut cb| cb.schedule(sound_val.into(), 0, 0));
+                    if ret == Ok(()) {
+                        app.callback.schedule(sound_val.into(), 0, 0);
                     }
                 }
             });
@@ -147,48 +143,70 @@ impl Driver for SoundPressureSensor<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             // subscribe to sound_pressure reading with callback
-            0 => self.configure_callback(callback, app_id),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let res = self
+                    .apps
+                    .enter(app_id, |app| {
+                        mem::swap(&mut app.callback, &mut callback);
+                    })
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    Err((callback, e))
+                } else {
+                    Ok(callback)
+                }
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // read sound_pressure
             1 => self.enqueue_command(appid),
 
             // enable
             2 => {
-                self.apps
-                    .enter(appid, |app, _| {
+                let res = self
+                    .apps
+                    .enter(appid, |app| {
                         app.enable = true;
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     })
-                    .unwrap_or_else(|err| err.into());
-                self.enable();
-                ReturnCode::SUCCESS
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    CommandReturn::failure(e)
+                } else {
+                    self.enable();
+                    CommandReturn::success()
+                }
             }
 
             // disable
             3 => {
-                self.apps
-                    .enter(appid, |app, _| {
+                let res = self
+                    .apps
+                    .enter(appid, |app| {
                         app.enable = false;
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     })
-                    .unwrap_or_else(|err| err.into());
-                self.enable();
-                ReturnCode::SUCCESS
+                    .map_err(ErrorCode::from);
+                if let Err(e) = res {
+                    CommandReturn::failure(e)
+                } else {
+                    self.enable();
+                    CommandReturn::success()
+                }
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

@@ -3,8 +3,9 @@
 //! Usage
 //! -----
 //! ```rust
-//!    let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new()
-//!       .finalize(components::mlx90614_i2c_component_helper!(mux_i2c));
+//!    let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new(mux_i2c, i2c_addr,
+//!    board_kernel)
+//!       .finalize(components::mlx90614_i2c_component_helper!());
 //!
 //!    let temp = static_init!(
 //!           capsules::temperature::TemperatureSensor<'static>,
@@ -16,7 +17,9 @@
 use capsules::mlx90614::Mlx90614SMBus;
 use capsules::virtual_i2c::{MuxI2C, SMBusDevice};
 use core::mem::MaybeUninit;
+use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
@@ -33,13 +36,19 @@ macro_rules! mlx90614_component_helper {
 pub struct Mlx90614SMBusComponent {
     i2c_mux: &'static MuxI2C<'static>,
     i2c_address: u8,
+    board_kernel: &'static kernel::Kernel,
 }
 
 impl Mlx90614SMBusComponent {
-    pub fn new(i2c: &'static MuxI2C<'static>, i2c_address: u8) -> Self {
+    pub fn new(
+        i2c: &'static MuxI2C<'static>,
+        i2c_address: u8,
+        board_kernel: &'static kernel::Kernel,
+    ) -> Self {
         Mlx90614SMBusComponent {
             i2c_mux: i2c,
             i2c_address: i2c_address,
+            board_kernel,
         }
     }
 }
@@ -55,10 +64,15 @@ impl Component for Mlx90614SMBusComponent {
             SMBusDevice,
             SMBusDevice::new(self.i2c_mux, self.i2c_address)
         );
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let mlx90614 = static_init_half!(
             static_buffer,
             Mlx90614SMBus<'static>,
-            Mlx90614SMBus::new(mlx90614_smbus, &mut I2C_BUF)
+            Mlx90614SMBus::new(
+                mlx90614_smbus,
+                &mut I2C_BUF,
+                self.board_kernel.create_grant(&grant_cap)
+            )
         );
 
         mlx90614_smbus.set_client(mlx90614);

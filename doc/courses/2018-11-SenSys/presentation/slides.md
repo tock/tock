@@ -277,7 +277,7 @@ int putnstr(const char *str, size_t len) {
   command(DRIVER_NUM_CONSOLE, 1, len, 0);
   yield_for(&done);
 
-  return SUCCESS;
+  return Ok(());
 }
 ```
 

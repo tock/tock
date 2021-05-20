@@ -1,5 +1,6 @@
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;

@@ -1,6 +1,6 @@
 //! Interface for configuring the Memory Protection Unit.
 
-use crate::callback::AppId;
+use crate::process::ProcessId;
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -260,9 +260,9 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    /// - `app_id`: AppId of the process that the MPU is configured for
+    /// - `app_id`: ProcessId of the process that the MPU is configured for
     #[allow(unused_variables)]
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {}
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {}
 }
 
 /// Implement default MPU trait for unit.
@@ -336,7 +336,7 @@ pub trait KernelMPU {
     /// kernel regions specified by `allocate_kernel_region()` protected by
     /// the MPU.
     ///
-    /// It is expected that this function is called in `reset_handler()`.
+    /// It is expected that this function is called in `main()`.
     ///
     /// Once enabled this cannot be disabled. It is expected there won't be any
     /// changes to the kernel regions after this is enabled.

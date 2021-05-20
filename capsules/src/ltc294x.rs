@@ -49,8 +49,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -111,6 +110,11 @@ pub enum VBatAlert {
     Threshold3V0 = 0x03,
 }
 
+#[derive(Default)]
+pub struct App {
+    upcall: Upcall,
+}
+
 /// Supported events for the LTC294X.
 pub trait LTC294XClient {
     fn interrupt(&self);
@@ -163,15 +167,15 @@ impl<'a> LTC294X<'a> {
         });
     }
 
-    pub fn read_status(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    pub fn read_status(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Address pointer automatically resets to the status register.
             self.i2c.read(buffer, 1);
             self.state.set(State::ReadStatus);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
@@ -180,8 +184,8 @@ impl<'a> LTC294X<'a> {
         int_pin_conf: InterruptPinConf,
         prescaler: u8,
         vbat_alert: VBatAlert,
-    ) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    ) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::Control as u8;
@@ -190,13 +194,13 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Set the accumulated charge to 0
-    fn reset_charge(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn reset_charge(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::AccumulatedChargeMSB as u8;
@@ -206,12 +210,12 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn set_high_threshold(&self, threshold: u16) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn set_high_threshold(&self, threshold: u16) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::ChargeThresholdHighMSB as u8;
@@ -221,12 +225,12 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
-    fn set_low_threshold(&self, threshold: u16) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn set_low_threshold(&self, threshold: u16) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             buffer[0] = Registers::ChargeThresholdLowMSB as u8;
@@ -236,13 +240,13 @@ impl<'a> LTC294X<'a> {
             self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Get the cumulative charge as measured by the LTC2941.
-    fn get_charge(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn get_charge(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Read all of the first four registers rather than wasting
@@ -250,47 +254,47 @@ impl<'a> LTC294X<'a> {
             self.i2c.read(buffer, 4);
             self.state.set(State::ReadCharge);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Get the voltage at sense+
-    fn get_voltage(&self) -> ReturnCode {
+    fn get_voltage(&self) -> Result<(), ErrorCode> {
         // Not supported on all versions
         match self.model.get() {
             ChipModel::LTC2942 | ChipModel::LTC2943 => {
-                self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+                self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.i2c.enable();
 
                     self.i2c.read(buffer, 10);
                     self.state.set(State::ReadVoltage);
 
-                    ReturnCode::SUCCESS
+                    Ok(())
                 })
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
     /// Get the current sensed by the resistor
-    fn get_current(&self) -> ReturnCode {
+    fn get_current(&self) -> Result<(), ErrorCode> {
         // Not supported on all versions
         match self.model.get() {
-            ChipModel::LTC2943 => self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            ChipModel::LTC2943 => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 self.i2c.enable();
 
                 self.i2c.read(buffer, 16);
                 self.state.set(State::ReadCurrent);
 
-                ReturnCode::SUCCESS
+                Ok(())
             }),
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
     /// Put the LTC294X in a low power state.
-    fn shutdown(&self) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+    fn shutdown(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c.enable();
 
             // Read both the status and control register rather than
@@ -298,26 +302,26 @@ impl<'a> LTC294X<'a> {
             self.i2c.read(buffer, 2);
             self.state.set(State::ReadShutdown);
 
-            ReturnCode::SUCCESS
+            Ok(())
         })
     }
 
     /// Set the LTC294X model actually on the board.
-    fn set_model(&self, model_num: usize) -> ReturnCode {
+    fn set_model(&self, model_num: usize) -> Result<(), ErrorCode> {
         match model_num {
             1 => {
                 self.model.set(ChipModel::LTC2941);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             2 => {
                 self.model.set(ChipModel::LTC2942);
-                ReturnCode::SUCCESS
+                Ok(())
             }
             3 => {
                 self.model.set(ChipModel::LTC2943);
-                ReturnCode::SUCCESS
+                Ok(())
             }
-            _ => ReturnCode::ENODEVICE,
+            _ => Err(ErrorCode::NODEVICE),
         }
     }
 }
@@ -407,22 +411,26 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    callback: OptionalCell<Callback>,
+    grants: Grant<App>,
+    owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X<'a>) -> LTC294XDriver<'a> {
+    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
-            callback: OptionalCell::empty(),
+            grants: grants,
+            owning_process: OptionalCell::empty(),
         }
     }
 }
 
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(0, 0, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(0, 0, 0);
+            });
         });
     }
 
@@ -434,37 +442,48 @@ impl LTC294XClient for LTC294XDriver<'_> {
         charge_alert_high: bool,
         accumulated_charge_overflow: bool,
     ) {
-        self.callback.map(|cb| {
-            let ret = (undervolt_lockout as usize)
-                | ((vbat_alert as usize) << 1)
-                | ((charge_alert_low as usize) << 2)
-                | ((charge_alert_high as usize) << 3)
-                | ((accumulated_charge_overflow as usize) << 4);
-            cb.schedule(1, ret, self.ltc294x.model.get() as usize);
+        let ret = (undervolt_lockout as usize)
+            | ((vbat_alert as usize) << 1)
+            | ((charge_alert_low as usize) << 2)
+            | ((charge_alert_high as usize) << 3)
+            | ((accumulated_charge_overflow as usize) << 4);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall
+                    .schedule(1, ret, self.ltc294x.model.get() as usize);
+            });
         });
     }
 
     fn charge(&self, charge: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(2, charge as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(2, charge as usize, 0);
+            });
         });
     }
 
     fn done(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(3, 0, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(3, 0, 0);
+            });
         });
     }
 
     fn voltage(&self, voltage: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(4, voltage as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(4, voltage as usize, 0);
+            });
         });
     }
 
     fn current(&self, current: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(5, current as usize, 0);
+        self.owning_process.map(|pid| {
+            let _res = self.grants.enter(*pid, |app| {
+                app.upcall.schedule(5, current as usize, 0);
+            });
         });
     }
 }
@@ -486,17 +505,25 @@ impl Driver for LTC294XDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
-
-            // default
-            _ => ReturnCode::ENOSUPPORT,
+        mut callback: Upcall,
+        process_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .grants
+            .enter(process_id, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.upcall, &mut callback);
+                        Ok(())
+                    }
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -517,13 +544,33 @@ impl Driver for LTC294XDriver<'_> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            // Check this driver exists.
-            0 => ReturnCode::SUCCESS,
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
 
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.grants
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+
+        match command_num {
             // Get status.
-            1 => self.ltc294x.read_status(),
+            1 => self.ltc294x.read_status().into(),
 
             // Configure.
             2 => {
@@ -546,34 +593,35 @@ impl Driver for LTC294XDriver<'_> {
 
                 self.ltc294x
                     .configure(int_pin_conf, prescaler as u8, vbat_alert)
+                    .into()
             }
 
             // Reset charge.
-            3 => self.ltc294x.reset_charge(),
+            3 => self.ltc294x.reset_charge().into(),
 
             // Set high threshold
-            4 => self.ltc294x.set_high_threshold(data as u16),
+            4 => self.ltc294x.set_high_threshold(data as u16).into(),
 
             // Set low threshold
-            5 => self.ltc294x.set_low_threshold(data as u16),
+            5 => self.ltc294x.set_low_threshold(data as u16).into(),
 
             // Get charge
-            6 => self.ltc294x.get_charge(),
+            6 => self.ltc294x.get_charge().into(),
 
             // Shutdown
-            7 => self.ltc294x.shutdown(),
+            7 => self.ltc294x.shutdown().into(),
 
             // Get voltage
-            8 => self.ltc294x.get_voltage(),
+            8 => self.ltc294x.get_voltage().into(),
 
             // Get current
-            9 => self.ltc294x.get_current(),
+            9 => self.ltc294x.get_current().into(),
 
             // Set the current chip model
-            10 => self.ltc294x.set_model(data),
+            10 => self.ltc294x.set_model(data).into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

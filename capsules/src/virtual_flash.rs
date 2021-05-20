@@ -30,7 +30,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there
@@ -87,7 +87,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                         // Don't need a buffer for erase.
                         match node.operation.get() {
                             Op::Erase(page_number) => {
-                                self.flash.erase_page(page_number);
+                                let _ = self.flash.erase_page(page_number);
                             }
                             _ => {}
                         };
@@ -105,7 +105,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                                 }
                             }
                             Op::Erase(page_number) => {
-                                self.flash.erase_page(page_number);
+                                let _ = self.flash.erase_page(page_number);
                             }
                             Op::Idle => {} // Can't get here...
                         }
@@ -192,7 +192,7 @@ impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'_, F> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.buffer.replace(buf);
         self.operation.set(Op::Read(page_number));
         self.mux.do_next_op();
@@ -203,16 +203,16 @@ impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'_, F> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.buffer.replace(buf);
         self.operation.set(Op::Write(page_number));
         self.mux.do_next_op();
         Ok(())
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.operation.set(Op::Erase(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

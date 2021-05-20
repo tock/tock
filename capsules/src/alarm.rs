@@ -2,8 +2,9 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
+use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -18,14 +19,14 @@ enum Expiration {
 #[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
-    callback: Option<Callback>,
+    callback: Upcall,
 }
 
 impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
-            callback: None,
+            callback: Upcall::default(),
         }
     }
 }
@@ -62,7 +63,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // are multiple alarms in the past, just store one of them
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
-            alarm.enter(|alarm, _| match alarm.expiration {
+            alarm.enter(|alarm| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
                     // Do this because `reference` shadowed below
                     let current_reference = reference;
@@ -121,7 +122,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         self.next_alarm.set(earliest_alarm);
         match earliest_alarm {
             Expiration::Disabled => {
-                self.alarm.disarm();
+                let _ = self.alarm.disarm();
             }
             Expiration::Enabled { reference, dt } => {
                 // This logic handles when the underlying Alarm is wider than
@@ -151,16 +152,25 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `0`: Subscribe to alarm expiration
     fn subscribe(
         &self,
-        _subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
-        self.app_alarms
-            .enter(app_id, |td, _allocator| {
-                td.callback = callback;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+        subscribe_num: usize,
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res: Result<(), ErrorCode> = match subscribe_num {
+            0 => self
+                .app_alarms
+                .enter(app_id, |td| {
+                    mem::swap(&mut callback, &mut td.callback);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 
     /// Setup and read the alarm.
@@ -173,14 +183,20 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
     /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
-    fn command(&self, cmd_type: usize, data: usize, data2: usize, caller_id: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        cmd_type: usize,
+        data: usize,
+        data2: usize,
+        caller_id: ProcessId,
+    ) -> CommandReturn {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We _don't_ reset if
         //   - we're disabling the underlying alarm anyway,
         //   - the underlying alarm is currently disabled and we're enabling the first alarm, or
         //   - on an error (i.e. no change to the alarms).
         self.app_alarms
-            .enter(caller_id, |td, _| {
+            .enter(caller_id, |td| {
                 // helper function to rearm alarm
                 let mut rearm = |reference: usize, dt: usize| {
                     if let Expiration::Disabled = td.expiration {
@@ -191,34 +207,31 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         dt: dt as u32,
                     };
                     (
-                        ReturnCode::SuccessWithValue {
-                            value: reference.wrapping_add(dt),
-                        },
+                        CommandReturn::success_u32(reference.wrapping_add(dt) as u32),
                         true,
                     )
                 };
                 let now = self.alarm.now();
                 match cmd_type {
-                    0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
+                    0 /* check if present */ => (CommandReturn::success(), false),
                     1 /* Get clock frequency */ => {
-                        let freq = <A::Frequency>::frequency() as usize;
-                        (ReturnCode::SuccessWithValue { value: freq }, false)
+                        let freq = <A::Frequency>::frequency();
+                        (CommandReturn::success_u32(freq), false)
                     },
                     2 /* capture time */ => {
-                        (ReturnCode::SuccessWithValue { value: now.into_u32() as usize },
-                         false)
+                        (CommandReturn::success_u32(now.into_u32()), false)
                     },
                     3 /* Stop */ => {
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
-                                (ReturnCode::EALREADY, false)
+                                (CommandReturn::failure(ErrorCode::ALREADY), false)
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
-                                (ReturnCode::SUCCESS, true)
+                                (CommandReturn::success(), true)
                             }
                         }
                     },
@@ -245,16 +258,16 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         let dt = data2;
                         rearm(reference, dt)
                     }
-                    _ => (ReturnCode::ENOSUPPORT, false)
+                    _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                 }
             })
             .map_or_else(
-                |err| err.into(),
-                |(return_code, reset)| {
+                |err| CommandReturn::failure(err.into()),
+                |(result, reset)| {
                     if reset {
                         self.reset_active_alarm();
                     }
-                    return_code
+                    result
                 },
             )
     }
@@ -263,7 +276,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
-        self.app_alarms.each(|alarm| {
+        self.app_alarms.each(|_, alarm| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
@@ -273,13 +286,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    alarm.callback.map(|mut cb| {
-                        cb.schedule(
-                            now.into_u32() as usize,
-                            reference.wrapping_add(dt) as usize,
-                            0,
-                        )
-                    });
+                    alarm.callback.schedule(
+                        now.into_u32() as usize,
+                        reference.wrapping_add(dt) as usize,
+                        0,
+                    );
                 }
             }
         });
@@ -288,7 +299,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
         // Otherwise, check all the alarms and find the next one, rescheduling
         // the underlying alarm.
         if self.num_armed.get() == 0 {
-            self.alarm.disarm();
+            let _ = self.alarm.disarm();
         } else {
             self.reset_active_alarm();
         }

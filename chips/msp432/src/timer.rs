@@ -2,12 +2,13 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
 };
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };
@@ -247,10 +248,10 @@ pub enum InternalTrigger {
 pub trait InternalTimer {
     /// Start timer in a given frequency. No interrupts are generated, the signal when the timer
     /// has elapsed is directly forwarded to the dedicated hardware module.
-    /// SUCCESS: timer started successfully
-    /// EINVAL: frequency too high or too low
-    /// EBUSY: timer already in use
-    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> kernel::ReturnCode;
+    /// Ok(()): timer started successfully
+    /// INVAL: frequency too high or too low
+    /// BUSY: timer already in use
+    fn start(&self, frequency_hz: u32, int_src: InternalTrigger) -> Result<(), ErrorCode>;
 
     /// Stop the timer
     fn stop(&self);
@@ -337,19 +338,19 @@ impl<'a> Time for TimerA<'a> {
 impl<'a> Counter<'a> for TimerA<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.setup_for_alarm();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.stop_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.registers.cnt.set(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -376,7 +377,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.disarm();
+        let _ = self.disarm();
         // Set compare register
         self.registers.ccr0.set(expire.into_u16());
         // Enable capture/compare interrupt
@@ -392,12 +393,12 @@ impl<'a> Alarm<'a> for TimerA<'a> {
         (self.mode.get() == TimerMode::Alarm) && int_enabled
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         // Disable the capture/compare interrupt
         self.registers.cctl0.modify(TAxCCTLx::CCIE::CLEAR);
         // Stop the timer completely
         //self.stop_timer();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -406,13 +407,13 @@ impl<'a> Alarm<'a> for TimerA<'a> {
 }
 
 impl<'a> InternalTimer for TimerA<'a> {
-    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> kernel::ReturnCode {
+    fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> Result<(), ErrorCode> {
         if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
-            return kernel::ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         if frequency_hz > crate::cs::SMCLK_HZ {
-            return kernel::ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         // Stop timer if a different frequency was configured before
@@ -456,7 +457,7 @@ impl<'a> InternalTimer for TimerA<'a> {
         cctl_reg.modify(TAxCCTLx::OUTMOD::SetReset + TAxCCTLx::OUT::CLEAR + TAxCCTLx::CCIE::CLEAR);
 
         self.mode.set(TimerMode::InternalTimer);
-        kernel::ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn stop(&self) {

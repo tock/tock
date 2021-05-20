@@ -2,16 +2,16 @@ Userland
 ========
 
 This document explains how application code works in Tock. This is not a guide
-to creating your own applications, but rather documentation of the design
-thoughts behind how applications function.
+to writing applications, but rather documentation of the overall design
+of how applications function.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
 
 <!-- toc -->
 
-- [Overview of Applications in Tock](#overview-of-applications-in-tock)
+- [Overview of Processes in Tock](#overview-of-processes-in-tock)
 - [System Calls](#system-calls)
-- [Callbacks](#callbacks)
+- [Upcalls and Termination](#upcalls-and-termination)
 - [Inter-Process Communication](#inter-process-communication)
   * [Services](#services)
   * [Clients](#clients)
@@ -22,40 +22,59 @@ thoughts behind how applications function.
 
 <!-- tocstop -->
 
-## Overview of Applications in Tock
+## Overview of Processes in Tock
 
-Applications in Tock are the user-level code meant to accomplish some type of
-task for the end user. Applications are distinguished from kernel code which
-handles device drivers, chip-specific details, and general operating system
-tasks. Unlike many existing embedded operating systems, in Tock applications
-are not compiled with the kernel. Instead they are entirely separate code
-that interact with the kernel and each other through [system
-calls](https://en.wikipedia.org/wiki/System_call).
+Processes in Tock run application code meant to accomplish some type
+of task for the end user. Processes run in user mode. Unlike kernel
+code, which runs in supervisor mode and handles device drivers,
+chip-specific details, as well as general operating system tasks,
+appliction code running in processes is independent of the details of
+the underlying hardware (except the instruction set
+architecture). Unlike many existing embedded operating systems, in
+Tock processes are not compiled with the kernel. Instead they are
+entirely separate code that interact with the kernel and each other
+through [system calls](https://en.wikipedia.org/wiki/System_call).
 
-Since applications are not a part of the kernel, they may be written in any
-language that can be compiled into code capable of running on a microcontroller.
-Tock supports running multiple applications concurrently. Co-operatively
-multiprogramming is the default, but applications may also be time sliced.
-Applications may talk to each other via Inter-Process Communication (IPC)
+Since processes are not a part of the kernel, application code running
+in a process may be written in any language that can be compiled into
+code capable of running on a microcontroller.  Tock supports running
+multiple processes concurrently. Co-operatively multiprogramming is
+the default, but processes may also be time sliced.  Processes may
+share data with each other via Inter-Process Communication (IPC)
 through system calls.
 
-Applications do not have compile-time knowledge of the address at which they
-will be installed and loaded. In the current design of Tock, applications must
-be compiled as [position independent
-code](https://en.wikipedia.org/wiki/Position-independent_code) (PIC). This
-allows them to be run from any address they happen to be loaded into. The use
-of PIC for Tock apps is not a fundamental choice, future versions of the system
-may support run-time relocatable code.
+Processes run code in unprivileged mode (e.g., user mode on CortexM or
+RV32I microcontrollers). The Tock kernel uses hardware memory
+protection (an MPU on CortexM and a PMP on RV32I) to restrict which
+addresses application code running in a process can access. A process
+makes system calls to access hardware peripherals or modify what
+memory is accessible to it.
 
-Applications are unprivileged code. They may not access all portions of memory
-and will fault if they attempt to access memory outside of their boundaries
-(similarly to segmentation faults in Linux code). To interact with hardware,
-applications must make calls to the kernel.
+Tock supports dynamically loading and unloading independently compiled
+applications. In this setting, applications not not know at compile
+time what address they will be installed at and loaded from. To be 
+dynamically loadable, application code must be compiled as [position
+independent
+code](https://en.wikipedia.org/wiki/Position-independent_code)
+(PIC). This allows them to be run from any address they happen to be
+loaded into. 
+
+In some cases, applications may know their location at compile-time. This
+happens, for example, in cases where the kernel and applications are combined
+into a single cryptographically signed binary that is accepted by 
+a secure bootloader. In these cases, compiling an application with
+explicit addresses works.
+
+Tock supports running multiple processes at the same time. The maximum
+number of processes supported by the kernel is typically a compile-time
+constant in the range of 2-4, but is limited only by the available RAM
+and Flash resources of the chip. Tock scheduling generally assumes that
+it is a small number (e.g., uses O(n) scheduling algorithms).
 
 
 ## System Calls
 
-System calls (aka syscalls) are used to send commands to the kernel. These
+System calls are how processes and the kernel share data and interact. These
 could include commands to drivers, subscriptions to callbacks, granting of
 memory to the kernel so it can store data related to the application,
 communication with other application code, and many others. In practice,
@@ -80,41 +99,66 @@ command(uint32_t driver, uint32_t command, int data) {
 }
 ```
 
-A more in-depth discussion can be found in the [system call
-documentation](./Syscalls.md).
+A detailed description of Tock's system call API and ABI can be found in
+[TRD104](reference/trd-syscalls.md). The [system call
+documentation](./Syscalls.md) describes how the are implemented in the
+kernel.
 
 
-## Callbacks
+## Upcalls and Termination
 
-Tock is designed to support embedded applications, which often handle
-asynchronous events through the use of [callback
-functions](https://en.wikipedia.org/wiki/Callback_(computer_programming)). For
-example, in order to receive timer callbacks, you first call `timer_subscribe`
-with a function pointer to your own function that you want called when the
-timer fires. Specific state that you want the callback to act upon can be
-passed as the pointer `userdata`. After the application has started the timer,
-calls `yield`, and the timer fires, the callback function will be called.
+The Tock kernel is completely non-blocking, and it pushes this 
+asynchronous behavior to userspace code. This means that system calls
+(with one exception) do not block. Instead, they always return very quickly.
+Long-running operations (e.g., sending data over a bus, samping a sensor)
+signal their completion to userspace through upcalls. An upcall is a function 
+call the kernel makes on userspace code.
 
-It is important to note that `yield` must be called for events to be serviced in
-the current implementation of Tock. Callbacks to the application will be queued
-when they occur but the application will not receive them until it yields. This
-is not fundamental to Tock, and future version may service callbacks on any
-system call or when performing application time slicing. After receiving and
-running the callback, application code will continue after the `yield`.
-Applications which are "finished" (i.e. have returned from `main()`) should call
-`yield` in a loop to avoid being scheduled by the kernel.
+Yield system calls are the exception to this non-blocking rule. The yield-wait 
+system call blocks until the kernel invokes an upcall on the process. 
+The kernel only invokes upcalls when a process issues the yield system call:
+it does not invoke upcalls at arbitrary points in the program.
 
+For example, consider the case of when a process wants to sleep for 100 
+milliseconds. The timer library might break this into three operations:
+
+1. It registers an upcall for the timer system call driver with a Subscribe
+system call.
+2. It tells the timer system call driver to issue an upcall in 100 
+milliseconds by invoking a Command system call.
+3. It calls the yield-wait system call. This causes the process to block
+until the timer upcall executes. The kernel pushes a stack frame onto
+the process to execute the upcall; this function call returns to the
+instruction after yield was invoked.
+
+When a process registers an upcall with a call to a Subcribe system call,
+it may pass a pointer `userdata`. The kernel does not access or use this
+data: it simply passes it back on each invocation of the upcall. This
+allows a process to register the same function as multiple upcalls, and
+distinguish them by the data passed in the argument.
+
+It is important to note that upcalls are not executed until a process
+calls `yield`. The kernel will enqueue upcalls as events occur within
+the kernel, but the application will not handle them until it yields.
+
+Applications which are "finished"
+should call an Exit system call. There are two variants of Exit:
+exit-terminate and exit-restart. They differ in what they signal to
+the kernel: does the application wish to stop running, or be rebooted?
 
 ## Inter-Process Communication
 
-IPC allows for multiple applications to communicate directly through shared
-buffers. IPC in Tock is implemented with a service-client model. Each app can
-support one service and the service is identified by its package name which is
-included in the Tock Binary Format Header for the app. An app can communicate
-with multiple services and will get a unique handle for each discovered service.
-Clients and services communicate through shared buffers. Each client can share
-some of its own application memory with the service and then notify the service
-to instruct it to parse the shared buffer.
+Inter-process communication (IPC) allows for separate processes to
+communicate directly through shared buffers. IPC in Tock is
+implemented with a service-client model. Each process can support one
+service. The service is identified by the name of the application running
+in the process, which is
+included in the Tock Binary Format Header for the application. A process can
+communicate with multiple services and will get a unique handle for
+each discovered service.  Clients and services communicate through
+shared buffers. Each client can share some of its own application
+memory with the service and then notify the service to instruct it to
+parse the shared buffer.
 
 ### Services
 
@@ -167,9 +211,12 @@ will crash (see the [Debugging](#debugging) section for an example).
 
 ## Debugging
 
-If an application crashes, Tock can provide a lot of useful information.
+If an application crashes, Tock provides a very detailed stack dump.
 By default, when an application crashes Tock prints a crash dump over the
-platform's default console interface.
+platform's default console interface. When your application crases,
+we recommend looking at this output very carefully: often we have spent 
+hours trying to track down a bug which in retrospect was quite obviously
+indicated in the dump, if we had just looked at the right fields.
 
 Note that because an application is relocated when it is loaded, the binaries
 and debugging .lst files generated when the app was originally compiled will not

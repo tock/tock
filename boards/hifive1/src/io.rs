@@ -41,8 +41,8 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         sifive::gpio::pins::pin19::SET,
         sifive::gpio::pins::pin19::CLEAR,
     );
-    gpio::Pin::make_output(&led_green);
-    gpio::Pin::set(&led_green);
+    gpio::Configure::make_output(&led_green);
+    gpio::Output::set(&led_green);
 
     let led_blue = sifive::gpio::GpioPin::new(
         e310x::gpio::GPIO0_BASE,
@@ -50,8 +50,8 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         sifive::gpio::pins::pin21::SET,
         sifive::gpio::pins::pin21::CLEAR,
     );
-    gpio::Pin::make_output(&led_blue);
-    gpio::Pin::set(&led_blue);
+    gpio::Configure::make_output(&led_blue);
+    gpio::Output::set(&led_blue);
 
     let led_red_pin = sifive::gpio::GpioPin::new(
         e310x::gpio::GPIO0_BASE,

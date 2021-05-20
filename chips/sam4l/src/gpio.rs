@@ -3,6 +3,7 @@
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;

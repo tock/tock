@@ -26,10 +26,11 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
 #[repr(C)]
@@ -823,7 +824,7 @@ impl FLASHCALW {
         address: usize,
         size: usize,
         buffer: &'static mut Sam4lPage,
-    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut Sam4lPage)> {
         if self.current_state.get() == FlashState::Unconfigured {
             self.configure();
         }
@@ -838,7 +839,7 @@ impl FLASHCALW {
             || buffer.len() < size
         {
             // invalid flash address
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((ErrorCode::INVAL, buffer));
         }
 
         // Actually do a copy from flash into the buffer.
@@ -866,7 +867,7 @@ impl FLASHCALW {
         &self,
         page_num: i32,
         data: &'static mut Sam4lPage,
-    ) -> Result<(), (ReturnCode, &'static mut Sam4lPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut Sam4lPage)> {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
@@ -874,7 +875,7 @@ impl FLASHCALW {
             FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return Err((ReturnCode::EBUSY, data)),
+            _ => return Err((ErrorCode::BUSY, data)),
         }
 
         // Save the buffer for the future write.
@@ -886,7 +887,7 @@ impl FLASHCALW {
         Ok(())
     }
 
-    fn erase_page(&self, page_num: i32) -> ReturnCode {
+    fn erase_page(&self, page_num: i32) -> Result<(), ErrorCode> {
         // Enable AHB clock (in case it was off).
         pm::enable_clock(self.ahb_clock);
 
@@ -894,13 +895,13 @@ impl FLASHCALW {
             FlashState::Unconfigured => self.configure(),
             FlashState::Ready => {}
             // If we're not ready don't take the command
-            _ => return ReturnCode::EBUSY,
+            _ => return Err(ErrorCode::BUSY),
         }
 
         self.current_state
             .set(FlashState::EraseUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -917,7 +918,7 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
     }
 
@@ -925,11 +926,11 @@ impl hil::flash::Flash for FLASHCALW {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_page(page_number as i32, buf)
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.erase_page(page_number as i32)
     }
 }

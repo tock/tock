@@ -13,6 +13,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310x::chip::E310xDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::led::LedLow;
@@ -31,19 +32,18 @@ pub const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<
     &'static e310x::chip::E310x<
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint>,
         E310xDefaultPeripherals,
     >,
 > = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -62,7 +62,7 @@ struct HiFive1 {
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
     >,
 }
 
@@ -82,14 +82,12 @@ impl Platform for HiFive1 {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// setup and RAM initialization.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
+pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
@@ -152,32 +150,29 @@ pub unsafe fn reset_handler() {
         .initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
 
     let hardware_timer = static_init!(
-        rv32i::machine_timer::MachineTimer,
-        rv32i::machine_timer::MachineTimer::new(e310x::timer::MTIME_BASE)
+        sifive::clint::Clint,
+        sifive::clint::Clint::new(&e310x::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        MuxAlarm<'static, sifive::clint::Clint>,
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        >,
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(&memory_allocation_cap)
@@ -186,10 +181,7 @@ pub unsafe fn reset_handler() {
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
-        e310x::chip::E310x<
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-            E310xDefaultPeripherals,
-        >,
+        e310x::chip::E310x<VirtualMuxAlarm<'static, sifive::clint::Clint>, E310xDefaultPeripherals>,
         e310x::chip::E310x::new(systick_virtual_alarm, peripherals, hardware_timer)
     );
     systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
@@ -247,7 +239,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

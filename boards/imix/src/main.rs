@@ -93,10 +93,9 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 
@@ -255,14 +254,11 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     peripherals.pc[31].configure(None); //... D2          -- GPIO Pin
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the SAM4L chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     sam4l::init();
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
     let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
@@ -357,7 +353,7 @@ pub unsafe fn reset_handler() {
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
+    let spi_syscalls = SpiSyscallComponent::new(board_kernel, mux_spi, 2)
         .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
         .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
@@ -436,6 +432,7 @@ pub unsafe fn reset_handler() {
             ac_2,
             ac_3
         ),
+        board_kernel,
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
     let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
@@ -461,7 +458,7 @@ pub unsafe fn reset_handler() {
     );
 
     // Can this initialize be pushed earlier, or into component? -pal
-    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         rf233,
@@ -562,10 +559,12 @@ pub unsafe fn reset_handler() {
 
     // These two lines need to be below the creation of the chip for
     // initialization to work.
-    rf233.reset();
-    rf233.start();
+    let _ = rf233.reset();
+    let _ = rf233.start();
+
 
     imix.pconsole.start(driver_debug_str);
+
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
@@ -639,7 +638,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

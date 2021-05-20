@@ -25,7 +25,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Argument 1** `as *u8`: Address of the new program break (aka maximum
     accessible value).
 
-    **Returns** `ReturnCode as u32`: `SUCCESS` or `ENOMEM`.
+    **Returns** `Result<(), ErrorCode> as u32`: `Ok(())` or `NOMEM`.
 
   * ### Operation type `1`: `sbrk`
 
@@ -34,7 +34,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as i32`: Number of bytes to move the program break.
 
-    **Returns** `as *u8`: The previous program break (the start of the newly allocated memory) or `ENOMEM`.
+    **Returns** `as *u8`: The previous program break (the start of the newly allocated memory) or `NOMEM`.
 
   * ### Operation type `2`: Memory start
 
@@ -117,7 +117,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the stack top.
 
-    **Returns** `ReturnCode as u32`: Always `SUCCESS`.
+    **Returns** `Result<(), ErrorCode> as u32`: Always `Ok(())`.
 
   * ### Operation type `11`: (debug) Specify heap location
 
@@ -125,4 +125,4 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the heap start.
 
-    **Returns** `ReturnCode as u32`: Always `SUCCESS`.
+    **Returns** `Result<(), ErrorCode> as u32`: Always `Ok(())`.

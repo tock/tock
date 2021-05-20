@@ -32,10 +32,11 @@
 use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use nrf5x::pinmux::Pinmux;
 
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
@@ -349,7 +350,7 @@ impl hil::spi::SpiMaster for SPIM {
         tx_buf: &'static mut [u8],
         rx_buf: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
@@ -357,7 +358,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
-            return ReturnCode::ENODEVICE;
+            return Err(ErrorCode::NODEVICE);
         }
         self.chip_select.map(|cs| cs.clear());
 
@@ -387,7 +388,7 @@ impl hil::spi::SpiMaster for SPIM {
         // Start the transfer
         self.busy.set(true);
         self.registers.tasks_start.write(TASK::TASK::SET);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn write_byte(&self, _val: u8) {

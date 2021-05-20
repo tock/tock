@@ -7,10 +7,11 @@
 
 use crate::pm::{self, Clock, PBAClock};
 use core::cell::Cell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[repr(C)]
 pub struct DacRegisters {
@@ -134,7 +135,7 @@ impl Dac {
 }
 
 impl hil::dac::DacChannel for Dac {
-    fn initialize(&self) -> ReturnCode {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
             self.enabled.set(true);
 
@@ -157,23 +158,23 @@ impl hil::dac::DacChannel for Dac {
                 + Mode::DACEN::SET;
             self.registers.mr.write(mr);
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn set_value(&self, value: usize) -> ReturnCode {
+    fn set_value(&self, value: usize) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
-            ReturnCode::EOFF
+            Err(ErrorCode::OFF)
         } else {
             // Check if ready to write to CDR
             if !self.registers.isr.is_set(InterruptStatus::TXRDY) {
-                return ReturnCode::EBUSY;
+                return Err(ErrorCode::BUSY);
             }
 
             // Write to CDR
             self.registers
                 .cdr
                 .write(ConversionData::DATA.val(value as u32));
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }

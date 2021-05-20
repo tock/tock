@@ -27,15 +27,14 @@ mod multi_alarm_test;
 const NUM_PROCS: usize = 4;
 
 /// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>> =
     None;
 
 /// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -141,14 +140,11 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
     // gpio.pins[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the MSP432 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     startup_intilialisation();
 
     let peripherals = static_init!(
@@ -404,7 +400,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap();

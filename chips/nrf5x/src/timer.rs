@@ -23,11 +23,12 @@
 //! * Date: August 18, 2016
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Time};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
@@ -347,9 +348,9 @@ impl<'a> Alarm<'a> for TimerAlarm<'a> {
         Self::Ticks::from(self.registers.cc[CC_COMPARE].read(CC::CC))
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         self.disable_interrupts();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

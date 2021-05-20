@@ -3,10 +3,11 @@
 
 use crate::pm;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[repr(C)]
 struct TrngRegisters {
@@ -64,7 +65,7 @@ impl<'a> Trng<'a> {
         self.regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
-            let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
+            let result = client.entropy_available(&mut TrngIter(self), Ok(()));
             if let Continue::Done = result {
                 // disable controller
                 self.regs
@@ -93,18 +94,18 @@ impl Iterator for TrngIter<'_, '_> {
 }
 
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         self.regs
             .cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
         self.regs.ier.write(Interrupt::DATRDY::SET);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn cancel(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn cancel(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
     fn set_client(&'a self, client: &'a dyn entropy::Client32) {

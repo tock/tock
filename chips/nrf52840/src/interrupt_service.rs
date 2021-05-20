@@ -13,9 +13,9 @@ pub struct Nrf52840DefaultPeripherals<'a> {
 }
 
 impl<'a> Nrf52840DefaultPeripherals<'a> {
-    pub unsafe fn new(ppi: &'a crate::ppi::Ppi) -> Self {
+    pub unsafe fn new() -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(ppi),
+            nrf52: Nrf52DefaultPeripherals::new(),
             usbd: crate::usbd::Usbd::new(),
             gpio_port: crate::gpio::nrf52840_gpio_create(),
         }

@@ -14,6 +14,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::spi;
@@ -21,7 +22,8 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use kernel::{ClockInterface, ReturnCode};
+use kernel::ClockInterface;
+use kernel::ErrorCode;
 
 #[repr(C)]
 pub struct SpiRegisters {
@@ -438,9 +440,9 @@ impl SpiHw {
     /// Asynchronous buffer read/write of SPI.
     ///
     /// Returns:
-    /// - `SUCCESS` if operation starts (will receive callback through
+    /// - `Ok(())` if operation starts (will receive callback through
     ///   SpiMasterClient)
-    /// - `EINVAL` if no buffers were passed in
+    /// - `INVAL` if no buffers were passed in
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -448,9 +450,9 @@ impl SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         // Start by enabling the SPI driver.
@@ -502,7 +504,7 @@ impl SpiHw {
             });
         });
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -559,9 +561,9 @@ impl spi::SpiMaster for SpiHw {
     /// of the read/write is the minimum of two buffer lengths.
     ///
     /// Returns:
-    /// - `SUCCESS` if operation starts (will receive callback through
+    /// - `Ok(())` if operation starts (will receive callback through
     ///   SpiMasterClient)
-    /// - `EBUSY` if the operation does not start
+    /// - `BUSY` if the operation does not start
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -569,10 +571,10 @@ impl spi::SpiMaster for SpiHw {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // If busy, don't start.
         if self.is_busy() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.read_write_bytes(Some(write_buffer), read_buffer, len)
@@ -651,14 +653,14 @@ impl spi::SpiSlave for SpiHw {
     /// Setup buffers for a SPI transaction initiated by the master device.
     ///
     /// Returns:
-    /// - `SUCCESS` if the operation starts. A callback will be generated.
-    /// - `EINVAL` if neither the read or write buffer is provided.
+    /// - `Ok(())` if the operation starts. A callback will be generated.
+    /// - `INVAL` if neither the read or write buffer is provided.
     fn read_write_bytes(
         &self,
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 

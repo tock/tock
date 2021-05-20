@@ -2,10 +2,12 @@ use crate::rcc;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
-use kernel::{ClockInterface, ReturnCode};
+use kernel::ClockInterface;
+use kernel::ErrorCode;
 
 use crate::deferred_calls::DeferredCallTask;
 
@@ -292,18 +294,23 @@ impl ClockInterface for FsmcClock<'_> {
 }
 
 impl Bus8080<'static> for Fsmc<'_> {
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> ReturnCode {
+    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
         match addr_width {
             BusWidth::Bits8 => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
                 DEFERRED_CALL.set();
-                ReturnCode::SUCCESS
+                Ok(())
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
         }
     }
 
-    fn write(&self, data_width: BusWidth, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn write(
+        &self,
+        data_width: BusWidth,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), ErrorCode> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
@@ -323,13 +330,18 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.bus_width.set(bytes);
             self.len.set(len);
             DEFERRED_CALL.set();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 
-    fn read(&self, data_width: BusWidth, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn read(
+        &self,
+        data_width: BusWidth,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), ErrorCode> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
@@ -342,16 +354,16 @@ impl Bus8080<'static> for Fsmc<'_> {
                             }] = (data >> (8 * byte)) as u8;
                     }
                 } else {
-                    return ReturnCode::ENOMEM;
+                    return Err(ErrorCode::NOMEM);
                 }
             }
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
             DEFERRED_CALL.set();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::ENOMEM
+            Err(ErrorCode::NOMEM)
         }
     }
 

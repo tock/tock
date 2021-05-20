@@ -1,13 +1,15 @@
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
-use kernel::{ClockInterface, ReturnCode};
+use kernel::ClockInterface;
 
 use crate::dma1;
 use crate::dma1::Dma1Peripheral;
@@ -284,9 +286,9 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         self.active_slave.map(|p| {
@@ -323,7 +325,7 @@ impl<'a> Spi<'a> {
             self.enable_tx();
         });
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -382,10 +384,10 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // If busy, don't start
         if self.is_busy() {
-            return ReturnCode::EBUSY;
+            return Err(ErrorCode::BUSY);
         }
 
         self.read_write_bytes(Some(write_buffer), read_buffer, len)

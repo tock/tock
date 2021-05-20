@@ -1,5 +1,6 @@
 //! Watchdog driver.
 
+use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

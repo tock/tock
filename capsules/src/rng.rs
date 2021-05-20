@@ -14,18 +14,22 @@
 //! # use kernel::static_init;
 //!
 //! let rng = static_init!(
-//!         capsules::rng::RngDriver<'static, sam4l::trng::Trng>,
-//!         capsules::rng::RngDriver::new(&sam4l::trng::TRNG, board_kernel.create_grant(&grant_cap)));
+//!     capsules::rng::RngDriver<'static, sam4l::trng::Trng>,
+//!     capsules::rng::RngDriver::new(&sam4l::trng::TRNG, board_kernel.create_grant(&grant_cap)),
+//! );
 //! sam4l::trng::TRNG.set_client(rng);
 //! ```
 
 use core::cell::Cell;
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice, Upcall,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -33,8 +37,8 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
-    buffer: Option<AppSlice<Shared, u8>>,
+    callback: Upcall,
+    buffer: ReadWriteAppSlice,
     remaining: usize,
     idx: usize,
 }
@@ -59,32 +63,47 @@ impl rng::Client for RngDriver<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 // Check if this app needs random values.
-                if app.remaining > 0 && app.callback.is_some() && app.buffer.is_some() {
-                    app.buffer.take().map(|mut buffer| {
-                        // Check that the app is not asking for more than can
-                        // fit in the provided buffer.
+                if app.remaining > 0 {
+                    // Provide the current application values to the closure
+                    let (oldidx, oldremaining) = (app.idx, app.remaining);
 
-                        if buffer.len() < app.idx + app.remaining {
-                            app.remaining = buffer.len() - app.idx;
-                        }
+                    let (newidx, newremaining) = app.buffer.mut_map_or(
+                        // If the process is no longer alive
+                        // (or this is a default AppSlice),
+                        // set the idx and remaining values of
+                        // this app to (0, 0)
+                        (0, 0),
+                        |buffer| {
+                            let mut idx = oldidx;
+                            let mut remaining = oldremaining;
 
-                        {
+                            // Check that the app is not asking for more than can
+                            // fit in the provided buffer
+                            if buffer.len() < idx {
+                                // The buffer does not fit at all
+                                // anymore (the app must've swapped
+                                // buffers), end the operation
+                                return (0, 0);
+                            } else if buffer.len() < idx + remaining {
+                                remaining = buffer.len() - idx;
+                            }
+
                             // Add all available and requested randomness to the app buffer.
 
                             // 1. Slice buffer to start from current idx
-                            let buf = &mut buffer.as_mut()[app.idx..(app.idx + app.remaining)];
+                            let buf = &mut buffer.as_mut()[idx..(idx + remaining)];
                             // 2. Take at most as many random samples as needed to fill the buffer
                             //    (if app.remaining is not word-sized, take an extra one).
-                            let remaining_ints = if app.remaining % 4 == 0 {
-                                app.remaining / 4
+                            let remaining_ints = if remaining % 4 == 0 {
+                                remaining / 4
                             } else {
-                                app.remaining / 4 + 1
+                                remaining / 4 + 1
                             };
 
                             // 3. Zip over the randomness iterator and chunks
@@ -94,24 +113,26 @@ impl rng::Client for RngDriver<'_> {
                             {
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
-                                for (i, b) in outs.iter_mut().enumerate() {
-                                    *b = ((inp >> i * 8) & 0xff) as u8;
-                                    app.remaining -= 1;
-                                    app.idx += 1;
-                                }
+                                let inbytes = u32::to_le_bytes(inp);
+                                outs.iter_mut().zip(inbytes.iter()).for_each(|(out, inb)| {
+                                    *out = *inb;
+                                    remaining -= 1;
+                                    idx += 1;
+                                });
                             }
-                        }
 
-                        // Replace taken buffer
-                        app.buffer = Some(buffer);
-                    });
+                            (idx, remaining)
+                        },
+                    );
+
+                    // Store the updated values in the application
+                    app.idx = newidx;
+                    app.remaining = newremaining;
 
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback.map(|mut cb| {
-                            cb.schedule(0, app.idx, 0);
-                        });
+                        app.callback.schedule(0, newidx, 0);
                     }
                 }
             });
@@ -134,72 +155,84 @@ impl rng::Client for RngDriver<'_> {
 }
 
 impl<'a> Driver for RngDriver<'a> {
-    fn allow(
+    fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         // pass buffer in from application
-        match allow_num {
+        let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.buffer = slice;
-                    ReturnCode::SUCCESS
+                .enter(appid, |app| {
+                    mem::swap(&mut app.buffer, &mut slice);
+                    Ok(())
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
+                .enter(app_id, |app| {
+                    mem::swap(&mut app.callback, &mut callback);
+                    Ok(())
                 })
-                .unwrap_or_else(|err| err.into()),
+                .unwrap_or_else(|err| Err(err.into())),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
 
-            // default
-            _ => ReturnCode::ENOSUPPORT,
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
-            0 =>
-            /* Check if exists */
+            0 /* Check if exists */ =>
             {
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
 
-            // Ask for a given number of random bytes.
-            1 => self
+            1 /* Ask for a given number of random bytes */ => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.remaining = data;
                     app.idx = 0;
 
-                    if app.callback.is_some() && app.buffer.is_some() {
-                        if !self.getting_randomness.get() {
-                            self.getting_randomness.set(true);
-                            self.rng.get();
-                        }
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::ERESERVE
+                    // Assume that the process has a callback & slice
+                    // set. It might die or revoke them before the
+                    // result arrives anyways
+                    if !self.getting_randomness.get() {
+                        self.getting_randomness.set(true);
+                        let _ = self.rng.get();
                     }
+
+                    CommandReturn::success()
                 })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -219,11 +252,11 @@ impl<'a> Entropy32ToRandom<'a> {
 }
 
 impl<'a> Rng<'a> for Entropy32ToRandom<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -237,18 +270,16 @@ impl entropy::Client32 for Entropy32ToRandom<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 match client.randomness_available(&mut Entropy32ToRandomIter(entropy), error) {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
             } else {
-                match client
-                    .randomness_available(&mut Entropy32ToRandomIter(entropy), ReturnCode::SUCCESS)
-                {
+                match client.randomness_available(&mut Entropy32ToRandomIter(entropy), Ok(())) {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
@@ -286,19 +317,19 @@ impl<'a> Entropy8To32<'a> {
 }
 
 impl<'a> Entropy32<'a> for Entropy8To32<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -312,10 +343,10 @@ impl entropy::Client8 for Entropy8To32<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 client.entropy_available(&mut Entropy8To32Iter(self), error)
             } else {
                 let mut count = self.count.get();
@@ -339,8 +370,7 @@ impl entropy::Client8 for Entropy8To32<'_> {
                         }
                     }
                 }
-                let rval =
-                    client.entropy_available(&mut Entropy8To32Iter(self), ReturnCode::SUCCESS);
+                let rval = client.entropy_available(&mut Entropy8To32Iter(self), Ok(()));
                 self.bytes.set(0);
                 rval
             }
@@ -383,19 +413,19 @@ impl<'a> Entropy32To8<'a> {
 }
 
 impl<'a> Entropy8<'a> for Entropy32To8<'a> {
-    fn get(&self) -> ReturnCode {
+    fn get(&self) -> Result<(), ErrorCode> {
         self.egen.get()
     }
 
     /// Cancel acquisition of random numbers.
     ///
     /// There are two valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///   - Ok(()): an outstanding request from `get` has been cancelled,
     ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
-    fn cancel(&self) -> ReturnCode {
+    fn cancel(&self) -> Result<(), ErrorCode> {
         self.egen.cancel()
     }
 
@@ -409,10 +439,10 @@ impl entropy::Client32 for Entropy32To8<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
-        error: ReturnCode,
+        error: Result<(), ErrorCode>,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
-            if error != ReturnCode::SUCCESS {
+            if error != Ok(()) {
                 client.entropy_available(&mut Entropy32To8Iter(self), error)
             } else {
                 let r = entropy.next();
@@ -423,7 +453,7 @@ impl entropy::Client32 for Entropy32To8<'_> {
                         self.bytes_consumed.set(0);
                     }
                 }
-                client.entropy_available(&mut Entropy32To8Iter(self), ReturnCode::SUCCESS)
+                client.entropy_available(&mut Entropy32To8Iter(self), Ok(()))
             }
         })
     }
@@ -468,7 +498,7 @@ impl<'a> SynchronousRandom<'a> {
 impl<'a> Random<'a> for SynchronousRandom<'a> {
     fn initialize(&'a self) {
         self.rgen.set_client(self);
-        self.rgen.get();
+        let _ = self.rgen.get();
     }
 
     fn reseed(&self, seed: u32) {
@@ -495,7 +525,7 @@ impl Client for SynchronousRandom<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
-        _error: ReturnCode,
+        _error: Result<(), ErrorCode>,
     ) -> Continue {
         match randomness.next() {
             None => Continue::More,

@@ -27,11 +27,12 @@
 
 use crate::pm;
 use core::cell::Cell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil::analog_comparator;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Representation of an AC channel on the SAM4L.
 pub struct AcChannel {
@@ -471,59 +472,59 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
     }
 
     /// Start interrupt-based comparisons
-    fn start_comparing(&self, channel: &Self::Channel) -> ReturnCode {
+    fn start_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         self.enable();
         let regs = ACIFC_BASE;
 
         if channel.chan_num == 0 {
             // Enable interrupts.
             regs.ier.write(Interrupt::ACINT0::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 1 {
             // Repeat the same for ac == 1
             regs.ier.write(Interrupt::ACINT1::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 2 {
             // Repeat the same for ac == 2
             regs.ier.write(Interrupt::ACINT2::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 3 {
             // Repeat the same for ac == 3
             regs.ier.write(Interrupt::ACINT3::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
     /// Stop interrupt-based comparisons
-    fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode {
+    fn stop_comparing(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         let regs = ACIFC_BASE;
 
         if channel.chan_num == 0 {
             // Disable interrupts.
             regs.ier.write(Interrupt::ACINT0::CLEAR);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 1 {
             // Repeat the same for ac == 1
             regs.ier.write(Interrupt::ACINT1::CLEAR);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 2 {
             // Repeat the same for ac == 2
             regs.ier.write(Interrupt::ACINT2::CLEAR);
-            ReturnCode::SUCCESS
+            Ok(())
         } else if channel.chan_num == 3 {
             // Repeat the same for ac == 3
             regs.ier.write(Interrupt::ACINT3::CLEAR);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 

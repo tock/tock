@@ -2,9 +2,7 @@
 
 use core::marker::PhantomData;
 
-use tock_registers::registers::{
-    Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue,
-};
+use tock_registers::registers::{Field, IntLike, Readable, RegisterLongName, Writeable};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
@@ -20,6 +18,8 @@ pub const MEPC: usize = 0x341;
 pub const MCAUSE: usize = 0x342;
 pub const MTVAL: usize = 0x343;
 pub const MIP: usize = 0x344;
+pub const MSECCFG: usize = 0x390;
+pub const MSECCFGH: usize = 0x391;
 pub const PMPCFG0: usize = 0x3A0;
 pub const PMPCFG1: usize = 0x3A1;
 pub const PMPCFG2: usize = 0x3A2;
@@ -125,12 +125,157 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
         }
     }
 
+    // Special methods only available on RISC-V CSRs, not found in the
+    // usual tock-registers interface, others implemented through the
+    // respective [`Readable`] and [`Writeable`] trait implementations
+
+    /// Atomically swap the contents of a CSR
+    ///
+    /// Reads the current value of a CSR and replaces it with the
+    /// specified value in a single instruction, returning the
+    /// previous value.
+    ///
+    /// This method corresponds to the RISC-V `CSRRW rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) value_to_set` and `rd =
+    /// out(reg) <return value>`.
     #[cfg(all(
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     ))]
     #[inline]
-    pub fn get(&self) -> usize {
+    pub fn atomic_replace(&self, val_to_set: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrw {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) val_to_set);
+        }
+        r
+    }
+
+    /// Atomically swap the contents of a CSR
+    ///
+    /// Reads the current value of a CSR and replaces it with the
+    /// specified value in a single instruction, returning the
+    /// previous value.
+    ///
+    /// This method corresponds to the RISC-V `CSRRW rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) value_to_set` and `rd =
+    /// out(reg) <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn atomic_replace(&self, _value_to_set: usize) -> usize {
+        unimplemented!("RISC-V CSR {} Atomic Read/Write", V)
+    }
+
+    /// Atomically read a CSR and set bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    pub fn read_and_set_bits(&self, bitmask: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrs {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) bitmask);
+        }
+        r
+    }
+
+    /// Atomically read a CSR and set bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn read_and_set_bits(&self, bitmask: usize) -> usize {
+        unimplemented!(
+            "RISC-V CSR {} Atomic Read and Set Bits, bitmask {:04x}",
+            V,
+            bitmask
+        )
+    }
+
+    /// Atomically read a CSR and clear bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    pub fn read_and_clear_bits(&self, bitmask: usize) -> usize {
+        let r: usize;
+        unsafe {
+            asm!("csrrc {rd}, {csr}, {rs1}",
+                 rd = out(reg) r,
+                 csr = const V,
+                 rs1 = in(reg) bitmask);
+        }
+        r
+    }
+
+    /// Atomically read a CSR and clear bits specified in a bitmask
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
+    /// <return value>`.
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    pub fn read_and_clear_bits(&self, bitmask: usize) -> usize {
+        unimplemented!(
+            "RISC-V CSR {} Atomic Read and Clear Bits, bitmask {:04x}",
+            V,
+            bitmask
+        )
+    }
+
+    /// Atomically read field and set all bits to 1
+    ///
+    /// This method corresponds to the RISC-V `CSRRS rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_set_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_set_bits(field.mask << field.shift))
+    }
+
+    /// Atomically read field and set all bits to 0
+    ///
+    /// This method corresponds to the RISC-V `CSRRC rd, csr, rs1`
+    /// instruction, where `rs1` is the bitmask described by the
+    /// [`Field`].
+    ///
+    /// The previous value of the field is returned.
+    #[inline]
+    pub fn read_and_clear_field(&self, field: Field<usize, R>) -> usize {
+        field.read(self.read_and_clear_bits(field.mask << field.shift))
+    }
+}
+
+impl<R: RegisterLongName, const V: usize> Readable for ReadWriteRiscvCsr<usize, R, V> {
+    type T = usize;
+    type R = R;
+
+    #[cfg(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))]
+    #[inline]
+    fn get(&self) -> usize {
         let r: usize;
         unsafe {
             asm!("csrr {rd}, {csr}", rd = out(reg) r, csr = const V);
@@ -138,76 +283,30 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
         r
     }
 
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    fn get(&self) -> usize {
+        unimplemented!("reading RISC-V CSR {}", V)
+    }
+}
+
+impl<R: RegisterLongName, const V: usize> Writeable for ReadWriteRiscvCsr<usize, R, V> {
+    type T = usize;
+    type R = R;
+
     #[cfg(all(
         any(target_arch = "riscv32", target_arch = "riscv64"),
         target_os = "none"
     ))]
     #[inline]
-    pub fn set(&self, val_to_set: usize) {
+    fn set(&self, val_to_set: usize) {
         unsafe {
             asm!("csrw {csr}, {rs}", rs = in(reg) val_to_set, csr = const V);
         }
     }
 
-    // Mock implementations for tests on Travis-CI.
     #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn get(&self) -> usize {
-        unimplemented!("reading RISC-V CSR {}", V)
-    }
-
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
-    pub fn set(&self, _val_to_set: usize) {
+    fn set(&self, _val_to_set: usize) {
         unimplemented!("writing RISC-V CSR {}", V)
-    }
-
-    #[inline]
-    pub fn read(&self, field: Field<usize, R>) -> usize {
-        field.read(self.get())
-    }
-
-    #[inline]
-    pub fn read_as_enum<E: TryFromValue<usize, EnumType = E>>(
-        &self,
-        field: Field<usize, R>,
-    ) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<usize, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    pub fn write(&self, field: FieldValue<usize, R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    pub fn modify(&self, field: FieldValue<usize, R>) {
-        self.set(field.modify(self.get()));
-    }
-
-    #[inline]
-    pub fn modify_no_read(
-        &self,
-        original: LocalRegisterCopy<usize, R>,
-        field: FieldValue<usize, R>,
-    ) {
-        self.set(field.modify(original.get()));
-    }
-    #[inline]
-    pub fn is_set(&self, field: Field<usize, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    pub fn matches_any(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    pub fn matches_all(&self, field: FieldValue<usize, R>) -> bool {
-        field.matches_all(self.get())
     }
 }

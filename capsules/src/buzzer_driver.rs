@@ -40,10 +40,11 @@
 
 use core::cmp;
 
+use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -62,7 +63,7 @@ pub enum BuzzerCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>, // Optional callback to signal when the buzzer event is over.
+    callback: Upcall, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
@@ -74,7 +75,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // Per-app state.
     apps: Grant<App>,
     // Which app is currently using the buzzer.
-    active_app: OptionalCell<AppId>,
+    active_app: OptionalCell<ProcessId>,
     // Max buzz time.
     max_duration_ms: usize,
 }
@@ -98,7 +99,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending
     // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: AppId) -> ReturnCode {
+    fn enqueue_command(&self, command: BuzzerCommand, app_id: ProcessId) -> Result<(), ErrorCode> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
@@ -106,23 +107,23 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     // Some app is using the storage, we must wait.
                     if app.pending_command.is_some() {
                         // No more room in the queue, nowhere to store this
                         // request.
-                        ReturnCode::ENOMEM
+                        Err(ErrorCode::NOMEM)
                     } else {
                         // We can store this, so lets do it.
                         app.pending_command = Some(command);
-                        ReturnCode::SUCCESS
+                        Ok(())
                     }
                 })
                 .unwrap_or_else(|err| err.into())
         }
     }
 
-    fn buzz(&self, command: BuzzerCommand) -> ReturnCode {
+    fn buzz(&self, command: BuzzerCommand) -> Result<(), ErrorCode> {
         match command {
             BuzzerCommand::Buzz {
                 frequency_hz,
@@ -133,7 +134,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                 let ret = self
                     .pwm_pin
                     .start(frequency_hz, self.pwm_pin.get_maximum_duty_cycle() / 2);
-                if ret != ReturnCode::SUCCESS {
+                if ret != Ok(()) {
                     return ret;
                 }
 
@@ -141,20 +142,21 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                 let interval = (duration_ms as u32) * <A::Frequency>::frequency() / 1000;
                 self.alarm
                     .set_alarm(self.alarm.now(), A::Ticks::from(interval));
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
+            let appid = appiter.processid();
+            let started_command = appiter.enter(|app| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {
                     // Mark this driver as being in use.
-                    self.active_app.set(app.appid());
+                    self.active_app.set(appid);
                     // Actually make the buzz happen.
-                    self.buzz(command) == ReturnCode::SUCCESS
+                    self.buzz(command) == Ok(())
                 })
             });
             if started_command {
@@ -168,11 +170,11 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
     fn alarm(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
-        self.pwm_pin.stop();
+        let _ = self.pwm_pin.stop();
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
-            let _ = self.apps.enter(app_id, |app, _| {
-                app.callback.map(|mut cb| cb.schedule(0, 0, 0));
+            let _ = self.apps.enter(app_id, |app| {
+                app.callback.schedule(0, 0, 0);
             });
         });
 
@@ -191,39 +193,48 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
-        self.apps
-            .enter(app_id, |app, _| {
-                match subscribe_num {
-                    0 => app.callback = callback,
-                    _ => return ReturnCode::ENOSUPPORT,
-                }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
+            0 => self
+                .apps
+                .enter(app_id, |app| mem::swap(&mut app.callback, &mut callback))
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+        if let Err(e) = res {
+            Err((callback, e))
+        } else {
+            Ok(callback)
+        }
     }
 
     /// Command interface.
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return SUCCESS if this driver is included on the platform.
-    /// - `1`: Buzz the buzzer. `arg1` is used for the frequency in hertz, and
-    ///   `arg2` is the duration in ms. Note the duration is capped at 5000
+    /// - `0`: Return Ok(()) if this driver is included on the platform.
+    /// - `1`: Buzz the buzzer. `data1` is used for the frequency in hertz, and
+    ///   `data2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
-    fn command(&self, command_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 =>
             /* This driver exists. */
             {
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
 
             1 => {
-                let frequency_hz = arg1;
-                let duration_ms = cmp::min(arg2, self.max_duration_ms);
+                let frequency_hz = data1;
+                let duration_ms = cmp::min(data2, self.max_duration_ms);
                 self.enqueue_command(
                     BuzzerCommand::Buzz {
                         frequency_hz,
@@ -231,9 +242,10 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
                     },
                     appid,
                 )
+                .into()
             }
 
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

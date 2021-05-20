@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
@@ -62,7 +62,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         self.inflight.set(node);
                         node.txbuffer.take().map(|txbuffer| {
                             let rxbuffer = node.rxbuffer.take();
-                            self.spi.read_write_bytes(txbuffer, rxbuffer, len);
+                            let _ = self.spi.read_write_bytes(txbuffer, rxbuffer, len);
                         });
                     }
                     Op::SetPolarity(pol) => {
@@ -155,12 +155,12 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
@@ -239,7 +239,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.spi.read_write_bytes(write_buffer, read_buffer, len)
     }
 

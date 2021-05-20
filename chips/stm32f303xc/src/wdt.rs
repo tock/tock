@@ -2,6 +2,7 @@
 
 use crate::rcc;
 use core::cell::Cell;
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;

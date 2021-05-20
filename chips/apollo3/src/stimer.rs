@@ -1,14 +1,14 @@
 //! STimer driver for the Apollo3
 
 use kernel::common::cells::OptionalCell;
+use kernel::ErrorCode;
 
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
-
-use kernel::ReturnCode;
 
 const STIMER_BASE: StaticRef<STimerRegisters> =
     unsafe { StaticRef::new(0x4000_8000 as *const STimerRegisters) };
@@ -136,18 +136,18 @@ impl<'a> Counter<'a> for STimer<'a> {
         //self.overflow_client.set(client);
     }
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         // Set the clock source
         self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
-        ReturnCode::EBUSY
+    fn stop(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::BUSY)
     }
 
-    fn reset(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn reset(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
     fn is_running(&self) -> bool {
@@ -198,7 +198,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
         Self::Ticks::from(regs.scmpr[0].get())
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         regs.stcfg.modify(
@@ -211,7 +211,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
                 + STCFG::COMPARE_G_EN::CLEAR
                 + STCFG::COMPARE_H_EN::CLEAR,
         );
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

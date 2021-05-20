@@ -7,6 +7,7 @@ use crate::gpio;
 use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
@@ -581,7 +582,7 @@ impl PowerManager {
 
 impl PowerManager {
     /// Sets up the system clock. This should be called as one of the first
-    /// lines in the `reset_handler` within the platform's `main.rs`.
+    /// lines in the `main()` function within the platform's `main.rs`.
     pub unsafe fn setup_system_clock(
         &self,
         clock_source: SystemClockSource,

@@ -64,21 +64,30 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_19;
 
+// Constants related to the configuration of the 15.4 network stack
 /// Personal Area Network ID for the IEEE 802.15.4 radio
 const PAN_ID: u16 = 0xABCD;
+/// Gateway (or next hop) MAC Address
+const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
+    capsules::net::ieee802154::MacAddress::Short(49138);
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
 /// UART Writer for panic!()s.
 pub mod io;
 
-// State for loading and holding applications.
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+// How should the kernel respond when a process faults. For this board we choose
+// to stop the app and print a notice, but not immediately panic. This allows
+// users to debug their apps, but avoids issues with using the USB/CDC stack
+// synchronously for panic! too early after the board boots.
+const FAULT_RESPONSE: kernel::procs::StopWithDebugFaultPolicy =
+    kernel::procs::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+// State for loading and holding applications.
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut CDC_REF_FOR_PANIC: Option<
@@ -118,6 +127,8 @@ driver_debug! {
             components::process_console::Capability,
         >,
         proximity: &'static capsules::proximity::ProximitySensor<'static>,
+        temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+        humidity: &'static capsules::humidity::HumiditySensor<'static>,
         gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
         led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
         rng: &'static capsules::rng::RngDriver<'static>,
@@ -126,6 +137,7 @@ driver_debug! {
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         >,
+        udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     }
 }
 
@@ -137,29 +149,41 @@ impl kernel::Platform for Platform {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
 }
 
-/// Entry point in the vector table called on hard reset.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52840::init();
-    let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ppi)
+        Nrf52840DefaultPeripherals::new()
     );
+
+    nrf52840_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52840::init();
+
+    let nrf52840_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
@@ -247,7 +271,7 @@ pub unsafe fn reset_handler() {
     //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
@@ -352,6 +376,12 @@ pub unsafe fn reset_handler() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
+    let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
+        .finalize(components::hts221_component_helper!());
+    let temperature =
+        components::temperature::TemperatureComponent::new(board_kernel, hts221).finalize(());
+    let humidity = components::humidity::HumidityComponent::new(board_kernel, hts221).finalize(());
+
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -370,10 +400,13 @@ pub unsafe fn reset_handler() {
             .register(aes_mux)
             .expect("no deferred call slot available for ccm mux"),
     );
+    use capsules::net::ieee802154::MacAddress;
+    use capsules::virtual_alarm::VirtualMuxAlarm;
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
-    let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         &base_peripherals.ieee802154_radio,
         aes_mux,
@@ -385,6 +418,45 @@ pub unsafe fn reset_handler() {
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
+    use capsules::net::ipv6::ip_utils::IPAddr;
+
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+            ]),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+                serial_num_bottom_16
+            )),
+        ]
+    );
+
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        src_mac_from_serial_num,
+        local_ip_ifaces,
+        mux_alarm,
+    )
+    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+
+    // UDP driver initialization happens here
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
@@ -400,10 +472,13 @@ pub unsafe fn reset_handler() {
         console,
         pconsole,
         proximity,
+        temperature,
+        humidity,
         led,
         gpio,
         rng,
         alarm,
+        udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
@@ -435,7 +510,9 @@ pub unsafe fn reset_handler() {
     // );
 
     debug!("Initialization complete. Entering main loop.");
+
     platform.pconsole.start(driver_debug_str);
+
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
@@ -465,7 +542,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

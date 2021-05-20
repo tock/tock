@@ -1,6 +1,7 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use kernel::common::cells::VolatileCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -11,24 +12,26 @@ pub const PLIC_BASE: StaticRef<PlicRegisters> =
 
 pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
 
+pub const PLIC_REGS: usize = 6;
+
 register_structs! {
     pub PlicRegisters {
         /// Interrupt Pending Register
-        (0x000 => pending: [ReadOnly<u32>; 3]),
+        (0x000 => pending: [ReadOnly<u32>; PLIC_REGS]),
         /// Interrupt Source Register
-        (0x00C => source: [ReadWrite<u32>; 3]),
+        (0x018 => source: [ReadWrite<u32>; PLIC_REGS]),
         /// Interrupt Priority Registers
-        (0x018 => priority: [ReadWrite<u32, priority::Register>; 79]),
-        (0x154 => _reserved0: [ReadWrite<u32>; 43]),
+        (0x030 => priority: [ReadWrite<u32, priority::Register>; 177]),
+        (0x2f4 => _reserved0),
         /// Interrupt Enable Register
-        (0x200 => enable: [ReadWrite<u32>; 3]),
+        (0x300 => enable: [ReadWrite<u32>; PLIC_REGS]),
         /// Priority Threshold Register
-        (0x20C => threshold: ReadWrite<u32, priority::Register>),
+        (0x318 => threshold: ReadWrite<u32, priority::Register>),
         /// Claim/Complete Register
-        (0x210 => claim: ReadWrite<u32>),
+        (0x31c => claim: ReadWrite<u32>),
         /// MSIP Register
-        (0x214 => msip: ReadWrite<u32>),
-        (0x218 => @END),
+        (0x320 => msip: ReadWrite<u32>),
+        (0x324 => @END),
     }
 }
 
@@ -40,7 +43,7 @@ register_bitfields![u32,
 
 pub struct Plic {
     registers: StaticRef<PlicRegisters>,
-    saved: [VolatileCell<LocalRegisterCopy<u32>>; 3],
+    saved: [VolatileCell<LocalRegisterCopy<u32>>; PLIC_REGS],
 }
 
 impl Plic {
@@ -48,6 +51,9 @@ impl Plic {
         Plic {
             registers: base,
             saved: [
+                VolatileCell::new(LocalRegisterCopy::new(0)),
+                VolatileCell::new(LocalRegisterCopy::new(0)),
+                VolatileCell::new(LocalRegisterCopy::new(0)),
                 VolatileCell::new(LocalRegisterCopy::new(0)),
                 VolatileCell::new(LocalRegisterCopy::new(0)),
                 VolatileCell::new(LocalRegisterCopy::new(0)),
@@ -62,17 +68,9 @@ impl Plic {
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        // USB hardware on current OT master branch seems to have
-        // interrupt bugs: running Alarms causes persistent USB
-        // CONNECTED interrupts that can't be masked from USBDEV and
-        // cause the system to hang. So enable all interrupts except
-        // for the USB ones. Some open PRs on OT fix this, we'll re-enable
-        // USB interrurupts.
-        //
-        // https://github.com/lowRISC/opentitan/issues/3388
-        self.registers.enable[0].set(0xFFFF_FFFF);
-        self.registers.enable[1].set(0xFFFF_FFFF);
-        self.registers.enable[2].set(0xFFFF_0000); // USB are 64-79
+        for enable in self.registers.enable.iter() {
+            enable.set(0xFFFF_FFFF);
+        }
 
         // Set the max priority for each interrupt. This is not really used
         // at this point.
@@ -113,8 +111,16 @@ impl Plic {
             0
         } else if index < 64 {
             1
-        } else {
+        } else if index < 96 {
             2
+        } else if index < 128 {
+            3
+        } else if index < 160 {
+            4
+        } else if index < 192 {
+            5
+        } else {
+            panic!("Invalid IRQ: {}", index);
         };
         let irq = index % 32;
 
@@ -149,8 +155,16 @@ impl Plic {
             0
         } else if index < 64 {
             1
-        } else {
+        } else if index < 96 {
             2
+        } else if index < 128 {
+            3
+        } else if index < 160 {
+            4
+        } else if index < 192 {
+            5
+        } else {
+            panic!("Invalid IRQ: {}", index);
         };
         let irq = index % 32;
 

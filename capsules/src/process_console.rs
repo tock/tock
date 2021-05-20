@@ -12,6 +12,7 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'panic' causes the kernel to run the panic handler
 //!
 //! ### `list` Command Fields:
 //!
@@ -21,7 +22,7 @@
 //! - `Quanta`: How many times this process has exceeded its alloted time
 //!   quanta.
 //! - `Syscalls`: The number of system calls the process has made to the kernel.
-//! - `Dropped Callbacks`: How many callbacks were dropped for this process
+//! - `Dropped Upcalls`: How many callbacks were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
 //!   the kernel.
@@ -90,9 +91,9 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants
-//! 00     blink        0       113                  0         0  Yielded    1/12
-//! 01     c_hello      0         8                  0         0  Yielded    3/12
+//! PID    Name    Quanta  Syscalls  Dropped Upcalls  Restarts    State  Grants
+//! 00     blink        0       113                0         0  Yielded    1/12
+//! 01     c_hello      0         8                0         0  Yielded    3/12
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -122,8 +123,8 @@ use kernel::AppId;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
+use kernel::ErrorCode;
 use kernel::Kernel;
-use kernel::ReturnCode;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
@@ -266,7 +267,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.drivers.set(driver_str);
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
-                self.uart.receive_buffer(buffer, 1);
+                let _ = self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
             });
             //Starts the process console while printing base information about
@@ -289,7 +290,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 b"Valid commands are: help status list stop start fault process kernel\n",
             );
         }
-        ReturnCode::SUCCESS
+        Ok(())
     }
     //simple state machine that identifies the next state
     fn next_state(&self, state: WriterState) -> WriterState {
@@ -741,8 +742,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
 
                         if clean_str.starts_with("help") {
+
                             self.write_bytes(b"Welcome to the process console.\n");
                             self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -801,7 +804,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
 
                                     let pname = proc.get_process_name();
-                                    let appid = proc.appid();
+                                    let appid = proc.processid();
                                     let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
                                     let mut console_writer = ConsoleWriter::new();
                                     let _ = write(&mut console_writer,format_args!(
@@ -810,7 +813,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
-                                        proc.debug_dropped_callback_count(),
+                                        proc.debug_dropped_upcall_count(),
                                         proc.get_restart_count(),
                                         proc.get_state(),
                                         grants_used,
@@ -868,6 +871,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             };
                             //prints kernel memory by moving the writer to the start state
                             self.write_state(WriterState::KernelStart,None);
+
                         } else {
                             self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
                         }
@@ -891,6 +895,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.writer_process.replace(process);
         }
 
+
         if !self.tx_in_progress.get() {
             self.writer_state
                 .replace(self.next_state(self.writer_state.take()));
@@ -908,14 +913,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 buffer[0] = byte;
-                self.uart.transmit_buffer(buffer, 1);
+                let _ = self.uart.transmit_buffer(buffer, 1);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
-    fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
+    fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
+
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
                 let len = cmp::min(bytes.len(), buf.len() - size);
@@ -929,15 +935,20 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 let len = cmp::min(bytes.len(), buffer.len());
                 // Copy elements of `bytes` into `buffer`
                 (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
-                self.uart.transmit_buffer(buffer, len);
+                let _ = self.uart.transmit_buffer(buffer, len);
             });
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
         //if in the middle of an active state, finish the state machine
@@ -975,7 +986,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         &self,
         read_buf: &'static mut [u8],
         rx_len: usize,
-        _rcode: ReturnCode,
+        _rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
         if error == uart::Error::None {
@@ -986,11 +997,11 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                         let index = self.command_index.get() as usize;
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
                             self.execute.set(true);
-                            self.write_bytes(&['\r' as u8, '\n' as u8]);
+                            let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
                         } else if read_buf[0] == ('\x08' as u8) && index > 0 {
                             // Backspace, echo and remove last byte
                             // Note echo is '\b \b' to erase
-                            self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                            let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
                             command[index - 1] = '\0' as u8;
                             self.command_index.set(index - 1);
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
@@ -998,7 +1009,7 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                             // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
                             // Echo the byte and store it
-                            self.write_byte(read_buf[0]);
+                            let _ = self.write_byte(read_buf[0]);
                             command[index] = read_buf[0];
                             self.command_index.set(index + 1);
                             command[index + 1] = 0;
@@ -1012,6 +1023,6 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
             };
         }
         self.rx_in_progress.set(true);
-        self.uart.receive_buffer(read_buf, 1);
+        let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }

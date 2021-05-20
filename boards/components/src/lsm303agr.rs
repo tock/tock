@@ -21,8 +21,9 @@
 use capsules::lsm303agr::Lsm303agrI2C;
 use capsules::virtual_i2c::I2CDevice;
 use core::mem::MaybeUninit;
+use kernel::capabilities;
 use kernel::component::Component;
-use kernel::static_init_half;
+use kernel::{create_capability, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -57,11 +58,15 @@ macro_rules! lsm303agr_i2c_component_helper {
     }};
 }
 
-pub struct Lsm303agrI2CComponent {}
+pub struct Lsm303agrI2CComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl Lsm303agrI2CComponent {
-    pub fn new() -> Lsm303agrI2CComponent {
-        Lsm303agrI2CComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> Lsm303agrI2CComponent {
+        Lsm303agrI2CComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -75,10 +80,12 @@ impl Component for Lsm303agrI2CComponent {
     type Output = &'static Lsm303agrI2C<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant = self.board_kernel.create_grant(&grant_cap);
         let lsm303agr = static_init_half!(
             static_buffer.3,
             Lsm303agrI2C<'static>,
-            Lsm303agrI2C::new(static_buffer.0, static_buffer.1, static_buffer.2)
+            Lsm303agrI2C::new(static_buffer.0, static_buffer.1, static_buffer.2, grant)
         );
         static_buffer.0.set_client(lsm303agr);
         static_buffer.1.set_client(lsm303agr);

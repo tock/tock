@@ -10,6 +10,7 @@
 //! without a home, so we include it in the NVIC files as it's conceptually here.
 //! <https://developer.arm.com/docs/ddi0337/latest/nested-vectored-interrupt-controller/nvic-programmers-model/interrupt-controller-type-register-ictr>
 
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 

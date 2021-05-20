@@ -1,7 +1,7 @@
 //! Interface for Digest
 
 use crate::common::leasable_buffer::LeasableBuffer;
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 /// The 'types' of digests, this should define the output size of the digest
 /// operations.
@@ -15,12 +15,12 @@ pub trait Client<'a, T: DigestType> {
     /// engine.
     /// On error or success `data` will contain a reference to the original
     /// data supplied to `add_data()`.
-    fn add_data_done(&'a self, result: Result<(), ReturnCode>, data: &'static mut [u8]);
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
 
     /// This callback is called when a digest is computed.
     /// On error or success `digest` will contain a reference to the original
     /// data supplied to `run()`.
-    fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &'static mut T);
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T);
 }
 
 /// Computes a digest (cryptographic hash) over data
@@ -41,7 +41,7 @@ pub trait Digest<'a, T: DigestType> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ReturnCode, &'static mut [u8])>;
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
 
     /// Request the hardware block to generate a Digest and stores the returned
     /// digest in the memory location specified.
@@ -56,7 +56,7 @@ pub trait Digest<'a, T: DigestType> {
     /// there is only one digest supported this should be used. If there is no
     /// suitable or obvious default option, the implementation can return an
     /// error with error code ENOSUPPORT.
-    fn run(&'a self, digest: &'static mut T) -> Result<(), (ReturnCode, &'static mut T)>;
+    fn run(&'a self, digest: &'static mut T) -> Result<(), (ErrorCode, &'static mut T)>;
 
     /// Clear the keys and any other sensitive data.
     /// This won't clear the buffers provided to this API, that is up to the
@@ -68,5 +68,5 @@ pub trait HMACSha256 {
     /// Call before `Digest::run()` to perform HMACSha256
     ///
     /// The key used for the HMAC is passed to this function.
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode>;
+    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode>;
 }

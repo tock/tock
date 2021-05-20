@@ -61,17 +61,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        // TOCK 1.X
-        //
-        // The 1.x Tock kernel allocates at least 3 kB to processes, and we need
-        // to ensure that happens as userspace may expect it.
-        3 * 1024
-
-        // TOCK 2.0
-        //
-        // Cortex-M hardware use 8 words on the stack to implement context switches.
-        // So we need at least 32 bytes.
-        //SVC_FRAME_SIZE
+        // Cortex-M hardware uses 8 words on the stack to implement context
+        // switches. So we need at least 32 bytes.
+        SVC_FRAME_SIZE
     }
 
     unsafe fn initialize_process(
@@ -104,22 +96,42 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut Self::StoredState,
-        return_value: isize,
+        return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
-        // For the Cortex-M arch we set the return value in the same place that
-        // r0 was passed in, aka at the bottom the SVC structure on the stack.
+        // For the Cortex-M arch, write the return values in the same
+        // place that they were originally passed in (i.e. at the
+        // bottom the SVC structure on the stack)
 
         // First, we need to validate that this location is inside of the
         // process's accessible memory.
         if state.psp < accessible_memory_start as usize
-            || (state.psp + mem::size_of::<isize>()) > app_brk as usize
+            || (state.psp + (mem::size_of::<u32>() * 4)) > app_brk as usize
         {
             return Err(());
         }
 
-        // Do the write.
-        let sp = state.psp as *mut isize;
-        write_volatile(sp, return_value);
+        let sp = state.psp as *mut u32;
+        let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
+
+        // These operations are only safe so long as
+        // - the pointers are properly aligned. This is guaranteed because the
+        //   pointers are all offset multiples of 4 bytes from the stack
+        //   pointer, which is guaranteed to be properly aligned after
+        //   exception entry on Cortex-M. See
+        //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
+        //   for more details.
+        // - the pointer is dereferencable, i.e. the memory range of
+        //   the given size starting at the pointer must all be within
+        //   the bounds of a single allocated object
+        // - the pointer must point to an initialized instance of its
+        //   type
+        // - during the lifetime of the returned reference (of the
+        //   cast, essentially an arbitrary 'a), the memory must not
+        //   get accessed (read or written) through any other pointer.
+        //
+        // Refer to
+        // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
 
         Ok(())
     }

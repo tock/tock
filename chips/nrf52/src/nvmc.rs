@@ -8,10 +8,11 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::deferred_call_tasks::DeferredCallTask;
 
@@ -287,7 +288,7 @@ impl Nvmc {
         &self,
         page_number: usize,
         buffer: &'static mut NrfPage,
-    ) -> Result<(), (ReturnCode, &'static mut NrfPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut NrfPage)> {
         // Actually do a copy from flash into the buffer.
         let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
         unsafe {
@@ -312,7 +313,7 @@ impl Nvmc {
         &self,
         page_number: usize,
         data: &'static mut NrfPage,
-    ) -> Result<(), (ReturnCode, &'static mut NrfPage)> {
+    ) -> Result<(), (ErrorCode, &'static mut NrfPage)> {
         // Need to erase the page first.
         self.erase_page_helper(page_number);
 
@@ -345,7 +346,7 @@ impl Nvmc {
         Ok(())
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         // Do the basic erase.
         self.erase_page_helper(page_number);
 
@@ -354,7 +355,7 @@ impl Nvmc {
         self.state.set(FlashState::Erase);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -371,7 +372,7 @@ impl hil::flash::Flash for Nvmc {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_range(page_number, buf)
     }
 
@@ -379,11 +380,11 @@ impl hil::flash::Flash for Nvmc {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_page(page_number, buf)
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         self.erase_page(page_number)
     }
 }

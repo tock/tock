@@ -1,10 +1,11 @@
 //! PWM driver for nRF52.
 
 use kernel::common::cells::VolatileCell;
+use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use nrf5x;
 
 #[repr(C)]
@@ -187,7 +188,7 @@ impl Pwm {
         pin: &nrf5x::pinmux::Pinmux,
         frequency_hz: usize,
         duty_cycle: usize,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         let prescaler = 0;
         let counter_top = (16000000 / frequency_hz) >> prescaler;
 
@@ -238,24 +239,24 @@ impl Pwm {
         // Start
         self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn stop_pwm(&self, _pin: &nrf5x::pinmux::Pinmux) -> ReturnCode {
+    fn stop_pwm(&self, _pin: &nrf5x::pinmux::Pinmux) -> Result<(), ErrorCode> {
         self.registers.tasks_stop.write(TASK::TASK::SET);
         self.registers.enable.write(ENABLE::ENABLE::CLEAR);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
 impl hil::pwm::Pwm for Pwm {
     type Pin = nrf5x::pinmux::Pinmux;
 
-    fn start(&self, pin: &Self::Pin, frequency: usize, duty_cycle: usize) -> ReturnCode {
+    fn start(&self, pin: &Self::Pin, frequency: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         self.start_pwm(pin, frequency, duty_cycle)
     }
 
-    fn stop(&self, pin: &Self::Pin) -> ReturnCode {
+    fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
         self.stop_pwm(pin)
     }
 

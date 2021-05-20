@@ -1,14 +1,15 @@
 //! UART driver.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 
 use crate::gpio;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
 
 #[repr(C)]
 pub struct UartRegisters {
@@ -134,7 +135,7 @@ impl<'a> Uart<'a> {
                 // Signal client write done
                 self.tx_client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.transmitted_buffer(buffer, self.len.get(), ReturnCode::SUCCESS);
+                        client.transmitted_buffer(buffer, self.len.get(), Ok(()));
                     });
                 });
             } else {
@@ -171,13 +172,13 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
 
         // We can set the baud rate.
@@ -186,7 +187,7 @@ impl hil::uart::Configure for Uart<'_> {
         // We need to save the stop bits because it is set in the TX register.
         self.stop_bits.set(params.stop_bits);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -199,11 +200,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 
         if tx_len == 0 {
-            return (ReturnCode::ESIZE, Some(tx_data));
+            return Err((ErrorCode::SIZE, tx_data));
         }
 
         // Enable the interrupt so we know when we can keep writing.
@@ -234,15 +235,15 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         regs.txctrl
             .write(txctrl::txen::SET + stop_bits + txctrl::txcnt.val(1));
 
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -253,17 +254,17 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
-    fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }

@@ -1,13 +1,14 @@
 //! UART driver.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
 
 const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4001_C000 as *const UartRegisters) };
@@ -271,7 +272,7 @@ impl Uart<'_> {
                 // interrupt callback we can issue the callback.
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buf| {
-                        client.transmitted_buffer(tx_buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                        client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
@@ -294,7 +295,7 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         // Disable UART
@@ -318,7 +319,7 @@ impl hil::uart::Configure for Uart<'_> {
         regs.cr
             .modify(CR::UARTEN::SET + CR::RXE::SET + CR::TXE::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -331,11 +332,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (ReturnCode::ESIZE, Some(tx_data))
+            Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         } else {
             // Save the buffer so we can keep sending it.
             self.tx_buffer.replace(tx_data);
@@ -343,16 +344,16 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_index.set(0);
 
             self.tx_progress();
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -363,17 +364,17 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_buffer(
         &self,
-        _rx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         _rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::FAIL, None)
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        Err((ErrorCode::FAIL, rx_buffer))
     }
 
-    fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }

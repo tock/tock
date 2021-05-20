@@ -13,8 +13,10 @@
 //! ```
 
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::mem;
 use kernel::hil;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -23,7 +25,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
-    callback: Option<Callback>,
+    callback: Upcall,
     pending: bool,
 }
 
@@ -42,18 +44,18 @@ impl<'a> AmbientLight<'a> {
         }
     }
 
-    fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
+    fn enqueue_sensor_reading(&self, appid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if app.pending {
-                    ReturnCode::ENOMEM
+                    Err(ErrorCode::NOMEM)
                 } else {
                     app.pending = true;
                     if !self.command_pending.get() {
                         self.command_pending.set(true);
-                        self.sensor.read_light_intensity();
+                        let _ = self.sensor.read_light_intensity();
                     }
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
             })
             .unwrap_or_else(|err| err.into())
@@ -70,18 +72,26 @@ impl Driver for AmbientLight<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+            0 => {
+                let rcode = self
+                    .apps
+                    .enter(app_id, |app| {
+                        mem::swap(&mut callback, &mut app.callback);
+                        Ok(())
+                    })
+                    .unwrap_or_else(|err| err.into());
+
+                let eres = ErrorCode::try_from(rcode);
+                match eres {
+                    Ok(ecode) => Err((callback, ecode)),
+                    _ => Ok(callback),
+                }
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -96,14 +106,14 @@ impl Driver for AmbientLight<'_> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => CommandReturn::success(),
             1 => {
-                self.enqueue_sensor_reading(appid);
-                ReturnCode::SUCCESS
+                let _ = self.enqueue_sensor_reading(appid);
+                CommandReturn::success()
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }
@@ -111,12 +121,10 @@ impl Driver for AmbientLight<'_> {
 impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
-        self.apps.each(|app| {
+        self.apps.each(|_, app| {
             if app.pending {
                 app.pending = false;
-                if let Some(mut callback) = app.callback {
-                    callback.schedule(lux, 0, 0);
-                }
+                app.callback.schedule(lux, 0, 0);
             }
         });
     }

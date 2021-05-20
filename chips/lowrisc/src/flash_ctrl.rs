@@ -4,12 +4,14 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
+
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 register_structs! {
     pub FlashCtrlRegisters {
@@ -399,7 +401,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -438,7 +440,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
-    ) -> Result<(), (ReturnCode, &'static mut Self::Page)> {
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -490,7 +492,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         Ok(())
     }
 
-    fn erase_page(&self, page_number: usize) -> ReturnCode {
+    fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         let addr = page_number * PAGE_SIZE;
 
         if !self.data_configured.get() {
@@ -522,6 +524,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
                 + CONTROL::START::SET,
         );
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }

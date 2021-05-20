@@ -1,5 +1,6 @@
 //! System Controller (SYSCTL)
 
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 

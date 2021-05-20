@@ -16,10 +16,10 @@ use kernel::common::cells::OptionalCell;
 
 use crate::csr;
 use kernel::common::cells::MapCell;
-use kernel::common::registers;
-use kernel::common::registers::register_bitfields;
+use kernel::common::registers::interfaces::Writeable;
+use kernel::common::registers::{self, register_bitfields};
 use kernel::mpu;
-use kernel::AppId;
+use kernel::ProcessId;
 
 // Generic PMP config
 register_bitfields![u8,
@@ -58,7 +58,7 @@ pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// The application that the MPU was last configured for. Used (along with
     /// the `is_dirty` flag) to determine if MPU can skip writing the
     /// configuration to hardware.
-    last_configured_for: MapCell<AppId>,
+    last_configured_for: MapCell<ProcessId>,
     /// This is a 64-bit mask of locked regions.
     /// Each bit that is set in this mask indicates that the region is locked
     /// and cannot be used by Tock.
@@ -334,7 +334,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                 }
                 _ => unreachable!(),
             }
-            csr::CSR.pmpconfig_set(x, 0x0);
+            csr::CSR.pmpaddr_set(x, 0x0);
         }
 
         //set first PMP to have permissions to entire space
@@ -513,7 +513,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &AppId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {
         // Is the PMP already configured for this app?
         let last_configured_for_this_app = self
             .last_configured_for
@@ -542,11 +542,11 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                                 csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                                 csr::CSR.pmpconfig_set(
                                     x / 2,
                                     cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2),
                                 );
-                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             1 => {
                                 // Disable access up to the start address
@@ -560,11 +560,11 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
                                 csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                                 // Set access to end address
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                                 csr::CSR.pmpconfig_set(
                                     x / 2,
                                     cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
                                 );
-                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                             }
                             _ => break,
                         }

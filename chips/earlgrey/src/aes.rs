@@ -3,6 +3,7 @@
 //! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -11,7 +12,7 @@ use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 const MAX_LENGTH: usize = 128;
 
@@ -221,7 +222,7 @@ impl<'a> Aes<'a> {
         );
     }
 
-    fn set_key(&self, key: &[u8]) -> ReturnCode {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         loop {
@@ -231,7 +232,7 @@ impl<'a> Aes<'a> {
         }
 
         if key.len() != AES128_KEY_SIZE {
-            return ReturnCode::EINVAL;
+            return Err(ErrorCode::INVAL);
         }
 
         for i in 0..4 {
@@ -253,7 +254,7 @@ impl<'a> Aes<'a> {
         regs.key5.set(0);
         regs.key6.set(0);
         regs.key7.set(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn do_crypt(&self, start_index: usize, stop_index: usize, wr_start_index: usize) {
@@ -288,14 +289,14 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         self.client.set(client);
     }
 
-    fn set_iv(&self, _iv: &[u8]) -> ReturnCode {
+    fn set_iv(&self, _iv: &[u8]) -> Result<(), ErrorCode> {
         // nothing because this is ECB
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn start_message(&self) {}
 
-    fn set_key(&self, key: &[u8]) -> ReturnCode {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         self.set_key(key)
     }
 
@@ -305,15 +306,15 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         dest: &'a mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
         match stop_index.checked_sub(start_index) {
-            None => return Some((ReturnCode::EINVAL, source, dest)),
+            None => return Some((Err(ErrorCode::INVAL), source, dest)),
             Some(s) => {
                 if s > MAX_LENGTH {
-                    return Some((ReturnCode::EINVAL, source, dest));
+                    return Some((Err(ErrorCode::INVAL), source, dest));
                 }
                 if s % AES128_BLOCK_SIZE != 0 {
-                    return Some((ReturnCode::EINVAL, source, dest));
+                    return Some((Err(ErrorCode::INVAL), source, dest));
                 }
             }
         }

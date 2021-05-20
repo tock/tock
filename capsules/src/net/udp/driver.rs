@@ -16,11 +16,17 @@ use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
+use core::convert::TryFrom;
+use core::convert::TryInto;
+use core::mem::size_of;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    debug, CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, Upcall,
+};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -44,7 +50,7 @@ impl UDPEndpoint {
     /// This function returns the new offset into the buffer wrapped in an
     /// SResult.
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
-        stream_len_cond!(buf, mem::size_of::<UDPEndpoint>() + offset);
+        stream_len_cond!(buf, size_of::<UDPEndpoint>() + offset);
 
         let mut off = offset;
         for i in 0..16 {
@@ -62,12 +68,12 @@ impl UDPEndpoint {
 
 #[derive(Default)]
 pub struct App {
-    rx_callback: Option<Callback>,
-    tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
-    app_rx_cfg: Option<AppSlice<Shared, u8>>,
+    rx_callback: Upcall,
+    tx_callback: Upcall,
+    app_read: ReadWriteAppSlice,
+    app_write: ReadOnlyAppSlice,
+    app_cfg: ReadWriteAppSlice,
+    app_rx_cfg: ReadWriteAppSlice,
     pending_tx: Option<[UDPEndpoint; 2]>,
     bound_port: Option<UDPEndpoint>,
 }
@@ -80,7 +86,7 @@ pub struct UDPDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: Cell<Option<ProcessId>>,
 
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
@@ -124,101 +130,28 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: ProcessId, closure: F) -> Result<(), ErrorCode>
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
         self.apps
-            .enter(appid, |app, _| closure(app))
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform an action using an app's config buffer.
-    #[inline]
-    #[allow(dead_code)]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&[u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
-                    if cfg.len() != len {
-                        return ReturnCode::EINVAL;
-                    }
-                    closure(cfg.as_ref())
-                })
-            })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform a write to an app's config buffer.
-    #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&mut [u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
-                    if cfg.len() != len {
-                        return ReturnCode::EINVAL;
-                    }
-                    closure(cfg.as_mut())
-                })
-            })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform an action using an app's RX config buffer.
-    /// (quick and dirty ctrl-c, ctrl-v from above)
-    #[inline]
-    #[allow(dead_code)]
-    fn do_with_rx_cfg<F>(&self, appid: AppId, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&[u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_rx_cfg
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| closure(cfg.as_ref()))
-            })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform a write to an app's RX config buffer.
-    /// (also a quick and dirty ctrl-c)
-    #[inline]
-    #[allow(dead_code)]
-    fn do_with_rx_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&mut [u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_rx_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
-                    if cfg.len() != len {
-                        return ReturnCode::EINVAL;
-                    }
-                    closure(cfg.as_mut())
-                })
-            })
+            .enter(appid, |app| closure(app))
             .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
-    /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    /// pick an app with a pending transmission and return its `ProcessId`.
+    fn get_next_tx_if_idle(&self) -> Option<ProcessId> {
         if self.current_app.get().is_some() {
             // Tx already in progress
             return None;
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            let appid = app.processid();
+            app.enter(|app| {
                 if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
+                    pending_app = Some(appid);
                 }
             });
             if pending_app.is_some() {
@@ -233,12 +166,12 @@ impl<'a> UDPDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: ProcessId) {
         let result = self.perform_tx_sync(appid);
-        if result != ReturnCode::SUCCESS {
-            let _ = self.apps.enter(appid, |app, _| {
+        if result != Ok(()) {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+                    .schedule(kernel::into_statuscode(result), 0, 0);
             });
         }
     }
@@ -247,12 +180,12 @@ impl<'a> UDPDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
-                    return ReturnCode::SUCCESS;
+                    return Ok(());
                 }
             };
             let dst_addr = addr_ports[1].addr;
@@ -261,33 +194,33 @@ impl<'a> UDPDriver<'a> {
 
             // Send UDP payload. Copy payload into packet buffer held by this driver, then queue
             // it on the udp_mux.
-            let result = app
-                .app_write
-                .as_ref()
-                .map_or(ReturnCode::ENOMEM, |payload| {
-                    self.kernel_buffer
-                        .take()
-                        .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
-                            kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
-                            kernel_buffer.slice(0..payload.len());
-                            match self.sender.driver_send_to(
-                                dst_addr,
-                                dst_port,
-                                src_port,
-                                kernel_buffer,
-                                self.driver_send_cap,
-                                self.net_cap,
-                            ) {
-                                Ok(_) => ReturnCode::SUCCESS,
-                                Err(mut buf) => {
-                                    buf.reset();
-                                    self.kernel_buffer.replace(buf);
-                                    ReturnCode::FAIL
-                                }
+            let result = app.app_write.map_or(Err(ErrorCode::NOMEM), |payload| {
+                self.kernel_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |mut kernel_buffer| {
+                        if payload.len() > kernel_buffer.len() {
+                            return Err(ErrorCode::SIZE);
+                        }
+                        kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
+                        kernel_buffer.slice(0..payload.len());
+                        match self.sender.driver_send_to(
+                            dst_addr,
+                            dst_port,
+                            src_port,
+                            kernel_buffer,
+                            self.driver_send_cap,
+                            self.net_cap,
+                        ) {
+                            Ok(_) => Ok(()),
+                            Err(mut buf) => {
+                                buf.reset();
+                                self.kernel_buffer.replace(buf);
+                                Err(ErrorCode::FAIL)
                             }
-                        })
-                });
-            if result == ReturnCode::SUCCESS {
+                        }
+                    })
+            });
+            if result == Ok(()) {
                 self.current_app.set(Some(appid));
             }
             result
@@ -309,33 +242,33 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
-        self.get_next_tx_if_idle()
-            .map_or(ReturnCode::SUCCESS, |appid| {
-                if appid == new_appid {
-                    let sync_result = self.perform_tx_sync(appid);
-                    if sync_result == ReturnCode::SUCCESS {
-                        return ReturnCode::SuccessWithValue { value: 1 }; //Indicates packet passed to radio
-                    }
-                    sync_result
+    fn do_next_tx_immediate(&self, new_appid: ProcessId) -> Result<u32, ErrorCode> {
+        self.get_next_tx_if_idle().map_or(Ok(0), |appid| {
+            if appid == new_appid {
+                let sync_result = self.perform_tx_sync(appid);
+                if sync_result == Ok(()) {
+                    Ok(1) //Indicates packet passed to radio
                 } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
+                    Err(ErrorCode::try_from(sync_result).unwrap())
                 }
-            })
+            } else {
+                self.perform_tx_async(appid);
+                Ok(0) //indicates async transmission
+            }
+        })
     }
 
     #[inline]
     fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<UDPEndpoint> {
-        if buf.len() != mem::size_of::<UDPEndpoint>() {
+        if buf.len() != size_of::<UDPEndpoint>() {
             debug!(
                 "[parse] len is {:?}, not {:?} as expected",
                 buf.len(),
-                mem::size_of::<UDPEndpoint>()
+                size_of::<UDPEndpoint>()
             );
             None
         } else {
-            let (a, p) = buf.split_at(mem::size_of::<IPAddr>());
+            let (a, p) = buf.split_at(size_of::<IPAddr>());
             let mut addr = IPAddr::new();
             addr.0.copy_from_slice(a);
 
@@ -354,44 +287,75 @@ impl<'a> Driver for UDPDriver<'a> {
     /// ### `allow_num`
     ///
     /// - `0`: Read buffer. Will contain the received payload.
-    /// - `1`: Write buffer. Contains the UDP payload to be transmitted.
-    /// - `2`: Config buffer. Used to contain miscellaneous data associated with
+    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands, namely source/destination addresses and ports.
-    /// - `3`: Rx config buffer. Used to contain source/destination addresses
+    /// - `2`: Rx config buffer. Used to contain source/destination addresses
     ///        and ports for receives (separate from `2` because receives may
     ///        be waiting for an incoming packet asynchronously).
-    fn allow(
+    fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
-            0 | 1 | 2 | 3 => self.do_with_app(appid, |app| {
-                let mut success = true;
-                match allow_num {
-                    0 => app.app_read = slice,
-                    1 => match slice {
-                        Some(s) => {
-                            if s.len() > self.max_tx_pyld_len {
-                                success = false;
-                            } else {
-                                app.app_write = Some(s);
-                            }
-                        }
-                        None => {}
-                    },
-                    2 => app.app_cfg = slice,
-                    3 => app.app_rx_cfg = slice,
-                    _ => {}
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(appid, |app| match allow_num {
+                0 => {
+                    mem::swap(&mut app.app_read, &mut slice);
+                    Ok(())
                 }
-                if success {
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EINVAL //passed tx buffer too long
+                1 => {
+                    mem::swap(&mut app.app_cfg, &mut slice);
+                    Ok(())
                 }
-            }),
-            _ => ReturnCode::ENOSUPPORT,
+                2 => {
+                    mem::swap(&mut app.app_rx_cfg, &mut slice);
+                    Ok(())
+                }
+                _ => Err(ErrorCode::NOSUPPORT),
+            })
+            .map_err(ErrorCode::from);
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
+        }
+    }
+
+    /// Setup shared buffers.
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `0`: Write buffer. Contains the UDP payload to be transmitted.
+    ///        Returns SIZE if the passed buffer is too long, and NOSUPPORT
+    ///        if an invalid `allow_num` is passed.
+    fn allow_readonly(
+        &self,
+        appid: ProcessId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
+            0 => self
+                .apps
+                .enter(appid, |app| {
+                    if slice.len() > self.max_tx_pyld_len {
+                        Err(ErrorCode::SIZE) // passed buffer too long
+                    } else {
+                        mem::swap(&mut app.app_write, &mut slice);
+                        Ok(())
+                    }
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        if let Err(e) = res {
+            Err((slice, e))
+        } else {
+            Ok(slice)
         }
     }
 
@@ -400,7 +364,7 @@ impl<'a> Driver for UDPDriver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup callback for when packet is received. If no port has
-    ///        been bound, return ERESERVE to indicate that port binding is
+    ///        been bound, return RESERVE to indicate that port binding is
     ///        is a prerequisite to reception.
     /// - `1`: Setup callback for when packet is transmitted. Notably,
     ///        this callback receives the result of the send_done callback
@@ -409,23 +373,38 @@ impl<'a> Driver for UDPDriver<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
-            0 => self.do_with_app(app_id, |app| {
-                if app.bound_port.is_some() {
-                    app.rx_callback = callback;
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::ERESERVE
+            0 => {
+                let res = self.apps.enter(app_id, |app| {
+                    if app.bound_port.is_some() {
+                        mem::swap(&mut app.rx_callback, &mut callback);
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::RESERVE)
+                    }
+                });
+                match res {
+                    Err(e) => Err((callback, e.into())),
+                    Ok(res) => match res {
+                        Ok(_) => Ok(callback),
+                        Err(e) => Err((callback, e)),
+                    },
                 }
-            }),
-            1 => self.do_with_app(app_id, |app| {
-                app.tx_callback = callback;
-                ReturnCode::SUCCESS
-            }),
-            _ => ReturnCode::ENOSUPPORT,
+            }
+            1 => {
+                let res = self.apps.enter(app_id, |app| {
+                    mem::swap(&mut app.tx_callback, &mut callback);
+                });
+                if let Err(e) = res {
+                    Err((callback, e.into()))
+                } else {
+                    Ok(callback)
+                }
+            }
+            _ => Err((callback, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -437,16 +416,17 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
+    ///        Returns INVAL if the cfg buffer is the wrong size, or not available.
     /// - `2`: Transmit payload.
-    ///        Returns EBUSY is this process already has a pending tx.
-    ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
+    ///        Returns BUSY is this process already has a pending tx.
+    ///        Returns INVAL if no valid buffer has been loaded into the write buffer,
     ///        or if the config buffer is the wrong length, or if the destination and source
     ///        port/address pairs cannot be parsed.
     ///        Otherwise, returns the result of do_next_tx_immediate(). Notably, a successful
     ///        transmit can produce two different success values. If success is returned,
     ///        this simply means that the packet was queued. In this case, the app still
     ///        still needs to wait for a callback to check if any errors occurred before
-    ///        the packet was passed to the radio. However, if SuccessWithValue
+    ///        the packet was passed to the radio. However, if Success_U32
     ///        is returned with value 1, this means the the packet was successfully passed
     ///        the radio without any errors, which tells the userland application that it does
     ///        not need to wait for a callback to check if any errors occured while the packet
@@ -454,72 +434,80 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        the app should wait for a send_done() callback before attempting to queue another
     ///        packet.
     ///        Currently, only will transmit if the app has bound to the port passed in the tx_cfg
-    ///        buf as the source address. If no port is bound, returns ERESERVE, if it tries to
-    ///        send on a port other than the port which is bound, returns EINVALID.
+    ///        buf as the source address. If no port is bound, returns RESERVE, if it tries to
+    ///        send on a port other than the port which is bound, returns INVALID.
     ///        Notably, the currently transmit implementation allows for starvation - an
     ///        an app with a lower app id can send constantly and starve an app with a
     ///        later ID.
-    /// - `3`: Bind to the address in rx_cfg. Returns SUCCESS if that addr/port combo is free,
-    ///        returns EINVAL if the address requested is not a local interface, or if the port
-    ///        requested is 0. Returns EBUSY if that port is already bound to by another app.
+    /// - `3`: Bind to the address in rx_cfg. Returns Ok(()) if that addr/port combo is free,
+    ///        returns INVAL if the address requested is not a local interface, or if the port
+    ///        requested is 0. Returns BUSY if that port is already bound to by another app.
     ///        This command should be called after allow() is called on the rx_cfg buffer, and
     ///        before subscribe() is used to set up the recv callback. Additionally, apps can only
     ///        send on ports after they have bound to said port. If this command is called
     ///        and the address in rx_cfg is 0::0 : 0, this command will reset the option
-    ///        containing the bound port to None and set the rx callback to None. Notably,
+    ///        containing the bound port to None. Notably,
     ///        the current implementation of this only allows for each app to bind to a single
     ///        port at a time, as such an implementation conserves memory (and is similar
-    ///        to the approach applied by TinyOS and Riot). Further, there is
-    ///        currently no mechanism for anything in the kernel to bind to ports, and there
-    ///        is no distinction between ephemeral ports and reserved ports.
-    /// - `4`: Returns the maximum payload that can be transmitted by apps using this driver.
+    ///        to the approach applied by TinyOS and Riot).
+    ///        /// - `4`: Returns the maximum payload that can be transmitted by apps using this driver.
     ///        This represents the size of the payload buffer in the kernel. Apps can use this
     ///        syscall to ensure they do not attempt to send too-large messages.
 
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
-            1 => self.do_with_cfg_mut(appid, arg1 * mem::size_of::<IPAddr>(), |cfg| {
-                let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
-                let iface_size = mem::size_of::<IPAddr>();
-                for i in 0..n_ifaces_to_copy {
-                    cfg[i * iface_size..(i + 1) * iface_size]
-                        .copy_from_slice(&self.interface_list[i].0);
-                }
-                // Returns total number of interfaces
-                ReturnCode::SuccessWithValue {
-                    value: self.interface_list.len(),
-                }
-            }),
+            1 => {
+                self.apps
+                    .enter(appid, |app| {
+                        app.app_cfg
+                            .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                                if cfg.len() != arg1 * size_of::<IPAddr>() {
+                                    return CommandReturn::failure(ErrorCode::INVAL);
+                                }
+                                let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
+                                let iface_size = size_of::<IPAddr>();
+                                for i in 0..n_ifaces_to_copy {
+                                    cfg[i * iface_size..(i + 1) * iface_size]
+                                        .copy_from_slice(&self.interface_list[i].0);
+                                }
+                                // Returns total number of interfaces
+                                CommandReturn::success_u32(self.interface_list.len() as u32)
+                            })
+                    })
+                    .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+            }
 
             // Transmits UDP packet stored in tx_buf
             2 => {
-                let setup_tx = self
+                let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         if app.pending_tx.is_some() {
                             // Cannot support more than one pending tx per process.
-                            return ReturnCode::EBUSY;
+                            return Err(ErrorCode::BUSY);
                         }
                         if app.bound_port.is_none() {
                             // Currently, apps need to bind to a port before they can send from said port
-                            return ReturnCode::ERESERVE;
+                            return Err(ErrorCode::RESERVE);
                         }
-                        let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                            if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
+                        let next_tx = app.app_cfg.map_or(None, |cfg| {
+                            if cfg.len() != 2 * size_of::<UDPEndpoint>() {
                                 return None;
                             }
 
                             if let (Some(dst), Some(src)) = (
-                                self.parse_ip_port_pair(
-                                    &cfg.as_ref()[mem::size_of::<UDPEndpoint>()..],
-                                ),
-                                self.parse_ip_port_pair(
-                                    &cfg.as_ref()[..mem::size_of::<UDPEndpoint>()],
-                                ),
+                                self.parse_ip_port_pair(&cfg.as_ref()[size_of::<UDPEndpoint>()..]),
+                                self.parse_ip_port_pair(&cfg.as_ref()[..size_of::<UDPEndpoint>()]),
                             ) {
                                 if Some(src.clone()) == app.bound_port {
                                     Some([src, dst])
@@ -531,24 +519,26 @@ impl<'a> Driver for UDPDriver<'a> {
                             }
                         });
                         if next_tx.is_none() {
-                            return ReturnCode::EINVAL;
+                            return Err(ErrorCode::INVAL);
                         }
                         app.pending_tx = next_tx;
-                        ReturnCode::SUCCESS
+                        Ok(())
                     })
-                    .unwrap_or_else(|err| err.into());
-                if setup_tx == ReturnCode::SUCCESS {
-                    self.do_next_tx_immediate(appid)
-                } else {
-                    setup_tx
+                    .unwrap_or_else(|err| Err(err.into()));
+                match res {
+                    Ok(_) => self.do_next_tx_immediate(appid).map_or_else(
+                        |err| CommandReturn::failure(err.into()),
+                        |v| CommandReturn::success_u32(v),
+                    ),
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
             3 => {
                 let err = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         // Move UDPEndpoint into udp.rs?
-                        let requested_addr_opt = app.app_rx_cfg.as_ref().and_then(|cfg| {
+                        let requested_addr_opt = app.app_rx_cfg.map_or(None, |cfg| {
                             if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
                                 None
                             } else if let Some(local_iface) = self
@@ -559,10 +549,9 @@ impl<'a> Driver for UDPDriver<'a> {
                                 None
                             }
                         });
-                        requested_addr_opt.map_or(Err(ReturnCode::EINVAL), |requested_addr| {
+                        requested_addr_opt.map_or(Err(Err(ErrorCode::INVAL)), |requested_addr| {
                             // If zero address, close any already bound socket
                             if requested_addr.is_zero() {
-                                app.rx_callback = None;
                                 app.bound_port = None;
                                 return Ok(None);
                             }
@@ -574,7 +563,7 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             }
                             if !requested_is_local {
-                                return Err(ReturnCode::EINVAL);
+                                return Err(Err(ErrorCode::INVAL));
                             }
                             Ok(Some(requested_addr))
                         })
@@ -582,44 +571,46 @@ impl<'a> Driver for UDPDriver<'a> {
                     .unwrap_or_else(|err| Err(err.into()));
                 match err {
                     Ok(requested_addr_opt) => {
-                        requested_addr_opt.map_or(ReturnCode::SUCCESS, |requested_addr| {
+                        requested_addr_opt.map_or(CommandReturn::success(), |requested_addr| {
                             // Check bound ports in the kernel.
                             match self.port_table.is_bound(requested_addr.port) {
                                 Ok(bound) => {
                                     if bound {
-                                        ReturnCode::EBUSY
+                                        CommandReturn::failure(ErrorCode::BUSY)
                                     } else {
-                                        self.do_with_app(appid, |app| {
-                                            // The requested addr is free and valid
-                                            app.bound_port = Some(requested_addr);
-                                            ReturnCode::SUCCESS
-                                        })
+                                        self.apps
+                                            .enter(appid, |app| {
+                                                // The requested addr is free and valid
+                                                app.bound_port = Some(requested_addr);
+                                                CommandReturn::success()
+                                            })
+                                            .unwrap_or_else(|err| {
+                                                CommandReturn::failure(err.into())
+                                            })
                                     }
                                 }
-                                Err(_) => ReturnCode::FAIL, //error in port table
+                                Err(_) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
                             }
                         })
                     }
-                    Err(retcode) => retcode,
+                    Err(retcode) => CommandReturn::failure(retcode.try_into().unwrap()),
                 }
             }
-            4 => ReturnCode::SuccessWithValue {
-                value: self.max_tx_pyld_len,
-            },
-            _ => ReturnCode::ENOSUPPORT,
+            4 => CommandReturn::success_u32(self.max_tx_pyld_len as u32),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
+    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableBuffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+                    .schedule(kernel::into_statuscode(result), 0, 0);
             });
         });
         self.current_app.set(None);
@@ -636,7 +627,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        self.apps.each(|app| {
+        self.apps.each(|_, app| {
             if app.bound_port.is_some() {
                 let mut for_me = false;
                 app.bound_port.as_ref().map(|requested_addr| {
@@ -645,31 +636,31 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                     }
                 });
                 if for_me {
-                    let mut app_read = app.app_read.take();
-                    app_read.as_mut().map(|rbuf| {
-                        let rbuf = rbuf.as_mut();
-                        let len = payload.len();
+                    let len = payload.len();
+                    let res = app.app_read.mut_map_or(Ok(()), |rbuf| {
                         if rbuf.len() >= len {
-                            // silently ignore packets that don't fit?
                             rbuf[..len].copy_from_slice(&payload[..len]);
-
-                            // Write address of sender into rx_cfg so it can be read by client
-                            let sender_addr = UDPEndpoint {
-                                addr: src_addr,
-                                port: src_port,
-                            };
-                            let cfg_len = 2 * mem::size_of::<UDPEndpoint>();
-                            app.app_rx_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
-                                if cfg.len() != cfg_len {
-                                    return ReturnCode::EINVAL;
-                                }
-                                sender_addr.encode(cfg.as_mut(), 0);
-                                ReturnCode::SUCCESS
-                            });
-                            app.rx_callback.map(|mut cb| cb.schedule(len, 0, 0));
+                            Ok(())
+                        } else {
+                            Err(ErrorCode::SIZE) //packet does not fit
                         }
                     });
-                    app.app_read = app_read;
+                    if res.is_ok() {
+                        // Write address of sender into rx_cfg so it can be read by client
+                        let sender_addr = UDPEndpoint {
+                            addr: src_addr,
+                            port: src_port,
+                        };
+                        app.rx_callback.schedule(len, 0, 0);
+                        let cfg_len = 2 * size_of::<UDPEndpoint>();
+                        let _ = app.app_rx_cfg.mut_map_or(Err(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != cfg_len {
+                                return Err(ErrorCode::INVAL);
+                            }
+                            sender_addr.encode(cfg, 0);
+                            Ok(())
+                        });
+                    }
                 }
             }
         });
@@ -681,7 +672,7 @@ impl<'a> PortQuery for UDPDriver<'a> {
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;
         for app in self.apps.iter() {
-            app.enter(|other_app, _| {
+            app.enter(|other_app| {
                 if other_app.bound_port.is_some() {
                     let other_addr_opt = other_app.bound_port.clone();
                     let other_addr = other_addr_opt.expect("Missing other_addr");

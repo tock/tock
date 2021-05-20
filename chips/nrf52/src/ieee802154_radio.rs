@@ -4,20 +4,20 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
-use kernel::hil::time::Alarm;
-use kernel::ReturnCode;
+use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::ErrorCode;
 
-use crate::ppi;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
 // This driver has some significant flaws -- no ACK support, power cycles
 // the radio after every transmission or reception,
 // doesn't always check hardware for errors and instead defaults to
-// returning SUCCESS. However as of 05/26/20 it does interoperate
+// returning Ok(()). However as of 05/26/20 it does interoperate
 // with other 15.4 implementations for Tock's basic 15.4 apps.
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
@@ -674,11 +674,16 @@ pub struct Radio<'p> {
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
     timer0: OptionalCell<&'p crate::timer::TimerAlarm<'p>>,
-    ppi: &'p crate::ppi::Ppi,
+}
+
+impl<'a> AlarmClient for Radio<'a> {
+    fn alarm(&self) {
+        self.rx();
+    }
 }
 
 impl<'p> Radio<'p> {
-    pub const fn new(ppi: &'p crate::ppi::Ppi) -> Self {
+    pub const fn new() -> Self {
         Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
@@ -695,7 +700,6 @@ impl<'p> Radio<'p> {
             channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
             timer0: OptionalCell::empty(),
-            ppi,
         }
     }
 
@@ -776,9 +780,6 @@ impl<'p> Radio<'p> {
             if self.transmitting.get()
                 && self.registers.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE
             {
-                if self.cca_count.get() > 0 {
-                    self.ppi.disable(ppi::Channel::CH21::SET);
-                }
                 self.registers.task_ccastart.write(Task::ENABLE::SET);
             } else {
                 self.registers.task_start.write(Task::ENABLE::SET);
@@ -798,6 +799,10 @@ impl<'p> Radio<'p> {
 
         if self.registers.event_ccabusy.is_set(Event::READY) {
             self.registers.event_ccabusy.write(Event::READY::CLEAR);
+            self.registers.event_ready.write(Event::READY::CLEAR);
+            self.registers.task_disable.write(Task::ENABLE::SET);
+            while self.registers.event_disabled.get() == 0 {}
+            self.registers.event_disabled.write(Event::READY::CLEAR);
             //need to back off for a period of time outlined
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the
@@ -806,7 +811,6 @@ impl<'p> Radio<'p> {
                 self.cca_count.set(self.cca_count.get() + 1);
                 self.cca_be.set(self.cca_be.get() + 1);
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                self.ppi.enable(ppi::Channel::CH21::SET);
                 self.timer0
                     .expect("Missing timer reference for CSMA")
                     .set_alarm(
@@ -818,7 +822,7 @@ impl<'p> Radio<'p> {
             } else {
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
-                let result = ReturnCode::EBUSY;
+                let result = Err(ErrorCode::BUSY);
                 //TODO: Acked is flagged as false until I get around to fixing it.
                 self.tx_client
                     .map(|client| {
@@ -827,8 +831,6 @@ impl<'p> Radio<'p> {
                     });
             }
 
-            self.registers.event_ready.write(Event::READY::CLEAR);
-            self.registers.task_disable.write(Task::ENABLE::SET);
             self.enable_interrupts();
         }
 
@@ -837,9 +839,9 @@ impl<'p> Radio<'p> {
             self.registers.event_end.write(Event::READY::CLEAR);
 
             let result = if self.registers.crcstatus.is_set(Event::READY) {
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             };
 
             match self.registers.state.get() {
@@ -849,7 +851,7 @@ impl<'p> Radio<'p> {
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.transmitting.set(false);
                     //if we are transmitting, the CRCstatus check is always going to be an error
-                    let result = ReturnCode::SUCCESS;
+                    let result = Ok(());
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     self.tx_client
                         .map(|client|{
@@ -994,9 +996,9 @@ impl<'p> Radio<'p> {
         self.set_tx_power();
     }
 
-    pub fn startup(&self) -> ReturnCode {
+    pub fn startup(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -1022,26 +1024,26 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         _spi_buf: &'static mut [u8],
         _reg_write: &'static mut [u8],
         _reg_read: &'static mut [u8],
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         self.radio_initialize();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_power_client(&self, _client: &'static dyn PowerClient) {
         //
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.radio_on();
-        ReturnCode::SUCCESS
+        Ok(())
     }
-    fn start(&self) -> ReturnCode {
-        self.reset();
-        ReturnCode::SUCCESS
+    fn start(&self) -> Result<(), ErrorCode> {
+        let _ = self.reset();
+        Ok(())
     }
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
-        ReturnCode::SUCCESS
+        Ok(())
     }
     fn is_on(&self) -> bool {
         true
@@ -1109,25 +1111,25 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         self.pan.set(id);
     }
 
-    fn set_channel(&self, chan: u8) -> ReturnCode {
+    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
         match RadioChannel::try_from(chan) {
-            Err(_) => ReturnCode::ENOSUPPORT,
+            Err(_) => Err(ErrorCode::NOSUPPORT),
             Ok(res) => {
                 self.channel.set(res);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
 
-    fn set_tx_power(&self, tx_power: i8) -> ReturnCode {
+    fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
-            Err(_) => ReturnCode::ENOSUPPORT,
+            Err(_) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }
@@ -1151,12 +1153,12 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buf.is_some() || self.transmitting.get() {
-            return (ReturnCode::EBUSY, Some(buf));
+            return Err((ErrorCode::BUSY, buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
             // Not enough room for CRC
-            return (ReturnCode::ESIZE, Some(buf));
+            return Err((ErrorCode::SIZE, buf));
         }
 
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
@@ -1169,6 +1171,6 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
 
         self.radio_off();
         self.radio_initialize();
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 }

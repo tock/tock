@@ -17,31 +17,31 @@
 //! Only one command can be issued at a time.
 //!
 //! #### command num
-//! - `0`: Returns SUCCESS
+//! - `0`: Returns Ok(())
 //!   - `data`: Unused.
 //!   - Return: 0
 //! - `1`: Is Present
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `2`: Power On
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `3`: Set Scale
 //!   - `data1`: 0, 1 or 2
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `4`: Enable high pass filter
 //!   - `data`: 1 for enable, 0 for disable
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `5`: Set High Pass Filter Mode and Divider (manual page 33)
 //!   - `data1`: mode
 //!   - `data2`: divider
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `6`: Read XYZ
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //! - `7`: Read Temperature
 //!   - `data`: unused
-//!   - Return: `SUCCESS` if no other command is in progress, `EBUSY` otherwise.
+//!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
 //!
 //! ### Subscribe
 //!
@@ -103,11 +103,11 @@
 //!
 
 use core::cell::Cell;
+use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::ReturnCode;
-use kernel::{AppId, Callback, Driver};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -175,6 +175,11 @@ enum L3gd20Status {
 //     Idle,
 // }
 
+#[derive(Default)]
+pub struct App {
+    upcall: Upcall,
+}
+
 pub struct L3gd20Spi<'a> {
     spi: &'a dyn spi::SpiMasterDevice,
     txbuffer: TakeCell<'static, [u8]>,
@@ -184,7 +189,8 @@ pub struct L3gd20Spi<'a> {
     hpf_mode: Cell<u8>,
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
-    callback: OptionalCell<Callback>,
+    current_process: OptionalCell<ProcessId>,
+    grants: Grant<App>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -194,6 +200,7 @@ impl<'a> L3gd20Spi<'a> {
         spi: &'a dyn spi::SpiMasterDevice,
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
         rxbuffer: &'static mut [u8; L3GD20_RX_SIZE],
+        grants: Grant<App>,
     ) -> L3gd20Spi<'a> {
         // setup and return struct
         L3gd20Spi {
@@ -205,7 +212,8 @@ impl<'a> L3gd20Spi<'a> {
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
-            callback: OptionalCell::empty(),
+            current_process: OptionalCell::empty(),
+            grants: grants,
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -216,7 +224,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_WHO_AM_I | 0x80;
             buf[1] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
         });
         false
     }
@@ -226,7 +234,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG1;
             buf[1] = 0x0F;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -236,7 +244,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG5;
             buf[1] = if enabled { 1 } else { 0 } << 4;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -247,7 +255,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG2;
             buf[1] = (mode & 0x03) << 4 | (divider & 0x0F);
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -257,7 +265,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG4;
             buf[1] = (scale & 0x03) << 4;
-            self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None, 2);
         });
     }
 
@@ -271,7 +279,7 @@ impl<'a> L3gd20Spi<'a> {
             buf[4] = 0x00;
             buf[5] = 0x00;
             buf[6] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 7);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 7);
         });
     }
 
@@ -280,7 +288,7 @@ impl<'a> L3gd20Spi<'a> {
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_OUT_TEMP | 0x80;
             buf[1] = 0x00;
-            self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
         });
     }
 
@@ -294,25 +302,46 @@ impl<'a> L3gd20Spi<'a> {
 }
 
 impl Driver for L3gd20Spi<'_> {
-    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data1: usize,
+        data2: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            return CommandReturn::success();
+        }
+
+        let match_or_empty_or_nonexistent = self.current_process.map_or(true, |current_process| {
+            self.grants
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+
+        if match_or_empty_or_nonexistent {
+            self.current_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::RESERVE);
+        }
+
         match command_num {
-            0 => ReturnCode::SUCCESS,
             // Check is sensor is correctly connected
             1 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.is_present();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Power On
             2 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.power_on();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set Scale
@@ -320,9 +349,9 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let scale = data1 as u8;
                     self.set_scale(scale);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Enable High Pass Filter
@@ -331,9 +360,9 @@ impl Driver for L3gd20Spi<'_> {
                     let mode = data1 as u8;
                     let divider = data2 as u8;
                     self.set_hpf_parameters(mode, divider);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Set High Pass Filter Mode and Divider
@@ -341,47 +370,56 @@ impl Driver for L3gd20Spi<'_> {
                 if self.status.get() == L3gd20Status::Idle {
                     let enabled = if data1 == 1 { true } else { false };
                     self.enable_hpf(enabled);
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read XYZ
             6 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_xyz();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // Read Temperature
             7 => {
                 if self.status.get() == L3gd20Status::Idle {
                     self.read_temperature();
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EBUSY
+                    CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 /* set the one shot callback */ => {
-                self.callback.insert (callback);
-                ReturnCode::SUCCESS
-            },
-            // default
-            _ => ReturnCode::ENOSUPPORT,
+        mut upcall: Upcall,
+        process_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .grants
+            .enter(process_id, |app| {
+                match subscribe_num {
+                    0 /* set the one shot callback */ => {
+                        mem::swap(&mut app.upcall, &mut upcall);
+                        Ok(())
+                    }
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(upcall),
+            Err(e) => Err((upcall, e)),
         }
     }
 }
@@ -393,110 +431,105 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) {
-        self.status.set(match self.status.get() {
-            L3gd20Status::IsPresent => {
-                let present = if let Some(ref buf) = read_buffer {
-                    if buf[1] == L3GD20_WHO_AM_I {
-                        true
-                    } else {
-                        false
+        self.current_process.map(|proc_id| {
+            let _result = self.grants.enter(*proc_id, |app| {
+                self.status.set(match self.status.get() {
+                    L3gd20Status::IsPresent => {
+                        let present = if let Some(ref buf) = read_buffer {
+                            if buf[1] == L3GD20_WHO_AM_I {
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        app.upcall.schedule(1, if present { 1 } else { 0 }, 0);
+                        L3gd20Status::Idle
                     }
-                } else {
-                    false
-                };
-                self.callback.map(|callback| {
-                    callback.schedule(1, if present { 1 } else { 0 }, 0);
+
+                    L3gd20Status::ReadXYZ => {
+                        let mut x: usize = 0;
+                        let mut y: usize = 0;
+                        let mut z: usize = 0;
+                        let values = if let Some(ref buf) = read_buffer {
+                            if len >= 7 {
+                                self.nine_dof_client.map(|client| {
+                                    // compute using only integers
+                                    let scale = match self.scale.get() {
+                                        0 => L3GD20_SCALE_250,
+                                        1 => L3GD20_SCALE_500,
+                                        _ => L3GD20_SCALE_2000,
+                                    };
+                                    let x: usize =
+                                        ((buf[1] as i16 | ((buf[2] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
+                                    let y: usize =
+                                        ((buf[3] as i16 | ((buf[4] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
+                                    let z: usize =
+                                        ((buf[5] as i16 | ((buf[6] as i16) << 8)) as isize * scale
+                                            / 100000)
+                                            as usize;
+                                    client.callback(x, y, z);
+                                });
+                                // actual computation is this one
+
+                                x = (buf[1] as i16 | ((buf[2] as i16) << 8)) as usize;
+                                y = (buf[3] as i16 | ((buf[4] as i16) << 8)) as usize;
+                                z = (buf[5] as i16 | ((buf[6] as i16) << 8)) as usize;
+                                true
+                            } else {
+                                self.nine_dof_client.map(|client| {
+                                    client.callback(0, 0, 0);
+                                });
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if values {
+                            app.upcall.schedule(x, y, z);
+                        } else {
+                            app.upcall.schedule(0, 0, 0);
+                        }
+                        L3gd20Status::Idle
+                    }
+
+                    L3gd20Status::ReadTemperature => {
+                        let mut temperature: usize = 0;
+                        let value = if let Some(ref buf) = read_buffer {
+                            if len >= 2 {
+                                temperature = (buf[1] as i8) as usize;
+                                self.temperature_client.map(|client| {
+                                    client.callback(temperature * 100);
+                                });
+                                true
+                            } else {
+                                self.temperature_client.map(|client| {
+                                    client.callback(0);
+                                });
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if value {
+                            app.upcall.schedule(temperature, 0, 0);
+                        } else {
+                            app.upcall.schedule(0, 0, 0);
+                        }
+                        L3gd20Status::Idle
+                    }
+
+                    _ => {
+                        app.upcall.schedule(0, 0, 0);
+                        L3gd20Status::Idle
+                    }
                 });
-                L3gd20Status::Idle
-            }
-
-            L3gd20Status::ReadXYZ => {
-                let mut x: usize = 0;
-                let mut y: usize = 0;
-                let mut z: usize = 0;
-                let values = if let Some(ref buf) = read_buffer {
-                    if len >= 7 {
-                        self.nine_dof_client.map(|client| {
-                            // compute using only integers
-                            let scale = match self.scale.get() {
-                                0 => L3GD20_SCALE_250,
-                                1 => L3GD20_SCALE_500,
-                                _ => L3GD20_SCALE_2000,
-                            };
-                            let x: usize = ((buf[1] as i16 | ((buf[2] as i16) << 8)) as isize
-                                * scale
-                                / 100000) as usize;
-                            let y: usize = ((buf[3] as i16 | ((buf[4] as i16) << 8)) as isize
-                                * scale
-                                / 100000) as usize;
-                            let z: usize = ((buf[5] as i16 | ((buf[6] as i16) << 8)) as isize
-                                * scale
-                                / 100000) as usize;
-                            client.callback(x, y, z);
-                        });
-                        // actiual computation is this one
-
-                        x = (buf[1] as i16 | ((buf[2] as i16) << 8)) as usize;
-                        y = (buf[3] as i16 | ((buf[4] as i16) << 8)) as usize;
-                        z = (buf[5] as i16 | ((buf[6] as i16) << 8)) as usize;
-                        true
-                    } else {
-                        self.nine_dof_client.map(|client| {
-                            client.callback(0, 0, 0);
-                        });
-                        false
-                    }
-                } else {
-                    false
-                };
-                if values {
-                    self.callback.map(|callback| {
-                        callback.schedule(x, y, z);
-                    });
-                } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
-                }
-                L3gd20Status::Idle
-            }
-
-            L3gd20Status::ReadTemperature => {
-                let mut temperature: usize = 0;
-                let value = if let Some(ref buf) = read_buffer {
-                    if len >= 2 {
-                        temperature = (buf[1] as i8) as usize;
-                        self.temperature_client.map(|client| {
-                            client.callback(temperature * 100);
-                        });
-                        true
-                    } else {
-                        self.temperature_client.map(|client| {
-                            client.callback(0);
-                        });
-                        false
-                    }
-                } else {
-                    false
-                };
-                if value {
-                    self.callback.map(|callback| {
-                        callback.schedule(temperature, 0, 0);
-                    });
-                } else {
-                    self.callback.map(|callback| {
-                        callback.schedule(0, 0, 0);
-                    });
-                }
-                L3gd20Status::Idle
-            }
-
-            _ => {
-                self.callback.map(|callback| {
-                    callback.schedule(0, 0, 0);
-                });
-                L3gd20Status::Idle
-            }
+            });
         });
         self.txbuffer.replace(write_buffer);
         if let Some(buf) = read_buffer {
@@ -510,12 +543,12 @@ impl<'a> sensors::NineDof<'a> for L3gd20Spi<'a> {
         self.nine_dof_client.replace(nine_dof_client);
     }
 
-    fn read_gyroscope(&self) -> ReturnCode {
+    fn read_gyroscope(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_xyz();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -525,12 +558,12 @@ impl<'a> sensors::TemperatureDriver<'a> for L3gd20Spi<'a> {
         self.temperature_client.replace(temperature_client);
     }
 
-    fn read_temperature(&self) -> ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.status.get() == L3gd20Status::Idle {
             self.read_temperature();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

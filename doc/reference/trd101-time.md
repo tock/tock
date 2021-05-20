@@ -4,12 +4,8 @@ Kernel Time HIL
 **TRD:** 101<br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
-**Status:** Draft <br/>
+**Status:** Final <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
-**Draft-Created:** Feb 06, 2017<br/>
-**Draft-Modified:** September 9, 2020<br/>
-**Draft-Version:** 4<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
@@ -17,7 +13,7 @@ Abstract
 This document describes the hardware independent layer interface (HIL) for time
 in the Tock operating system kernel. It describes the Rust traits and other
 definitions for this service as well as the reasoning behind them. This
-document is in full compliance with [TRD1].
+document is in full compliance with [TRD1](./trd1-trds.md).
 
 
 1 Introduction
@@ -27,7 +23,7 @@ Microcontrollers provide a variety of hardware controllers that keep track of
 time. The Tock kernel organizes these various types of controllers into two
 broad categories: alarms and timers. Alarms continuously increment a clock and
 can fire an event when the clock reaches a specific value. Timers can fire an
-event after a certain number of clock tics have elapsed.
+event after a certain number of clock ticks have elapsed.
 
 The time HIL is in the kernel crate, in module `hil::time`. It provides six
 main traits:
@@ -117,33 +113,33 @@ pub trait Time {
 }
 ```
 
-Frequency is defined with an [associated type] of the `Time` trait
-(`Time::Frequencey`). It MUST implement the `Frequency` trait, which
-has a single method, `frequency`. `frequency` returns the frequency in
-Hz, e.g. 1MHz is 1000000. Clients can use this to write code that is
-independent of the underlying frequency.
+Frequency is defined with an [associated type][associated_type]
+of the `Time` trait (`Time::Frequencey`). It MUST implement the
+`Frequency` trait, which has a single method, `frequency`. `frequency`
+returns the frequency in Hz, e.g. 1 MHz is 1000000. Clients can use this
+to write code that is independent of the underlying frequency.
 
 An instance of `Time` or derived trait MUST NOT have a `Frequency`
 which is greater than its underlying frequency precision.  It must be
 able to accurately return every possible value in the range of `Ticks`
 without further quantization. It is therefore not allowed to take a
-32kHz clock and present it as an instance of `Time` with a frequency
+32 kHz clock and present it as an instance of `Time` with a frequency
 of `Freq16MHz`.
 
 `Frequency` allows a user of `Time` to know the granularity of ticks
 and so avoid quantization error when two different times map to the
 same time tick. For example, if a user of `Time` needs microsecond
 precision, then the associated type can be used to statically check
-that is is not put on top of an implementation with 32kHz precision.
+that it is not put on top of an implementation with 32 kHz precision.
 
 The three `ticks_from` methods are helper functions to convert values
 in seconds, milliseconds, or microseconds to a number of ticks. These
 three methods all round down the result. This means, for example, that
-if the `Time` instance has a frequency of 32kHz, calling
-`ticks_from_us(20)` returns 0, because a single tick of a 32kHz clock
+if the `Time` instance has a frequency of 32 kHz, calling
+`ticks_from_us(20)` returns 0, because a single tick of a 32 kHz clock
 is 30.5 microseconds.
 
-[associated type]: https://doc.rust-lang.org/book/associated-types.html
+[associated_type]: https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types
 
 
 3 `Counter` and `OverflowClient` traits
@@ -160,9 +156,9 @@ pub trait OverflowClient {
 }
 
 pub trait Counter<'a>: Time {
-  fn start(&self) -> ReturnCode;
-  fn stop(&self) -> ReturnCode;
-  fn reset(&self) -> ReturnCode;
+  fn start(&self) -> Result<(), ErrorCode>;
+  fn stop(&self) -> Result<(), ErrorCode>;
+  fn reset(&self) -> Result<(), ErrorCode>;
   fn is_running(&self) -> bool;
   fn set_overflow_client(&'a self, &'a dyn OverflowClient);
 }
@@ -178,19 +174,18 @@ isn't needed would be wasteful.
 Note that Tock's concurrency model means interrupt bottom halves
 can be delayed until the current bottom half (or syscall
 invocation) completes. This means that an overflow callback can
-seem to occur *after* an overlow. For example, suppose there is
+seem to occur *after* an overflow. For example, suppose there is
 an 8-bit counter. The following execution is possible:
 
   1. Client code calls Time::now, which returns 250.
-  1. An overflow happens, marking an interrupt as pending but the 
-  bottom half doesn't execute yet.
+  1. An overflow happens, marking an interrupt as pending but the bottom half doesn't execute yet.
   1. Client code calls Time::now, which returns 12.
   1. The main event loop runs, invoking the bottom half.
   1. The Counter calls OverflowClient::overflow, notifying the client of the overflow.
 
 A `Counter` implementation MUST NOT provide a `Frequency` of a higher
 resolution than an underlying hardware counter. For example, if the
-underlying hardware counter has a frequency of 32kHz, then a `Counter`
+underlying hardware counter has a frequency of 32 kHz, then a `Counter`
 cannot say it has a frequency of 1MHz by multiplying the underlying
 counter by 32. A `Counter` implementation MAY provide a `Frequency` of
 a lower resolution (e.g., by stripping bits).
@@ -218,24 +213,30 @@ at an absolute moment while `Timer` requests a callback at a point
 relative to now.
 
 ```rust
-pub trait AlarmClient: OverflowClient {
+pub trait AlarmClient {
   fn alarm(&self);
 }
 
 pub trait Alarm: Time {
   fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
-  fn disarm(&self) -> ReturnCode;
+  fn disarm(&self) -> Result<(), ErrorCode>;
   fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
 }
 ```
 
 `Alarm` has a `disable` in order to cancel an existing alarm. Calling
-`set_alarm` enables an alarm. The `reference` parameter is typically a
-sample of `Time::now` just before `set_alarm` is called, but it can
-also be a stored value from a previous call. The `reference` parameter
-follows the invariant that it is in the past: its value is by
-definition equal to or less than a call to `Time::now`.
+`set_alarm` enables an alarm. If there is currently no alarm set, this
+sets a new alarm. If there is an alarm set, calling `set_alarm` cancels
+the previous alarm and replaces the it with the new one. It cancels the
+previous alarm so a client does not have to disambiguate which alarm it
+is handling, the previous or current one.
+
+The `reference` parameter of `set_alarm` is typically a sample of
+`Time::now` just before `set_alarm` is called, but it can also be a
+stored value from a previous call. The `reference` parameter follows
+the invariant that it is in the past: its value is by definition equal
+to or less than a call to `Time::now`.
 
 The `set_alarm` method takes a `reference` and a `dt` parameter to
 handle edge cases in which it can be impossible distinguish between
@@ -260,7 +261,7 @@ future).
 5 `Timer` and `TimerClient` traits
 ===============================
 
-The `Timer` trait presents the abstraction of a software timer. The
+The `Timer` trait presents the abstraction of a timer. The
 timer can either be one-shot or periodic with a fixed
 interval. `Timer` derives from `Time`, therefore has associated
 `Time::Frequency` and `Ticks` types.
@@ -285,7 +286,7 @@ pub trait Timer<'a>: Time {
   fn time_remaining(&self) -> Option<Self::Ticks>;
   fn is_enabled(&self) -> bool;
 
-  fn cancel(&self) -> ReturnCode;
+  fn cancel(&self) -> Result<(), ErrorCode>;
 }
 ```
 
@@ -330,7 +331,7 @@ pub struct Ticks64Bits(u64);
 ```
 
 The 24 bits implementation is to support some Nordic Semiconductor
-nRF platforms (e.g. nRF52840) that only support a 24 bit counter.
+nRF platforms (e.g. nRF52840) that only support a 24-bit counter.
 
 
 7 Capsules
@@ -377,7 +378,7 @@ past. Furthermore, many instances of timer hardware requires that a
 compare value be some minimum number of ticks in the future. In
 practice, this means setting "very soon" to be a safe number of ticks
 in the future is a better implementation approach than trying to be
-extremely precise and inadverently choosing too soon and then waiting
+extremely precise and inadvertently choosing too soon and then waiting
 for a wraparound.
 
 Pseudocode to handle these cases is as follows:
@@ -387,7 +388,7 @@ set_alarm(self, reference, dt):
   now = now()
   expires = reference.wrapping_add(dt)
   if !now.within_range(reference, expired):
-    expires = now 
+    expires = now
 
   if expires.wrapping_sub(now) < MIN_DELAY:
     expires = now.wrapping_add(MIN_DELAY)
@@ -407,7 +408,7 @@ others.
 
 11 Authors' Address
 =================================
-
+```
 Amit Levy
 amit@amitlevy.com
 
@@ -420,3 +421,4 @@ pal@cs.stanford.edu
 
 Guillaume Endignoux
 guillaumee@google.com
+```

@@ -31,7 +31,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -55,68 +55,79 @@ enum ControlField {
     SelectedChannels,
 }
 
+#[derive(Default)]
+pub struct App {
+    callback: Upcall,
+}
+
 pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<Callback>,
+    apps: Grant<App>,
+    owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> PCA9544A<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
-        PCA9544A {
-            i2c: i2c,
+    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8], grant: Grant<App>) -> Self {
+        Self {
+            i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: OptionalCell::empty(),
+            apps: grant,
+            owning_process: OptionalCell::empty(),
         }
     }
 
     /// Choose which channel(s) are active. Channels are encoded with a bitwise
     /// mask (0x01 means enable channel 0, 0x0F means enable all channels).
     /// Send 0 to disable all channels.
-    fn select_channels(&self, channel_bitmask: u8) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.i2c.enable();
+    fn select_channels(&self, channel_bitmask: u8) -> CommandReturn {
+        self.buffer
+            .take()
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            // Always clear the settings so we get to a known state
-            buffer[0] = 0;
+                // Always clear the settings so we get to a known state
+                buffer[0] = 0;
 
-            // Iterate the bit array to send the correct channel enables
-            let mut index = 1;
-            for i in 0..4 {
-                if channel_bitmask & (0x01 << i) != 0 {
-                    // B2 B1 B0 are set starting at 0x04
-                    buffer[index] = i + 4;
-                    index += 1;
+                // Iterate the bit array to send the correct channel enables
+                let mut index = 1;
+                for i in 0..4 {
+                    if channel_bitmask & (0x01 << i) != 0 {
+                        // B2 B1 B0 are set starting at 0x04
+                        buffer[index] = i + 4;
+                        index += 1;
+                    }
                 }
-            }
 
-            self.i2c.write(buffer, index as u8);
-            self.state.set(State::Done);
+                self.i2c.write(buffer, index as u8);
+                self.state.set(State::Done);
 
-            ReturnCode::SUCCESS
-        })
+                CommandReturn::success()
+            })
     }
 
-    fn read_interrupts(&self) -> ReturnCode {
+    fn read_interrupts(&self) -> CommandReturn {
         self.read_control(ControlField::InterruptMask)
     }
 
-    fn read_selected_channels(&self) -> ReturnCode {
+    fn read_selected_channels(&self) -> CommandReturn {
         self.read_control(ControlField::SelectedChannels)
     }
 
-    fn read_control(&self, field: ControlField) -> ReturnCode {
-        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-            self.i2c.enable();
+    fn read_control(&self, field: ControlField) -> CommandReturn {
+        self.buffer
+            .take()
+            .map_or(CommandReturn::failure(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            // Just issuing a read to the selector reads its control register.
-            self.i2c.read(buffer, 1);
-            self.state.set(State::ReadControl(field));
+                // Just issuing a read to the selector reads its control register.
+                self.i2c.read(buffer, 1);
+                self.state.set(State::ReadControl(field));
 
-            ReturnCode::SUCCESS
-        })
+                CommandReturn::success()
+            })
     }
 }
 
@@ -129,15 +140,22 @@ impl i2c::I2CClient for PCA9544A<'_> {
                     ControlField::SelectedChannels => buffer[0] & 0x07,
                 };
 
-                self.callback
-                    .map(|cb| cb.schedule((field as usize) + 1, ret as usize, 0));
+                self.owning_process.map(|pid| {
+                    let _ = self.apps.enter(*pid, |app| {
+                        app.callback.schedule((field as usize) + 1, ret as usize, 0);
+                    });
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.callback.map(|cb| cb.schedule(0, 0, 0));
+                self.owning_process.map(|pid| {
+                    let _ = self.apps.enter(*pid, |app| {
+                        app.callback.schedule(0, 0, 0);
+                    });
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -153,22 +171,31 @@ impl Driver for PCA9544A<'_> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Callback is triggered when a channel is finished being selected
+    /// - `0`: Upcall is triggered when a channel is finished being selected
     ///   or when the current channel setup is returned.
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+        mut callback: Upcall,
+        appid: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(appid, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
+                    }
 
-            // default
-            _ => ReturnCode::ENOSUPPORT,
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -181,25 +208,49 @@ impl Driver for PCA9544A<'_> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
+        // Check if this non-virtualized driver is already in use by
+        // some (alive) process
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.apps
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+
         match command_num {
             // Check if present.
-            0 => ReturnCode::SUCCESS,
+            0 => CommandReturn::success(),
 
             // Select channels.
-            1 => self.select_channels(data as u8),
+            1 => self.select_channels(data as u8).into(),
 
             // Disable all channels.
-            2 => self.select_channels(0),
+            2 => self.select_channels(0).into(),
 
             // Read the current interrupt fired mask.
-            3 => self.read_interrupts(),
+            3 => self.read_interrupts().into(),
 
             // Read the current selected channels.
-            4 => self.read_selected_channels(),
+            4 => self.read_selected_channels().into(),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

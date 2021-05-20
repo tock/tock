@@ -6,11 +6,12 @@
 
 use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -318,19 +319,19 @@ impl time::Time for Ast<'_> {
 impl<'a> time::Counter<'a> for Ast<'a> {
     fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
 
-    fn start(&self) -> ReturnCode {
+    fn start(&self) -> Result<(), ErrorCode> {
         self.enable();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn stop(&self) -> ReturnCode {
+    fn stop(&self) -> Result<(), ErrorCode> {
         self.disable();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn reset(&self) -> ReturnCode {
+    fn reset(&self) -> Result<(), ErrorCode> {
         self.set_counter(0);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
@@ -376,12 +377,12 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         Self::Ticks::from(self.registers.ar0.read(Value::VALUE))
     }
 
-    fn disarm(&self) -> ReturnCode {
+    fn disarm(&self) -> Result<(), ErrorCode> {
         // After disabling the IRQ and clearing the alarm bit in the
         // status register, the NVIC bit is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {

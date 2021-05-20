@@ -23,10 +23,11 @@ use core::cell::Cell;
 use core::{cmp, mem, slice};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// Representation of an ADC channel on the SAM4L.
 #[derive(PartialEq)]
@@ -435,13 +436,13 @@ impl Adc {
     // the desired frequency and enables the ADC. Subsequent calls with the same frequency
     // value have no effect. Using the slowest clock also ensures efficient discrete
     // sampling.
-    fn config_and_enable(&self, frequency: u32) -> ReturnCode {
+    fn config_and_enable(&self, frequency: u32) -> Result<(), ErrorCode> {
         if self.active.get() {
             // disallow reconfiguration during sampling
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else if frequency == self.adc_clk_freq.get() {
             // already configured to work on this frequency
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             // disabling the ADC before switching clocks is necessary to avoid
             // leaving it in undefined state
@@ -453,7 +454,7 @@ impl Adc {
                 timeout -= 1;
                 if timeout == 0 {
                     // ADC never disabled
-                    return ReturnCode::FAIL;
+                    return Err(ErrorCode::FAIL);
                 }
             }
 
@@ -546,7 +547,7 @@ impl Adc {
                 timeout -= 1;
                 if timeout == 0 {
                     // ADC never enabled
-                    return ReturnCode::FAIL;
+                    return Err(ErrorCode::FAIL);
                 }
             }
 
@@ -566,11 +567,11 @@ impl Adc {
                 timeout -= 1;
                 if timeout == 0 {
                     // ADC buffers never enabled
-                    return ReturnCode::FAIL;
+                    return Err(ErrorCode::FAIL);
                 }
             }
 
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
@@ -608,17 +609,17 @@ impl hil::adc::Adc for Adc {
     /// Returns an error if the ADC is already sampling.
     ///
     /// - `channel`: the ADC channel to sample
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         // always configure to 1KHz to get the slowest clock with single sampling
         let res = self.config_and_enable(1000);
 
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             res
         } else if !self.enabled.get() {
-            ReturnCode::EOFF
+            Err(ErrorCode::OFF)
         } else if self.active.get() {
             // only one operation at a time
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.active.set(true);
             self.continuous.set(false);
@@ -645,7 +646,7 @@ impl hil::adc::Adc for Adc {
             // initiate conversion
             self.registers.cr.write(Control::STRIG::SET);
 
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
@@ -657,19 +658,19 @@ impl hil::adc::Adc for Adc {
     ///
     /// - `channel`: the ADC channel to sample
     /// - `frequency`: the number of samples per second to collect
-    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> Result<(), ErrorCode> {
         let res = self.config_and_enable(frequency);
 
-        if res != ReturnCode::SUCCESS {
+        if res != Ok(()) {
             res
         } else if !self.enabled.get() {
-            ReturnCode::EOFF
+            Err(ErrorCode::OFF)
         } else if self.active.get() {
             // only one sample at a time
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else if frequency == 0 || frequency > 10000 {
             // limit sampling frequencies to a valid range
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             self.active.set(true);
             self.continuous.set(true);
@@ -743,7 +744,7 @@ impl hil::adc::Adc for Adc {
             // start timer
             self.registers.cr.write(Control::TSTART::SET);
 
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
@@ -751,12 +752,12 @@ impl hil::adc::Adc for Adc {
     /// This is expected to be called to stop continuous sampling operations,
     /// but can be called to abort any currently running operation. The buffer,
     /// if any, will be returned via the `samples_ready` callback.
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
-            ReturnCode::EOFF
+            Err(ErrorCode::OFF)
         } else if !self.active.get() {
             // cannot cancel sampling that isn't running
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         } else {
             // clean up state
             self.active.set(false);
@@ -796,7 +797,7 @@ impl hil::adc::Adc for Adc {
                 self.stopped_buffer.replace(buf);
             });
 
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 
@@ -842,28 +843,24 @@ impl hil::adc::AdcHighSpeed for Adc {
         length1: usize,
         buffer2: &'static mut [u16],
         length2: usize,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
         let res = self.config_and_enable(frequency);
 
-        if res != ReturnCode::SUCCESS {
-            (res, Some(buffer1), Some(buffer2))
+        if res != Ok(()) {
+            Err((res.unwrap_err(), buffer1, buffer2))
         } else if !self.enabled.get() {
-            (ReturnCode::EOFF, Some(buffer1), Some(buffer2))
+            Err((ErrorCode::OFF, buffer1, buffer2))
         } else if self.active.get() {
             // only one sample at a time
-            (ReturnCode::EBUSY, Some(buffer1), Some(buffer2))
+            Err((ErrorCode::BUSY, buffer1, buffer2))
         } else if frequency <= (self.adc_clk_freq.get() / (0xFFFF + 1)) || frequency > 250000 {
             // can't sample faster than the max sampling frequency or slower
             // than the timer can be set to
-            (ReturnCode::EINVAL, Some(buffer1), Some(buffer2))
+            Err((ErrorCode::INVAL, buffer1, buffer2))
         } else if length1 == 0 {
             // at least need a valid length for the for the first buffer full of
             // samples. Otherwise, what are we doing here?
-            (ReturnCode::EINVAL, Some(buffer1), Some(buffer2))
+            Err((ErrorCode::INVAL, buffer1, buffer2))
         } else {
             self.active.set(true);
             self.continuous.set(true);
@@ -930,7 +927,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             // start timer
             self.registers.cr.write(Control::TSTART::SET);
 
-            (ReturnCode::SUCCESS, None, None)
+            Ok(())
         }
     }
 
@@ -943,24 +940,24 @@ impl hil::adc::AdcHighSpeed for Adc {
         &self,
         buf: &'static mut [u16],
         length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u16])> {
         if !self.enabled.get() {
-            (ReturnCode::EOFF, Some(buf))
+            Err((ErrorCode::OFF, buf))
         } else if !self.active.get() {
             // cannot continue sampling that isn't running
-            (ReturnCode::EINVAL, Some(buf))
+            Err((ErrorCode::INVAL, buf))
         } else if !self.continuous.get() {
             // cannot continue a single sample operation
-            (ReturnCode::EINVAL, Some(buf))
+            Err((ErrorCode::INVAL, buf))
         } else if self.next_dma_buffer.is_some() {
             // we've already got a second buffer, we don't need a third yet
-            (ReturnCode::EBUSY, Some(buf))
+            Err((ErrorCode::BUSY, buf))
         } else {
             // store the buffer for later use
             self.next_dma_buffer.replace(buf);
             self.next_dma_length.set(length);
 
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
@@ -968,21 +965,13 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// This is expected to be called after `stop_sampling`.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
         if self.active.get() {
             // cannot return buffers while running
-            (ReturnCode::EINVAL, None, None)
+            Err(ErrorCode::INVAL)
         } else {
             // we're not running, so give back whatever we've got
-            (
-                ReturnCode::SUCCESS,
-                self.next_dma_buffer.take(),
-                self.stopped_buffer.take(),
-            )
+            Ok((self.next_dma_buffer.take(), self.stopped_buffer.take()))
         }
     }
 }

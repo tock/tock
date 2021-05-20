@@ -10,10 +10,11 @@ use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::uart;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -301,11 +302,7 @@ impl<'a> Uarte<'a> {
                 // Signal client write done
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
-                        client.transmitted_buffer(
-                            tx_buffer,
-                            self.tx_len.get(),
-                            ReturnCode::SUCCESS,
-                        );
+                        client.transmitted_buffer(tx_buffer, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
@@ -339,7 +336,7 @@ impl<'a> Uarte<'a> {
                         client.received_buffer(
                             rx_buffer,
                             self.offset.get() + rx_bytes,
-                            ReturnCode::ECANCEL,
+                            Err(ErrorCode::CANCEL),
                             uart::Error::None,
                         );
                     });
@@ -362,7 +359,7 @@ impl<'a> Uarte<'a> {
                             client.received_buffer(
                                 rx_buffer,
                                 self.offset.get(),
-                                ReturnCode::SUCCESS,
+                                Ok(()),
                                 uart::Error::None,
                             );
                         });
@@ -451,43 +448,43 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if tx_len == 0 || tx_len > tx_data.len() {
-            (ReturnCode::ESIZE, Some(tx_data))
+            Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
-            (ReturnCode::EBUSY, Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         } else {
             self.setup_buffer_transmit(tx_data, tx_len);
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn transmit_word(&self, _data: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _data: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 
 impl<'a> uart::Configure for Uarte<'a> {
-    fn configure(&self, params: uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != uart::StopBits::One {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.parity != uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
         if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
+            return Err(ErrorCode::NOSUPPORT);
         }
 
         self.set_baud_rate(params.baud_rate);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -500,9 +497,9 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         &self,
         rx_buf: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
-            return (ReturnCode::EBUSY, Some(rx_buf));
+            return Err((ErrorCode::BUSY, rx_buf));
         }
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
@@ -521,21 +518,21 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
         self.registers.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         // Trigger the STOPRX event to cancel the current receive call.
         if self.rx_buffer.is_none() {
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             self.rx_abort_in_progress.set(true);
             self.registers.task_stoprx.write(Task::ENABLE::SET);
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }

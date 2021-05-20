@@ -27,7 +27,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c::{self, Error};
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,
@@ -134,6 +134,7 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                     let status = match buffer[touch_event * 8 + 2] >> 6 {
                         0x00 => TouchStatus::Pressed,
                         0x01 => TouchStatus::Released,
+                        0x02 => TouchStatus::Moved,
                         _ => TouchStatus::Released,
                     };
                     let x = (((buffer[touch_event * 8 + 2] & 0x0F) as u16) << 8)
@@ -142,12 +143,13 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
                         + (buffer[touch_event * 8 + 5] as u16);
                     let pressure = Some(buffer[touch_event * 8 + 6] as u16);
                     let size = Some(buffer[touch_event * 8 + 7] as u16);
+                    let id = (buffer[touch_event * 8 + 4] >> 4) as usize;
                     self.events.map(|buffer| {
                         buffer[touch_event] = TouchEvent {
                             status,
                             x,
                             y,
-                            id: 0,
+                            id,
                             pressure,
                             size,
                         };
@@ -178,12 +180,12 @@ impl<'a> gpio::Client for Ft6x06<'a> {
 }
 
 impl<'a> touch::Touch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn enable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn disable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn touch::TouchClient) {
@@ -198,12 +200,12 @@ impl<'a> touch::Gesture<'a> for Ft6x06<'a> {
 }
 
 impl<'a> touch::MultiTouch<'a> for Ft6x06<'a> {
-    fn enable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn enable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
-    fn disable(&self) -> ReturnCode {
-        ReturnCode::SUCCESS
+    fn disable(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 
     fn get_num_touches(&self) -> usize {

@@ -1,6 +1,6 @@
 //! Interfaces for SPI master and slave communication.
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 use core::option::Option;
 
 /// Values for the ordering of bits
@@ -91,7 +91,7 @@ pub trait SpiMaster {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
@@ -140,7 +140,7 @@ pub trait SpiMasterDevice {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn set_phase(&self, cpal: ClockPhase);
@@ -177,7 +177,7 @@ pub trait SpiSlave {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
 
     fn set_clock(&self, polarity: ClockPolarity);
     fn get_clock(&self) -> ClockPolarity;
@@ -202,7 +202,7 @@ pub trait SpiSlaveDevice {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> ReturnCode;
+    ) -> Result<(), ErrorCode>;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn get_polarity(&self) -> ClockPolarity;

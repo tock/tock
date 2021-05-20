@@ -27,7 +27,7 @@ use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
@@ -49,11 +49,11 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         transport_header: TransportHeader,
         caller: &'a UDPSendStruct<'a, T>,
         net_cap: &'static NetworkCapability,
-    ) -> ReturnCode {
+    ) -> Result<(), ErrorCode> {
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
         self.add_client(caller);
-        let mut ret = ReturnCode::SUCCESS;
+        let mut ret = Ok(());
         // If list empty, initiate send immediately, and return result.
         // Otherwise, packet is queued.
         if list_empty {
@@ -67,7 +67,7 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
                 }
                 None => {
                     debug!("No buffer available to take.");
-                    ReturnCode::FAIL
+                    Err(ErrorCode::FAIL)
                 }
             }
         } else {
@@ -85,7 +85,7 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// and is necessary to receive callbacks from the lower (IP) layer. When
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: Result<(), ErrorCode>) {
         let last_sender = self.sender_list.pop_head();
         let next_sender_option = self.sender_list.head(); // must check here, because udp driver
                                                           // could queue addl. sends in response to
@@ -117,27 +117,27 @@ impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                                     net_cap,
                                 );
                                 next_sender.tx_buffer.replace(buf);
-                                if ret != ReturnCode::SUCCESS {
+                                if ret != Ok(()) {
                                     debug!("IP send_to failed: {:?}", ret);
                                 }
                                 ret
                             }
-                            None => ReturnCode::FAIL,
+                            None => Err(ErrorCode::FAIL),
                         },
                         None => {
                             debug!("Missing transport header.");
-                            ReturnCode::FAIL
+                            Err(ErrorCode::FAIL)
                         }
                     },
                     None => {
                         debug!("No buffer available to take.");
-                        ReturnCode::FAIL
+                        Err(ErrorCode::FAIL)
                     }
                 }
             }
-            None => ReturnCode::SUCCESS, //No more packets queued.
+            None => Ok(()), //No more packets queued.
         };
-        if success != ReturnCode::SUCCESS {
+        if success != Ok(()) {
             debug!("Error in udp_send send_done() callback.");
         }
     }
@@ -147,7 +147,7 @@ impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
 /// has completed sending the requested packet. Note that the
 /// `UDPSender::set_client` method must be called to set the client.
 pub trait UDPSendClient {
-    fn send_done(&self, result: ReturnCode, dgram: LeasableBuffer<'static, u8>);
+    fn send_done(&self, result: Result<(), ErrorCode>, dgram: LeasableBuffer<'static, u8>);
 }
 
 /// This trait represents the bulk of the UDP functionality. The two
@@ -174,7 +174,7 @@ pub trait UDPSender<'a> {
     /// `binding` - type that specifies what port the sender is bound to.
     ///
     /// # Return Value
-    /// Any synchronous errors are returned via the returned `ReturnCode`
+    /// Any synchronous errors are returned via the returned `Result<(), ErrorCode>`
     /// value; asynchronous errors are delivered via the callback.
     fn send_to(
         &'a self,
@@ -196,7 +196,7 @@ pub trait UDPSender<'a> {
     /// `buf` - UDP payload
     ///
     /// # Return Value
-    /// Any synchronous errors are returned via the returned `ReturnCode`
+    /// Any synchronous errors are returned via the returned `Result<(), ErrorCode>`
     /// value; asynchronous errors are delivered via the callback.
     fn driver_send_to(
         &'a self,
@@ -323,7 +323,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
             .udp_mux_sender
             .send_to(dest, transport_header, &self, net_cap)
         {
-            ReturnCode::SUCCESS => Ok(()),
+            Ok(()) => Ok(()),
             _ => Err(self.tx_buffer.take().unwrap()),
         }
     }

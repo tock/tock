@@ -5,6 +5,7 @@
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]
 
+pub mod clint;
 pub mod gpio;
 pub mod prci;
 pub mod pwm;

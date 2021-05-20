@@ -44,7 +44,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 // I2C Buffer of 16 bytes
 pub static mut BUFFER: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 175];
@@ -211,6 +211,7 @@ impl<'a> APDS9960<'a> {
         self.interrupt_pin.make_input();
         self.interrupt_pin
             .set_floating_state(gpio::FloatingState::PullUp);
+        self.interrupt_pin.disable_interrupts();
         self.interrupt_pin
             .enable_interrupts(gpio::InterruptEdge::FallingEdge);
 
@@ -381,14 +382,14 @@ impl gpio::Client for APDS9960<'_> {
 
 /// Proximity Driver Trait Implementation
 impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
-    fn read_proximity(&self) -> kernel::ReturnCode {
+    fn read_proximity(&self) -> Result<(), ErrorCode> {
         self.take_measurement();
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> kernel::ReturnCode {
+    fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> Result<(), ErrorCode> {
         self.take_measurement_on_interrupt(low, high);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::ProximityClient) {

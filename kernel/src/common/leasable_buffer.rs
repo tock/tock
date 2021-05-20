@@ -62,7 +62,7 @@ impl<'a, T> LeasableBuffer<'a, T> {
 
     /// Resets the LeasableBuffer to its full size, making the entire buffer
     /// accessible again. Typically this would be called once a sliced
-    /// LeasableBuffer is returned through a callback.
+    /// LeasableBuffer is returned through a callback
     pub fn reset(&mut self) {
         self.active_range = 0..self.internal.len();
     }

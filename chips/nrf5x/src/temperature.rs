@@ -9,8 +9,10 @@
 //! * Date: March 03, 2017
 
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::ErrorCode;
 
 const TEMP_BASE: StaticRef<TempRegisters> =
     unsafe { StaticRef::new(0x4000C000 as *const TempRegisters) };
@@ -145,11 +147,11 @@ impl<'a> Temp<'a> {
 }
 
 impl<'a> kernel::hil::sensors::TemperatureDriver<'a> for Temp<'a> {
-    fn read_temperature(&self) -> kernel::ReturnCode {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         self.enable_interrupts();
         self.registers.event_datardy.write(Event::READY::CLEAR);
         self.registers.task_start.write(Task::ENABLE::SET);
-        kernel::ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {

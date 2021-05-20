@@ -31,13 +31,13 @@ mod multi_alarm_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] = [None; 4];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -57,7 +57,7 @@ struct RedboardArtemisNano {
     >,
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         apollo3::ble::Ble<'static>,
@@ -83,14 +83,11 @@ impl Platform for RedboardArtemisNano {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
-/// This symbol is loaded into vector table by the Apollo3 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
+/// This is called after RAM initialization is complete.
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn main() {
     apollo3::init();
 
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
@@ -176,7 +173,7 @@ pub unsafe fn reset_handler() {
 
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
-    peripherals.stimer.start();
+    let _ = peripherals.stimer.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );
@@ -185,7 +182,7 @@ pub unsafe fn reset_handler() {
 
     // Init the I2C device attached via Qwiic
     let i2c_master = static_init!(
-        capsules::i2c_master::I2CMasterDriver<apollo3::iom::Iom<'static>>,
+        capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.iom2,
             &mut capsules::i2c_master::BUF,
@@ -253,7 +250,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

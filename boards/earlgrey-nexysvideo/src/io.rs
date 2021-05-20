@@ -3,7 +3,7 @@ use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::gpio;
+use kernel::hil::gpio::Configure;
 use kernel::hil::led;
 
 use crate::CHIP;
@@ -42,7 +42,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         earlgrey::gpio::PADCTRL_BASE,
         earlgrey::gpio::pins::pin7,
     );
-    gpio::Pin::make_output(first_led_pin);
+    first_led_pin.make_output();
     let first_led = &mut led::LedLow::new(first_led_pin);
 
     let writer = &mut WRITER;

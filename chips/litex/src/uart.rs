@@ -10,7 +10,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::common::StaticRef;
 use kernel::hil::uart;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
@@ -189,7 +189,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
         let progress = self.rx_progress.get();
 
         self.rx_client.map(move |client| {
-            client.received_buffer(buffer, progress, ReturnCode::ECANCEL, uart::Error::None)
+            client.received_buffer(buffer, progress, Err(ErrorCode::CANCEL), uart::Error::None)
         });
     }
 
@@ -216,9 +216,8 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
         if progress == len {
             // Disable RX events
             self.uart_regs.ev().disable_event(EVENT_MANAGER_INDEX_RX);
-            self.rx_client.map(move |client| {
-                client.received_buffer(buffer, len, ReturnCode::SUCCESS, uart::Error::None)
-            });
+            self.rx_client
+                .map(move |client| client.received_buffer(buffer, len, Ok(()), uart::Error::None));
         } else {
             self.rx_buffer.replace(buffer);
             self.rx_progress.set(progress);
@@ -232,20 +231,31 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
         let progress = self.tx_progress.get();
 
         self.tx_client
-            .map(move |client| client.transmitted_buffer(buffer, progress, ReturnCode::ECANCEL));
+            .map(move |client| client.transmitted_buffer(buffer, progress, Err(ErrorCode::CANCEL)));
     }
 
     // This is either called as a deferred call or by a
     // hardware-generated interrupt, hence it is guaranteed to be an
-    // upcall
+    // callback
     fn resume_tx(&self) {
+        // Context: when called from an interrupt, the event source
+        // has already been cleared
+
         let len = self.tx_len.get();
         let mut progress = self.tx_progress.get();
         let buffer = self.tx_buffer.take().expect("no tx buffer");
 
         // Try to transmit any remaining data
 
-        let mut fifo_full: bool; // Store this to check whether we will get another interrupt
+        // Store this to check whether we will get another interrupt
+        //
+        // An interrupt will be generated if fifo_full is true
+        // (i.e. the fifo limit has been reached) OR if after the
+        // while loop, the TX event is already pending (meaning we've
+        // reached the fifo limit AND the end of operation at the same
+        // time, but the hardware has managed to transmit a byte
+        // before we had a chance to read `fifo_full`)
+        let mut fifo_full: bool;
         while {
             fifo_full = ReadRegWrapper::wrap(&self.uart_regs.txfull).is_set(txfull::full);
             !fifo_full && progress < len
@@ -260,10 +270,10 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
             assert!(fifo_full == true);
 
             // Place all information and buffers back for the next
-            // call to `resume_tx`
+            // call to `resume_tx`, triggered by an interrupt.
             self.tx_progress.set(progress);
             self.tx_buffer.replace(buffer);
-        } else if fifo_full {
+        } else if fifo_full || self.uart_regs.ev().event_pending(EVENT_MANAGER_INDEX_TX) {
             // All data is transmitted, but an interrupt will still be
             // generated, for which we wait
 
@@ -278,13 +288,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
             // Disable TX events until the next transmission and call back to the client
             self.uart_regs.ev().disable_event(EVENT_MANAGER_INDEX_TX);
             self.tx_client
-                .map(move |client| client.transmitted_buffer(buffer, len, ReturnCode::SUCCESS));
+                .map(move |client| client.transmitted_buffer(buffer, len, Ok(())));
         }
     }
 }
 
 impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
-    fn configure(&self, params: uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         // LiteX UART supports only
         // - a fixed with of 8 bits
         // - no parity
@@ -296,9 +306,9 @@ impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
                 || params.stop_bits != uart::StopBits::One
                 || params.hw_flow_control == true
             {
-                ReturnCode::ENOSUPPORT
+                Err(ErrorCode::NOSUPPORT)
             } else if params.baud_rate == 0 || params.baud_rate > system_clock {
-                ReturnCode::EINVAL
+                Err(ErrorCode::INVAL)
             } else {
                 let tuning_word = if params.baud_rate == system_clock {
                     u32::MAX
@@ -307,10 +317,10 @@ impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
                 };
                 phy_regs.tuning_word.set(tuning_word);
 
-                ReturnCode::SUCCESS
+                Ok(())
             }
         } else {
-            ReturnCode::ENOSUPPORT
+            Err(ErrorCode::NOSUPPORT)
         }
     }
 }
@@ -324,16 +334,16 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
         if tx_buffer.len() < tx_len {
-            return (ReturnCode::ESIZE, Some(tx_buffer));
+            return Err((ErrorCode::SIZE, tx_buffer));
         }
 
         if self.tx_buffer.is_some() {
-            return (ReturnCode::EBUSY, Some(tx_buffer));
+            return Err((ErrorCode::BUSY, tx_buffer));
         }
 
         // Enable TX events (interrupts)
@@ -344,12 +354,19 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         //
         // If it does not fill the FIFO, an
         // interrupt will _not_ be generated and hence we have to
-        // perform the upcall using a deferred call.
+        // perform the callback using a deferred call.
         //
         // If we fill up the FIFO, an interrupt _will_ be
         // generated. We can transmit the rest using `resume_tx` and
         // directly call the callback there, as we are guaranteed to
-        // be in an upcall.
+        // be in a callback.
+        //
+        // An interrupt will be generated if fifo_full is true
+        // (i.e. the fifo limit has been reached) OR if after the
+        // while loop, the TX event is already pending (meaning we've
+        // reached the fifo limit AND the end of operation at the same
+        // time, but the hardware has managed to transmit a byte
+        // before we had a chance to read `fifo_full`)
         let mut fifo_full: bool;
         let mut progress: usize = 0;
         while {
@@ -370,8 +387,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // _must_ have been written to the device
         //
         // In this case, we must request a deferred call for the
-        // upcall
-        if !fifo_full {
+        // callback, as an interrupt will not be generated.
+        //
+        // However, we might have reached the fifo limit but not
+        // noticed, as the device has sent a byte between writing rxtx
+        // and reading txfull. Hence, if an event is pending, rely on
+        // the fact that an interrupt will be generated.
+        if !(fifo_full || self.uart_regs.ev().event_pending(EVENT_MANAGER_INDEX_TX)) {
             assert!(progress == tx_len);
 
             self.tx_deferred_call.set(true);
@@ -381,17 +403,17 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
 
         // If fifo_full == true, we will get an interrupt
 
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         // Disable TX events
         //
         // A deferred call might still be pending from the started
@@ -409,9 +431,9 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
             self.deferred_handle
                 .map(|handle| self.deferred_caller.set(*handle));
 
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
@@ -425,16 +447,16 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
         if rx_len > rx_buffer.len() {
-            return (ReturnCode::ESIZE, Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         if self.rx_buffer.is_some() {
-            return (ReturnCode::EBUSY, Some(rx_buffer));
+            return Err((ErrorCode::BUSY, rx_buffer));
         }
 
         // Store the slice and length for receiving, set the progress
@@ -470,16 +492,16 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
             self.uart_regs.ev().enable_event(EVENT_MANAGER_INDEX_RX);
         }
 
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn receive_word(&self) -> ReturnCode {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
-        ReturnCode::FAIL
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
         assert!(self.deferred_handle.is_some());
 
@@ -494,9 +516,9 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
             self.deferred_handle
                 .map(|handle| self.deferred_caller.set(*handle));
 
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }

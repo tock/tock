@@ -12,10 +12,10 @@
 
 use core::cell::Cell;
 
-use crate::callback::AppId;
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::NumericCellExt;
 use crate::process;
+use crate::process::ProcessId;
 use crate::sched::Kernel;
 
 /// This struct provides the inspection functions.
@@ -91,7 +91,7 @@ impl KernelInfo {
     /// Get the name of the process.
     pub fn process_name(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
@@ -101,29 +101,29 @@ impl KernelInfo {
     /// Returns the number of syscalls the app has called.
     pub fn number_app_syscalls(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
             .process_map_or(0, app, |process| process.debug_syscall_count())
     }
 
-    /// Returns the number of dropped callbacks the app has experience.
-    /// Callbacks can be dropped if the queue for the app is full when a capsule
-    /// tries to schedule a callback.
-    pub fn number_app_dropped_callbacks(
+    /// Returns the number of dropped upcalls the app has experience.
+    /// Upcalls can be dropped if the queue for the app is full when a capsule
+    /// tries to schedule a upcall.
+    pub fn number_app_dropped_upcalls(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
-            .process_map_or(0, app, |process| process.debug_dropped_callback_count())
+            .process_map_or(0, app, |process| process.debug_dropped_upcall_count())
     }
 
     /// Returns the number of time this app has been restarted.
     pub fn number_app_restarts(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -133,7 +133,7 @@ impl KernelInfo {
     /// Returns the number of time this app has exceeded its timeslice.
     pub fn number_app_timeslice_expirations(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> usize {
         self.kernel
@@ -144,24 +144,17 @@ impl KernelInfo {
     /// app has allocated, total number of grants that exist in the system).
     pub fn number_app_grant_uses(
         &self,
-        app: AppId,
+        app: ProcessId,
         _capability: &dyn ProcessManagementCapability,
     ) -> (usize, usize) {
         // Just need to get the number, this has already been finalized, but it
         // doesn't hurt to call this again.
         let number_of_grants = self.kernel.get_grant_count_and_finalize();
-        let mut used = 0;
-        self.kernel.process_map_or((), app, |process| {
-            for i in 0..number_of_grants {
-                if let Some(grant_ptr) = process.get_grant_ptr(i) {
-                    // If the pointer at that location is not NULL then the
-                    // grant memory has been allocated and the grant is
-                    // being used.
-                    if !(grant_ptr.is_null()) {
-                        used += 1;
-                    }
-                }
-            }
+        let used = self.kernel.process_map_or(0, app, |process| {
+            // Have process tell us the number of allocated grants. If this
+            // process isn't valid then we can't count the grants and all we can
+            // do is return 0.
+            process.grant_allocated_count().unwrap_or(0)
         });
 
         (used, number_of_grants)

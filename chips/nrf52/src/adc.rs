@@ -1,10 +1,11 @@
 //! ADC driver for the nRF52. Uses the SAADC peripheral.
 
 use kernel::common::cells::{OptionalCell, VolatileCell};
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 #[repr(C)]
 struct AdcRegisters {
@@ -372,7 +373,7 @@ impl Adc {
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannelSetup;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         // Positive goes to the channel passed in, negative not connected.
         self.registers.ch[0]
             .pselp
@@ -415,15 +416,19 @@ impl hil::adc::Adc for Adc {
         // Start the SAADC and wait for the started interrupt.
         self.registers.tasks_start.write(TASK::TASK::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn sample_continuous(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+    ) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
     fn get_resolution_bits(&self) -> usize {

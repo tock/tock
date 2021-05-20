@@ -2,12 +2,13 @@
 //! bus.
 
 use core::cell::Cell;
-use core::cmp;
-use kernel::common::cells::{MapCell, TakeCell};
+use core::{cmp, mem};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -27,10 +28,10 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // index an ongoing operation is at in the buffers.
 
 #[derive(Default)]
-struct App {
-    callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
+pub struct App {
+    callback: Upcall,
+    app_read: ReadWriteAppSlice,
+    app_write: ReadOnlyAppSlice,
     len: usize,
     index: usize,
 }
@@ -38,21 +39,23 @@ struct App {
 pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,
-    app: MapCell<App>,
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
+    grants: Grant<App>,
+    current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a S) -> Spi<'a, S> {
+    pub fn new(spi_master: &'a S, grants: Grant<App>) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            app: MapCell::new(App::default()),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
+            grants,
+            current_process: OptionalCell::empty(),
         }
     }
 
@@ -66,66 +69,95 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op
     fn do_next_read_write(&self, app: &mut App) {
-        let start = app.index;
-        let len = cmp::min(app.len - start, self.kernel_len.get());
-        let end = start + len;
-        app.index = end;
+        let write_len = self.kernel_write.map_or(0, |kwbuf| {
+            let mut start = app.index;
+            let tmp_len = app.app_write.map_or(0, |src| {
+                let len = cmp::min(app.len - start, self.kernel_len.get());
+                let end = cmp::min(start + len, src.len());
+                start = cmp::min(start, end);
 
-        self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| {
                 for (i, c) in src.as_ref()[start..end].iter().enumerate() {
                     kwbuf[i] = *c;
                 }
+                end - start
             });
+            app.index = start + tmp_len;
+            tmp_len
         });
-        self.spi_master.read_write_bytes(
+        let _ = self.spi_master.read_write_bytes(
             self.kernel_write.take().unwrap(),
             self.kernel_read.take(),
-            len,
+            write_len,
         );
     }
 }
 
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
-    fn allow(
+    fn allow_readwrite(
         &self,
-        _appid: AppId,
+        process_id: ProcessId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
-        match allow_num {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Pass in a read buffer to receive bytes into.
-            0 => {
-                self.app.map(|app| {
-                    app.app_read = slice;
-                });
-                ReturnCode::SUCCESS
-            }
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
+                    mem::swap(&mut grant.app_read, &mut slice);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
+        }
+    }
+
+    fn allow_readonly(
+        &self,
+        process_id: ProcessId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Pass in a write buffer to transmit bytes from.
-            1 => {
-                self.app.map(|app| {
-                    app.app_write = slice;
-                });
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
+                    mem::swap(&mut grant.app_write, &mut slice);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
         }
     }
 
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 /* read_write */ => {
-                self.app.map(|app| {
-                    app.callback = callback;
-                });
-                ReturnCode::SUCCESS
-            },
-            _ => ReturnCode::ENOSUPPORT
+        mut callback: Upcall,
+        process_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
+            0 => self
+                .grants
+                .enter(process_id, |grant| {
+                    mem::swap(&mut grant.callback, &mut callback);
+                })
+                .map_err(ErrorCode::from),
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -165,73 +197,98 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     // x+1: unlock spi
     //   - does nothing if lock not held
     //
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> ReturnCode {
-        match cmd_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned unconditionally.
+            return CommandReturn::success();
+        }
+
+        // Check if this driver is free, or already dedicated to this process.
+        let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
+            self.grants
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.current_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+
+        match command_num {
             // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => ReturnCode::ENOSUPPORT,
+            1 /* read_write_byte */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
             2 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return ReturnCode::EBUSY;
+                    return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.app.map_or(ReturnCode::FAIL, |app| {
-                    let mut mlen = 0;
-                    app.app_write.as_mut().map(|w| {
-                        mlen = w.len();
-                    });
-                    app.app_read.as_mut().map(|r| {
-                        mlen = cmp::min(mlen, r.len());
-                    });
-                    if mlen >= arg1 {
+                self.grants.enter(process_id, |app| {
+                    // When we do a read/write, the read part is optional.
+                    // So there are three cases:
+                    // 1) Write and read buffers present: len is min of lengths
+                    // 2) Only write buffer present: len is len of write
+                    // 3) No write buffer present: no operation
+                    let mut mlen = app.app_write.map_or(0, |w| w.len());
+                    let rlen = app.app_read.map_or(mlen, |r| r.len());
+                    mlen = cmp::min(mlen, rlen);
+
+                    if mlen >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
-                        ReturnCode::SUCCESS
+                        CommandReturn::success()
                     } else {
-                        ReturnCode::EINVAL /* write buffer too small */
+                        /* write buffer too small, or zero length write */
+                        CommandReturn::failure(ErrorCode::INVAL)
                     }
-                })
+                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
             3 /* set chip select */ => {
                 // XXX: TODO: do nothing, for now, until we fix interface
                 // so virtual instances can use multiple chip selects
-                ReturnCode::ENOSUPPORT
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             4 /* get chip select */ => {
                 // XXX: We don't really know what chip select is being used
                 // since we can't set it. Return error until set chip select
                 // works.
-                ReturnCode::ENOSUPPORT
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             5 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32);
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             6 /* get baud rate */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_rate() as usize }
+                CommandReturn::success_u32(self.spi_master.get_rate() as u32)
             }
             7 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             8 /* get phase */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_phase() as usize }
+                CommandReturn::success_u32(self.spi_master.get_phase() as u32)
             }
             9 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 };
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             10 /* get polarity */ => {
-                ReturnCode::SuccessWithValue { value: self.spi_master.get_polarity() as usize }
+                CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
             }
-            _ => ReturnCode::ENOSUPPORT
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
 }
@@ -243,32 +300,50 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
         readbuf: Option<&'static mut [u8]>,
         length: usize,
     ) {
-        self.app.map(move |app| {
-            if app.app_read.is_some() {
-                let src = readbuf.as_ref().unwrap();
-                let dest = app.app_read.as_mut().unwrap();
-                let start = app.index - length;
-                let end = start + length;
+        self.current_process.map(|process_id| {
+            let _ = self.grants.enter(*process_id, move |app| {
+                let rbuf = readbuf.map(|src| {
+                    let index = app.index;
+                    app.app_read.mut_map_or((), |dest| {
+                        // Need to be careful that app_read hasn't changed
+                        // under us, so check all values against actual
+                        // slice lengths.
+                        //
+                        // If app_read is shorter than before, and shorter
+                        // than what we have read would require, then truncate.
+                        // -pal 12/9/20
+                        let end = index;
+                        let start = index - length;
+                        let end = cmp::min(end, cmp::min(src.len(), dest.len()));
 
-                let d = &mut dest.as_mut()[start..end];
-                for (i, c) in src[0..length].iter().enumerate() {
-                    d[i] = *c;
-                }
-            }
+                        // If the new endpoint is earlier than our expected
+                        // startpoint, we set the startpoint to be the same;
+                        // This results in a zero-length operation. -pal 12/9/20
+                        let start = cmp::min(start, end);
 
-            self.kernel_read.put(readbuf);
-            self.kernel_write.replace(writebuf);
+                        let dest_area = &mut dest[start..end];
+                        let real_len = end - start;
 
-            if app.index == app.len {
-                self.busy.set(false);
-                app.len = 0;
-                app.index = 0;
-                app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len, 0, 0);
+                        for (i, c) in src[0..real_len].iter().enumerate() {
+                            dest_area[i] = *c;
+                        }
+                    });
+                    src
                 });
-            } else {
-                self.do_next_read_write(app);
-            }
+
+                self.kernel_read.put(rbuf);
+                self.kernel_write.replace(writebuf);
+
+                if app.index == app.len {
+                    self.busy.set(false);
+                    let len = app.len;
+                    app.len = 0;
+                    app.index = 0;
+                    app.callback.schedule(len, 0, 0);
+                } else {
+                    self.do_next_read_write(app);
+                }
+            });
         });
     }
 }

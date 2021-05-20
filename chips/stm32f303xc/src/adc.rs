@@ -3,11 +3,12 @@
 use crate::rcc;
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
 impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
@@ -577,7 +578,7 @@ impl<'a> Adc<'a> {
                 self.status.set(ADCStatus::Idle);
                 match self.requested.get() {
                     ADCStatus::OneSample => {
-                        self.sample_u32(self.requested_channel.get());
+                        let _ = self.sample_u32(self.requested_channel.get());
                         return;
                     }
                     _ => {}
@@ -640,7 +641,7 @@ impl<'a> Adc<'a> {
         }
     }
 
-    fn sample_u32(&self, channel: u32) -> ReturnCode {
+    fn sample_u32(&self, channel: u32) -> Result<(), ErrorCode> {
         if self.sc_enabled.get() == false {
             self.enable_special_channels();
         }
@@ -654,9 +655,9 @@ impl<'a> Adc<'a> {
             self.registers.ier.modify(IER::EOCIE::SET);
             self.registers.ier.modify(IER::EOSMPIE::SET);
             self.registers.cr.modify(CR::ADSTART::SET);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -680,31 +681,35 @@ impl ClockInterface for AdcClock<'_> {
 impl hil::adc::Adc for Adc<'_> {
     type Channel = Channel;
 
-    fn sample(&self, channel: &Self::Channel) -> ReturnCode {
+    fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
         if self.status.get() == ADCStatus::Off {
             self.requested.set(ADCStatus::OneSample);
             self.requested_channel.set(*channel as u32);
             self.enable();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
             self.sample_u32(*channel as u32)
         }
     }
 
-    fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
+    fn sample_continuous(
+        &self,
+        _channel: &Self::Channel,
+        _frequency: u32,
+    ) -> Result<(), ErrorCode> {
         // Has to be implementer with timers because the frequency is too high
-        ReturnCode::ENOSUPPORT
+        Err(ErrorCode::NOSUPPORT)
     }
 
-    fn stop_sampling(&self) -> ReturnCode {
+    fn stop_sampling(&self) -> Result<(), ErrorCode> {
         if self.status.get() != ADCStatus::Idle && self.status.get() != ADCStatus::Off {
             self.registers.cr.modify(CR::ADSTP::SET);
             if self.registers.cfgr.is_set(CFGR::CONT) {
                 self.registers.cfgr.modify(CFGR::CONT::CLEAR);
             }
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -740,16 +745,12 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         &self,
         _channel: &Self::Channel,
         _frequency: u32,
-        _buffer1: &'static mut [u16],
+        buffer1: &'static mut [u16],
         _length1: usize,
-        _buffer2: &'static mut [u16],
+        buffer2: &'static mut [u16],
         _length2: usize,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
-        (ReturnCode::ENOSUPPORT, None, None)
+    ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
+        Err((ErrorCode::NOSUPPORT, buffer1, buffer2))
     }
 
     /// Provide a new buffer to send on-going buffered continuous samples to.
@@ -759,21 +760,17 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     /// - `length`: number of samples to collect (up to buffer length)
     fn provide_buffer(
         &self,
-        _buf: &'static mut [u16],
+        buf: &'static mut [u16],
         _length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>) {
-        (ReturnCode::ENOSUPPORT, None)
+    ) -> Result<(), (ErrorCode, &'static mut [u16])> {
+        Err((ErrorCode::NOSUPPORT, buf))
     }
 
     /// Reclaim buffers after the ADC is stopped.
     /// This is expected to be called after `stop_sampling`.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
-        (ReturnCode::ENOSUPPORT, None, None)
+    ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }

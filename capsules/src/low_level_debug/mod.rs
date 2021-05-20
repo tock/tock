@@ -5,7 +5,7 @@ mod fmt;
 
 use core::cell::Cell;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{AppId, Grant, ReturnCode};
+use kernel::{CommandReturn, ErrorCode, Grant, ProcessId};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -41,20 +41,31 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
 }
 
 impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        minor_num: usize,
+        r2: usize,
+        r3: usize,
+        caller_id: ProcessId,
+    ) -> CommandReturn {
         match minor_num {
-            0 => return ReturnCode::SUCCESS,
+            0 => return CommandReturn::success(),
             1 => self.push_entry(DebugEntry::AlertCode(r2), caller_id),
             2 => self.push_entry(DebugEntry::Print1(r2), caller_id),
             3 => self.push_entry(DebugEntry::Print2(r2, r3), caller_id),
-            _ => return ReturnCode::ENOSUPPORT,
+            _ => return CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
-        ReturnCode::SUCCESS
+        CommandReturn::success()
     }
 }
 
 impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
-    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], _tx_len: usize, _rval: ReturnCode) {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rval: Result<(), ErrorCode>,
+    ) {
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
 
@@ -63,18 +74,19 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
             tx_buffer.copy_from_slice(MESSAGE);
-            let (_, returned_buffer) = self.uart.transmit_buffer(tx_buffer, MESSAGE.len());
-            self.buffer.set(returned_buffer);
+            let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
+                |(_, returned_buffer)| {
+                    self.buffer.set(Some(returned_buffer));
+                },
+            );
             return;
         }
 
-        for applied_grant in self.grant.iter() {
-            let (app_num, first_entry) = applied_grant.enter(|owned_app_data, _| {
+        for process_grant in self.grant.iter() {
+            let appid = process_grant.processid();
+            let (app_num, first_entry) = process_grant.enter(|owned_app_data| {
                 owned_app_data.queue.rotate_left(1);
-                (
-                    owned_app_data.appid().id(),
-                    owned_app_data.queue[QUEUE_SIZE - 1].take(),
-                )
+                (appid.id(), owned_app_data.queue[QUEUE_SIZE - 1].take())
             });
             let to_print = match first_entry {
                 None => continue,
@@ -94,7 +106,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     // If the UART is not busy (the buffer is available), transmits the entry.
     // Otherwise, adds it to the app's queue.
-    fn push_entry(&self, entry: DebugEntry, appid: AppId) {
+    fn push_entry(&self, entry: DebugEntry, appid: ProcessId) {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {
@@ -102,7 +114,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
             return;
         }
 
-        let result = self.grant.enter(appid, |borrow, _| {
+        let result = self.grant.enter(appid, |borrow| {
             for queue_entry in &mut borrow.queue {
                 if queue_entry.is_none() {
                     *queue_entry = Some(entry);
@@ -132,8 +144,12 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         let msg_len = fmt::format_entry(app_num, entry, buffer);
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
-        let (_, returned_buffer) = self.uart.transmit_buffer(buffer, msg_len);
-        self.buffer.set(returned_buffer);
+        let _ = self
+            .uart
+            .transmit_buffer(buffer, msg_len)
+            .map_err(|(_, returned_buffer)| {
+                self.buffer.set(Some(returned_buffer));
+            });
     }
 }
 

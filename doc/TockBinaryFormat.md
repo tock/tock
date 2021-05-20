@@ -14,6 +14,7 @@
     + [`2` Writeable Flash Region](#2-writeable-flash-region)
     + [`3` Package Name](#3-package-name)
     + [`5` Fixed Addresses](#5-fixed-addresses)
+    + [`6` Permissions](#6-permissions)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -85,6 +86,8 @@ struct TbfHeader {
     pic_options: Option<TbfHeaderPicOption1Fields>,
     name: Option<TbfHeaderPackageName>,
     flash_regions: Option<TbfHeaderWriteableFlashRegions>,
+    fixed_address: Option<TbfHeaderV2FixedAddresses>,
+    permissions: Option<TbfHeaderV2Permissions>,
 }
 
 // Identifiers for the optional header structs.
@@ -94,6 +97,7 @@ enum TbfHeaderTypes {
     TbfHeaderPackageName = 3,
     TbfHeaderPicOption1 = 4,
     TbfHeaderFixedAddresses = 5,
+    TbfHeaderPermissions = 6,
 }
 
 // Type-length-value header to identify each struct.
@@ -134,8 +138,22 @@ struct TbfHeaderWriteableFlashRegions {
 
 // Fixed and required addresses for process RAM and/or process flash.
 struct TbfHeaderV2FixedAddresses {
+    base: TbfHeaderTlv,
     start_process_ram: u32,
     start_process_flash: u32,
+}
+
+struct TbfHeaderDriverPermission {
+    driver_number: u32,
+    offset: u32,
+    allowed_commands: u64,
+}
+
+// A list of permissions for this app
+struct TbfHeaderV2Permissions {
+    base: TbfHeaderTlv,
+    length: u16,
+    perms: [TbfHeaderDriverPermission],
 }
 ```
 
@@ -292,6 +310,59 @@ a non-position-independent binary at an incorrect location.
     header) must be located at. This would match the value provided for flash to
     the linker. If a fixed address is not required this should be set to
     `0xFFFFFFFF`.
+
+#### `6` Permissions
+
+The `Permissions` section allows an app to specify driver permissions that it
+is allowed to use. All driver syscalls that an app will use must be listed. The
+list should not include drivers that are not being used by the app.
+
+The data is stored in the optional `TbfHeaderV2Permissions` field. This
+includes an array of all the `perms`.
+
+```
+0             2             4
++-------------+-------------+---------...--+
+| Type (6)    | Length      | perms        |
++-------------+-------------+---------...--+
+```
+
+The `perms` array is made up of a number of elements of
+`TbfHeaderDriverPermission`. The length of the TLV can be used to determine
+the number of array elements. The elements in `TbfHeaderDriverPermission` are
+described below:
+
+```text
+Driver Permission Structure:
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| driver_number             | offset                    |
++-------------+-------------+-------------+-------------+
+| allowed_commands                                      |
++-------------------------------------------------------+
+```
+
+* `driver_number` is the number of the driver that is allowed. This for example
+  could be `0x00000` to indicate that the `Alarm` syscalls are allowed.
+* `allowed_commands` is a bit mask of the allowed commands. For example a value
+   of `0b0001` indicates that only command 0 is allowed. `0b0111` would indicate
+   that commands 2, 1 and 0 are all allowed. Note that this assumes `offset` is
+   0, for more details on `offset` see below.
+* The `offset` field in `TbfHeaderDriverPermission` indicates the offset of the
+  `allowed_commands` bitmask. All of the examples described in the paragraph
+  above assume an `offset` of 0. The `offset` field indicates the start of the
+  `allowed_commands` bitmask. The `offset` is multiple by 64 (the size of the
+  `allowed_commands` bitmask). For example an `offset` of 1 and a
+  `allowed_commands` value of `0b0001` indicates that command 64 is allowed.
+
+Subscribe and allow commands are always allowed as long as the specific
+`driver_number` has been specified. If a `driver_number` has not been specified
+for the capsule driver then `allow` and `subscribe` will be blocked.
+
+Multiple `TbfHeaderDriverPermission` with the same `driver_numer` can be
+included, so long as no `offset` is repeated for a single driver. When
+multiple `offset`s and `allowed_commands`s are used they are ORed together,
+so that they all apply.
 
 ## Code
 

@@ -19,7 +19,7 @@
 //! LCDStatus enum. Also, after every command completed, a callback will be called
 //! to the text_screen capsule, in order for this capsule to be able to receive new
 //! commands. If a command is sent while this capsule is busy, it will return a
-//! "EBUSY" code.
+//! "BUSY" code.
 
 //! Usage
 //! -----
@@ -53,7 +53,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 /// commands
 static LCD_CLEARDISPLAY: u8 = 0x01;
@@ -69,7 +69,7 @@ static LCD_ENTRYSHIFTDECREMENT: u8 = 0x00;
 /// flags for display on/off control
 static LCD_DISPLAYON: u8 = 0x04;
 static LCD_CURSORON: u8 = 0x02;
-static LCD_BLINKON: u8 = 0x04;
+static LCD_BLINKON: u8 = 0x01;
 static LCD_BLINKOFF: u8 = 0x00;
 
 /// flags for function set
@@ -142,6 +142,7 @@ pub struct HD44780<'a, A: Alarm<'a>> {
 
     write_buffer: TakeCell<'static, [u8]>,
     write_len: Cell<u8>,
+    write_buffer_len: Cell<u8>,
     write_offset: Cell<u8>,
 }
 
@@ -190,6 +191,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             done_printing: Cell::new(false),
             write_buffer: TakeCell::empty(),
             write_len: Cell::new(0),
+            write_buffer_len: Cell::new(0),
             write_offset: Cell::new(0),
         };
         hd44780.init(width, height);
@@ -217,10 +219,10 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         }
 
         self.num_lines.replace(row);
-        self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
+        let _ = self.set_rows(0x00, 0x40, 0x00 + col, 0x40 + col);
     }
 
-    pub fn screen_command(&self, command: usize, op: usize, value: u8) -> ReturnCode {
+    pub fn screen_command(&self, command: usize, op: usize, value: u8) -> Result<(), ErrorCode> {
         if self.lcd_status.get() == LCDStatus::Idle {
             match command {
                 1 => {
@@ -233,18 +235,18 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     self.command_to_finish
                         .replace(LCD_DISPLAYCONTROL | self.display_control.get());
                     self.lcd_command(self.command_to_finish.get(), LCDStatus::Idle);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
 
                 2 => {
                     self.lcd_clear(LCDStatus::Idle);
-                    ReturnCode::SUCCESS
+                    Ok(())
                 }
 
-                _ => ReturnCode::EINVAL,
+                _ => Err(ErrorCode::INVAL),
             }
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -253,14 +255,14 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
     /// Example:
     ///  self.set_rows(0x00, 0x40, 0x00+col, 0x40+col);
     ///
-    fn set_rows(&self, row0: u8, row1: u8, row2: u8, row3: u8) -> ReturnCode {
+    fn set_rows(&self, row0: u8, row1: u8, row2: u8, row3: u8) -> Result<(), ErrorCode> {
         self.row_offsets.map(|buffer| {
             buffer[0] = row0;
             buffer[1] = row1;
             buffer[2] = row2;
             buffer[3] = row3;
         });
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     /// `pulse()` function starts executing the toggle needed by the device after
@@ -330,18 +332,22 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
                     if self.begin_done.get() {
                         self.begin_done.set(false);
                         self.initialized.set(true);
-                        client.command_complete(ReturnCode::SUCCESS);
+                        client.command_complete(Ok(()));
                     } else if self.write_len.get() > 0 {
                         self.write_character();
                     } else if self.done_printing.get() {
                         self.done_printing.set(false);
                         if self.write_buffer.is_some() {
-                            self.write_buffer
-                                .take()
-                                .map(|buffer| client.write_complete(buffer, ReturnCode::SUCCESS));
+                            self.write_buffer.take().map(|buffer| {
+                                client.write_complete(
+                                    buffer,
+                                    self.write_buffer_len.get() as usize,
+                                    Ok(()),
+                                )
+                            });
                         }
                     } else {
-                        client.command_complete(ReturnCode::SUCCESS);
+                        client.command_complete(Ok(()));
                     }
                 });
             }
@@ -593,19 +599,24 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
         (16, 2)
     }
 
-    fn print(&self, buffer: &'static mut [u8], len: usize) -> ReturnCode {
+    fn print(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.lcd_status.get() == LCDStatus::Idle {
             self.write_buffer.replace(buffer);
             self.write_len.replace(len as u8);
+            self.write_buffer_len.replace(len as u8);
             self.write_offset.set(0);
             self.write_character();
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err((ErrorCode::BUSY, buffer))
         }
     }
 
-    fn set_cursor(&self, x_position: usize, y_position: usize) -> ReturnCode {
+    fn set_cursor(&self, x_position: usize, y_position: usize) -> Result<(), ErrorCode> {
         if self.lcd_status.get() == LCDStatus::Idle {
             let mut line_number: u8 = y_position as u8;
             if line_number >= 4 {
@@ -617,46 +628,46 @@ impl<'a, A: Alarm<'a>> TextScreen<'a> for HD44780<'a, A> {
             }
 
             self.set_cursor(x_position as u8, line_number);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn hide_cursor(&self) -> ReturnCode {
+    fn hide_cursor(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_CURSORON)
     }
 
-    fn show_cursor(&self) -> ReturnCode {
+    fn show_cursor(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 0, LCD_CURSORON)
     }
 
-    fn blink_cursor_on(&self) -> ReturnCode {
+    fn blink_cursor_on(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 0, LCD_BLINKON)
     }
 
-    fn blink_cursor_off(&self) -> ReturnCode {
+    fn blink_cursor_off(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_BLINKON)
     }
 
-    fn display_on(&self) -> ReturnCode {
+    fn display_on(&self) -> Result<(), ErrorCode> {
         if !self.initialized.get() {
             if self.lcd_status.get() == LCDStatus::Idle {
                 self.set_delay(10, LCDStatus::Begin0);
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::EBUSY
+                Err(ErrorCode::BUSY)
             }
         } else {
             self.screen_command(1, 0, LCD_DISPLAYON)
         }
     }
 
-    fn display_off(&self) -> ReturnCode {
+    fn display_off(&self) -> Result<(), ErrorCode> {
         self.screen_command(1, 1, LCD_DISPLAYON)
     }
 
-    fn clear(&self) -> ReturnCode {
+    fn clear(&self) -> Result<(), ErrorCode> {
         self.screen_command(2, 0, 0)
     }
 

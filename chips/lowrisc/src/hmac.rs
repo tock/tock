@@ -3,13 +3,14 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::digest;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 register_structs! {
     pub HmacRegisters {
@@ -93,50 +94,52 @@ impl Hmac<'_> {
         let idx = self.data_index.get();
         let len = self.data_len.get();
 
-        let slice = self.data.take().unwrap().take();
+        self.data.take().map(|buf| {
+            let slice = buf.take();
 
-        if idx < len {
-            let data_len = len - idx;
+            if idx < len {
+                let data_len = len - idx;
 
-            for i in 0..(data_len / 4) {
-                if regs.status.is_set(STATUS::FIFO_FULL) {
-                    self.data.set(Some(LeasableBuffer::new(slice)));
-                    // Enable interrupts
-                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                    return;
+                for i in 0..(data_len / 4) {
+                    if regs.status.is_set(STATUS::FIFO_FULL) {
+                        self.data.set(Some(LeasableBuffer::new(slice)));
+                        // Enable interrupts
+                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                        return;
+                    }
+
+                    if !regs.status.is_set(STATUS::FIFO_EMPTY) {
+                        self.data.set(Some(LeasableBuffer::new(slice)));
+                        // Enable interrupts
+                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                        return;
+                    }
+
+                    let data_idx = idx + i * 4;
+
+                    let mut d = (slice[data_idx + 0] as u32) << 0;
+                    d |= (slice[data_idx + 1] as u32) << 8;
+                    d |= (slice[data_idx + 2] as u32) << 16;
+                    d |= (slice[data_idx + 3] as u32) << 24;
+
+                    regs.msg_fifo.set(d);
+                    self.data_index.set(data_idx + 4);
                 }
 
-                if !regs.status.is_set(STATUS::FIFO_EMPTY) {
-                    self.data.set(Some(LeasableBuffer::new(slice)));
-                    // Enable interrupts
-                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                    return;
+                let idx = self.data_index.get();
+
+                for i in 0..(data_len % 4) {
+                    let data_idx = idx + i;
+                    let d = (slice[data_idx]) as u32;
+
+                    regs.msg_fifo.set(d);
+                    self.data_index.set(data_idx + 1)
                 }
-
-                let data_idx = idx + i * 4;
-
-                let mut d = (slice[data_idx + 0] as u32) << 0;
-                d |= (slice[data_idx + 1] as u32) << 8;
-                d |= (slice[data_idx + 2] as u32) << 16;
-                d |= (slice[data_idx + 3] as u32) << 24;
-
-                regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 4);
             }
 
-            let idx = self.data_index.get();
-
-            for i in 0..(data_len % 4) {
-                let data_idx = idx + i;
-                let d = (slice[data_idx]) as u32;
-
-                regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 1)
-            }
-        }
-
-        self.client.map(move |client| {
-            client.add_data_done(Ok(()), slice);
+            self.client.map(move |client| {
+                client.add_data_done(Ok(()), slice);
+            });
         });
 
         // Make sure we don't get any more FIFO empty interrupts
@@ -181,7 +184,7 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                client.hash_done(Err(ReturnCode::FAIL), self.digest.take().unwrap());
+                client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
             });
         }
     }
@@ -195,7 +198,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ReturnCode, &'static mut [u8])> {
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 
         // Ensure the HMAC is setup
@@ -221,7 +224,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     fn run(
         &'a self,
         digest: &'static mut [u8; 32],
-    ) -> Result<(), (ReturnCode, &'static mut [u8; 32])> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         let regs = self.registers;
 
         // Enable interrrupts
@@ -245,7 +248,7 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ReturnCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         // Ensure the HMAC is setup

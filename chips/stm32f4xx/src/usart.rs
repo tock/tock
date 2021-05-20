@@ -1,10 +1,11 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::dma1;
 use crate::dma1::Dma1Peripheral;
@@ -280,7 +281,7 @@ impl<'a> Usart<'a> {
             // alert client
             self.tx_client.map(|client| {
                 buffer.map(|buf| {
-                    client.transmitted_buffer(buf, len, ReturnCode::SUCCESS);
+                    client.transmitted_buffer(buf, len, Ok(()));
                 });
             });
         }
@@ -314,7 +315,7 @@ impl<'a> Usart<'a> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
     }
 
-    fn abort_tx(&self, rcode: ReturnCode) {
+    fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
         self.disable_tx();
         self.usart_tx_state.set(USARTStateTX::Idle);
 
@@ -337,7 +338,7 @@ impl<'a> Usart<'a> {
         });
     }
 
-    fn abort_rx(&self, rcode: ReturnCode, error: hil::uart::Error) {
+    fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
         self.disable_rx();
         self.usart_rx_state.set(USARTStateRX::Idle);
 
@@ -382,14 +383,14 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // In virtual_uart.rs, transmit is only called when inflight is None. So
         // if the state machine is working correctly, transmit should never
         // abort.
 
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             // there is an ongoing transmission, quit it
-            return (ReturnCode::EBUSY, Some(tx_data));
+            return Err((ErrorCode::BUSY, tx_data));
         }
 
         // setup and enable dma stream
@@ -402,25 +403,25 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 
         // enable dma tx on peripheral side
         self.enable_tx();
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
-            self.abort_tx(ReturnCode::ECANCEL);
-            ReturnCode::EBUSY
+            self.abort_tx(Err(ErrorCode::CANCEL));
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
 
 impl<'a> hil::uart::Configure for Usart<'a> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
@@ -458,7 +459,7 @@ impl<'a> hil::uart::Configure for Usart<'a> {
         // Enable USART
         self.registers.cr1.modify(CR1::UE::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -471,13 +472,13 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
-            return (ReturnCode::EBUSY, Some(rx_buffer));
+            return Err((ErrorCode::BUSY, rx_buffer));
         }
 
         if rx_len > rx_buffer.len() {
-            return (ReturnCode::ESIZE, Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         // setup and enable dma stream
@@ -490,16 +491,16 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
 
         // enable dma rx on the peripheral side
         self.enable_rx();
-        (ReturnCode::SUCCESS, None)
+        Ok(())
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
-        self.abort_rx(ReturnCode::ECANCEL, hil::uart::Error::Aborted);
-        ReturnCode::EBUSY
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
+        Err(ErrorCode::BUSY)
     }
 }
 
@@ -527,12 +528,7 @@ impl dma1::StreamClient for Usart<'_> {
                 // alert client
                 self.rx_client.map(|client| {
                     buffer.map(|buf| {
-                        client.received_buffer(
-                            buf,
-                            length,
-                            ReturnCode::SUCCESS,
-                            hil::uart::Error::None,
-                        );
+                        client.received_buffer(buf, length, Ok(()), hil::uart::Error::None);
                     });
                 });
             }

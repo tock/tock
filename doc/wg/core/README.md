@@ -20,13 +20,13 @@ are to:
 
 ## Members
 
-- Niklas Adolfsson, [niklasad1](https://github.com/niklasad1), Parity Tech
 - Hudson Ayers, [hudson-ayers](https://github.com/hudson-ayers), Stanford
 - Brad Campbell, [bradjc](https://github.com/bradjc), UVA
 - Branden Ghena, [brghena](https://github.com/brghena), UC Berkeley
 - Philip Levis, [phil-levis](https://github.com/phil-levis), Stanford
 - Amit Levy (chair), [alevy](https://github.com/alevy), Princeton University
 - Pat Pannuto, [ppannuto](https://github.com/ppannuto), UCSD
+- Leon Schuermann [lschuermann](https://github.com/lschuermann), University of Stuttgart
 - Johnathan Van Why, [jrvanwhy](https://github.com/jrvanwhy), Google
 
 ## Membership

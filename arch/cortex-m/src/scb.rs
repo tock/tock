@@ -2,6 +2,7 @@
 //!
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
@@ -312,5 +313,9 @@ pub unsafe fn disable_fpca() {
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe fn disable_fpca() {
+    // Dummy read register, to satisfy the `Readable` trait import on
+    // non-ARM platforms.
+    let _ = SCB.cpacr.read(CoprocessorAccessControl::CP10);
+
     unimplemented!()
 }

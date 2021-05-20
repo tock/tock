@@ -36,7 +36,7 @@ use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapabilit
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the
@@ -171,10 +171,11 @@ impl UdpPortManager {
     /// Called by capsules that would like to eventually be able to bind to a
     /// UDP port. This call will succeed unless MAX_NUM_BOUND_PORTS capsules
     /// have already bound to a port.
-    pub fn create_socket(&'static self) -> Result<UdpSocket, ReturnCode> {
+    pub fn create_socket(&'static self) -> Result<UdpSocket, Result<(), ErrorCode>> {
         self.port_array
-            .map_or(Err(ReturnCode::ENOSUPPORT), |table| {
-                let mut result: Result<UdpSocket, ReturnCode> = Err(ReturnCode::FAIL);
+            .map_or(Err(Err(ErrorCode::NOSUPPORT)), |table| {
+                let mut result: Result<UdpSocket, Result<(), ErrorCode>> =
+                    Err(Err(ErrorCode::FAIL));
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
                         None => {

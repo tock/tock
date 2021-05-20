@@ -17,7 +17,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -201,12 +201,18 @@ enum State {
     Done,
 }
 
+#[derive(Default)]
+pub struct App {
+    callback: Upcall,
+}
+
 pub struct TSL2561<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
-    callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
+    apps: Grant<App>,
+    owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> TSL2561<'a> {
@@ -214,14 +220,16 @@ impl<'a> TSL2561<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> TSL2561<'a> {
+        apps: Grant<App>,
+    ) -> Self {
         // setup and return struct
-        TSL2561 {
+        Self {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
+            apps,
+            owning_process: OptionalCell::empty(),
         }
     }
 
@@ -404,7 +412,11 @@ impl i2c::I2CClient for TSL2561<'_> {
 
                 let lux = self.calculate_lux(chan0, chan1);
 
-                self.callback.map(|cb| cb.schedule(0, lux, 0));
+                self.owning_process.map(|pid| {
+                    let _ = self.apps.enter(*pid, |app| {
+                        app.callback.schedule(0, lux, 0);
+                    });
+                });
 
                 buffer[0] = Registers::Control as u8 | COMMAND_REG;
                 buffer[1] = POWER_OFF;
@@ -440,31 +452,61 @@ impl Driver for TSL2561<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        _app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            // Set a callback
-            0 => {
-                // Set callback function
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
-            // default
-            _ => ReturnCode::ENOSUPPORT,
+        mut callback: Upcall,
+        appid: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = self
+            .apps
+            .enter(appid, |app| {
+                match subscribe_num {
+                    0 => {
+                        core::mem::swap(&mut app.callback, &mut callback);
+                        Ok(())
+                    }
+
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|e| Err(e.into()));
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        if command_num == 0 {
+            // Handle this first as it should be returned
+            // unconditionally
+            return CommandReturn::success();
+        }
+        // Check if this non-virtualized driver is already in use by
+        // some (alive) process
+        let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
+            self.apps
+                .enter(*current_process, |_| current_process == &process_id)
+                .unwrap_or(true)
+        });
+        if match_or_empty_or_nonexistant {
+            self.owning_process.set(process_id);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
         match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a measurement
             1 => {
                 self.take_measurement();
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }

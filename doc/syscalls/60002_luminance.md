@@ -19,7 +19,7 @@ from a sensor. Luminance is reported in lux (lx).
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS if it exists, otherwise ENODEVICE
+    **Returns**: Ok(()) if it exists, otherwise NODEVICE
 
   * ### Command number: `1`
 
@@ -30,8 +30,8 @@ from a sensor. Luminance is reported in lux (lx).
 
     **Argument 2**: unused
 
-    **Returns**: `EBUSY` if a reading is already pending, `ENOMEM` if there
-    isn't sufficient grant memory available, or `SUCCESS` if the sensor reading
+    **Returns**: `BUSY` if a reading is already pending, `NOMEM` if there
+    isn't sufficient grant memory available, or `Ok(())` if the sensor reading
     was initiated successfully.
 
 ## Subscribe
@@ -43,6 +43,6 @@ from a sensor. Luminance is reported in lux (lx).
     **Callback signature**: The callback receives a single argument, the
     luminance in lux (lx).
 
-    **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
+    **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory to store the callback.
 

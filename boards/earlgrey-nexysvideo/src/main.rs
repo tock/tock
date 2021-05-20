@@ -12,6 +12,7 @@ use capsules::virtual_hmac::VirtualMuxHmac;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
@@ -38,7 +39,7 @@ const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; 4] = [None; NUM_PROCS];
 
 static mut CHIP: Option<
     &'static earlgrey::chip::EarlGrey<
@@ -48,7 +49,7 @@ static mut CHIP: Option<
 > = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -77,7 +78,7 @@ struct EarlGreyNexysVideo {
         'static,
         capsules::virtual_uart::UartDevice<'static>,
     >,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -99,14 +100,12 @@ impl Platform for EarlGreyNexysVideo {
     }
 }
 
-/// Reset Handler.
+/// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
-/// setup.
+/// setup and RAM initialization.
 #[no_mangle]
-pub unsafe fn reset_handler() {
-    // Basic setup of the platform.
-    rv32i::init_memory();
+pub unsafe fn main() {
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
 
@@ -252,15 +251,15 @@ pub unsafe fn reset_handler() {
     ));
 
     let i2c_master = static_init!(
-        capsules::i2c_master::I2CMasterDriver<lowrisc::i2c::I2c<'static>>,
+        capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
         capsules::i2c_master::I2CMasterDriver::new(
-            &peripherals.i2c,
+            &peripherals.i2c0,
             &mut capsules::i2c_master::BUF,
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
 
-    peripherals.i2c.set_master_client(i2c_master);
+    peripherals.i2c0.set_master_client(i2c_master);
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
@@ -341,50 +340,49 @@ pub unsafe fn reset_handler() {
         i2c_master,
     };
 
-    // This is PMP support for kernel regions
-    // PMP does not allow a deny by default option, so all regions not marked
-    // with the below commands will have full access.
-    // This is still a useful implementation as it can be used to limit the
-    // kernels access, for example removing execute permission from regions
-    // we don't need to execute from and removing write permissions from
-    // executable reions.
-    let mut mpu_config = rv32i::pmp::PMPConfig::default();
+    let mut mpu_config = rv32i::epmp::PMPConfig::default();
     // The kernel stack
-    chip.pmp
-        .allocate_kernel_region(
-            &_sstack as *const u8,
-            &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_sstack as *const u8,
+        &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
     // The kernel text
-    chip.pmp
-        .allocate_kernel_region(
-            &_stext as *const u8,
-            &_etext as *const u8 as usize - &_stext as *const u8 as usize,
-            mpu::Permissions::ReadExecuteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_stext as *const u8,
+        &_etext as *const u8 as usize - &_stext as *const u8 as usize,
+        mpu::Permissions::ReadExecuteOnly,
+        &mut mpu_config,
+    );
     // The kernel relocate data
-    chip.pmp
-        .allocate_kernel_region(
-            &_srelocate as *const u8,
-            &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_srelocate as *const u8,
+        &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
     // The kernel BSS
-    chip.pmp
-        .allocate_kernel_region(
-            &_szero as *const u8,
-            &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        )
-        .unwrap();
+    chip.pmp.allocate_kernel_region(
+        &_szero as *const u8,
+        &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
+    // The app locations
+    chip.pmp.allocate_kernel_region(
+        &_sapps as *const u8,
+        &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
+    // The app memory locations
+    chip.pmp.allocate_kernel_region(
+        &_sappmem as *const u8,
+        &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        mpu::Permissions::ReadWriteOnly,
+        &mut mpu_config,
+    );
 
     chip.pmp.enable_kernel_mpu(&mut mpu_config);
 
@@ -400,7 +398,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

@@ -2,11 +2,11 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::debug;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::hil::time::Alarm;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
-use rv32i::pmp::PMP;
+use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
 
 use crate::chip_config::CONFIG;
@@ -30,7 +30,7 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub usb: lowrisc::usbdev::Usb<'a>,
     pub uart0: lowrisc::uart::Uart<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
-    pub i2c: lowrisc::i2c::I2c<'a>,
+    pub i2c0: lowrisc::i2c::I2c<'a>,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
 }
 
@@ -42,7 +42,10 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
             gpio_port: crate::gpio::Port::new(),
-            i2c: lowrisc::i2c::I2c::new(crate::i2c::I2C_BASE, (1 / CONFIG.cpu_freq) * 1000 * 1000),
+            i2c0: lowrisc::i2c::I2c::new(
+                crate::i2c::I2C0_BASE,
+                (1 / CONFIG.cpu_freq) * 1000 * 1000,
+            ),
             flash_ctrl: lowrisc::flash_ctrl::FlashCtrl::new(
                 crate::flash_ctrl::FLASH_CTRL_BASE,
                 lowrisc::flash_ctrl::FlashRegion::REGION0,
@@ -54,21 +57,24 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
 impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
+            interrupts::UART0_TX_WATERMARK..=interrupts::UART0_RX_PARITYERR => {
                 self.uart0.handle_interrupt();
             }
             int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
                 let pin = &self.gpio_port[(int_pin - interrupts::GPIO_PIN0) as usize];
                 pin.handle_interrupt();
             }
-            interrupts::HMAC_HMAC_DONE..=interrupts::HMAC_HMAC_ERR => {
+            interrupts::HMAC_HMACDONE..=interrupts::HMAC_HMACERR => {
                 self.hmac.handle_interrupt();
             }
-            interrupts::USBDEV_PKT_RECEIVED..=interrupts::USBDEV_CONNECTED => {
+            interrupts::USBDEV_PKTRECEIVED..=interrupts::USBDEV_LINKOUTERR => {
                 self.usb.handle_interrupt();
             }
-            interrupts::FLASH_PROG_EMPTY..=interrupts::FLASH_OP_ERROR => {
+            interrupts::FLASHCTRL_PROGEMPTY..=interrupts::FLASHCTRL_OPDONE => {
                 self.flash_ctrl.handle_interrupt()
+            }
+            interrupts::I2C0_FMTWATERMARK..=interrupts::I2C0_HOSTTIMEOUT => {
+                self.i2c0.handle_interrupt()
             }
             _ => return false,
         }
@@ -104,11 +110,13 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
 
     unsafe fn handle_plic_interrupts(&self) {
         while let Some(interrupt) = self.plic.get_saved_interrupts() {
-            if interrupt == interrupts::PWRMGRWAKEUP {
+            if interrupt == interrupts::PWRMGRAONWAKEUP {
                 self.pwrmgr.handle_interrupt();
                 self.check_until_true_or_interrupt(|| self.pwrmgr.check_clock_propagation(), None);
+            } else if interrupt == interrupts::RVTIMERTIMEREXPIRED0_0 {
+                self.timer.service_interrupt();
             } else if !self.plic_interrupt_service.service_interrupt(interrupt) {
-                debug!("Pidx {}", interrupt);
+                panic!("Unknown interrupt: {}", interrupt);
             }
             self.atomic(|| {
                 // Safe as interrupts are disabled
@@ -225,6 +233,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
             CONFIG.name
         ));
         rv32i::print_riscv_state(writer);
+        let _ = writer.write_fmt(format_args!("{}", self.pmp));
     }
 }
 

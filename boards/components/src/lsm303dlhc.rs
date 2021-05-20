@@ -54,11 +54,13 @@ macro_rules! lsm303dlhc_i2c_component_helper {
     };};
 }
 
-pub struct Lsm303dlhcI2CComponent {}
+pub struct Lsm303dlhcI2CComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl Lsm303dlhcI2CComponent {
-    pub fn new() -> Lsm303dlhcI2CComponent {
-        Lsm303dlhcI2CComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> Lsm303dlhcI2CComponent {
+        Lsm303dlhcI2CComponent { board_kernel }
     }
 }
 
@@ -72,10 +74,17 @@ impl Component for Lsm303dlhcI2CComponent {
     type Output = &'static Lsm303dlhcI2C<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap =
+            kernel::create_capability!(kernel::capabilities::MemoryAllocationCapability);
         let lsm303dlhc = static_init_half!(
             static_buffer.3,
             Lsm303dlhcI2C<'static>,
-            Lsm303dlhcI2C::new(static_buffer.0, static_buffer.1, static_buffer.2)
+            Lsm303dlhcI2C::new(
+                static_buffer.0,
+                static_buffer.1,
+                static_buffer.2,
+                self.board_kernel.create_grant(&grant_cap),
+            )
         );
         static_buffer.0.set_client(lsm303dlhc);
         static_buffer.1.set_client(lsm303dlhc);

@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 /// Syscall driver number.
 use crate::driver;
@@ -73,7 +73,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<(Option<Callback>, SubscribeMap)>,
+    apps: Grant<(Upcall, SubscribeMap)>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -83,7 +83,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
-        grant: Grant<(Option<Callback>, SubscribeMap)>,
+        grant: Grant<(Upcall, SubscribeMap)>,
     ) -> Self {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
@@ -116,20 +116,24 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |cntr, _| {
-                    cntr.0 = callback;
-                    ReturnCode::SUCCESS
+                .enter(app_id, |cntr| {
+                    core::mem::swap(&mut cntr.0, &mut callback);
                 })
-                .unwrap_or_else(|err| err.into()),
+                .map_err(|err| err.into()),
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(callback),
+            Err(e) => Err((callback, e)),
         }
     }
 
@@ -138,7 +142,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// `data` is the index of the button in the button array as passed to
     /// `Button::new()`.
     ///
-    /// All commands greater than zero return `EINVAL` if an invalid button
+    /// All commands greater than zero return `INVAL` if an invalid button
     /// number is passed in.
     ///
     /// ### `command_num`
@@ -149,52 +153,54 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
         let pins = self.pins;
         match command_num {
             // return button count
-            0 => ReturnCode::SuccessWithValue {
-                value: pins.len() as usize,
-            },
+            0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 |= 1 << data;
-                            pins[data]
+                            let _ = pins[data]
                                 .0
                                 .enable_interrupts(gpio::InterruptEdge::EitherEdge);
-                            ReturnCode::SUCCESS
+                            CommandReturn::success()
                         })
-                        .unwrap_or_else(|err| err.into())
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
                 } else {
-                    ReturnCode::EINVAL /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 }
             }
 
             // disable interrupts for a button
             2 => {
                 if data >= pins.len() {
-                    ReturnCode::EINVAL /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 &= !(1 << data);
-                            ReturnCode::SUCCESS
+                            CommandReturn::success()
                         })
-                        .unwrap_or_else(|err| err.into());
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()));
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
-                    self.apps.each(|cntr| {
-                        cntr.0.map(|_| {
-                            if cntr.1 & (1 << data) != 0 {
-                                interrupt_count.set(interrupt_count.get() + 1);
-                            }
-                        });
+                    self.apps.each(|_, cntr| {
+                        if cntr.1 & (1 << data) != 0 {
+                            interrupt_count.set(interrupt_count.get() + 1);
+                        }
                     });
 
                     // if not, disable the interrupt
@@ -209,17 +215,15 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             // read input
             3 => {
                 if data >= pins.len() {
-                    ReturnCode::EINVAL /* impossible button */
+                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
                     let button_state = self.get_button_state(data as u32);
-                    ReturnCode::SuccessWithValue {
-                        value: button_state as usize,
-                    }
+                    CommandReturn::success_u32(button_state as u32)
                 }
             }
 
             // default
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
@@ -231,13 +235,11 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
-        self.apps.each(|cntr| {
-            cntr.0.map(|mut callback| {
-                if cntr.1 & (1 << pin_num) != 0 {
-                    interrupt_count.set(interrupt_count.get() + 1);
-                    callback.schedule(pin_num as usize, button_state as usize, 0);
-                }
-            });
+        self.apps.each(|_, cntr| {
+            if cntr.1 & (1 << pin_num) != 0 {
+                interrupt_count.set(interrupt_count.get() + 1);
+                cntr.0.schedule(pin_num as usize, button_state as usize, 0);
+            }
         });
 
         // It's possible we got an interrupt for a process that has since died

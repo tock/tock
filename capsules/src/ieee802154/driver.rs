@@ -9,11 +9,15 @@ use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, Secu
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell;
 use core::cmp::min;
+use core::mem;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice, Upcall,
+};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -149,11 +153,11 @@ impl KeyDescriptor {
 
 #[derive(Default)]
 pub struct App {
-    rx_callback: Option<Callback>,
-    tx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
+    rx_callback: Upcall,
+    tx_callback: Upcall,
+    app_read: ReadWriteAppSlice,
+    app_write: ReadOnlyAppSlice,
+    app_cfg: ReadWriteAppSlice,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
@@ -176,7 +180,7 @@ pub struct RadioDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: OptionalCell<AppId>,
+    current_app: OptionalCell<ProcessId>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
@@ -188,10 +192,10 @@ pub struct RadioDriver<'a> {
     handle: OptionalCell<DeferredCallHandle>,
 
     /// Used to deliver callbacks to the correct app during deferred calls
-    saved_appid: OptionalCell<AppId>,
+    saved_appid: OptionalCell<ProcessId>,
 
     /// Used to save result for passing a callback from a deferred call.
-    saved_result: OptionalCell<ReturnCode>,
+    saved_result: OptionalCell<Result<(), ErrorCode>>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -249,10 +253,10 @@ impl<'a> RadioDriver<'a> {
     }
 
     /// Deletes the neighbor at `index` if `index` is valid, returning
-    /// `ReturnCode::SUCCESS`. Otherwise, returns `ReturnCode::EINVAL`.  Ensures
+    /// `Ok()`. Otherwise, returns `Err(ErrorCode::INVAL)`.  Ensures
     /// that the `neighbors` list is compact by shifting forward any elements
     /// after the index.
-    fn remove_neighbor(&self, index: usize) -> ReturnCode {
+    fn remove_neighbor(&self, index: usize) -> Result<(), ErrorCode> {
         let num_neighbors = self.num_neighbors.get();
         if index < num_neighbors {
             self.neighbors.map(|neighbors| {
@@ -261,9 +265,9 @@ impl<'a> RadioDriver<'a> {
                 }
             });
             self.num_neighbors.set(num_neighbors - 1);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -303,10 +307,10 @@ impl<'a> RadioDriver<'a> {
     }
 
     /// Deletes the key at `index` if `index` is valid, returning
-    /// `ReturnCode::SUCCESS`. Otherwise, returns `ReturnCode::EINVAL`.  Ensures
+    /// `Ok(())`. Otherwise, returns `Err(ErrorCode::INVAL)`.  Ensures
     /// that the `keys` list is compact by shifting forward any elements
     /// after the index.
-    fn remove_key(&self, index: usize) -> ReturnCode {
+    fn remove_key(&self, index: usize) -> Result<(), ErrorCode> {
         let num_keys = self.num_keys.get();
         if index < num_keys {
             self.keys.map(|keys| {
@@ -315,9 +319,9 @@ impl<'a> RadioDriver<'a> {
                 }
             });
             self.num_keys.set(num_keys - 1);
-            ReturnCode::SUCCESS
+            Ok(())
         } else {
-            ReturnCode::EINVAL
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -333,68 +337,27 @@ impl<'a> RadioDriver<'a> {
 
     /// Utility function to perform an action on an app in a system call.
     #[inline]
-    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+    fn do_with_app<F>(&self, appid: ProcessId, closure: F) -> Result<(), ErrorCode>
     where
-        F: FnOnce(&mut App) -> ReturnCode,
+        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
     {
         self.apps
-            .enter(appid, |app, _| closure(app))
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform an action using an app's config buffer.
-    #[inline]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&[u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_ref())
-                    })
-            })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform a write to an app's config buffer.
-    #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&mut [u8]) -> ReturnCode,
-    {
-        self.apps
-            .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
-            })
+            .enter(appid, |app| closure(app))
             .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
-    /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+    /// pick an app with a pending transmission and return its `ProcessId`.
+    fn get_next_tx_if_idle(&self) -> Option<ProcessId> {
         if self.current_app.is_some() {
             return None;
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            let appid = app.processid();
+            app.enter(|app| {
                 if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
+                    pending_app = Some(appid);
                 }
             });
             if pending_app.is_some() {
@@ -409,9 +372,9 @@ impl<'a> RadioDriver<'a> {
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
+    fn perform_tx_async(&self, appid: ProcessId) {
         let result = self.perform_tx_sync(appid);
-        if result != ReturnCode::SUCCESS {
+        if result != Ok(()) {
             self.saved_appid.set(appid);
             self.saved_result.set(result);
             self.handle.map(|handle| self.deferred_caller.set(*handle));
@@ -422,15 +385,15 @@ impl<'a> RadioDriver<'a> {
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+    fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
         self.do_with_app(appid, |app| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
-                    return ReturnCode::SUCCESS;
+                    return Ok(());
                 }
             };
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+            let result = self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
                 // Prepare the frame headers
                 let pan = self.mac.get_pan();
                 let dst_addr = MacAddress::Short(dst_addr);
@@ -446,29 +409,28 @@ impl<'a> RadioDriver<'a> {
                     Ok(frame) => frame,
                     Err(kbuf) => {
                         self.kernel_tx.replace(kbuf);
-                        return ReturnCode::FAIL;
+                        return Err(ErrorCode::FAIL);
                     }
                 };
 
                 // Append the payload: there must be one
-                let result = app
-                    .app_write
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |payload| {
-                        frame.append_payload(payload.as_ref())
-                    });
-                if result != ReturnCode::SUCCESS {
+                let result = app.app_write.map_or(Err(ErrorCode::INVAL), |payload| {
+                    frame.append_payload(payload.as_ref())
+                });
+                if result != Ok(()) {
                     return result;
                 }
 
                 // Finally, transmit the frame
-                let (result, mbuf) = self.mac.transmit(frame);
-                if let Some(buf) = mbuf {
-                    self.kernel_tx.replace(buf);
+                match self.mac.transmit(frame) {
+                    Ok(()) => Ok(()),
+                    Err((ecode, buf)) => {
+                        self.kernel_tx.put(Some(buf));
+                        Err(ecode)
+                    }
                 }
-                result
             });
-            if result == ReturnCode::SUCCESS {
+            if result == Ok(()) {
                 self.current_app.set(appid);
             }
             result
@@ -489,16 +451,15 @@ impl<'a> RadioDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
-        self.get_next_tx_if_idle()
-            .map_or(ReturnCode::SUCCESS, |appid| {
-                if appid == new_appid {
-                    self.perform_tx_sync(appid)
-                } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
-                }
-            })
+    fn do_next_tx_sync(&self, new_appid: ProcessId) -> Result<(), ErrorCode> {
+        self.get_next_tx_if_idle().map_or(Ok(()), |appid| {
+            if appid == new_appid {
+                self.perform_tx_sync(appid)
+            } else {
+                self.perform_tx_async(appid);
+                Ok(())
+            }
+        })
     }
 }
 
@@ -506,10 +467,12 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
     fn call(&self, _handle: DeferredCallHandle) {
         let _ = self
             .apps
-            .enter(self.saved_appid.expect("missing appid"), |app, _| {
-                app.tx_callback.take().map(|mut cb| {
-                    cb.schedule(self.saved_result.expect("missing result").into(), 0, 0)
-                });
+            .enter(self.saved_appid.expect("missing appid"), |app| {
+                app.tx_callback.schedule(
+                    kernel::into_statuscode(self.saved_result.expect("missing result")),
+                    0,
+                    0,
+                );
             });
     }
 }
@@ -550,27 +513,49 @@ impl Driver for RadioDriver<'_> {
     /// ### `allow_num`
     ///
     /// - `0`: Read buffer. Will contain the received frame.
-    /// - `1`: Write buffer. Contains the frame payload to be transmitted.
-    /// - `2`: Config buffer. Used to contain miscellaneous data associated with
+    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(
+    fn allow_readwrite(
         &self,
-        appid: AppId,
+        appid: ProcessId,
         allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+        mut slice: ReadWriteAppSlice,
+    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         match allow_num {
-            0 | 1 | 2 => self.do_with_app(appid, |app| {
-                match allow_num {
-                    0 => app.app_read = slice,
-                    1 => app.app_write = slice,
-                    2 => app.app_cfg = slice,
-                    _ => {}
+            0 | 1 => {
+                let res = self.apps.enter(appid, |app| match allow_num {
+                    0 => mem::swap(&mut app.app_read, &mut slice),
+                    1 => mem::swap(&mut app.app_cfg, &mut slice),
+                    _ => unreachable!(),
+                });
+                match res {
+                    Ok(_) => Ok(slice),
+                    Err(err) => Err((slice, err.into())),
                 }
-                ReturnCode::SUCCESS
-            }),
-            _ => ReturnCode::ENOSUPPORT,
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
+        }
+    }
+
+    /// - `0`: Write buffer. Contains the frame payload to be transmitted.
+    fn allow_readonly(
+        &self,
+        appid: ProcessId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        match allow_num {
+            0 => {
+                let res = self.apps.enter(appid, |app| {
+                    mem::swap(&mut app.app_write, &mut slice);
+                });
+                match res {
+                    Ok(_) => Ok(slice),
+                    Err(err) => Err((slice, err.into())),
+                }
+            }
+            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 
@@ -583,20 +568,22 @@ impl Driver for RadioDriver<'_> {
     fn subscribe(
         &self,
         subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            0 => self.do_with_app(app_id, |app| {
-                app.rx_callback = callback;
-                ReturnCode::SUCCESS
-            }),
-            1 => self.do_with_app(app_id, |app| {
-                app.tx_callback = callback;
-                ReturnCode::SUCCESS
-            }),
-            _ => ReturnCode::ENOSUPPORT,
-        }
+        mut callback: Upcall,
+        app_id: ProcessId,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        self.apps
+            .enter(app_id, |app| match subscribe_num {
+                0 => {
+                    mem::swap(&mut app.rx_callback, &mut callback);
+                    Ok(callback)
+                }
+                1 => {
+                    mem::swap(&mut app.tx_callback, &mut callback);
+                    Ok(callback)
+                }
+                _ => Err((callback, ErrorCode::NOSUPPORT)),
+            })
+            .unwrap_or_else(|err| Err((callback, err.into())))
     }
 
     /// IEEE 802.15.4 MAC device control.
@@ -607,12 +594,12 @@ impl Driver for RadioDriver<'_> {
     /// between kernel space and user space. The expected size of the slice
     /// varies by command, and acts essentially like a custom FFI. That is, the
     /// userspace library MUST `allow()` a buffer of the correct size, otherwise
-    /// the call is EINVAL. When used, the expected format is described below.
+    /// the call is INVAL. When used, the expected format is described below.
     ///
     /// ### `command_num`
     ///
     /// - `0`: Driver check.
-    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
     /// - `3`: Set long MAC address.
     ///        app_cfg (in): 8 bytes: the long MAC address.
@@ -648,188 +635,256 @@ impl Driver for RadioDriver<'_> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
-    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
-        match command_num {
-            0 => ReturnCode::SUCCESS,
+    fn command(
+        &self,
+        command_number: usize,
+        arg1: usize,
+        _: usize,
+        appid: ProcessId,
+    ) -> CommandReturn {
+        match command_number {
+            0 => CommandReturn::success(),
             1 => {
                 if self.mac.is_on() {
-                    ReturnCode::SUCCESS
+                    CommandReturn::success()
                 } else {
-                    ReturnCode::EOFF
+                    CommandReturn::failure(ErrorCode::OFF)
                 }
             }
             2 => {
                 self.mac.set_address(arg1 as u16);
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
-            3 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut addr_long = [0u8; 8];
-                addr_long.copy_from_slice(cfg);
-                self.mac.set_address_long(addr_long);
-                ReturnCode::SUCCESS
-            }),
+            3 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 8 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            let mut addr_long = [0u8; 8];
+                            addr_long.copy_from_slice(cfg);
+                            self.mac.set_address_long(addr_long);
+                            CommandReturn::success()
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             4 => {
                 self.mac.set_pan(arg1 as u16);
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             // XXX: Setting channel DEPRECATED by MAC layer channel control
-            5 => ReturnCode::ENOSUPPORT,
+            5 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             // XXX: Setting tx power DEPRECATED by MAC layer tx power control
-            6 => ReturnCode::ENOSUPPORT,
+            6 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             7 => {
                 self.mac.config_commit();
-                ReturnCode::SUCCESS
+                CommandReturn::success()
             }
             8 => {
                 // Guarantee that address is positive by adding 1
                 let addr = self.mac.get_address();
-                ReturnCode::SuccessWithValue {
-                    value: (addr as usize) + 1,
-                }
+                CommandReturn::success_u32(addr as u32 + 1)
             }
-            9 => self.do_with_cfg_mut(appid, 8, |cfg| {
-                cfg.copy_from_slice(&self.mac.get_address_long());
-                ReturnCode::SUCCESS
-            }),
+            9 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 8 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            cfg.copy_from_slice(&self.mac.get_address_long());
+                            CommandReturn::success()
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             10 => {
                 // Guarantee that the PAN is positive by adding 1
                 let pan = self.mac.get_pan();
-                ReturnCode::SuccessWithValue {
-                    value: (pan as usize) + 1,
-                }
+                CommandReturn::success_u32(pan as u32 + 1)
             }
             // XXX: Getting channel DEPRECATED by MAC layer channel control
-            11 => ReturnCode::ENOSUPPORT,
+            11 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             // XXX: Getting tx power DEPRECATED by MAC layer tx power control
-            12 => ReturnCode::ENOSUPPORT,
+            12 => CommandReturn::failure(ErrorCode::NOSUPPORT),
             13 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: MAX_NEIGHBORS + 1,
-                }
+                CommandReturn::success_u32(MAX_NEIGHBORS as u32 + 1)
             }
             14 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: self.num_neighbors.get() + 1,
-                }
+                CommandReturn::success_u32(self.num_neighbors.get() as u32 + 1)
             }
             15 => self
                 .get_neighbor(arg1)
-                .map_or(ReturnCode::EINVAL, |neighbor| {
-                    ReturnCode::SuccessWithValue {
-                        value: (neighbor.short_addr as usize) + 1,
-                    }
+                .map_or(CommandReturn::failure(ErrorCode::INVAL), |neighbor| {
+                    CommandReturn::success_u32(neighbor.short_addr as u32 + 1)
                 }),
-            16 => self.do_with_cfg_mut(appid, 8, |cfg| {
-                self.get_neighbor(arg1)
-                    .map_or(ReturnCode::EINVAL, |neighbor| {
-                        cfg.copy_from_slice(&neighbor.long_addr);
-                        ReturnCode::SUCCESS
-                    })
-            }),
-            17 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
-                new_neighbor.short_addr = arg1 as u16;
-                new_neighbor.long_addr.copy_from_slice(cfg);
-                self.add_neighbor(new_neighbor)
-                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
-                        value: index + 1,
-                    })
-            }),
-            18 => self.remove_neighbor(arg1),
+            16 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 8 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            self.get_neighbor(arg1).map_or(
+                                CommandReturn::failure(ErrorCode::INVAL),
+                                |neighbor| {
+                                    cfg.copy_from_slice(&neighbor.long_addr);
+                                    CommandReturn::success()
+                                },
+                            )
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+            17 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 8 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
+                            new_neighbor.short_addr = arg1 as u16;
+                            new_neighbor.long_addr.copy_from_slice(cfg);
+                            self.add_neighbor(new_neighbor)
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                    CommandReturn::success_u32(index as u32 + 1)
+                                })
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+
+            18 => match self.remove_neighbor(arg1) {
+                Ok(_) => CommandReturn::success(),
+                Err(e) => CommandReturn::failure(e),
+            },
             19 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: MAX_KEYS + 1,
-                }
+                CommandReturn::success_u32(MAX_KEYS as u32 + 1)
             }
             20 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: self.num_keys.get() + 1,
-                }
+                CommandReturn::success_u32(self.num_keys.get() as u32 + 1)
             }
-            21 => {
-                self.get_key(arg1)
-                    .map_or(ReturnCode::EINVAL, |key| ReturnCode::SuccessWithValue {
-                        value: (key.level as usize) + 1,
-                    })
-            }
-            22 => self.do_with_cfg_mut(appid, 10, |cfg| {
-                self.get_key(arg1)
-                    .and_then(|key| encode_key_id(&key.key_id, cfg).done())
-                    .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
-            }),
-            23 => self.do_with_cfg_mut(appid, 16, |cfg| {
-                self.get_key(arg1).map_or(ReturnCode::EINVAL, |key| {
-                    cfg.copy_from_slice(&key.key);
-                    ReturnCode::SUCCESS
+            21 => self
+                .get_key(arg1)
+                .map_or(CommandReturn::failure(ErrorCode::INVAL), |key| {
+                    CommandReturn::success_u32(key.level as u32 + 1)
+                }),
+            22 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 10 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            self.get_key(arg1)
+                                .and_then(|key| encode_key_id(&key.key_id, cfg).done())
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
+                                    CommandReturn::success()
+                                })
+                        })
                 })
-            }),
-            24 => self.do_with_cfg(appid, 27, |cfg| {
-                KeyDescriptor::decode(cfg)
-                    .done()
-                    .and_then(|(_, new_key)| self.add_key(new_key))
-                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
-                        value: index + 1,
-                    })
-            }),
-            25 => self.remove_key(arg1),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+            23 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 16 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            self.get_key(arg1).map_or(
+                                CommandReturn::failure(ErrorCode::INVAL),
+                                |key| {
+                                    cfg.copy_from_slice(&key.key);
+                                    CommandReturn::success()
+                                },
+                            )
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+            24 => self
+                .apps
+                .enter(appid, |app| {
+                    app.app_cfg
+                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                            if cfg.len() != 27 {
+                                return CommandReturn::failure(ErrorCode::SIZE);
+                            }
+                            KeyDescriptor::decode(cfg)
+                                .done()
+                                .and_then(|(_, new_key)| self.add_key(new_key))
+                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                    CommandReturn::success_u32(index as u32 + 1)
+                                })
+                        })
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+
+            25 => self.remove_key(arg1).into(),
             26 => {
-                let setup_tx = self.do_with_app(appid, |app| {
-                    if app.pending_tx.is_some() {
-                        // Cannot support more than one pending tx per process.
-                        return ReturnCode::EBUSY;
-                    }
-                    let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                        if cfg.len() != 11 {
-                            return None;
+                self.apps
+                    .enter(appid, |app| {
+                        if app.pending_tx.is_some() {
+                            // Cannot support more than one pending tx per process.
+                            return Err(ErrorCode::BUSY);
                         }
-                        let dst_addr = arg1 as u16;
-                        let level = match SecurityLevel::from_scf(cfg.as_ref()[0]) {
-                            Some(level) => level,
-                            None => {
+                        let next_tx = app.app_cfg.map_or(None, |cfg| {
+                            if cfg.len() != 11 {
                                 return None;
                             }
-                        };
-                        if level == SecurityLevel::None {
-                            Some((dst_addr, None))
-                        } else {
-                            let key_id = match decode_key_id(&cfg.as_ref()[1..]).done() {
-                                Some((_, key_id)) => key_id,
+                            let dst_addr = arg1 as u16;
+                            let level = match SecurityLevel::from_scf(cfg.as_ref()[0]) {
+                                Some(level) => level,
                                 None => {
                                     return None;
                                 }
                             };
-                            Some((dst_addr, Some((level, key_id))))
+                            if level == SecurityLevel::None {
+                                Some((dst_addr, None))
+                            } else {
+                                let key_id = match decode_key_id(&cfg.as_ref()[1..]).done() {
+                                    Some((_, key_id)) => key_id,
+                                    None => {
+                                        return None;
+                                    }
+                                };
+                                Some((dst_addr, Some((level, key_id))))
+                            }
+                        });
+                        if next_tx.is_none() {
+                            return Err(ErrorCode::INVAL);
                         }
-                    });
-                    if next_tx.is_none() {
-                        return ReturnCode::EINVAL;
-                    }
-                    app.pending_tx = next_tx;
-                    ReturnCode::SUCCESS
-                });
-                if setup_tx == ReturnCode::SUCCESS {
-                    self.do_next_tx_sync(appid)
-                } else {
-                    setup_tx
-                }
+                        app.pending_tx = next_tx;
+                        Ok(())
+                    })
+                    .map_or_else(
+                        |err| CommandReturn::failure(err.into()),
+                        |setup_tx| match setup_tx {
+                            Ok(_) => self.do_next_tx_sync(appid).into(),
+                            Err(e) => CommandReturn::failure(e.into()),
+                        },
+                    )
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
 
 impl device::TxClient for RadioDriver<'_> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
+                    .schedule(kernel::into_statuscode(result), acked as usize, 0);
             });
         });
         self.do_next_tx_async();
@@ -854,8 +909,8 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 
 impl device::RxClient for RadioDriver<'_> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.apps.each(|app| {
-            app.app_read.take().as_mut().map(|rbuf| {
+        self.apps.each(|_, app| {
+            let read_present = app.app_read.mut_map_or(false, |rbuf| {
                 let rbuf = rbuf.as_mut();
                 let len = min(rbuf.len(), data_offset + data_len);
                 // Copy the entire frame over to userland, preceded by two
@@ -863,15 +918,15 @@ impl device::RxClient for RadioDriver<'_> {
                 rbuf[..len].copy_from_slice(&buf[..len]);
                 rbuf[0] = data_offset as u8;
                 rbuf[1] = data_len as u8;
-
+                true
+            });
+            if read_present {
                 // Encode useful parts of the header in 3 usizes
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                app.rx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(pans, dst_addr, src_addr));
-            });
+                app.rx_callback.schedule(pans, dst_addr, src_addr);
+            }
         });
     }
 }

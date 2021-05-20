@@ -34,7 +34,8 @@ use core::marker::PhantomData;
 pub use tock_registers::register_bitfields;
 use tock_registers::registers::{
     Field, FieldValue, IntLike as TRIntLike, LocalRegisterCopy, ReadOnly as TRReadOnly,
-    ReadWrite as TRReadWrite, RegisterLongName, TryFromValue, WriteOnly as TRWriteOnly,
+    ReadWrite as TRReadWrite, Readable, RegisterLongName, TryFromValue, WriteOnly as TRWriteOnly,
+    Writeable,
 };
 
 /// Extension of the `tock_registers` `IntLike` trait.

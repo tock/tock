@@ -37,11 +37,12 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
@@ -616,9 +617,9 @@ impl<'a> Radio<'a> {
             self.registers.event_end.write(Event::READY::CLEAR);
 
             let result = if self.registers.crcstatus.is_set(Event::READY) {
-                ReturnCode::SUCCESS
+                Ok(())
             } else {
-                ReturnCode::FAIL
+                Err(ErrorCode::FAIL)
             };
 
             match self.registers.state.get() {
@@ -813,15 +814,15 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
 impl ble_advertising::BleConfig for Radio<'_> {
     // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
     // underlying chip must validate if the current `tx_power` is supported as well
-    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
+    fn set_tx_power(&self, tx_power: u8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            Err(_) => kernel::ReturnCode::ENOSUPPORT,
+            Err(_) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                kernel::ReturnCode::SUCCESS
+                Ok(())
             }
         }
     }

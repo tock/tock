@@ -1,11 +1,12 @@
 // use core::cell::Cell;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 use crate::rcc;
 
@@ -418,7 +419,7 @@ impl<'a> Usart<'a> {
                 if self.tx_status.get() == USARTStateTX::Idle {
                     self.tx_client.map(|client| {
                         if let Some(buf) = self.tx_buffer.take() {
-                            client.transmitted_buffer(buf, self.tx_len.get(), ReturnCode::SUCCESS);
+                            client.transmitted_buffer(buf, self.tx_len.get(), Ok(()));
                         }
                     });
                 }
@@ -426,7 +427,11 @@ impl<'a> Usart<'a> {
                 self.tx_status.replace(USARTStateTX::Idle);
                 self.tx_client.map(|client| {
                     if let Some(buf) = self.tx_buffer.take() {
-                        client.transmitted_buffer(buf, self.tx_position.get(), ReturnCode::ECANCEL);
+                        client.transmitted_buffer(
+                            buf,
+                            self.tx_position.get(),
+                            Err(ErrorCode::CANCEL),
+                        );
                     }
                 });
             }
@@ -457,7 +462,7 @@ impl<'a> Usart<'a> {
                             client.received_buffer(
                                 buf,
                                 self.rx_len.get(),
-                                ReturnCode::SUCCESS,
+                                Ok(()),
                                 hil::uart::Error::None,
                             );
                         }
@@ -470,7 +475,7 @@ impl<'a> Usart<'a> {
                         client.received_buffer(
                             buf,
                             self.rx_position.get(),
-                            ReturnCode::ECANCEL,
+                            Err(ErrorCode::CANCEL),
                             hil::uart::Error::Aborted,
                         );
                     }
@@ -486,7 +491,7 @@ impl<'a> Usart<'a> {
                     client.received_buffer(
                         buf,
                         self.rx_position.get(),
-                        ReturnCode::ECANCEL,
+                        Err(ErrorCode::CANCEL),
                         hil::uart::Error::OverrunError,
                     );
                 }
@@ -504,7 +509,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_status.get() == USARTStateTX::Idle {
             if tx_len <= tx_data.len() {
                 self.tx_buffer.put(Some(tx_data));
@@ -512,31 +517,31 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
                 self.tx_len.set(tx_len);
                 self.tx_status.set(USARTStateTX::Transmitting);
                 self.enable_transmit_interrupt();
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             } else {
-                (ReturnCode::ESIZE, Some(tx_data))
+                Err((ErrorCode::SIZE, tx_data))
             }
         } else {
-            (ReturnCode::EBUSY, Some(tx_data))
+            Err((ErrorCode::BUSY, tx_data))
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.tx_status.get() != USARTStateTX::Idle {
             self.tx_status.set(USARTStateTX::AbortRequested);
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }
 
 impl hil::uart::Configure for Usart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
@@ -575,7 +580,7 @@ impl hil::uart::Configure for Usart<'_> {
         // Enable USART
         self.registers.cr1.modify(CR1::UE::SET);
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -588,7 +593,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.rx_status.get() == USARTStateRX::Idle {
             if rx_len <= rx_buffer.len() {
                 self.rx_buffer.put(Some(rx_buffer));
@@ -596,25 +601,25 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
                 self.rx_len.set(rx_len);
                 self.rx_status.set(USARTStateRX::Receiving);
                 self.enable_receive_interrupt();
-                (ReturnCode::SUCCESS, None)
+                Ok(())
             } else {
-                (ReturnCode::ESIZE, Some(rx_buffer))
+                Err((ErrorCode::SIZE, rx_buffer))
             }
         } else {
-            (ReturnCode::EBUSY, Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_status.get() != USARTStateRX::Idle {
             self.rx_status.set(USARTStateRX::AbortRequested);
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
-            ReturnCode::SUCCESS
+            Ok(())
         }
     }
 }

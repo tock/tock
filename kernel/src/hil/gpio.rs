@@ -1,5 +1,5 @@
 use crate::common::cells::OptionalCell;
-use crate::ReturnCode;
+use crate::ErrorCode;
 
 use core::cell::Cell;
 
@@ -223,11 +223,11 @@ pub trait InterruptWithValue<'a>: Input {
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
     /// Returns:
-    ///    SUCCESS - the interrupt was set up properly
+    ///    Ok(()) - the interrupt was set up properly
     ///    FAIL    - the interrupt was not set up properly; this is due to
     ///              not having an underlying interrupt source yet, i.e.
     ///              the struct is not yet fully initialized.
-    fn enable_interrupts(&self, mode: InterruptEdge) -> ReturnCode;
+    fn enable_interrupts(&self, mode: InterruptEdge) -> Result<(), ErrorCode>;
 
     /// Disable interrupts for the GPIO pin.
     fn disable_interrupts(&self);
@@ -292,9 +292,9 @@ impl<'a, IP: InterruptPin<'a>> InterruptWithValue<'a> for InterruptValueWrapper<
         self.source.is_pending()
     }
 
-    fn enable_interrupts(&self, edge: InterruptEdge) -> ReturnCode {
+    fn enable_interrupts(&self, edge: InterruptEdge) -> Result<(), ErrorCode> {
         self.source.enable_interrupts(edge);
-        ReturnCode::SUCCESS
+        Ok(())
     }
 
     fn disable_interrupts(&self) {

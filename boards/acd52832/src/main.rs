@@ -41,13 +41,12 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -107,17 +106,26 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point in the vector table called on hard reset.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52832::init();
-    let ppi = static_init!(nrf52832::ppi::Ppi, nrf52832::ppi::Ppi::new());
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
     // Initialize chip peripheral drivers
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(ppi)
+        Nrf52832DefaultPeripherals::new()
     );
+
+    nrf52832_peripherals
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    nrf52832::init();
+
+    let nrf52832_peripherals = get_peripherals();
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
@@ -227,7 +235,7 @@ pub unsafe fn reset_handler() {
     // RTC for Timers
     //
     let rtc = &base_peripherals.rtc;
-    rtc.start();
+    let _ = rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&base_peripherals.rtc)
@@ -335,7 +343,10 @@ pub unsafe fn reset_handler() {
     // `gpio_async` is the object that manages all of the extenders.
     let gpio_async = static_init!(
         capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
-        capsules::gpio_async::GPIOAsync::new(async_gpio_ports)
+        capsules::gpio_async::GPIOAsync::new(
+            async_gpio_ports,
+            board_kernel.create_grant(&memory_allocation_capability)
+        ),
     );
     // Setup the clients correctly.
     for port in async_gpio_ports.iter() {
@@ -511,7 +522,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

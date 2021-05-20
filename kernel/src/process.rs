@@ -1,267 +1,174 @@
-//! Support for creating and running userspace applications.
+//! Types for Tock-compatible processes.
 
 use core::cell::Cell;
-use core::cmp;
-use core::convert::TryInto;
 use core::fmt;
 use core::fmt::Write;
-use core::ptr::{write_volatile, NonNull};
-use core::{mem, ptr, slice, str};
+use core::ptr::NonNull;
+use core::str;
 
-use crate::callback::{AppId, CallbackId};
-use crate::capabilities::ProcessManagementCapability;
-use crate::common::cells::{MapCell, NumericCellExt};
-use crate::common::{Queue, RingBuffer};
-use crate::config;
-use crate::debug;
+use crate::capabilities;
+use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::{AppSlice, Shared};
-use crate::platform::mpu::{self, MPU};
-use crate::platform::Chip;
-use crate::returncode::ReturnCode;
+use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::platform::mpu::{self};
 use crate::sched::Kernel;
-use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
+use crate::syscall::{self, Syscall, SyscallReturn};
+use crate::upcall::UpcallId;
 
-/// Errors that can occur when trying to load and create processes.
-pub enum ProcessLoadError {
-    /// The TBF header for the process could not be successfully parsed.
-    TbfHeaderParseFailure(tock_tbf::types::TbfParseError),
+/// Userspace process identifier.
+///
+/// This should be treated as an opaque type that can be used to represent a
+/// process on the board without requiring an actual reference to a `Process`
+/// object. Having this `ProcessId` reference type is useful for managing
+/// ownership and type issues in Rust, but more importantly `ProcessId` serves
+/// as a tool for capsules to hold pointers to applications.
+///
+/// Since `ProcessId` implements `Copy`, having an `ProcessId` does _not_ ensure
+/// that the process the `ProcessId` refers to is still valid. The process may
+/// have been removed, terminated, or restarted as a new process. Therefore, all
+/// uses of `ProcessId` in the kernel must check that the `ProcessId` is still
+/// valid. This check happens automatically when `.index()` is called, as noted
+/// by the return type: `Option<usize>`. `.index()` will return the index of the
+/// process in the processes array, but if the process no longer exists then
+/// `None` is returned.
+///
+/// Outside of the kernel crate, holders of an `ProcessId` may want to use
+/// `.id()` to retrieve a simple identifier for the process that can be
+/// communicated over a UART bus or syscall interface. This call is guaranteed
+/// to return a suitable identifier for the `ProcessId`, but does not check that
+/// the corresponding application still exists.
+///
+/// This type also provides capsules an interface for interacting with processes
+/// since they otherwise would have no reference to a `Process`. Very limited
+/// operations are available through this interface since capsules should not
+/// need to know the details of any given process. However, certain information
+/// makes certain capsules possible to implement. For example, capsules can use
+/// the `get_editable_flash_range()` function so they can safely allow an app to
+/// modify its own flash.
+#[derive(Clone, Copy)]
+pub struct ProcessId {
+    /// Reference to the main kernel struct. This is needed for checking on
+    /// certain properties of the referred app (like its editable bounds), but
+    /// also for checking that the index is valid.
+    pub(crate) kernel: &'static Kernel,
 
-    /// Not enough flash remaining to parse a process and its header.
-    NotEnoughFlash,
+    /// The index in the kernel.PROCESSES[] array where this app's state is
+    /// stored. This makes for fast lookup of the process and helps with
+    /// implementing IPC.
+    ///
+    /// This value is crate visible to enable optimizations in sched.rs. Other
+    /// users should call `.index()` instead.
+    pub(crate) index: usize,
 
-    /// Not enough memory to meet the amount requested by a process. Modify the
-    /// process to request less memory, flash fewer processes, or increase the
-    /// size of the region your board reserves for process memory.
-    NotEnoughMemory,
-
-    /// A process was loaded with a length in flash that the MPU does not
-    /// support. The fix is probably to correct the process size, but this could
-    /// also be caused by a bad MPU implementation.
-    MpuInvalidFlashLength,
-
-    /// A process specified a fixed memory address that it needs its memory
-    /// range to start at, and the kernel did not or could not give the process
-    /// a memory region starting at that address.
-    MemoryAddressMismatch {
-        actual_address: u32,
-        expected_address: u32,
-    },
-
-    /// A process specified that its binary must start at a particular address,
-    /// and that is not the address the binary is actually placed at.
-    IncorrectFlashAddress {
-        actual_address: u32,
-        expected_address: u32,
-    },
-
-    /// Process loading error due (likely) to a bug in the kernel. If you get
-    /// this error please open a bug report.
-    InternalError,
+    /// The unique identifier for this process. This can be used to refer to the
+    /// process in situations where a single number is required, for instance
+    /// when referring to specific applications across the syscall interface.
+    ///
+    /// The combination of (index, identifier) is used to check if the app this
+    /// `ProcessId` refers to is still valid. If the stored identifier in the
+    /// process at the given index does not match the value saved here, then the
+    /// process moved or otherwise ended, and this `ProcessId` is no longer
+    /// valid.
+    identifier: usize,
 }
 
-impl From<tock_tbf::types::TbfParseError> for ProcessLoadError {
-    /// Convert between a TBF Header parse error and a process load error.
-    ///
-    /// We note that the process load error is because a TBF header failed to
-    /// parse, and just pass through the parse error.
-    fn from(error: tock_tbf::types::TbfParseError) -> Self {
-        ProcessLoadError::TbfHeaderParseFailure(error)
+impl PartialEq for ProcessId {
+    fn eq(&self, other: &ProcessId) -> bool {
+        self.identifier == other.identifier
     }
 }
 
-impl fmt::Debug for ProcessLoadError {
+impl Eq for ProcessId {}
+
+impl fmt::Debug for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
-                write!(f, "Error parsing TBF header\n")?;
-                write!(f, "{:?}", tbf_parse_error)
-            }
+        write!(f, "{}", self.identifier)
+    }
+}
 
-            ProcessLoadError::NotEnoughFlash => {
-                write!(f, "Not enough flash available for app linked list")
-            }
-
-            ProcessLoadError::NotEnoughMemory => {
-                write!(f, "Not able to meet memory requirements requested by apps")
-            }
-
-            ProcessLoadError::MpuInvalidFlashLength => {
-                write!(f, "App flash length not supported by MPU")
-            }
-
-            ProcessLoadError::MemoryAddressMismatch {
-                actual_address,
-                expected_address,
-            } => write!(
-                f,
-                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
-                actual_address, expected_address
-            ),
-
-            ProcessLoadError::IncorrectFlashAddress {
-                actual_address,
-                expected_address,
-            } => write!(
-                f,
-                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
-                actual_address, expected_address
-            ),
-
-            ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
+impl ProcessId {
+    /// Create a new `ProcessId` object based on the app identifier and its index
+    /// in the processes array.
+    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
+        ProcessId {
+            kernel: kernel,
+            identifier: identifier,
+            index: index,
         }
     }
-}
 
-/// Helper function to load processes from flash into an array of active
-/// processes. This is the default template for loading processes, but a board
-/// is able to create its own `load_processes()` function and use that instead.
-///
-/// Processes are found in flash starting from the given address and iterating
-/// through Tock Binary Format (TBF) headers. Processes are given memory out of
-/// the `app_memory` buffer until either the memory is exhausted or the
-/// allocated number of processes are created. A reference to each process is
-/// stored in the provided `procs` array. How process faults are handled by the
-/// kernel must be provided and is assigned to every created process.
-///
-/// This function is made `pub` so that board files can use it, but loading
-/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
-/// we require the `ProcessManagementCapability` to call this function.
-///
-/// Returns `Ok(())` if process discovery went as expected. Returns a
-/// `ProcessLoadError` if something goes wrong during TBF parsing or process
-/// creation.
-pub fn load_processes<C: Chip>(
-    kernel: &'static Kernel,
-    chip: &'static C,
-    app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
-    procs: &'static mut [Option<&'static dyn ProcessType>],
-    fault_response: FaultResponse,
-    _capability: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
-    if config::CONFIG.debug_load_processes {
-        debug!(
-            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
-            app_flash.as_ptr() as usize,
-            app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
-        );
+    /// Create a new `ProcessId` object based on the app identifier and its index
+    /// in the processes array.
+    ///
+    /// This constructor is public but protected with a capability so that
+    /// external implementations of `Process` can use it.
+    pub fn new_external(
+        kernel: &'static Kernel,
+        identifier: usize,
+        index: usize,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) -> ProcessId {
+        ProcessId {
+            kernel: kernel,
+            identifier: identifier,
+            index: index,
+        }
     }
 
-    let mut remaining_flash = app_flash;
-    let mut remaining_memory = app_memory;
-
-    // Try to discover up to `procs.len()` processes in flash.
-    for i in 0..procs.len() {
-        // Get the first eight bytes of flash to check if there is another
-        // app.
-        let test_header_slice = match remaining_flash.get(0..8) {
-            Some(s) => s,
-            None => {
-                // Not enough flash to test for another app. This just means
-                // we are at the end of flash, and there are no more apps to
-                // load.
-                return Ok(());
-            }
-        };
-
-        // Pass the first eight bytes to tbfheader to parse out the length of
-        // the tbf header and app. We then use those values to see if we have
-        // enough flash remaining to parse the remainder of the header.
-        let (version, header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
-            test_header_slice
-                .try_into()
-                .or(Err(ProcessLoadError::InternalError))?,
-        ) {
-            Ok((v, hl, el)) => (v, hl, el),
-            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(entry_length)) => {
-                // If we could not parse the header, then we want to skip over
-                // this app and look for the next one.
-                (0, 0, entry_length)
-            }
-            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                // Since Tock apps use a linked list, it is very possible the
-                // header we started to parse is intentionally invalid to signal
-                // the end of apps. This is ok and just means we have finished
-                // loading apps.
-                return Ok(());
-            }
-        };
-
-        // Now we can get a slice which only encompasses the length of flash
-        // described by this tbf header.  We will either parse this as an actual
-        // app, or skip over this region.
-        let entry_flash = remaining_flash
-            .get(0..entry_length as usize)
-            .ok_or(ProcessLoadError::NotEnoughFlash)?;
-
-        // Advance the flash slice for process discovery beyond this last entry.
-        // This will be the start of where we look for a new process since Tock
-        // processes are allocated back-to-back in flash.
-        remaining_flash = remaining_flash
-            .get(entry_flash.len()..)
-            .ok_or(ProcessLoadError::NotEnoughFlash)?;
-
-        // Need to reassign remaining_memory in every iteration so the compiler
-        // knows it will not be re-borrowed.
-        remaining_memory = if header_length > 0 {
-            // If we found an actual app header, try to create a `Process`
-            // object. We also need to shrink the amount of remaining memory
-            // based on whatever is assigned to the new process if one is
-            // created.
-
-            // Try to create a process object from that app slice. If we don't
-            // get a process and we didn't get a loading error (aka we got to
-            // this point), then the app is a disabled process or just padding.
-            let (process_option, unused_memory) = unsafe {
-                Process::create(
-                    kernel,
-                    chip,
-                    entry_flash,
-                    header_length as usize,
-                    version,
-                    remaining_memory,
-                    fault_response,
-                    i,
-                )?
-            };
-            process_option.map(|process| {
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
-                        i,
-                        entry_flash.as_ptr() as usize,
-                        entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                        process.mem_start() as usize,
-                        process.mem_end() as usize - 1,
-                        process.get_process_name()
-                    );
-                }
-
-                // Save the reference to this process in the processes array.
-                procs[i] = Some(process);
-            });
-            unused_memory
+    /// Get the location of this app in the processes array.
+    ///
+    /// This will return `Some(index)` if the identifier stored in this `ProcessId`
+    /// matches the app saved at the known index. If the identifier does not
+    /// match then `None` will be returned.
+    pub(crate) fn index(&self) -> Option<usize> {
+        // Do a lookup to make sure that the index we have is correct.
+        if self.kernel.processid_is_valid(self) {
+            Some(self.index)
         } else {
-            // We are just skipping over this region of flash, so we have the
-            // same amount of process memory to allocate from.
-            remaining_memory
-        };
+            None
+        }
     }
 
-    Ok(())
+    /// Get a `usize` unique identifier for the app this `ProcessId` refers to.
+    ///
+    /// This function should not generally be used, instead code should just use
+    /// the `ProcessId` object itself to refer to various apps on the system.
+    /// However, getting just a `usize` identifier is particularly useful when
+    /// referring to a specific app with things outside of the kernel, say for
+    /// userspace (e.g. IPC) or tockloader (e.g. for debugging) where a concrete
+    /// number is required.
+    ///
+    /// Note, this will always return the saved unique identifier for the app
+    /// originally referred to, even if that app no longer exists. For example,
+    /// the app may have restarted, or may have been ended or removed by the
+    /// kernel. Therefore, calling `id()` is _not_ a valid way to check
+    /// that an application still exists.
+    pub fn id(&self) -> usize {
+        self.identifier
+    }
+
+    /// Returns the full address of the start and end of the flash region that
+    /// the app owns and can write to. This includes the app's code and data and
+    /// any padding at the end of the app. It does not include the TBF header,
+    /// or any space that the kernel is using for any potential bookkeeping.
+    pub fn get_editable_flash_range(&self) -> (usize, usize) {
+        self.kernel.process_map_or((0, 0), *self, |process| {
+            let start = process.flash_non_protected_start() as usize;
+            let end = process.flash_end() as usize;
+            (start, end)
+        })
+    }
 }
 
-/// This trait is implemented by process structs.
-pub trait ProcessType {
-    /// Returns the process's identifier
-    fn appid(&self) -> AppId;
+/// This trait represents a generic process that the Tock scheduler can
+/// schedule.
+pub trait Process {
+    /// Returns the process's identifier.
+    fn processid(&self) -> ProcessId;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
-    /// should run, for example a callback or an IPC call.
+    /// should run, for example a upcall or an IPC call.
     ///
     /// This function returns `true` if the `Task` was successfully enqueued,
     /// and `false` otherwise. This is represented as a simple `bool` because
@@ -274,6 +181,10 @@ pub trait ProcessType {
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 
+    /// Return if there are any Tasks (upcalls/IPC requests) enqueued
+    /// for the process.
+    fn has_tasks(&self) -> bool;
+
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -281,9 +192,9 @@ pub trait ProcessType {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    /// Remove all scheduled callbacks for a given callback id from the task
+    /// Remove all scheduled upcalls for a given upcall id from the task
     /// queue.
-    fn remove_pending_callbacks(&self, callback_id: CallbackId);
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
@@ -316,6 +227,38 @@ pub trait ProcessType {
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
+
+    /// Stop and clear a process's state, putting it into the `Terminated`
+    /// state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
+    fn terminate(&self, completion_code: u32);
+
+    /// Terminates and attempts to restart the process. The process and current
+    /// application always terminate. The kernel may, based on its own policy,
+    /// restart the application using the same process, reuse the process for
+    /// another application, or simply terminate the process and application.
+    ///
+    /// This function can be called when the process is in any state. It
+    /// attempts to reset all process state and re-initialize it so that it can
+    /// be reused.
+    ///
+    /// Restarting an application can fail for two general reasons:
+    ///
+    /// 1. The kernel chooses not to restart the application, based on its
+    ///    policy.
+    ///
+    /// 2. The kernel decides to restart the application but fails to do so
+    ///    because Some state can no long be configured for the process. For
+    ///    example, the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its the
+    /// application's `_start` function, terminated, or queued to run a
+    /// different application's `_start` function.
+    fn try_restart(&self, completion_code: u32);
 
     // memop operations
 
@@ -376,27 +319,62 @@ pub trait ProcessType {
 
     // additional memop like functions
 
-    /// Creates an `AppSlice` from the given offset and size in process memory.
-    ///
-    /// If `buf_start_addr` is NULL this will have no effect and the return
-    /// value will be `None` to signal the capsule to drop the buffer.
-    ///
-    /// If the process is not active then this will return an error as it is not
-    /// valid to "allow" a buffer for a process that will not resume executing.
-    /// In practice this case should not happen as the process will not be
-    /// executing to call the allow syscall.
+    /// Creates a `ReadWriteAppSlice` from the given offset and size
+    /// in process memory.
     ///
     /// ## Returns
     ///
-    /// If the buffer is null (a zero-valued offset) this returns `None`,
-    /// signaling the capsule to delete the entry. If the buffer is within the
-    /// process's accessible memory, returns an `AppSlice` wrapping that buffer.
-    /// Otherwise, returns an error `ReturnCode`.
-    fn allow(
+    /// In case of success, this method returns the created
+    /// [`ReadWriteAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-write buffer (any byte in the range is not read/write
+    ///   accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readwrite_appslice(
+        &self,
+        buf_start_addr: *mut u8,
+        size: usize,
+    ) -> Result<ReadWriteAppSlice, ErrorCode>;
+
+    /// Creates a [`ReadOnlyAppSlice`] from the given offset and size
+    /// in process memory.
+    ///
+    /// ## Returns
+    ///
+    /// In case of success, this method returns the created
+    /// [`ReadOnlyAppSlice`].
+    ///
+    /// In case of an error, an appropriate ErrorCode is returned:
+    ///
+    /// - if the memory is not contained in the process-accessible
+    ///   memory space / `buf_start_addr` and `size` are not a valid
+    ///   read-only buffer (any byte in the range is not
+    ///   read-accessible to the process), [`ErrorCode::INVAL`]
+    /// - if the process is not active: [`ErrorCode::FAIL`]
+    /// - for all other errors: [`ErrorCode::FAIL`]
+    fn build_readonly_appslice(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
+    ) -> Result<ReadOnlyAppSlice, ErrorCode>;
+
+    /// Set a single byte within the process address space at
+    /// `addr` to `value`. Return true if `addr` is within the RAM
+    /// bounds currently exposed to the process (thereby writable
+    /// by the process itself) and the value was set, false otherwise.
+    ///
+    /// ### Safety
+    ///
+    /// This function verifies that the byte to be written is in the process's
+    /// accessible memory. However, to avoid undefined behavior the caller needs
+    /// to ensure that no other references exist to the process's memory before
+    /// calling this function.
+    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -427,29 +405,77 @@ pub trait ProcessType {
 
     // grants
 
-    /// Create new memory in the grant region, and check that the MPU region
-    /// covering program memory does not extend past the kernel memory break.
+    /// Allocate memory from the grant region and store the reference in the
+    /// proper grant pointer index.
     ///
-    /// This will return `None` and fail if the process is inactive.
-    fn alloc(&self, size: usize, align: usize) -> Option<NonNull<u8>>;
+    /// This function must check that doing the allocation does not cause
+    /// the kernel memory break to go below the top of the process accessible
+    /// memory region allowed by the MPU. Note, this can be different from the
+    /// actual app_brk, as MPU alignment and size constraints may result in the
+    /// MPU enforced region differing from the app_brk.
+    ///
+    /// This will return `None` and fail if:
+    /// - The process is inactive, or
+    /// - There is not enough available memory to do the allocation, or
+    /// - The grant_num is invalid, or
+    /// - The grant_num already has an allocated grant.
+    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
 
-    unsafe fn free(&self, _: *mut u8);
+    /// Check if a given grant for this process has been allocated.
+    ///
+    /// Returns `None` if the process is not active. Otherwise, returns `true`
+    /// if the grant has been allocated, `false` otherwise.
+    fn grant_is_allocated(&self, grant_num: usize) -> Option<bool>;
 
-    /// Get the grant pointer for this grant number.
+    /// Allocate memory from the grant region that is `size` bytes long and
+    /// aligned to `align` bytes. This is used for creating custom grants which
+    /// are not recorded in the grant pointer array, but are useful for capsules
+    /// which need additional process-specific dynamically allocated memory.
     ///
-    /// This will return `None` if the process is inactive and the grant region
-    /// cannot be used.
-    ///
-    /// Caution: The grant may not have been allocated yet, so it is possible
-    /// for this grant pointer to be null.
-    fn get_grant_ptr(&self, grant_num: usize) -> Option<*mut u8>;
+    /// If successful, return a Some() with an identifier that can be used with
+    /// `enter_custom_grant()` to get access to the memory and the pointer to
+    /// the memory which must be used to initialize the memory.
+    fn allocate_custom_grant(
+        &self,
+        size: usize,
+        align: usize,
+    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)>;
 
-    /// Set the grant pointer for this grant number.
+    /// Enter the grant based on `grant_num` for this process.
     ///
-    /// Note: This method trusts arguments completely, that is, it assumes the
-    /// index into the grant array is valid and the pointer is to an allocated
-    /// grant region in the process memory.
-    unsafe fn set_grant_ptr(&self, grant_num: usize, grant_ptr: *mut u8);
+    /// Entering a grant means getting access to the actual memory for the
+    /// object stored as the grant.
+    ///
+    /// This will return an `Err` if the process is inactive of the `grant_num`
+    /// is invalid, if the grant has not been allocated, or if the grant is
+    /// already entered. If this returns `Ok()` then the pointer points to the
+    /// previously allocated memory for this grant.
+    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error>;
+
+    /// Enter a custom grant based on the `identifier`.
+    ///
+    /// This retrieves a pointer to the previously allocated custom grant based
+    /// on the identifier returned when the custom grant was allocated.
+    ///
+    /// This returns an error if the custom grant is no longer accessible, or
+    /// if the process is inactive.
+    fn enter_custom_grant(&self, identifier: ProcessCustomGrantIdentifer)
+        -> Result<*mut u8, Error>;
+
+    /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
+    /// entered.
+    ///
+    /// If `grant_num` is valid, this function cannot fail. If `grant_num` is
+    /// invalid, this function will do nothing. If the process is inactive then
+    /// grants are invalid and are not entered or not entered, and this function
+    /// will do nothing.
+    fn leave_grant(&self, grant_num: usize);
+
+    /// Return the count of the number of allocated grant pointers if the
+    /// process is active. This does not count custom grants.
+    ///
+    /// Useful for debugging/inspecting the system.
+    fn grant_allocated_count(&self) -> Option<usize>;
 
     // functions for processes that are architecture specific
 
@@ -470,35 +496,35 @@ pub trait ProcessType {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    unsafe fn set_syscall_return_value(&self, return_value: isize);
+    fn set_syscall_return_value(&self, return_value: SyscallReturn);
 
     /// Set the function that is to be executed when the process is resumed.
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    unsafe fn set_process_function(&self, callback: FunctionCall);
+    fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
     ///
     /// This will return `None` if the process is inactive and cannot be
     /// switched to.
-    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
+    fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     /// Print out the memory map (Grant region, heap, stack, program
     /// memory, BSS, and data sections) of this process.
-    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+    fn print_memory_map(&self, writer: &mut dyn Write);
 
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
-    unsafe fn print_full_process(&self, writer: &mut dyn Write);
+    fn print_full_process(&self, writer: &mut dyn Write);
 
     // debug
 
     /// Returns how many syscalls this app has called.
     fn debug_syscall_count(&self) -> usize;
 
-    /// Returns how many callbacks for this process have been dropped.
-    fn debug_dropped_callback_count(&self) -> usize;
+    /// Returns how many upcalls for this process have been dropped.
+    fn debug_dropped_upcall_count(&self) -> usize;
 
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
@@ -511,73 +537,22 @@ pub trait ProcessType {
     fn debug_syscall_called(&self, last_syscall: Syscall);
 }
 
-/// Generic trait for implementing process restart policies.
+/// Opaque identifier for custom grants allocated dynamically from a process's
+/// grant region.
 ///
-/// This policy allows a board to specify how the kernel should decide whether
-/// to restart an app after it crashes.
-pub trait ProcessRestartPolicy {
-    /// Decide whether to restart the `process` or not.
-    ///
-    /// Returns `true` if the process should be restarted, `false` otherwise.
-    fn should_restart(&self, process: &dyn ProcessType) -> bool;
-}
-
-/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
-/// whether to restart an app. If the app has been restarted more times than the
-/// threshold then the app will no longer be restarted.
-pub struct ThresholdRestart {
-    threshold: usize,
-}
-
-impl ThresholdRestart {
-    pub const fn new(threshold: usize) -> ThresholdRestart {
-        ThresholdRestart { threshold }
-    }
-}
-
-impl ProcessRestartPolicy for ThresholdRestart {
-    fn should_restart(&self, process: &dyn ProcessType) -> bool {
-        process.get_restart_count() <= self.threshold
-    }
-}
-
-/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
-/// whether to restart an app. If the app has been restarted more times than the
-/// threshold then the system will panic.
-pub struct ThresholdRestartThenPanic {
-    threshold: usize,
-}
-
-impl ThresholdRestartThenPanic {
-    pub const fn new(threshold: usize) -> ThresholdRestartThenPanic {
-        ThresholdRestartThenPanic { threshold }
-    }
-}
-
-impl ProcessRestartPolicy for ThresholdRestartThenPanic {
-    fn should_restart(&self, process: &dyn ProcessType) -> bool {
-        if process.get_restart_count() <= self.threshold {
-            true
-        } else {
-            panic!("Restart threshold surpassed!");
-        }
-    }
-}
-
-/// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
-/// app.
-pub struct AlwaysRestart {}
-
-impl AlwaysRestart {
-    pub const fn new() -> AlwaysRestart {
-        AlwaysRestart {}
-    }
-}
-
-impl ProcessRestartPolicy for AlwaysRestart {
-    fn should_restart(&self, _process: &dyn ProcessType) -> bool {
-        true
-    }
+/// This type allows Process to provide a handle to a custom grant within a
+/// process's memory that `ProcessGrant` can use to access the custom grant
+/// memory later.
+///
+/// We use this type rather than a direct pointer so that any attempt to access
+/// can ensure the process still exists and is valid, and that the custom grant
+/// has not been freed.
+///
+/// The fields of this struct are private so only Process can create this
+/// identifier.
+#[derive(Copy, Clone)]
+pub struct ProcessCustomGrantIdentifer {
+    pub(crate) offset: usize,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -595,22 +570,35 @@ pub enum Error {
     AlreadyInUse,
 }
 
-impl From<Error> for ReturnCode {
-    fn from(err: Error) -> ReturnCode {
+impl From<Error> for Result<(), ErrorCode> {
+    fn from(err: Error) -> Result<(), ErrorCode> {
         match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-            Error::InactiveApp => ReturnCode::FAIL,
-            Error::KernelError => ReturnCode::FAIL,
-            Error::AlreadyInUse => ReturnCode::FAIL,
+            Error::OutOfMemory => Err(ErrorCode::NOMEM),
+            Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
+            Error::NoSuchApp => Err(ErrorCode::INVAL),
+            Error::InactiveApp => Err(ErrorCode::FAIL),
+            Error::KernelError => Err(ErrorCode::FAIL),
+            Error::AlreadyInUse => Err(ErrorCode::FAIL),
+        }
+    }
+}
+
+impl From<Error> for ErrorCode {
+    fn from(err: Error) -> ErrorCode {
+        match err {
+            Error::OutOfMemory => ErrorCode::NOMEM,
+            Error::AddressOutOfBounds => ErrorCode::INVAL,
+            Error::NoSuchApp => ErrorCode::INVAL,
+            Error::InactiveApp => ErrorCode::FAIL,
+            Error::KernelError => ErrorCode::FAIL,
+            Error::AlreadyInUse => ErrorCode::FAIL,
         }
     }
 }
 
 /// Various states a process can be in.
 ///
-/// This is made public in case external implementations of `ProcessType` want
+/// This is made public in case external implementations of `Process` want
 /// to re-use these process states in the external implementation.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
@@ -636,14 +624,12 @@ pub enum State {
     /// process needs to be resumed it should be put back in the `Yield` state.
     StoppedYielded,
 
-    /// The process is stopped, and it was stopped after it faulted. This
-    /// basically means the app crashed, and the kernel decided to just stop it
-    /// and continue executing other things. The process cannot be restarted
-    /// without being reset first.
-    StoppedFaulted,
+    /// The process faulted and cannot be run.
+    Faulted,
 
-    /// The process has caused a fault.
-    Fault,
+    /// The process exited with the `exit-terminate` system call and
+    /// cannot be run.
+    Terminated,
 
     /// The process has never actually been executed. This of course happens
     /// when the board first boots and the kernel has not switched to any
@@ -654,24 +640,24 @@ pub enum State {
 
 /// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising from
 /// the state duplication in the kernel work tracking and process state tracking.
-struct ProcessStateCell<'a> {
+pub(crate) struct ProcessStateCell<'a> {
     state: Cell<State>,
     kernel: &'a Kernel,
 }
 
 impl<'a> ProcessStateCell<'a> {
-    fn new(kernel: &'a Kernel) -> Self {
+    pub(crate) fn new(kernel: &'a Kernel) -> Self {
         Self {
             state: Cell::new(State::Unstarted),
             kernel,
         }
     }
 
-    fn get(&self) -> State {
+    pub(crate) fn get(&self) -> State {
         self.state.get()
     }
 
-    fn update(&self, new_state: State) {
+    pub(crate) fn update(&self, new_state: State) {
         let old_state = self.state.get();
 
         if old_state == State::Running && new_state != State::Running {
@@ -683,45 +669,45 @@ impl<'a> ProcessStateCell<'a> {
     }
 }
 
-/// The reaction the kernel should take when an app encounters a fault.
+/// The action the kernel should take when a process encounters a fault.
 ///
-/// When an exception occurs during an app's execution (a common example is an
-/// app trying to access memory outside of its allowed regions) the system will
-/// trap back to the kernel, and the kernel has to decide what to do with the
-/// app at that point.
+/// When an exception occurs during a process's execution (a common example is a
+/// process trying to access memory outside of its allowed regions) the system
+/// will trap back to the kernel, and the kernel has to decide what to do with
+/// the process at that point.
+///
+/// The actions are separate from the policy on deciding which action to take. A
+/// separate process-specific policy should determine which action to take.
 #[derive(Copy, Clone)]
-pub enum FaultResponse {
+pub enum FaultAction {
     /// Generate a `panic!()` call and crash the entire system. This is useful
     /// for debugging applications as the error is displayed immediately after
     /// it occurs.
     Panic,
 
-    /// Attempt to cleanup and restart the app which caused the fault. This
-    /// resets the app's memory to how it was when the app was started and
-    /// schedules the app to run again from its init function.
-    ///
-    /// The provided restart policy is used to determine whether to reset the
-    /// app, and can be specified on a per-app basis.
-    Restart(&'static dyn ProcessRestartPolicy),
+    /// Attempt to cleanup and restart the process which caused the fault. This
+    /// resets the process's memory to how it was when the process was started
+    /// and schedules the process to run again from its init function.
+    Restart,
 
-    /// Stop the app by no longer scheduling it to run.
+    /// Stop the process by no longer scheduling it to run.
     Stop,
 }
 
 /// Tasks that can be enqueued for a process.
 ///
-/// This is public for external implementations of `ProcessType`.
+/// This is public for external implementations of `Process`.
 #[derive(Copy, Clone)]
 pub enum Task {
-    /// Function pointer in the process to execute. Generally this is a callback
+    /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
     /// An IPC operation that needs additional setup to configure memory access.
-    IPC((AppId, ipc::IPCCallbackType)),
+    IPC((ProcessId, ipc::IPCUpcallType)),
 }
 
 /// Enumeration to identify whether a function call for a process comes directly
-/// from the kernel or from a callback subscribed through a `Driver`
+/// from the kernel or from a upcall subscribed through a `Driver`
 /// implementation.
 ///
 /// An example of a kernel function is the application entry point.
@@ -730,18 +716,18 @@ pub enum FunctionCallSource {
     /// For functions coming directly from the kernel, such as `init_fn`.
     Kernel,
     /// For functions coming from capsules or any implementation of `Driver`.
-    Driver(CallbackId),
+    Driver(UpcallId),
 }
 
-/// Struct that defines a callback that can be passed to a process. The callback
-/// takes four arguments that are `Driver` and callback specific, so they are
+/// Struct that defines a upcall that can be passed to a process. The upcall
+/// takes four arguments that are `Driver` and upcall specific, so they are
 /// represented generically here.
 ///
 /// Likely these four arguments will get passed as the first four register
 /// values, but this is architecture-dependent.
 ///
-/// A `FunctionCall` also identifies the callback that scheduled it, if any, so
-/// that it can be unscheduled when the process unsubscribes from this callback.
+/// A `FunctionCall` also identifies the upcall that scheduled it, if any, so
+/// that it can be unscheduled when the process unsubscribes from this upcall.
 #[derive(Copy, Clone, Debug)]
 pub struct FunctionCall {
     pub source: FunctionCallSource,
@@ -751,6 +737,7 @@ pub struct FunctionCall {
     pub argument3: usize,
     pub pc: usize,
 }
+
 
 /// State for helping with debugging apps.
 ///
@@ -2357,3 +2344,4 @@ impl<C: 'static + Chip> Process<'_, C> {
         current_state != State::StoppedFaulted && current_state != State::Fault
     }
 }
+

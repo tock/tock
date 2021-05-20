@@ -4,10 +4,11 @@ use crate::dma;
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::ErrorCode;
 
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
 
@@ -127,7 +128,7 @@ impl<'a> dma::DmaClient for Uart<'a> {
                 client.received_buffer(
                     rx_buf.unwrap(),
                     transmitted_bytes,
-                    ReturnCode::SUCCESS,
+                    Ok(()),
                     hil::uart::Error::None,
                 )
             });
@@ -135,7 +136,7 @@ impl<'a> dma::DmaClient for Uart<'a> {
             // TX-transfer done
             self.tx_busy.set(false);
             self.tx_client.map(|client| {
-                client.transmitted_buffer(tx_buf.unwrap(), transmitted_bytes, ReturnCode::SUCCESS)
+                client.transmitted_buffer(tx_buf.unwrap(), transmitted_bytes, Ok(()))
             });
         }
     }
@@ -145,7 +146,7 @@ impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
 impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl<'a> hil::uart::Configure for Uart<'a> {
-    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // Disable module
         let regs = self.registers;
         regs.ctlw0.modify(usci::UCAxCTLW0::UCSWRST::SET);
@@ -234,7 +235,7 @@ impl<'a> hil::uart::Configure for Uart<'a> {
         self.tx_dma.map(|dma| dma.initialize(&tx_conf));
         self.rx_dma.map(|dma| dma.initialize(&rx_conf));
 
-        ReturnCode::SUCCESS
+        Ok(())
     }
 }
 
@@ -247,28 +248,28 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         &self,
         tx_buffer: &'static mut [u8],
         tx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if (tx_len == 0) || (tx_len > tx_buffer.len()) {
-            return (ReturnCode::ESIZE, Some(tx_buffer));
+            return Err((ErrorCode::SIZE, tx_buffer));
         }
         if self.tx_busy.get() {
-            (ReturnCode::EBUSY, Some(tx_buffer))
+            Err((ErrorCode::BUSY, tx_buffer))
         } else {
             self.tx_busy.set(true);
             let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
             self.tx_dma
                 .map(move |dma| dma.transfer_mem_to_periph(tx_reg, tx_buffer, tx_len));
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
-        ReturnCode::FAIL
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> ReturnCode {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if !self.tx_busy.get() {
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
 
         self.tx_dma.map(|dma| {
@@ -276,12 +277,12 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
 
             self.tx_client.map(move |cl| {
                 if tx1.is_some() {
-                    cl.transmitted_buffer(tx1.unwrap(), nr_bytes, ReturnCode::ECANCEL);
+                    cl.transmitted_buffer(tx1.unwrap(), nr_bytes, Err(ErrorCode::CANCEL));
                 }
             });
         });
 
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 }
 
@@ -294,29 +295,29 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if (rx_len == 0) || (rx_len > rx_buffer.len()) {
-            return (ReturnCode::ESIZE, Some(rx_buffer));
+            return Err((ErrorCode::SIZE, rx_buffer));
         }
 
         if self.rx_busy.get() {
-            (ReturnCode::EBUSY, Some(rx_buffer))
+            Err((ErrorCode::BUSY, rx_buffer))
         } else {
             self.rx_busy.set(true);
             let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
             self.rx_dma
                 .map(move |dma| dma.transfer_periph_to_mem(rx_reg, rx_buffer, rx_len));
-            (ReturnCode::SUCCESS, None)
+            Ok(())
         }
     }
 
-    fn receive_word(&self) -> ReturnCode {
-        ReturnCode::FAIL
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> ReturnCode {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         if !self.rx_busy.get() {
-            return ReturnCode::SUCCESS;
+            return Ok(());
         }
 
         self.rx_dma.map(|dma| {
@@ -327,13 +328,13 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
                     cl.received_buffer(
                         rx1.unwrap(),
                         nr_bytes,
-                        ReturnCode::ECANCEL,
+                        Err(ErrorCode::CANCEL),
                         hil::uart::Error::Aborted,
                     );
                 }
             });
         });
 
-        ReturnCode::EBUSY
+        Err(ErrorCode::BUSY)
     }
 }

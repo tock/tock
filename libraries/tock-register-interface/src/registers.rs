@@ -109,7 +109,133 @@ pub trait TryFromValue<V> {
     fn try_from(v: V) -> Option<Self::EnumType>;
 }
 
+/// Readable register
+///
+/// Register which at least supports reading the current value. Only
+/// [`Readable::get`] must be implemented, as for other methods a
+/// default implementation is provided.
+///
+/// A register that is both [`Readable`] and [`Writeable`] will also
+/// automatically be [`ReadWriteable`], if the [`RegisterLongName`] of
+/// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
+/// [`Aliased`] registers).
+pub trait Readable {
+    type T: IntLike;
+    type R: RegisterLongName;
+
+    /// Get the raw register value
+    fn get(&self) -> Self::T;
+
+    #[inline]
+    /// Read the value of the given field
+    fn read(&self, field: Field<Self::T, Self::R>) -> Self::T {
+        field.read(self.get())
+    }
+
+    #[inline]
+    /// Set the raw register value
+    fn read_as_enum<E: TryFromValue<Self::T, EnumType = E>>(
+        &self,
+        field: Field<Self::T, Self::R>,
+    ) -> Option<E> {
+        field.read_as_enum(self.get())
+    }
+
+    #[inline]
+    /// Make a local copy of the register
+    fn extract(&self) -> LocalRegisterCopy<Self::T, Self::R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
+    /// Check if one or more bits in a field are set
+    fn is_set(&self, field: Field<Self::T, Self::R>) -> bool {
+        field.is_set(self.get())
+    }
+
+    #[inline]
+    /// Check if any specified parts of a field match
+    fn matches_any(&self, field: FieldValue<Self::T, Self::R>) -> bool {
+        field.matches_any(self.get())
+    }
+
+    #[inline]
+    /// Check if all specified parts of a field match
+    fn matches_all(&self, field: FieldValue<Self::T, Self::R>) -> bool {
+        field.matches_all(self.get())
+    }
+}
+
+/// Writeable register
+///
+/// Register which at least supports setting a value. Only
+/// [`Writeable::set`] must be implemented, as for other methods a
+/// default implementation is provided.
+///
+/// A register that is both [`Readable`] and [`Writeable`] will also
+/// automatically be [`ReadWriteable`], if the [`RegisterLongName`] of
+/// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
+/// [`Aliased`] registers).
+pub trait Writeable {
+    type T: IntLike;
+    type R: RegisterLongName;
+
+    /// Set the raw register value
+    fn set(&self, value: Self::T);
+
+    #[inline]
+    /// Write the value of one or more fields, overwriting the other fields with zero
+    fn write(&self, field: FieldValue<Self::T, Self::R>) {
+        self.set(field.value);
+    }
+
+    #[inline]
+    /// Write the value of one or more fields, maintaining the value of unchanged fields via a
+    /// provided original value, rather than a register read.
+    fn modify_no_read(
+        &self,
+        original: LocalRegisterCopy<Self::T, Self::R>,
+        field: FieldValue<Self::T, Self::R>,
+    ) {
+        self.set(field.modify(original.get()));
+    }
+}
+
+/// [`Readable`] and [`Writeable`] register, over the same
+/// [`RegisterLongName`]
+///
+/// Register which supports both reading and setting a value.
+///
+/// **This trait does not have to be implemented manually!** It is
+/// automatically implemented for every type that is both [`Readable`]
+/// and [`Writeable`], as long as [`Readable::R`] == [`Writeable::R`]
+/// (i.e. not for [`Aliased`] registers).
+pub trait ReadWriteable {
+    type T: IntLike;
+    type R: RegisterLongName;
+
+    /// Write the value of one or more fields, leaving the other fields unchanged
+    fn modify(&self, field: FieldValue<Self::T, Self::R>);
+}
+
+impl<T: IntLike, R: RegisterLongName, S> ReadWriteable for S
+where
+    S: Readable<T = T, R = R> + Writeable<T = T, R = R>,
+{
+    type T = T;
+    type R = R;
+
+    #[inline]
+    fn modify(&self, field: FieldValue<Self::T, Self::R>) {
+        self.set(field.modify(self.get()));
+    }
+}
+
 /// Read/Write registers.
+///
+/// For accessing and manipulating the register contents, the
+/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -117,8 +243,29 @@ pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
+impl<T: IntLike, R: RegisterLongName> Readable for ReadWrite<T, R> {
+    type T = T;
+    type R = R;
+
+    #[inline]
+    fn get(&self) -> Self::T {
+        unsafe { ::core::ptr::read_volatile(self.value.get()) }
+    }
+}
+impl<T: IntLike, R: RegisterLongName> Writeable for ReadWrite<T, R> {
+    type T = T;
+    type R = R;
+
+    #[inline]
+    fn set(&self, value: T) {
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
+    }
+}
 
 /// Read-only registers.
+///
+/// For accessing the register contents the [`Readable`] trait is
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -126,8 +273,20 @@ pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
+impl<T: IntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
+    type T = T;
+    type R = R;
+
+    #[inline]
+    fn get(&self) -> T {
+        unsafe { ::core::ptr::read_volatile(&self.value) }
+    }
+}
 
 /// Write-only registers.
+///
+/// For setting the register contents the [`Writeable`] trait is
+/// implemented.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -135,12 +294,28 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
+impl<T: IntLike, R: RegisterLongName> Writeable for WriteOnly<T, R> {
+    type T = T;
+    type R = R;
+
+    #[inline]
+    fn set(&self, value: T) {
+        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
+    }
+}
 
 /// Read-only and write-only registers aliased to the same address.
 ///
-/// Unlike the `ReadWrite` register, this represents a register which has different meanings based
-/// on if it is written or read.  This might be found on a device where control and status
-/// registers are accessed via the same memory address via writes and reads, respectively.
+/// Unlike the [`ReadWrite`] register, this represents a register
+/// which has different meanings based on if it is written or read.
+/// This might be found on a device where control and status registers
+/// are accessed via the same memory address via writes and reads,
+/// respectively.
+///
+/// This register implements [`Readable`] and [`Writeable`], but in
+/// general does not implement [`ReadWriteable`] (only if the type
+/// parameters `R` and `W` are identical, in which case a
+/// [`ReadWrite`] register might be a better choice).
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
@@ -148,187 +323,66 @@ pub struct Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = (
     value: UnsafeCell<T>,
     associated_register: PhantomData<(R, W)>,
 }
+impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Readable for Aliased<T, R, W> {
+    type T = T;
+    type R = R;
 
-impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     #[inline]
-    /// Get the raw register value
-    pub fn get(&self) -> T {
+    fn get(&self) -> Self::T {
         unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
+}
+impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased<T, R, W> {
+    type T = T;
+    type R = W;
 
     #[inline]
-    /// Set the raw register value
-    pub fn set(&self, value: T) {
+    fn set(&self, value: Self::T) {
         unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
     }
-
-    #[inline]
-    /// Read the value of the given field
-    pub fn read(&self, field: Field<T, R>) -> T {
-        field.read(self.get())
-    }
-
-    #[inline]
-    /// Read value of the given field as an enum member
-    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    /// Make a local copy of the register
-    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, overwriting the other fields with zero
-    pub fn write(&self, field: FieldValue<T, R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, leaving the other fields unchanged
-    pub fn modify(&self, field: FieldValue<T, R>) {
-        self.set(field.modify(self.get()));
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, maintaining the value of unchanged fields via a
-    /// provided original value, rather than a register read.
-    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
-        self.set(field.modify(original.get()));
-    }
-
-    #[inline]
-    /// Check if one or more bits in a field are set
-    pub fn is_set(&self, field: Field<T, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    /// Check if any specified parts of a field match
-    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    /// Check if all specified parts of a field match
-    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_all(self.get())
-    }
 }
 
-impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
-    #[inline]
-    /// Get the raw register value
-    pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(&self.value) }
-    }
-
-    #[inline]
-    /// Read the value of the given field
-    pub fn read(&self, field: Field<T, R>) -> T {
-        field.read(self.get())
-    }
-
-    #[inline]
-    /// Read value of the given field as an enum member
-    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    /// Make a local copy of the register
-    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    /// Check if one or more bits in a field are set
-    pub fn is_set(&self, field: Field<T, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    /// Check if any specified parts of a field match
-    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    /// Check if all specified parts of a field match
-    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_all(self.get())
-    }
+/// In memory volatile register.
+///
+/// Like [`ReadWrite`], but can be safely constructed using the
+/// [`InMemoryRegister::new`] method. It will always be initialized to
+/// the passed in, well-defined initial value.
+///
+/// For accessing and manipulating the register contents, the
+/// [`Readable`], [`Writeable`] and [`ReadWriteable`] traits are
+/// implemented.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
+pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
+    value: UnsafeCell<T>,
+    associated_register: PhantomData<R>,
 }
 
-impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
-    #[inline]
-    /// Set the raw register value
-    pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, overwriting the other fields with zero
-    pub fn write(&self, field: FieldValue<T, R>) {
-        self.set(field.value);
+impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+    pub const fn new(value: T) -> Self {
+        InMemoryRegister {
+            value: UnsafeCell::new(value),
+            associated_register: PhantomData,
+        }
     }
 }
+impl<T: IntLike, R: RegisterLongName> Readable for InMemoryRegister<T, R> {
+    type T = T;
+    type R = R;
 
-impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
     #[inline]
-    /// Get the raw register value
-    pub fn get(&self) -> T {
+    fn get(&self) -> Self::T {
         unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
+}
+impl<T: IntLike, R: RegisterLongName> Writeable for InMemoryRegister<T, R> {
+    type T = T;
+    type R = R;
 
     #[inline]
-    /// Set the raw register value
-    pub fn set(&self, value: T) {
+    fn set(&self, value: T) {
         unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
-    }
-
-    #[inline]
-    /// Read the value of the given field
-    pub fn read(&self, field: Field<T, R>) -> T {
-        field.read(self.get())
-    }
-
-    #[inline]
-    /// Read value of the given field as an enum member
-    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    /// Make a local copy of the register
-    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    /// Write the value of one or more fields, overwriting the other fields with zero
-    pub fn write(&self, field: FieldValue<T, W>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    /// Check if one or more bits in a field are set
-    pub fn is_set(&self, field: Field<T, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    /// Check if any specified parts of a field match
-    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    /// Check if all specified parts of a field match
-    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_all(self.get())
     }
 }
 
@@ -343,6 +397,12 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Aliased<T, R, W> {
 /// register in hardware yet still be able to check the bits.
 /// You can write to a local register, which will modify the stored value, but
 /// will not modify any hardware because it operates only on local copy.
+///
+/// This type does not implement the [`Readable`] and [`Writeable`]
+/// traits because it requires a mutable reference to modify the
+/// contained value. It still mirrors the interface which would be
+/// exposed by a type implementing [`Readable`], [`Writeable`] and
+/// [`ReadWriteable`].
 #[derive(Copy, Clone)]
 pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     value: T,
@@ -442,85 +502,11 @@ From_impl_for!(u64);
 From_impl_for!(u128);
 From_impl_for!(usize);
 
-/// In memory volatile register.
-// To successfully alias this structure onto hardware registers in memory, this
-// struct must be exactly the size of the `T`.
-#[repr(transparent)]
-pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
-    value: UnsafeCell<T>,
-    associated_register: PhantomData<R>,
-}
-
-impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
-    pub const fn new(value: T) -> Self {
-        InMemoryRegister {
-            value: UnsafeCell::new(value),
-            associated_register: PhantomData,
-        }
-    }
-
-    #[inline]
-    pub fn get(&self) -> T {
-        unsafe { ::core::ptr::read_volatile(self.value.get()) }
-    }
-
-    #[inline]
-    pub fn set(&self, value: T) {
-        unsafe { ::core::ptr::write_volatile(self.value.get(), value) }
-    }
-
-    #[inline]
-    pub fn read(&self, field: Field<T, R>) -> T {
-        field.read(self.get())
-    }
-
-    #[inline]
-    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
-        field.read_as_enum(self.get())
-    }
-
-    #[inline]
-    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
-        LocalRegisterCopy::new(self.get())
-    }
-
-    #[inline]
-    pub fn write(&self, field: FieldValue<T, R>) {
-        self.set(field.value);
-    }
-
-    #[inline]
-    pub fn modify(&self, field: FieldValue<T, R>) {
-        self.set(field.modify(self.get()));
-    }
-
-    #[inline]
-    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
-        self.set(field.modify(original.get()));
-    }
-
-    #[inline]
-    pub fn is_set(&self, field: Field<T, R>) -> bool {
-        field.is_set(self.get())
-    }
-
-    #[inline]
-    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_any(self.get())
-    }
-
-    #[inline]
-    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
-        field.matches_all(self.get())
-    }
-}
-
 /// Specific section of a register.
 ///
 /// For the Field, the mask is unshifted, ie. the LSB should always be set.
-#[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
-    mask: T,
+    pub mask: T,
     pub shift: usize,
     associated_register: PhantomData<R>,
 }
@@ -551,6 +537,33 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
         E::try_from(self.read(val))
     }
 }
+
+// #[derive(Copy, Clone)] won't work here because it will use
+// incorrect bounds, as a result of using a PhantomData over the
+// generic R. The PhantomData<R> implements Copy regardless of whether
+// R does, but the #[derive(Copy, Clone)] generates
+//
+//    #[automatically_derived]
+//    #[allow(unused_qualifications)]
+//    impl<T: ::core::marker::Copy + IntLike,
+//         R: ::core::marker::Copy + RegisterLongName>
+//            ::core::marker::Copy for Field<T, R> {}
+//
+// , so Field will only implement Copy if R: Copy.
+//
+// Manually implementing Clone and Copy works around this issue.
+//
+// Relevant Rust issue: https://github.com/rust-lang/rust/issues/26925
+impl<T: IntLike, R: RegisterLongName> Clone for Field<T, R> {
+    fn clone(&self) -> Self {
+        Field {
+            mask: self.mask,
+            shift: self.shift,
+            associated_register: self.associated_register,
+        }
+    }
+}
+impl<T: IntLike, R: RegisterLongName> Copy for Field<T, R> {}
 
 macro_rules! Field_impl_for {
     ($type:ty) => {

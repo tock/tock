@@ -35,14 +35,14 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -284,20 +284,21 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
-    tim2.start();
+    let _ = tim2.start();
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 
-/// Reset Handler.
+/// Statically initialize the core peripherals for the chip.
 ///
-/// This symbol is loaded into vector table by the STM32F303VCT6 chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
-#[no_mangle]
-pub unsafe fn reset_handler() {
-    stm32f303xc::init();
-
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> (
+    &'static mut Stm32f3xxDefaultPeripherals<'static>,
+    &'static stm32f303xc::syscfg::Syscfg<'static>,
+    &'static stm32f303xc::rcc::Rcc,
+) {
     // We use the default HSI 8Mhz clock
 
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
@@ -314,6 +315,17 @@ pub unsafe fn reset_handler() {
         Stm32f3xxDefaultPeripherals,
         Stm32f3xxDefaultPeripherals::new(rcc, exti)
     );
+    (peripherals, syscfg, rcc)
+}
+
+/// Main function.
+///
+/// This is called after RAM initialization is complete.
+#[no_mangle]
+pub unsafe fn main() {
+    stm32f303xc::init();
+
+    let (peripherals, syscfg, rcc) = get_peripherals();
     set_pin_primary_functions(
         syscfg,
         &peripherals.exti,
@@ -582,7 +594,7 @@ pub unsafe fn reset_handler() {
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
+    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new(board_kernel).finalize(
         components::l3gd20_spi_component_helper!(
             // spi type
             stm32f303xc::spi::Spi,
@@ -611,7 +623,7 @@ pub unsafe fn reset_handler() {
         components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
             .finalize(components::i2c_mux_component_helper!());
 
-    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new()
+    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(board_kernel)
         .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
     lsm303dlhc.configure(
@@ -750,7 +762,7 @@ pub unsafe fn reset_handler() {
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        FAULT_RESPONSE,
+        &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap_or_else(|err| {

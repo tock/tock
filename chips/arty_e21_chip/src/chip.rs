@@ -1,11 +1,12 @@
 use core::fmt::Write;
 use kernel;
+use kernel::common::registers::interfaces::Readable;
 use kernel::debug;
 use kernel::InterruptService;
 use rv32i;
 
+use crate::clint;
 use crate::interrupts;
-use crate::timer;
 use rv32i::pmp::PMP;
 
 extern "C" {
@@ -16,12 +17,12 @@ pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
     pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
-    machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
+    machinetimer: &'a sifive::clint::Clint<'a>,
     interrupt_service: &'a I,
 }
 
 pub struct ArtyExxDefaultPeripherals<'a> {
-    pub machinetimer: rv32i::machine_timer::MachineTimer<'a>,
+    pub machinetimer: sifive::clint::Clint<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub uart0: sifive::uart::Uart<'a>,
 }
@@ -29,7 +30,7 @@ pub struct ArtyExxDefaultPeripherals<'a> {
 impl<'a> ArtyExxDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            machinetimer: rv32i::machine_timer::MachineTimer::new(timer::MTIME_BASE),
+            machinetimer: sifive::clint::Clint::new(&clint::CLINT_BASE),
             gpio_port: crate::gpio::Port::new(),
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
         }
@@ -72,7 +73,7 @@ impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
 
 impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     pub unsafe fn new(
-        machinetimer: &'a rv32i::machine_timer::MachineTimer<'a>,
+        machinetimer: &'a sifive::clint::Clint<'a>,
         interrupt_service: &'a I,
     ) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend

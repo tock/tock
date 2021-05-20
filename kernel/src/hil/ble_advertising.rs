@@ -47,7 +47,7 @@
 //!
 //! ```
 
-use crate::returncode::ReturnCode;
+use crate::ErrorCode;
 
 pub trait BleAdvertisementDriver<'a> {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, channel: RadioChannel);
@@ -57,15 +57,15 @@ pub trait BleAdvertisementDriver<'a> {
 }
 
 pub trait BleConfig {
-    fn set_tx_power(&self, power: u8) -> ReturnCode;
+    fn set_tx_power(&self, power: u8) -> Result<(), ErrorCode>;
 }
 
 pub trait RxClient {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>);
 }
 
 pub trait TxClient {
-    fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode);
+    fn transmit_event(&self, buf: &'static mut [u8], result: Result<(), ErrorCode>);
 }
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices

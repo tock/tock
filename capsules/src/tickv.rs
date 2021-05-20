@@ -34,8 +34,8 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::kv_system::{self, KVSystem};
-use kernel::ReturnCode;
-use tickv::{self, AsyncTicKV, ErrorCode};
+use kernel::ErrorCode;
+use tickv::{self, AsyncTicKV};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Operation {
@@ -107,7 +107,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<512> for TickFSFlast
     }
 
     fn erase_region(&self, region_number: usize) -> Result<(), tickv::error_codes::ErrorCode> {
-        self.flash.erase_page(self.region_offset + region_number);
+        let _ = self.flash.erase_page(self.region_offset + region_number);
 
         Err(tickv::error_codes::ErrorCode::EraseNotReady(region_number))
     }
@@ -168,7 +168,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.append_key_complete(Err(error), key, value);
+                            cb.append_key_complete(error, key, value);
                         });
                     }
                     _ => {}
@@ -181,7 +181,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 ) {
                     Err((key, ret_buf, error)) => {
                         self.client.map(move |cb| {
-                            cb.get_value_complete(Err(error), key, ret_buf);
+                            cb.get_value_complete(error, key, ret_buf);
                         });
                     }
                     _ => {}
@@ -191,7 +191,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
                 match self.invalidate_key(self.key_buffer.take().unwrap()) {
                     Err((key, error)) => {
                         self.client.map(move |cb| {
-                            cb.invalidate_key_complete(Err(error), key);
+                            cb.invalidate_key_complete(error, key);
                         });
                     }
                     _ => {}
@@ -200,7 +200,7 @@ impl<'a, F: Flash> TicKVStore<'a, F> {
             Operation::GarbageCollect => match self.garbage_collect() {
                 Err(error) => {
                     self.client.map(move |cb| {
-                        cb.garbage_collect_complete(Err(error));
+                        cb.garbage_collect_complete(error);
                     });
                 }
                 _ => {}
@@ -249,7 +249,7 @@ impl<'a, F: Flash> flash::Client<F> for TicKVStore<'a, F> {
                     self.operation.set(Operation::None);
                     self.client.map(|cb| {
                         cb.get_value_complete(
-                            Err(ReturnCode::FAIL),
+                            Err(ErrorCode::FAIL),
                             self.key_buffer.take().unwrap(),
                             self.ret_buffer.take().unwrap(),
                         );
@@ -356,7 +356,14 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         _unhashed_key: &'static mut [u8],
         _key_buf: &'static mut Self::K,
-    ) -> Result<(), (&'static mut [u8], &'static mut Self::K, ReturnCode)> {
+    ) -> Result<
+        (),
+        (
+            &'static mut [u8],
+            &'static mut Self::K,
+            Result<(), ErrorCode>,
+        ),
+    > {
         unimplemented!()
     }
 
@@ -364,7 +371,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         key: &'static mut Self::K,
         value: &'static [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static [u8], ReturnCode)> {
+    ) -> Result<(), (&'static mut Self::K, &'static [u8], Result<(), ErrorCode>)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
@@ -375,11 +382,12 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, value, ReturnCode::FAIL)),
+                        _ => Err((key, value, Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -393,7 +401,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, ReturnCode::EBUSY))
+                Err((key, value, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -402,7 +410,14 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
         &self,
         key: &'static mut Self::K,
         ret_buf: &'static mut [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static mut [u8], ReturnCode)> {
+    ) -> Result<
+        (),
+        (
+            &'static mut Self::K,
+            &'static mut [u8],
+            Result<(), ErrorCode>,
+        ),
+    > {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GetKey);
@@ -413,11 +428,12 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err((buf, e)) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, buf.unwrap(), ReturnCode::FAIL)),
+                        _ => Err((key, buf.unwrap(), Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -431,7 +447,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, ret_buf, ReturnCode::EBUSY))
+                Err((key, ret_buf, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -439,7 +455,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, ReturnCode)> {
+    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::InvalidateKey);
@@ -450,11 +466,12 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                         Ok(())
                     }
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => {
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, ReturnCode::FAIL)),
+                        _ => Err((key, Err(ErrorCode::FAIL))),
                     },
                 }
             }
@@ -467,12 +484,12 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err((key, ReturnCode::EBUSY))
+                Err((key, Err(ErrorCode::BUSY)))
             }
         }
     }
 
-    fn garbage_collect(&self) -> Result<usize, ReturnCode> {
+    fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);
@@ -480,8 +497,9 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
                 match self.tickv.garbage_collect() {
                     Ok(freed) => Ok(freed),
                     Err(e) => match e {
-                        ErrorCode::ReadNotReady(_) | ErrorCode::WriteNotReady(_) => Ok(0),
-                        _ => Err(ReturnCode::FAIL),
+                        tickv::error_codes::ErrorCode::ReadNotReady(_)
+                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => Ok(0),
+                        _ => Err(Err(ErrorCode::FAIL)),
                     },
                 }
             }
@@ -493,7 +511,7 @@ impl<'a, F: Flash> KVSystem<'a> for TicKVStore<'a, F> {
             }
             _ => {
                 // An operation is already in process.
-                Err(ReturnCode::EBUSY)
+                Err(Err(ErrorCode::BUSY))
             }
         }
     }

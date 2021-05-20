@@ -1,5 +1,6 @@
 //! ARM Cortex-M SysTick peripheral.
 
+use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
