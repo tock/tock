@@ -69,6 +69,7 @@ impl HostChip {
         cmd_info.apps()[0].bin_path()
     }
 
+    #[allow(dead_code)]
     pub fn add_service_interrupts_callback(&self, callback: &'static dyn Callback) {
         self.service_interrupts_callbacks
             .borrow_mut()

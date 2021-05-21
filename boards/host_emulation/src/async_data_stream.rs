@@ -61,6 +61,7 @@ impl AsyncDataStream {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_socket_stream_str(path: &str, use_stdio: bool) -> Self {
         Self::new_socket_stream(Path::new(path), use_stdio)
     }
@@ -160,6 +161,7 @@ impl AsyncDataStream {
         self.rx_receiver.try_recv()
     }
 
+    #[allow(dead_code)]
     pub fn try_recv_unwrapped(&mut self) -> Option<u8> {
         match self.try_recv() {
             Ok(byte) => Some(byte),
