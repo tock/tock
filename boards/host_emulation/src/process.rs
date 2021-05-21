@@ -418,7 +418,7 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
         None
     }
 
-    fn remove_mpu_region(&self, addr: *const u8) -> Option<mpu::Region> {
+    fn remove_mpu_region(&self, _addr: *const u8) -> Option<mpu::Region> {
         None
     }
 
