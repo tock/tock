@@ -52,7 +52,7 @@ macro_rules! usb_ctap_component_helper {
 
 pub struct CtapComponent<U: 'static + hil::usb::UsbController<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     usb: &'static U,
     vendor_id: u16,
     product_id: u16,
@@ -64,7 +64,7 @@ pub struct CtapComponent<U: 'static + hil::usb::UsbController<'static>> {
 impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         usb: &'static U,
         vendor_id: u16,
         product_id: u16,

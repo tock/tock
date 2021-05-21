@@ -59,7 +59,7 @@ pub struct Ieee802154Component<
     A: 'static + AES128<'static> + AES128Ctr + AES128CBC,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     radio: &'static R,
     aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
     pan_id: capsules::net::ieee802154::PanID,
@@ -74,7 +74,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         radio: &'static R,
         aes_mux: &'static capsules::virtual_aes_ccm::MuxAES128CCM<'static, A>,
         pan_id: capsules::net::ieee802154::PanID,

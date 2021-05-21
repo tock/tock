@@ -191,7 +191,7 @@ pub unsafe fn main() {
     // Setup buttons
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             msp432::gpio::IntPin,
             (
@@ -228,7 +228,7 @@ pub unsafe fn main() {
     // Setup user-GPIOs
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             msp432::gpio::IntPin<'static>,
             // Left outer connector, top to bottom
@@ -299,7 +299,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -313,7 +313,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
@@ -353,7 +353,7 @@ pub unsafe fn main() {
     );
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_adc = board_kernel.create_grant(capsules::adc::DRIVER_NUM as u32, &grant_cap);
+    let grant_adc = board_kernel.create_grant(capsules::adc::DRIVER_NUM, &grant_cap);
     let adc = static_init!(
         capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
         capsules::adc::AdcDedicated::new(
@@ -383,7 +383,7 @@ pub unsafe fn main() {
         alarm: alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc,

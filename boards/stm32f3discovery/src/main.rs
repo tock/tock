@@ -377,7 +377,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -466,7 +466,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             (
@@ -492,7 +492,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
@@ -501,7 +501,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             // Left outer connector
@@ -605,24 +605,22 @@ pub unsafe fn main() {
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new(
-        board_kernel,
-        capsules::l3gd20::DRIVER_NUM as u32,
-    )
-    .finalize(components::l3gd20_spi_component_helper!(
-        // spi type
-        stm32f303xc::spi::Spi,
-        // chip select
-        &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
-        // spi mux
-        spi_mux
-    ));
+    let l3gd20 =
+        components::l3gd20::L3gd20SpiComponent::new(board_kernel, capsules::l3gd20::DRIVER_NUM)
+            .finalize(components::l3gd20_spi_component_helper!(
+                // spi type
+                stm32f303xc::spi::Spi,
+                // chip select
+                &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+                // spi mux
+                spi_mux
+            ));
 
     l3gd20.power_on();
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM as u32, &grant_cap);
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
 
     // Comment this if you want to use the ADC MCU temp sensor
     let temp = static_init!(
@@ -639,7 +637,7 @@ pub unsafe fn main() {
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
         board_kernel,
-        capsules::lsm303dlhc::DRIVER_NUM as u32,
+        capsules::lsm303dlhc::DRIVER_NUM,
     )
     .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
@@ -653,11 +651,9 @@ pub unsafe fn main() {
         lsm303xx::Lsm303Range::Range1_9G,
     );
 
-    let ninedof = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules::ninedof::DRIVER_NUM as u32,
-    )
-    .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
         .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
@@ -706,7 +702,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -726,7 +722,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM as u32,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash,
         0x08038000, // Start address for userspace accesible region
         0x8000,     // Length of userspace accesible region (16 pages)
@@ -741,7 +737,7 @@ pub unsafe fn main() {
         console: console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         gpio: gpio,

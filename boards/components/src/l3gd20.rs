@@ -43,11 +43,11 @@ macro_rules! l3gd20_spi_component_helper {
 pub struct L3gd20SpiComponent<S: 'static + spi::SpiMaster> {
     _select: PhantomData<S>,
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl<S: 'static + spi::SpiMaster> L3gd20SpiComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: u32) -> L3gd20SpiComponent<S> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> L3gd20SpiComponent<S> {
         L3gd20SpiComponent {
             _select: PhantomData,
             board_kernel: board_kernel,

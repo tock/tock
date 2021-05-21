@@ -24,14 +24,14 @@ use sam4l::adc::Channel;
 
 pub struct AdcComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     adc: &'static sam4l::adc::Adc,
 }
 
 impl AdcComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         adc: &'static sam4l::adc::Adc,
     ) -> AdcComponent {
         AdcComponent {

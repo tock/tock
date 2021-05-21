@@ -145,7 +145,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -165,7 +165,7 @@ pub unsafe fn main() {
     // These are also ADC channels, but let's expose them as GPIOs
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
             0 => &&peripherals.gpio_port[13],  // A0
@@ -185,7 +185,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
@@ -196,10 +196,7 @@ pub unsafe fn main() {
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.iom2,
             &mut capsules::i2c_master::BUF,
-            board_kernel.create_grant(
-                capsules::i2c_master::DRIVER_NUM as u32,
-                &memory_allocation_cap
-            )
+            board_kernel.create_grant(capsules::i2c_master::DRIVER_NUM, &memory_allocation_cap)
         )
     );
 
@@ -217,7 +214,7 @@ pub unsafe fn main() {
 
     let ble_radio = ble::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        capsules::ble_advertising_driver::DRIVER_NUM,
         &peripherals.ble,
         mux_alarm,
     )

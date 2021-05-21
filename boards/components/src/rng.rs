@@ -22,14 +22,14 @@ use kernel::static_init;
 
 pub struct RngComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     trng: &'static dyn Entropy32<'static>,
 }
 
 impl RngComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         trng: &'static dyn Entropy32<'static>,
     ) -> RngComponent {
         RngComponent {

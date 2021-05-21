@@ -174,7 +174,7 @@ pub unsafe fn main() {
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM as u32, &memory_allocation_cap)
+            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -198,7 +198,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -207,7 +207,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM as u32,
+        capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());

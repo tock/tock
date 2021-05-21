@@ -124,7 +124,7 @@ pub unsafe fn main() {
 
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -140,7 +140,7 @@ pub unsafe fn main() {
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(sifive::clint::Clint));
@@ -171,7 +171,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             (
@@ -188,7 +188,7 @@ pub unsafe fn main() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             0 => &peripherals.gpio_port[7],

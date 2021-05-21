@@ -262,7 +262,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -284,7 +284,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f401cc::gpio::Pin,
             (
@@ -305,7 +305,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(stm32f401cc::tim2::Tim2));
@@ -313,7 +313,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f401cc::gpio::Pin,
             // 2 => gpio_ports.pins[2][13].as_ref().unwrap(), // C13 (reserved for led)
@@ -383,7 +383,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -397,7 +397,7 @@ pub unsafe fn main() {
         console: console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,

@@ -15,14 +15,14 @@ use kernel::static_init;
 
 pub struct HumidityComponent<T: 'static + hil::sensors::HumidityDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     temp_sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::HumidityDriver<'static>> HumidityComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         temp_sensor: &'static T,
     ) -> HumidityComponent<T> {
         HumidityComponent {

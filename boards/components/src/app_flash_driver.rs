@@ -46,7 +46,7 @@ pub struct AppFlashComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     storage: &'static F,
 }
 
@@ -58,7 +58,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         storage: &'static F,
     ) -> AppFlashComponent<F> {
         AppFlashComponent {

@@ -59,7 +59,7 @@ pub struct AcComponent<AC: 'static + kernel::hil::analog_comparator::AnalogCompa
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> AcComponent<AC> {
@@ -67,7 +67,7 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Ac
         comp: &'static AC,
         ac_channels: &'static [&'static AC::Channel],
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
     ) -> Self {
         Self {
             comp,

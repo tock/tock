@@ -56,11 +56,11 @@ macro_rules! lsm303dlhc_i2c_component_helper {
 
 pub struct Lsm303dlhcI2CComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl Lsm303dlhcI2CComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: u32) -> Lsm303dlhcI2CComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> Lsm303dlhcI2CComponent {
         Lsm303dlhcI2CComponent {
             board_kernel,
             driver_num,

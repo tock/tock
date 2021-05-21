@@ -19,12 +19,16 @@ use kernel::static_init;
 
 pub struct UsbComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     usb: &'static Usb<'static>,
 }
 
 impl UsbComponent {
-    pub fn new(usb: &'static Usb, board_kernel: &'static kernel::Kernel, driver_num: u32) -> Self {
+    pub fn new(
+        usb: &'static Usb,
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> Self {
         Self {
             usb,
             board_kernel,

@@ -37,7 +37,7 @@ use kernel::static_init;
 
 pub struct TouchComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     touch: &'static dyn kernel::hil::touch::Touch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
@@ -46,7 +46,7 @@ pub struct TouchComponent {
 impl TouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         touch: &'static dyn kernel::hil::touch::Touch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
@@ -85,7 +85,7 @@ impl Component for TouchComponent {
 
 pub struct MultiTouchComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen>,
@@ -94,7 +94,7 @@ pub struct MultiTouchComponent {
 impl MultiTouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,

@@ -66,7 +66,7 @@ impl<A: 'static + adc::Adc> AdcMuxComponent<A> {
 
 pub struct AdcVirtualComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl<A: 'static + adc::Adc> Component for AdcMuxComponent<A> {
@@ -109,7 +109,7 @@ impl<A: 'static + adc::Adc> Component for AdcComponent<A> {
 }
 
 impl AdcVirtualComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: u32) -> AdcVirtualComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> AdcVirtualComponent {
         AdcVirtualComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,

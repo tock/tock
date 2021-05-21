@@ -163,7 +163,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             earlgrey::gpio::GpioPin,
             0 => &peripherals.gpio_port[0],
@@ -202,7 +202,7 @@ pub unsafe fn main() {
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM as u32, &memory_allocation_cap)
+            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -228,7 +228,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -237,7 +237,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM as u32,
+        capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -251,7 +251,7 @@ pub unsafe fn main() {
 
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
-        capsules::hmac::DRIVER_NUM as u32,
+        capsules::hmac::DRIVER_NUM,
         &mux_hmac,
         hmac_data_buffer,
         hmac_dest_buffer,
@@ -266,10 +266,7 @@ pub unsafe fn main() {
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.i2c,
             &mut capsules::i2c_master::BUF,
-            board_kernel.create_grant(
-                capsules::i2c_master::DRIVER_NUM as u32,
-                &memory_allocation_cap
-            )
+            board_kernel.create_grant(capsules::i2c_master::DRIVER_NUM, &memory_allocation_cap)
         )
     );
 

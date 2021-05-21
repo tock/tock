@@ -61,7 +61,7 @@ macro_rules! udp_driver_component_helper {
 
 pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     udp_send_mux:
         &'static MuxUdpSender<'static, IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>>,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
@@ -72,7 +72,7 @@ pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
 impl<A: Alarm<'static>> UDPDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>,

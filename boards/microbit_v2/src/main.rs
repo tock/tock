@@ -191,7 +191,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52833::gpio::GPIOPin,
             // Used as ADC, comment them out in the ADC section to use them as GPIO
@@ -210,7 +210,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52833::gpio::GPIOPin,
             (
@@ -255,7 +255,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
@@ -293,7 +293,7 @@ pub unsafe fn main() {
             virtual_alarm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
             board_kernel.create_grant(
-                capsules::buzzer_driver::DRIVER_NUM as u32,
+                capsules::buzzer_driver::DRIVER_NUM,
                 &memory_allocation_capability
             )
         )
@@ -322,7 +322,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -335,7 +335,7 @@ pub unsafe fn main() {
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM as u32,
+        capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(());
@@ -360,7 +360,7 @@ pub unsafe fn main() {
 
     let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new(
         board_kernel,
-        capsules::lsm303agr::DRIVER_NUM as u32,
+        capsules::lsm303agr::DRIVER_NUM,
     )
     .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
 
@@ -374,17 +374,15 @@ pub unsafe fn main() {
         capsules::lsm303xx::Lsm303Range::Range1_9G,
     );
 
-    let ninedof = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules::ninedof::DRIVER_NUM as u32,
-    )
-    .finalize(components::ninedof_component_helper!(lsm303agr));
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(lsm303agr));
 
     // Temperature
 
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM as u32,
+        capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(());
@@ -399,7 +397,7 @@ pub unsafe fn main() {
 
     // Comment out the following to use P0, P1 and P2 as GPIO
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM as u32)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 // ADC Ring 0 (P0)
                 components::adc::AdcComponent::new(
@@ -450,7 +448,7 @@ pub unsafe fn main() {
 
     let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
         board_kernel,
-        capsules::sound_pressure::DRIVER_NUM as u32,
+        capsules::sound_pressure::DRIVER_NUM,
         adc_microphone,
     )
     .finalize(());
@@ -463,7 +461,7 @@ pub unsafe fn main() {
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
         board_kernel,
-        capsules::app_flash_driver::DRIVER_NUM as u32,
+        capsules::app_flash_driver::DRIVER_NUM,
         &base_peripherals.nvmc,
     )
     .finalize(components::app_flash_component_helper!(
@@ -477,7 +475,7 @@ pub unsafe fn main() {
 
     let ble_radio = nrf52_components::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -548,7 +546,7 @@ pub unsafe fn main() {
         app_flash: app_flash,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
     };

@@ -95,7 +95,7 @@ macro_rules! hmac_component_helper {
 
 pub struct HmacComponent<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     mux_hmac: &'static MuxHmac<'static, A, T>,
     data_buffer: &'static mut [u8],
     dest_buffer: &'static mut T,
@@ -105,7 +105,7 @@ pub struct HmacComponent<A: 'static + digest::Digest<'static, T>, T: 'static + d
 impl<A: 'static + digest::Digest<'static, T>, T: 'static + digest::DigestType> HmacComponent<A, T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         mux_hmac: &'static MuxHmac<'static, A, T>,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut T,

@@ -20,7 +20,7 @@ use kernel::{create_capability, static_init};
 
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     radio: &'static nrf52::ble_radio::Radio<'static>,
     mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 }
@@ -28,7 +28,7 @@ pub struct BLEComponent {
 impl BLEComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         radio: &'static nrf52::ble_radio::Radio,
         mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
     ) -> BLEComponent {

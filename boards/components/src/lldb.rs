@@ -24,14 +24,14 @@ use kernel::static_init;
 
 pub struct LowLevelDebugComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl LowLevelDebugComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         uart_mux: &'static MuxUart,
     ) -> LowLevelDebugComponent {
         LowLevelDebugComponent {

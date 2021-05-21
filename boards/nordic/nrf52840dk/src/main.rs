@@ -242,7 +242,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
@@ -267,7 +267,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -339,7 +339,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
@@ -371,7 +371,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -380,7 +380,7 @@ pub unsafe fn main() {
 
     let ble_radio = nrf52_components::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -402,7 +402,7 @@ pub unsafe fn main() {
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM as u32,
+        capsules::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -445,7 +445,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
-        capsules::net::udp::driver::DRIVER_NUM as u32,
+        capsules::net::udp::driver::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -455,14 +455,14 @@ pub unsafe fn main() {
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM as u32,
+        capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(());
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM as u32,
+        capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(());
@@ -492,7 +492,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM as u32,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
         mx25r6435f,
         0x60000, // Start address for userspace accessible region
         0x20000, // Length of userspace accessible region
@@ -517,7 +517,7 @@ pub unsafe fn main() {
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
-        capsules::analog_comparator::DRIVER_NUM as u32,
+        capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::acomp_component_buf!(
         nrf52840::acomp::Comparator
@@ -578,7 +578,7 @@ pub unsafe fn main() {
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
     };

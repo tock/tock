@@ -101,14 +101,14 @@ macro_rules! gpio_component_buf {
 
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
 }
 
 impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {

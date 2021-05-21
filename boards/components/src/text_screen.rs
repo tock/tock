@@ -33,14 +33,14 @@ macro_rules! text_screen_buffer_size {
 
 pub struct TextScreenComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
 }
 
 impl TextScreenComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
     ) -> TextScreenComponent {
         TextScreenComponent {

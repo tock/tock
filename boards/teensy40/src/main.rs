@@ -191,7 +191,7 @@ pub unsafe fn main() {
     // Setup the console
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -211,7 +211,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
@@ -226,7 +226,7 @@ pub unsafe fn main() {
 
     let ipc = kernel::ipc::IPC::new(
         board_kernel,
-        kernel::ipc::DRIVER_NUM as u32,
+        kernel::ipc::DRIVER_NUM,
         &memory_allocation_capability,
     );
 

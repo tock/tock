@@ -97,7 +97,7 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
 
 pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     i2c_mux: &'static MuxI2C<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
@@ -105,7 +105,7 @@ pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
 impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         i2c: &'static MuxI2C<'static>,
         alarm: &'static MuxAlarm<'static, A>,
     ) -> Self {

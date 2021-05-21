@@ -66,7 +66,7 @@ macro_rules! button_component_buf {
 
 pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     button_pins: &'static [(
         &'static gpio::InterruptValueWrapper<'static, IP>,
         gpio::ActivationMode,
@@ -77,7 +77,7 @@ pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
 impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         button_pins: &'static [(
             &'static gpio::InterruptValueWrapper<'static, IP>,
             gpio::ActivationMode,

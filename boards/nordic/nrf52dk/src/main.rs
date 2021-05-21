@@ -208,7 +208,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
             // Bottom right header on DK board
@@ -232,7 +232,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52832::gpio::GPIOPin,
             (
@@ -305,7 +305,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_helper!(nrf52832::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(nrf52832::rtc::Rtc));
@@ -337,7 +337,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -346,7 +346,7 @@ pub unsafe fn main() {
 
     let ble_radio = nrf52_components::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -354,14 +354,14 @@ pub unsafe fn main() {
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM as u32,
+        capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(());
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM as u32,
+        capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(());
@@ -375,7 +375,7 @@ pub unsafe fn main() {
             &nrf52832::acomp::CHANNEL_AC0
         ),
         board_kernel,
-        capsules::analog_comparator::DRIVER_NUM as u32,
+        capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::acomp_component_buf!(
         nrf52832::acomp::Comparator
@@ -396,7 +396,7 @@ pub unsafe fn main() {
         analog_comparator,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
     };

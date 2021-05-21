@@ -35,14 +35,14 @@ macro_rules! crc_component_helper {
 
 pub struct CrcComponent<C: 'static + hil::crc::CRC<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     crc: &'static C,
 }
 
 impl<C: 'static + hil::crc::CRC<'static>> CrcComponent<C> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         crc: &'static C,
     ) -> CrcComponent<C> {
         CrcComponent {

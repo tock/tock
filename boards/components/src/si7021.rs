@@ -92,14 +92,14 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
 
 pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
 impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
     ) -> HumidityComponent<A> {
         HumidityComponent {

@@ -74,11 +74,11 @@ pub struct IPC<const NUM_PROCS: usize> {
 impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
-        driver_num: u32,
+        driver_num: usize,
         capability: &dyn MemoryAllocationCapability,
     ) -> Self {
         Self {
-            data: kernel.create_grant(driver_num, capability),
+            data: kernel.create_grant(driver_num as usize, capability),
         }
     }
 

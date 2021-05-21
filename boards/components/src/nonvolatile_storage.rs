@@ -45,7 +45,7 @@ pub struct NonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     flash: &'static F,
     userspace_start: usize,
     userspace_length: usize,
@@ -61,7 +61,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         flash: &'static F,
         userspace_start: usize,
         userspace_length: usize,

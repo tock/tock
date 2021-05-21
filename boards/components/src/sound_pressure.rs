@@ -15,14 +15,14 @@ use kernel::static_init;
 
 pub struct SoundPressureComponent<S: 'static + hil::sensors::SoundPressure<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     sound_sensor: &'static S,
 }
 
 impl<S: 'static + hil::sensors::SoundPressure<'static>> SoundPressureComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         sound_sensor: &'static S,
     ) -> SoundPressureComponent<S> {
         SoundPressureComponent {

@@ -169,7 +169,7 @@ pub unsafe fn main() {
     //
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
             0 => &nrf52832_peripherals.gpio_port[Pin::P0_25],
@@ -202,7 +202,7 @@ pub unsafe fn main() {
     //
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52832::gpio::GPIOPin,
             // 13
@@ -262,10 +262,7 @@ pub unsafe fn main() {
         >,
         capsules::alarm::AlarmDriver::new(
             alarm_driver_virtual_alarm,
-            board_kernel.create_grant(
-                capsules::alarm::DRIVER_NUM as u32,
-                &memory_allocation_capability
-            )
+            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_capability)
         )
     );
     alarm_driver_virtual_alarm.set_alarm_client(alarm);
@@ -290,7 +287,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(());
@@ -356,7 +353,7 @@ pub unsafe fn main() {
         capsules::gpio_async::GPIOAsync::new(
             async_gpio_ports,
             board_kernel.create_grant(
-                capsules::gpio_async::DRIVER_NUM as u32,
+                capsules::gpio_async::DRIVER_NUM,
                 &memory_allocation_capability,
             ),
         ),
@@ -372,7 +369,7 @@ pub unsafe fn main() {
 
     let ble_radio = BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM as u32,
+        capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -388,7 +385,7 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor::new(
             &base_peripherals.temp,
             board_kernel.create_grant(
-                capsules::temperature::DRIVER_NUM as u32,
+                capsules::temperature::DRIVER_NUM,
                 &memory_allocation_capability
             )
         )
@@ -411,10 +408,7 @@ pub unsafe fn main() {
         capsules::rng::RngDriver<'static>,
         capsules::rng::RngDriver::new(
             entropy_to_random,
-            board_kernel.create_grant(
-                capsules::rng::DRIVER_NUM as u32,
-                &memory_allocation_capability
-            )
+            board_kernel.create_grant(capsules::rng::DRIVER_NUM, &memory_allocation_capability)
         )
     );
     entropy_to_random.set_client(rng);
@@ -445,7 +439,7 @@ pub unsafe fn main() {
         capsules::ambient_light::AmbientLight::new(
             analog_light_sensor,
             board_kernel.create_grant(
-                capsules::ambient_light::DRIVER_NUM as u32,
+                capsules::ambient_light::DRIVER_NUM,
                 &memory_allocation_capability
             )
         )
@@ -482,7 +476,7 @@ pub unsafe fn main() {
             virtual_alarm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
             board_kernel.create_grant(
-                capsules::buzzer_driver::DRIVER_NUM as u32,
+                capsules::buzzer_driver::DRIVER_NUM,
                 &memory_allocation_capability
             )
         )
@@ -516,7 +510,7 @@ pub unsafe fn main() {
         buzzer: buzzer,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
     };

@@ -78,14 +78,14 @@ impl Component for UartMuxComponent {
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl ConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         uart_mux: &'static MuxUart,
     ) -> ConsoleComponent {
         ConsoleComponent {

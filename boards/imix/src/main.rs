@@ -316,15 +316,14 @@ pub unsafe fn main() {
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console =
-        ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM as u32, uart_mux)
-            .finalize(());
+        ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization = Nrf51822Component::new(
         board_kernel,
-        capsules::nrf51822_serialization::DRIVER_NUM as u32,
+        capsules::nrf51822_serialization::DRIVER_NUM,
         &peripherals.usart2,
         &peripherals.pb[07],
     )
@@ -334,9 +333,8 @@ pub unsafe fn main() {
     let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
         .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     peripherals.ast.configure(mux_alarm);
-    let alarm =
-        AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM as u32, mux_alarm)
-            .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+    let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
+        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
@@ -347,7 +345,7 @@ pub unsafe fn main() {
 
     let ambient_light = AmbientLightComponent::new(
         board_kernel,
-        capsules::ambient_light::DRIVER_NUM as u32,
+        capsules::ambient_light::DRIVER_NUM,
         mux_i2c,
         mux_alarm,
     )
@@ -356,16 +354,15 @@ pub unsafe fn main() {
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM as u32,
+        capsules::temperature::DRIVER_NUM,
         si7021,
     )
     .finalize(());
     let humidity =
-        HumidityComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM as u32, si7021)
-            .finalize(());
+        HumidityComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM, si7021).finalize(());
     let ninedof = NineDofComponent::new(
         board_kernel,
-        capsules::ninedof::DRIVER_NUM as u32,
+        capsules::ninedof::DRIVER_NUM,
         mux_i2c,
         &peripherals.pc[13],
     )
@@ -379,7 +376,7 @@ pub unsafe fn main() {
         board_kernel,
         mux_spi,
         2,
-        capsules::spi_controller::DRIVER_NUM as u32,
+        capsules::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
@@ -394,15 +391,11 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    let adc = AdcComponent::new(
-        board_kernel,
-        capsules::adc::DRIVER_NUM as u32,
-        &peripherals.adc,
-    )
-    .finalize(());
+    let adc =
+        AdcComponent::new(board_kernel, capsules::adc::DRIVER_NUM, &peripherals.adc).finalize(());
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
             0 => &peripherals.pc[31],
@@ -426,7 +419,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             sam4l::gpio::GPIOPin,
             (
@@ -438,12 +431,8 @@ pub unsafe fn main() {
     )
     .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
 
-    let crc = CrcComponent::new(
-        board_kernel,
-        capsules::crc::DRIVER_NUM as u32,
-        &peripherals.crccu,
-    )
-    .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    let crc = CrcComponent::new(board_kernel, capsules::crc::DRIVER_NUM, &peripherals.crccu)
+        .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
 
     let ac_0 = static_init!(
         sam4l::acifc::AcChannel,
@@ -471,15 +460,11 @@ pub unsafe fn main() {
             ac_3
         ),
         board_kernel,
-        capsules::analog_comparator::DRIVER_NUM as u32,
+        capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
-    let rng = RngComponent::new(
-        board_kernel,
-        capsules::rng::DRIVER_NUM as u32,
-        &peripherals.trng,
-    )
-    .finalize(());
+    let rng =
+        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -505,7 +490,7 @@ pub unsafe fn main() {
     let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM as u32,
+        capsules::ieee802154::DRIVER_NUM,
         rf233,
         aes_mux,
         PAN_ID,
@@ -519,7 +504,7 @@ pub unsafe fn main() {
 
     let usb_driver = UsbComponent::new(
         board_kernel,
-        capsules::usb::usb_user::DRIVER_NUM as u32,
+        capsules::usb::usb_user::DRIVER_NUM,
         &peripherals.usbc,
     )
     .finalize(());
@@ -534,7 +519,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM as u32,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash_controller,
         0x60000,                          // Start address for userspace accessible region
         0x20000,                          // Length of userspace accessible region
@@ -575,7 +560,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
-        capsules::net::udp::driver::DRIVER_NUM as u32,
+        capsules::net::udp::driver::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -598,7 +583,7 @@ pub unsafe fn main() {
         analog_comparator,
         crc,
         spi: spi_syscalls,
-        ipc: kernel::ipc::IPC::new(board_kernel, kernel::ipc::DRIVER_NUM as u32, &grant_cap),
+        ipc: kernel::ipc::IPC::new(board_kernel, kernel::ipc::DRIVER_NUM, &grant_cap),
         ninedof,
         udp_driver,
         usb_driver,

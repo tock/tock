@@ -25,7 +25,7 @@ pub struct Nrf51822Component<
     G: 'static + hil::gpio::Pin,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     uart: &'static U,
     reset_pin: &'static G,
 }
@@ -35,7 +35,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         uart: &'static U,
         reset_pin: &'static G,
     ) -> Nrf51822Component<U, G> {

@@ -283,7 +283,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM as u32,
+        capsules::console::DRIVER_NUM,
         lpuart_mux,
     )
     .finalize(());
@@ -304,7 +304,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM as u32,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
@@ -324,7 +324,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM as u32,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(imxrt1050::gpt::Gpt1));
@@ -333,7 +333,7 @@ pub unsafe fn main() {
     // For now we expose only two pins
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM as u32,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
@@ -410,17 +410,15 @@ pub unsafe fn main() {
     .finalize(());
 
     // Ninedof
-    let ninedof = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules::ninedof::DRIVER_NUM as u32,
-    )
-    .finalize(components::ninedof_component_helper!(fxos8700));
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
-            kernel::ipc::DRIVER_NUM as u32,
+            kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         led: led,

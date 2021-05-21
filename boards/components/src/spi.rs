@@ -102,13 +102,13 @@ pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave> {
     board_kernel: &'static kernel::Kernel,
     spi_slave: &'static S,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 pub struct SpiComponent<S: 'static + spi::SpiMaster> {
@@ -145,7 +145,7 @@ impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
-        driver_num: u32,
+        driver_num: usize,
     ) -> Self {
         SpiSyscallComponent {
             board_kernel: board_kernel,
@@ -197,7 +197,11 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
 }
 
 impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, slave: &'static S, driver_num: u32) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        slave: &'static S,
+        driver_num: usize,
+    ) -> Self {
         SpiSyscallPComponent {
             board_kernel,
             spi_slave: slave,
@@ -273,11 +277,15 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
 pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave> {
     board_kernel: &'static kernel::Kernel,
     device: &'static S,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl<S: 'static + spi::SpiSlave> SpiPeripheralComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, device: &'static S, driver_num: u32) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        device: &'static S,
+        driver_num: usize,
+    ) -> Self {
         SpiPeripheralComponent {
             board_kernel,
             device,

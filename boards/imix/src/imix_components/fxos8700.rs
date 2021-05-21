@@ -67,7 +67,7 @@ impl Component for Fxos8700Component {
 
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     i2c_mux: &'static MuxI2C<'static>,
     gpio: &'static sam4l::gpio::GPIOPin<'static>,
 }
@@ -75,7 +75,7 @@ pub struct NineDofComponent {
 impl NineDofComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         i2c: &'static MuxI2C<'static>,
         gpio: &'static sam4l::gpio::GPIOPin,
     ) -> NineDofComponent {

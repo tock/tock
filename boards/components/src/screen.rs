@@ -40,7 +40,7 @@ macro_rules! screen_buffer_size {
 
 pub struct ScreenComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     screen: &'static dyn kernel::hil::screen::Screen,
     screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
 }
@@ -48,7 +48,7 @@ pub struct ScreenComponent {
 impl ScreenComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         screen: &'static dyn kernel::hil::screen::Screen,
         screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
     ) -> ScreenComponent {

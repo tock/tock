@@ -147,6 +147,10 @@ pub struct Kernel {
     /// established.
     grants_finalized: Cell<bool>,
 
+    /// Data structure used for tracking which driver number is associated
+    /// with each grant number. This allows the kernel to verify that
+    /// no user driver creates multiple grants, and that no two drivers
+    /// use the same driver number.
     grant_num_mapping: [Option<u32>; config::CONFIG.max_drivers],
 }
 
@@ -389,9 +393,11 @@ impl Kernel {
     /// `MemoryAllocationCapability` capability.
     pub fn create_grant<T: GrantDefault>(
         &'static self,
-        driver_num: u32,
+        driver_num: usize,
         _capability: &dyn capabilities::MemoryAllocationCapability,
     ) -> Grant<T> {
+        // TODO: change the above back to u32 once we unify this across the kernel
+        let driver_num = driver_num as u32;
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }

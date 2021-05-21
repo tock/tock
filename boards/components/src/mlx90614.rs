@@ -37,7 +37,7 @@ pub struct Mlx90614SMBusComponent {
     i2c_mux: &'static MuxI2C<'static>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
 }
 
 impl Mlx90614SMBusComponent {
@@ -45,7 +45,7 @@ impl Mlx90614SMBusComponent {
         i2c: &'static MuxI2C<'static>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
     ) -> Self {
         Mlx90614SMBusComponent {
             i2c_mux: i2c,

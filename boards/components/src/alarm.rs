@@ -81,14 +81,14 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
 
 pub struct AlarmDriverComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: u32,
+    driver_num: usize,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
 impl<A: 'static + time::Alarm<'static>> AlarmDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: u32,
+        driver_num: usize,
         mux: &'static MuxAlarm<'static, A>,
     ) -> AlarmDriverComponent<A> {
         AlarmDriverComponent {
