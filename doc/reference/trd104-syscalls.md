@@ -510,8 +510,7 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 
 The Read-Write Allow system call class is how a userspace process
 shares buffer with the kernel that the kernel can read and write. When
-userspace shares a buffer, it should no longer modify it, though the kernel
-will not stop the app from doing so. Calling a
+userspace shares a buffer, it must no longer modify it. Calling a
 Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
 kernel returns a zero-length buffer. Subsequent successful calls to
@@ -552,7 +551,7 @@ writeable address space, the kernel MUST return a failure result with
 an error code of `INVALID`.
 
 When a process passes a buffer to
-Read-Write Allow call with, buffers passed on subsequent
+a Read-Write Allow call, buffers passed on subsequent
 Read-Write Allow calls cannot overlap with the first passed buffer.
 If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
@@ -565,7 +564,7 @@ an error code of `INVALID`.
 
 The Read-Only Allow class is very similar to the Read-Write Allow class.
 It differs in one way: the buffer it passes to the kernel is read-only,
-the kernel cannot write to the buffer. The semantics and calling conventions of
+so the kernel cannot write to the buffer. The semantics and calling conventions of
 Read-Only Allow are otherwise identical to Read-Write Allow.
 
 The Read-Only Allow class exists so that userspace can pass references
