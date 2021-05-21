@@ -1,4 +1,5 @@
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
+#![feature(const_fn_unsize)]
 #![forbid(unsafe_code)]
 #![no_std]
 
