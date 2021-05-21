@@ -15,6 +15,7 @@
 with builtins;
 let
   inherit (pkgs) stdenv lib;
+
   pythonPackages = lib.fix' (self: with self; pkgs.python3Packages //
   {
 
@@ -31,10 +32,14 @@ let
       };
     };
   });
+
   moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
   nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
-  rust_date = "2021-03-19";
-  rust_channel = "nightly";
+
+  rust_toolchain = builtins.replaceStrings ["\n" "\r" " " "\t"] ["" "" "" ""] (
+    builtins.readFile ./rust-toolchain);
+  rust_date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rust_toolchain));
+  rust_channel = lib.head (lib.splitString "-" rust_toolchain);
   rust_targets = [
     "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi"
     "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv32i-unknown-none-elf"
