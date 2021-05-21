@@ -510,13 +510,14 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 
 The Read-Write Allow system call class is how a userspace process
 shares buffer with the kernel that the kernel can read and write. When
-userspace shares a buffer, it can no longer access it. Calling a
+userspace shares a buffer, it should no longer modify it, though the kernel
+will not stop the app from doing so. Calling a
 Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
-kernel returns a zero-length buffer. Subsequent successful calls to 
-Read-Write Allow return the previous buffer passed. Therefore, to 
-regain access to a passed buffer, the process must call the same 
-Read-Write Allow system call again. It can do so with a zero-length 
+kernel returns a zero-length buffer. Subsequent successful calls to
+Read-Write Allow return the previous buffer passed. Therefore, to
+regain the ability to write to a passed buffer, the process must call the same
+Read-Write Allow system call again. It can do so with a zero-length
 buffer if it wishes to pass no memory to the kernel.
 
 The register arguments for Read-Write Allow system calls are as
@@ -545,28 +546,26 @@ support multiple allowed buffers.
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's writeable address space. Every byte of the
 passed buffer must be readable and writeable by the
-process. Zero-length buffers may therefore have abitrary addresses. If
+process. Zero-length buffers may therefore have arbitrary addresses. If
 the passed buffer is not complete within the calling process's
 writeable address space, the kernel MUST return a failure result with
 an error code of `INVALID`.
 
-Because a process relinquishes access to a buffer when it makes a
-Read-Write Allow call with it, the buffer passed on the subsequent
-Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application does not have access to that
-memory. If an application needs to extend a buffer, it must first call
+When a process passes a buffer to
+Read-Write Allow call with, buffers passed on subsequent
+Read-Write Allow calls cannot overlap with the first passed buffer.
+If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
 again to re-allow it with a different size. If userspace passes
 an overlapping buffer, the kernel MUST return a failure result with
 an error code of `INVALID`.
- 
+
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow class.
-It differs in tow ways: the buffer it passes to the kernel is read-only,
-and the process retains read access to the buffer. The kernel cannot
-write to the buffer. The semantics and calling conventions of
+It differs in one way: the buffer it passes to the kernel is read-only,
+the kernel cannot write to the buffer. The semantics and calling conventions of
 Read-Only Allow are otherwise identical to Read-Write Allow.
 
 The Read-Only Allow class exists so that userspace can pass references
