@@ -94,50 +94,52 @@ impl Hmac<'_> {
         let idx = self.data_index.get();
         let len = self.data_len.get();
 
-        let slice = self.data.take().unwrap().take();
+        self.data.take().map(|buf| {
+            let slice = buf.take();
 
-        if idx < len {
-            let data_len = len - idx;
+            if idx < len {
+                let data_len = len - idx;
 
-            for i in 0..(data_len / 4) {
-                if regs.status.is_set(STATUS::FIFO_FULL) {
-                    self.data.set(Some(LeasableBuffer::new(slice)));
-                    // Enable interrupts
-                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                    return;
+                for i in 0..(data_len / 4) {
+                    if regs.status.is_set(STATUS::FIFO_FULL) {
+                        self.data.set(Some(LeasableBuffer::new(slice)));
+                        // Enable interrupts
+                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                        return;
+                    }
+
+                    if !regs.status.is_set(STATUS::FIFO_EMPTY) {
+                        self.data.set(Some(LeasableBuffer::new(slice)));
+                        // Enable interrupts
+                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+                        return;
+                    }
+
+                    let data_idx = idx + i * 4;
+
+                    let mut d = (slice[data_idx + 0] as u32) << 0;
+                    d |= (slice[data_idx + 1] as u32) << 8;
+                    d |= (slice[data_idx + 2] as u32) << 16;
+                    d |= (slice[data_idx + 3] as u32) << 24;
+
+                    regs.msg_fifo.set(d);
+                    self.data_index.set(data_idx + 4);
                 }
 
-                if !regs.status.is_set(STATUS::FIFO_EMPTY) {
-                    self.data.set(Some(LeasableBuffer::new(slice)));
-                    // Enable interrupts
-                    regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                    return;
+                let idx = self.data_index.get();
+
+                for i in 0..(data_len % 4) {
+                    let data_idx = idx + i;
+                    let d = (slice[data_idx]) as u32;
+
+                    regs.msg_fifo.set(d);
+                    self.data_index.set(data_idx + 1)
                 }
-
-                let data_idx = idx + i * 4;
-
-                let mut d = (slice[data_idx + 0] as u32) << 0;
-                d |= (slice[data_idx + 1] as u32) << 8;
-                d |= (slice[data_idx + 2] as u32) << 16;
-                d |= (slice[data_idx + 3] as u32) << 24;
-
-                regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 4);
             }
 
-            let idx = self.data_index.get();
-
-            for i in 0..(data_len % 4) {
-                let data_idx = idx + i;
-                let d = (slice[data_idx]) as u32;
-
-                regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 1)
-            }
-        }
-
-        self.client.map(move |client| {
-            client.add_data_done(Ok(()), slice);
+            self.client.map(move |client| {
+                client.add_data_done(Ok(()), slice);
+            });
         });
 
         // Make sure we don't get any more FIFO empty interrupts
