@@ -114,11 +114,12 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::fmt::{write, Result, Write};
+use core::fmt;
+use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::AppId;
+use kernel::ProcessId;
 
 use kernel::debug;
 use kernel::hil::uart;
@@ -171,7 +172,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     queue_buffer: TakeCell<'static, [u8]>,
     queue_size: Cell<usize>,
     writer_state: Cell<WriterState>,
-    writer_process: Cell<Option<AppId>>,
+    writer_process: Cell<Option<ProcessId>>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
@@ -204,8 +205,8 @@ impl ConsoleWriter {
         self.size = 0;
     }
 }
-impl Write for ConsoleWriter {
-    fn write_str(&mut self, s: &str) -> Result {
+impl fmt::Write for ConsoleWriter {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
         let curr = (s).as_bytes().len();
         self.buf[self.size..self.size + curr].copy_from_slice(&(s).as_bytes()[..]);
         self.size += curr;
@@ -262,7 +263,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    pub fn start(&self, driver_str: &'static str) -> ReturnCode {
+    pub fn start(&self, driver_str: &'static str) -> Result<(), ErrorCode> {
         if self.running.get() == false {
             self.drivers.set(driver_str);
             self.rx_buffer.take().map(|buffer| {
@@ -280,13 +281,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
                 ),
             );
-            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             console_writer.clear();
-            self.write_bytes(b"Drivers:\n");
+            let _ = self.write_bytes(b"Drivers:\n");
             let _ = write(&mut console_writer, format_args!("{}", driver_str));
-            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-            self.write_bytes(b"Welcome to the process console.\n");
-            self.write_bytes(
+            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+            let _ = self.write_bytes(b"Welcome to the process console.\n");
+            let _ = self.write_bytes(
                 b"Valid commands are: help status list stop start fault process kernel\n",
             );
         }
@@ -314,7 +315,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
     //defines the behavior at each state
-    fn create_state_buffer(&self, state: WriterState, process_id: Option<AppId>) {
+    fn create_state_buffer(&self, state: WriterState, process_id: Option<ProcessId>) {
         match state {
             WriterState::KernelBss => {
                 let mut console_writer = ConsoleWriter::new();
@@ -333,7 +334,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         bss_bottom, bss_size
                     ),
                 );
-                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelInit => {
                 let mut console_writer = ConsoleWriter::new();
@@ -352,7 +353,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         init_bottom, init_size
                     ),
                 );
-                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelStack => {
                 let mut console_writer = ConsoleWriter::new();
@@ -372,7 +373,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         stack_bottom, stack_size, stack_start
                     ),
                 );
-                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelRoData => {
                 let mut console_writer = ConsoleWriter::new();
@@ -392,7 +393,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         rodata_bottom, rodata_size
                     ),
                 );
-                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelText => {
                 let mut console_writer = ConsoleWriter::new();
@@ -414,14 +415,14 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         rodata_start, text_size, text_start
                     ),
                 );
-                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::ProcessGrant => {
                 if process_id.is_none() {
                 } else {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
                                 // SRAM addresses
@@ -445,7 +446,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         exceeded_check(sram_grant_size, sram_grant_allocated),
                                     ),
                                 );
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ =
+                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             }
                         });
                 }
@@ -455,7 +457,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 } else {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
                                 // SRAM addresses
@@ -472,7 +474,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         sram_grant_start, sram_heap_end,
                                     ),
                                 );
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ =
+                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             }
                         });
                 }
@@ -483,7 +486,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
                                 let sram_grant_start = process.kernel_memory_break() as usize;
@@ -519,7 +522,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         );
                                     }
                                 }
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
                             }
                         },
@@ -532,7 +535,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
 
@@ -563,7 +566,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         );
                                     }
                                 }
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
                             }
                         },
@@ -576,7 +579,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
 
@@ -613,7 +616,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         );
                                     }
                                 }
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
                             }
                         },
@@ -626,7 +629,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 } else {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
 
@@ -645,7 +648,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         sram_start
                                     ),
                                 );
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ =
+                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             }
                         });
                 }
@@ -656,7 +660,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
 
@@ -676,7 +680,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         flash_app_size,
                                     ),
                                 );
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
                             }
                         },
@@ -689,7 +693,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel.process_each_capability(
                         &self.capability,
                         |process| {
-                            let proc_id = process.appid();
+                            let proc_id = process.processid();
                             if proc_id == process_id.unwrap() {
                                 let mut console_writer = ConsoleWriter::new();
 
@@ -712,7 +716,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         flash_start
                                     ),
                                 );
-                                self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
                             }
                         },
@@ -743,8 +747,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
                         if clean_str.starts_with("help") {
 
-                            self.write_bytes(b"Welcome to the process console.\n");
-                            self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+                            let _ = self.write_bytes(b"Welcome to the process console.\n");
+                            let _ = self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
 
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
@@ -758,7 +762,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(&mut console_writer,format_args!("Process {} resumed.\n", name));
 
-                                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                                         }
                                     },
                                 );
@@ -775,7 +779,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(&mut console_writer,format_args!("Process {} stopped\n", proc_name));
 
-                                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                                         }
                                     },
                                 );
@@ -792,24 +796,24 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(&mut console_writer,format_args!("Process {} now faulted\n", proc_name));
 
-                                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                                         }
                                     },
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            self.write_bytes(b" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants\n");
+                            let _ = self.write_bytes(b" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants\n");
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
 
                                     let pname = proc.get_process_name();
-                                    let appid = proc.processid();
-                                    let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
+                                    let process_id = proc.processid();
+                                    let (grants_used, grants_total) = info.number_app_grant_uses(process_id, &self.capability);
                                     let mut console_writer = ConsoleWriter::new();
                                     let _ = write(&mut console_writer,format_args!(
                                         "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
-                                        appid,
+                                        process_id,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
@@ -819,7 +823,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         grants_used,
                                         grants_total));
 
-                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                                 });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
@@ -827,17 +831,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = write(&mut console_writer,format_args!(
                                 "Total processes: {}\n",
                                 info.number_loaded_processes(&self.capability)));
-                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
                             let _ = write(&mut console_writer,format_args!(
                                 "Active processes: {}\n",
                                 info.number_active_processes(&self.capability)));
-                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
                             let _ = write(&mut console_writer,format_args!(
                                 "Timeslice expirations: {}\n",
                                 info.timeslice_expirations(&self.capability)));
-                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                         } else if clean_str.starts_with("process"){
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -847,7 +851,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             //prints process memory by moving the writer to the start state
-                                            self.write_state(WriterState::ProcessStart,Some(proc.appid()));
+                                            self.write_state(WriterState::ProcessStart,Some(proc.processid()));
                                         }
                                     },
                                 );
@@ -857,15 +861,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = write(&mut console_writer,format_args!(
                                 "Kernel version: {}\r\n",
                                 option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
-                            self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
                             if self.drivers.is_some() {
                                 self.drivers.map(|driver| {
-                                    self.write_bytes(b"Drivers:\n");
+                                    let _ = self.write_bytes(b"Drivers:\n");
                                     let _ = write(&mut console_writer,format_args!(
                                         "{}",
                                         driver));
-                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                                     console_writer.clear();
                                 });
                             };
@@ -873,13 +877,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             self.write_state(WriterState::KernelStart,None);
 
                         } else {
-                            self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+                            let _ = self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
                         }
                     }
                     Err(_e) => {
                         let mut console_writer = ConsoleWriter::new();
                         let _ = write(&mut console_writer,format_args!("Invalid command: {:?}", command));
-                        self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                     }
                 }
             }
@@ -889,12 +893,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         });
         self.command_index.set(0);
     }
-    fn write_state(&self, state: WriterState, process: Option<AppId>) {
+    fn write_state(&self, state: WriterState, process: Option<ProcessId>) {
         if self.writer_state.get() == WriterState::Empty {
             self.writer_state.replace(state);
             self.writer_process.replace(process);
         }
-
 
         if !self.tx_in_progress.get() {
             self.writer_state
@@ -902,13 +905,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.create_state_buffer(self.writer_state.get(), self.writer_process.get());
         }
     }
-    fn write_byte(&self, byte: u8) -> ReturnCode {
+    fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
                 buf[self.queue_size.get()] = byte;
                 self.queue_size.set(self.queue_size.get() + 1);
             });
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
@@ -921,14 +924,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
     fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
-
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
                 let len = cmp::min(bytes.len(), buf.len() - size);
                 (&mut buf[size..size + len]).copy_from_slice(&bytes[..len]);
                 self.queue_size.set(size + len);
             });
-            ReturnCode::EBUSY
+            Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
@@ -962,7 +964,7 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         self.queue_buffer.map(|buf| {
             let len = self.queue_size.get();
             if len != 0 {
-                self.write_bytes(&buf[..len]);
+                let _ = self.write_bytes(&buf[..len]);
             }
             //self.uart.transmit_buffer(buf, len);
             self.queue_size.set(0);

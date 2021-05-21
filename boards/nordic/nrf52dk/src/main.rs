@@ -375,8 +375,7 @@ pub unsafe fn main() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-
-    platform.pconsole.start(driver_debug_str);
+    let _ = platform.pconsole.start(driver_debug_str);
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);

@@ -562,9 +562,7 @@ pub unsafe fn main() {
     let _ = rf233.reset();
     let _ = rf233.start();
 
-
-    imix.pconsole.start(driver_debug_str);
-
+    let _ = imix.pconsole.start(driver_debug_str);
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

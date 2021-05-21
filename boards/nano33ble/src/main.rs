@@ -511,8 +511,7 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    platform.pconsole.start(driver_debug_str);
-
+    let _ = platform.pconsole.start(driver_debug_str);
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

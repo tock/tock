@@ -482,8 +482,7 @@ pub unsafe fn main() {
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
 
-    process_console.start(driver_debug_str);
-
+    let _ = process_console.start(driver_debug_str);
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
