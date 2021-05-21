@@ -630,6 +630,15 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
 }
 
+fn get_random() -> usize {
+    static mut SEED: usize = 0xeef5690a;
+    unsafe {
+        let val = SEED.wrapping_mul(1103515245).wrapping_add(12345);
+        SEED = val % 0x80000000;
+        SEED
+    }
+}
+
 #[inline(never)]
 unsafe fn run_table_test() {
     let mut table = Table::new();
@@ -637,7 +646,7 @@ unsafe fn run_table_test() {
     let DWT_CYCCNT: *mut u32 = 0xE0001004 as *mut u32;
     cortexm4::nvic::disable_all();
     ticks[0] = core::ptr::read_volatile(DWT_CYCCNT);
-    table.insert(0, 100);
+    table.insert(50, 50);
     ticks[1] = core::ptr::read_volatile(DWT_CYCCNT);
     table.insert(200, 300);
     ticks[2] = core::ptr::read_volatile(DWT_CYCCNT);
@@ -649,7 +658,7 @@ unsafe fn run_table_test() {
     ticks[5] = core::ptr::read_volatile(DWT_CYCCNT);
     table.insert(1000, 100);
     ticks[6] = core::ptr::read_volatile(DWT_CYCCNT);
-    table.insert(100, 30);
+    table.insert(0, 30);
     ticks[7] = core::ptr::read_volatile(DWT_CYCCNT);
     table.insert(3000, 200);
     ticks[8] = core::ptr::read_volatile(DWT_CYCCNT);
@@ -677,7 +686,24 @@ unsafe fn run_table_test() {
         debug!("Remove {}: {} ticks", i - 9, ticks[i + 1] - ticks[i]);
     }
 
-    debug!("Baseline: {} ticks", ticks[13] - ticks[12]);   
+    debug!("Baseline: {} ticks", ticks[13] - ticks[12]);
+
+    for i in 0..200 {
+        let val = get_random();
+        if (val & 0x8000) == 0x8000 {
+            let addr = (((val >> 1) % 100) * 100) as u32;
+            let size = ((val & 0xff00) / 100) as u32;
+            let result = table.insert(addr, size);
+            debug!("{} ({}): i {}-{}", i, result, addr, addr + size);
+        } else if table.size() > 0 {
+            let index = (val >> 1) % table.size();
+            let result = table.remove_at(index);
+            debug!("{} ({}): d {}", i, result, index);
+        }
+        if (i % 10) == 9 {
+            table.print();
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy)]
@@ -804,7 +830,7 @@ impl Table {
                 let dest = self.count - i;
                 self.list[dest] = self.list[dest - 1];
             }
-            let rindex = self.get_free_region_asm();
+            let rindex = self.get_free_region();
             self.regions[rindex].start = start;
             self.regions[rindex].end = end;
             self.list[lindex] = rindex as u8;
@@ -830,6 +856,18 @@ impl Table {
         }
     }
 
+    pub fn size(&self) -> usize {
+        return self.count;
+    }
+    
+    pub fn remove_at(&mut self, index: usize) -> bool {
+        if index >= self.count {
+            false
+        } else {
+            self.remove(self.regions[self.list[index] as usize].start)
+        }
+    }
+    
     pub fn remove(&mut self, start: u32) -> bool {
         for lindex in 0..self.count {
             let region = self.regions[self.list[lindex] as usize];
