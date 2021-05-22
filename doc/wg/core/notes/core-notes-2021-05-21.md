@@ -21,7 +21,7 @@ Attending:
    out whether they are necessary or desirable. Basic summary is they're in the
    range of 70 - 300 cycles depending on the number of outstanding buffers. I'm
    only looking at 0-8 outstanding buffers. Most of the overhead, looking at the
-   instructions, is register spillage. For example, the "insert zero" caseis
+   instructions, is register spillage. For example, the "insert zero" case is
    about 68 cycles, but if you refactor the code so it doesn't have to pay the
    same preamble overhead as other cases it is 17 cycles. So there are tradeoffs
    there. Do we care more about smaller or bigger cases? I want to lean towards
@@ -82,10 +82,10 @@ Attending:
    working on it the past 8-ish weeks. He'll talk about what he's done and some
    small implications to the kernel.
  * Andrew: Process console started without a true writer, it used the debug
-   writer. It used its own liter just to add new lines at the end of user input.
-   I fully featured the writer to the debug statements. I added a queue for the
-   writer so that it doesn't lose data. I added a state machine for large
-   prints. I added a couple commands to make large prints. They would have
+   writer. It used its own writer just to add new lines at the end of user
+   input. I fully featured the writer to the debug statements. I added a queue
+   for the writer so that it doesn't lose data. I added a state machine for
+   large prints. I added a couple commands to make large prints. They would have
    otherwise needed a large queue, instead we use a state machine to allow the
    queue to be small without dropping packets.
  * Andrew: Added a command to print the memory map for a process. This is a
@@ -95,7 +95,7 @@ Attending:
    mostly to get information to print things out. Added the ability to print the
    kernel map of the kernel, and a macro to see which drivers are available in
    the board structure. Could not think of any approaches other than a macro in
-   the board's mail file, so we decided to use a macro. Macro seems to work well
+   the board's main file, so we decided to use a macro. Macro seems to work well
    but isn't ideal.
  * Andrew: End of presentation, questions?
  * Vadim: In Chrome OS, we have similar changes to implement a crash log stored
