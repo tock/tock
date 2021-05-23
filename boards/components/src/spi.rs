@@ -19,7 +19,7 @@
 //! let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI).finalize(
 //!     components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 //! let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3).finalize(
-//!     components::spi_syscalls_component_helper!(sam4l::spi::SpiHw));
+//!     components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 //! let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(
 //!     components::spi_component_helper!(sam4l::spi::SpiHw));
 //! ```
