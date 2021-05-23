@@ -84,6 +84,10 @@ use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{self, UartChannel, UartPins};
 
+// LMIC_SPI test
+#[allow(dead_code)]
+mod test_lmic_spi;
+
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
 const LED2_PIN: Pin = Pin::P0_14;
@@ -91,15 +95,10 @@ const LED3_PIN: Pin = Pin::P0_15;
 const LED4_PIN: Pin = Pin::P0_16;
 
 // The nRF52840DK buttons (see back of board)
-// const BUTTON1_PIN: Pin = Pin::P0_11;
-// const BUTTON2_PIN: Pin = Pin::P0_12;
-// const BUTTON3_PIN: Pin = Pin::P0_24;
-// const BUTTON4_PIN: Pin = Pin::P0_25;
-// Using button pins for SPI, so remapping button pins to GPIO pins
-const BUTTON1_PIN: Pin = Pin::P1_01;
-const BUTTON2_PIN: Pin = Pin::P1_02;
-const BUTTON3_PIN: Pin = Pin::P1_03;
-const BUTTON4_PIN: Pin = Pin::P1_04;
+const BUTTON1_PIN: Pin = Pin::P0_11;
+const BUTTON2_PIN: Pin = Pin::P0_12;
+const BUTTON3_PIN: Pin = Pin::P0_24;
+const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 const UART_RTS: Option<Pin> = Some(Pin::P0_05);
@@ -107,14 +106,14 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-// const SPI_MOSI: Pin = Pin::P0_20;
-// const SPI_MISO: Pin = Pin::P0_21;
-// const SPI_CLK: Pin = Pin::P0_19;
+const MX25R6435F_SPI_MOSI: Pin = Pin::P0_20;
+const MX25R6435F_SPI_MISO: Pin = Pin::P0_21;
+const MX25R6435F_SPI_CLK: Pin = Pin::P0_19;
 // Remapping SPI pins to avoid unnecessary soldering and cutting
-const SPI_MOSI: Pin = Pin::P0_11;
-const SPI_MISO: Pin = Pin::P0_12;
-const SPI_CLK: Pin = Pin::P0_24;
-const SPI_CHIP_SELECT: Pin = Pin::P0_25;
+const STM32_SPI_MOSI: Pin = Pin::P1_01;
+const STM32_SPI_MISO: Pin = Pin::P1_02;
+const STM32_SPI_CLK: Pin = Pin::P1_03;
+const STM32_SPI_CHIP_SELECT: Pin = Pin::P1_04;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
@@ -129,10 +128,6 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 
 /// Debug Writer
 pub mod io;
-
-// Unit test for lmic_spi driver
-#[allow(dead_code)]
-mod test_lmic_spi;
 
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
@@ -187,6 +182,10 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    syscall_spi: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+    >,
     // stm32discovery_spi: &'static capsules:: // TODO: add driver for stm32discovery board for lora; would add lora driver here?
 }
 
@@ -209,6 +208,7 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.syscall_spi)),
             _ => f(None),
         }
     }
@@ -260,10 +260,11 @@ pub unsafe fn main() {
         board_kernel,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
-            1 => &nrf52840_peripherals.gpio_port[Pin::P1_02],
-            2 => &nrf52840_peripherals.gpio_port[Pin::P1_03],
-            3 => &nrf52840_peripherals.gpio_port[Pin::P1_04],
+            // Remapping first four pins to use for STM32 SPI peripheral
+            0 => &nrf52840_peripherals.gpio_port[Pin::P1_05],
+            1 => &nrf52840_peripherals.gpio_port[Pin::P1_05],
+            2 => &nrf52840_peripherals.gpio_port[Pin::P1_05],
+            3 => &nrf52840_peripherals.gpio_port[Pin::P1_05],
             4 => &nrf52840_peripherals.gpio_port[Pin::P1_05],
             5 => &nrf52840_peripherals.gpio_port[Pin::P1_06],
             6 => &nrf52840_peripherals.gpio_port[Pin::P1_07],
@@ -463,23 +464,10 @@ pub unsafe fn main() {
         .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
+        nrf52840::pinmux::Pinmux::new(MX25R6435F_SPI_MOSI as u32),
+        nrf52840::pinmux::Pinmux::new(MX25R6435F_SPI_MISO as u32),
+        nrf52840::pinmux::Pinmux::new(MX25R6435F_SPI_CLK as u32),
     );
-
-    // Create SPI component for stm32 Discovery board
-    let stm32discovery_spi = components::spi::SpiComponent::new(
-        mux_spi,
-        &gpio_port[SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
-    )
-    .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
-    // Create lmic_spi component
-    // let lmic_spi = lmic_spi::LMICSpi::new(
-    //     stm32discovery_spi,
-    //     // &mut capsules::lmic_spi::TXBUFFER,
-    //     // &mut capsules::lmic_spi::RXBUFFER,
-    // );
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],
@@ -493,6 +481,40 @@ pub unsafe fn main() {
         nrf52840::gpio::GPIOPin,
         nrf52840::rtc::Rtc
     ));
+
+    // Create SPI component for spi syscall driver (eventually for stm32 Discovery board)
+    let syscall_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
+        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+
+    // let stm32_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
+    //     .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+
+    base_peripherals.spim1.configure(
+        nrf52840::pinmux::Pinmux::new(STM32_SPI_MOSI as u32),
+        nrf52840::pinmux::Pinmux::new(STM32_SPI_MISO as u32),
+        nrf52840::pinmux::Pinmux::new(STM32_SPI_CLK as u32),
+    );
+
+    let syscall_spi = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        syscall_mux_spi,
+        &gpio_port[STM32_SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        nrf52840::spi::SPIM
+    ));
+
+    // let stm32discovery_spi = components::spi::SpiComponent::new(
+    //     stm32_mux_spi,
+    //     &gpio_port[STM32_SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+    // )
+    // .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
+    // // Create lmic_spi component
+    // let lmic_spi = lmic_spi::LMICSpi::new(
+    //     stm32discovery_spi,
+    //     // &mut capsules::lmic_spi::TXBUFFER,
+    //     // &mut capsules::lmic_spi::RXBUFFER,
+    // );
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
@@ -579,6 +601,7 @@ pub unsafe fn main() {
         nonvolatile_storage,
         udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        syscall_spi,
     };
 
     let _ = platform.pconsole.start();
@@ -587,6 +610,9 @@ pub unsafe fn main() {
 
     // alarm_test_component.run();
 
+    // LMIC_SPI send bytes test
+    // test_lmic_spi::lmic_spi_send_test(&lmic_spi);
+    // debug!("Ran SPI test\r");
     /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
