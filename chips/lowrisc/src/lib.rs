@@ -11,6 +11,7 @@ pub mod flash_ctrl;
 pub mod gpio;
 pub mod hmac;
 pub mod i2c;
+pub mod otbn;
 pub mod padctrl;
 pub mod pwrmgr;
 pub mod uart;
