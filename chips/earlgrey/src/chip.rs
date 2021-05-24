@@ -2,6 +2,7 @@
 
 use core::fmt::Write;
 use kernel;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::hil::time::Alarm;
 use kernel::{Chip, InterruptService};
@@ -29,18 +30,20 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub hmac: lowrisc::hmac::Hmac<'a>,
     pub usb: lowrisc::usbdev::Usb<'a>,
     pub uart0: lowrisc::uart::Uart<'a>,
+    pub otbn: lowrisc::otbn::Otbn<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub i2c0: lowrisc::i2c::I2c<'a>,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
 }
 
 impl<'a> EarlGreyDefaultPeripherals<'a> {
-    pub fn new() -> Self {
+    pub fn new(otbn_deferred_caller: &'static DynamicDeferredCall) -> Self {
         Self {
             aes: crate::aes::Aes::new(),
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
+            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE, otbn_deferred_caller),
             gpio_port: crate::gpio::Port::new(),
             i2c0: lowrisc::i2c::I2c::new(
                 crate::i2c::I2C0_BASE,
@@ -76,6 +79,7 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
             interrupts::I2C0_FMTWATERMARK..=interrupts::I2C0_HOSTTIMEOUT => {
                 self.i2c0.handle_interrupt()
             }
+            interrupts::OTBN_DONE => self.otbn.handle_interrupt(),
             _ => return false,
         }
         true
