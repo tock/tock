@@ -16,7 +16,12 @@ TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
+
+ifeq ($(NO_RUSTUP),)
 RUSTUP    ?= rustup
+else
+RUSTUP    ?= true
+endif
 
 # Default location of target directory (relative to board makefile)
 # passed to cargo --target_dir
@@ -113,6 +118,8 @@ endif
 # a set string which should be updated with every release.
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "1.4+")
 
+# Allow users to opt out of using rustup
+ifeq ($(NO_RUSTUP),)
 # Validate that rustup exists.
 RUSTUP_ERROR := $(shell $(RUSTUP) --version > /dev/null 2>&1; echo $$?)
 ifneq ($(RUSTUP_ERROR),0)
@@ -131,6 +138,7 @@ ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIM
   $(shell sleep 3s)
   DUMMY := $(shell $(RUSTUP) update)
 endif
+endif # $(NO_RUSTUP) ?
 
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
