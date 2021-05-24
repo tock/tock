@@ -229,7 +229,7 @@ macro_rules! driver_debug {
         /// Supported drivers by the platform
         $vis struct $struct { $($field: $type),*}
 
-        static driver_debug_str : &'static str = concat!($("\t",stringify!($field),"\n"),*);
+        static driver_debug_str : Option<&'static str> = Some(concat!($("\t",stringify!($field),"\n"),*));
     };
 }
 
@@ -263,9 +263,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
-    pub fn start(&self, driver_str: &'static str) -> Result<(), ErrorCode> {
+    pub fn start(&self, driver_str: Option<&'static str>) -> Result<(), ErrorCode> {
         if self.running.get() == false {
-            self.drivers.set(driver_str);
+            self.drivers.insert(driver_str);
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
                 let _ = self.uart.receive_buffer(buffer, 1);
@@ -283,9 +283,14 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             );
             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             console_writer.clear();
-            let _ = self.write_bytes(b"Drivers:\n");
-            let _ = write(&mut console_writer, format_args!("{}", driver_str));
-            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+            if driver_str.is_some() {
+                driver_str.map(|driver| {
+                    let _ = self.write_bytes(b"Drivers:\n");
+                    let _ = write(&mut console_writer, format_args!("{}", driver));
+                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                    console_writer.clear();
+                });
+            };
             let _ = self.write_bytes(b"Welcome to the process console.\n");
             let _ = self.write_bytes(
                 b"Valid commands are: help status list stop start fault process kernel\n",
