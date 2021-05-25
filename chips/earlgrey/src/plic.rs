@@ -68,9 +68,14 @@ impl Plic {
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        for enable in self.registers.enable.iter() {
-            enable.set(0xFFFF_FFFF);
-        }
+        // Ensure we don't enable interrupt 171 (ENTROPYSRC_ESENTROPYVALID) as
+        // we have no way to disable the interrupt.
+        self.registers.enable[0].set(0xFFFF_FFFF);
+        self.registers.enable[1].set(0xFFFF_FFFF);
+        self.registers.enable[2].set(0xFFFF_FFFF);
+        self.registers.enable[3].set(0xFFFF_FFFF);
+        self.registers.enable[4].set(0xFFFF_FFFF);
+        self.registers.enable[5].set(0xFFFF_F7FF);
 
         // Set the max priority for each interrupt. This is not really used
         // at this point.
