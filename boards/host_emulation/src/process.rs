@@ -31,6 +31,7 @@ use core::ptr::NonNull;
 use tock_cells::numeric_cell_ext::NumericCellExt;
 
 use crate::emulation_config::Config;
+use crate::shared_buf::SHARED_BUFFER;
 use crate::syscall_transport::SyscallTransport;
 use crate::Result;
 use crate::{log, log_info};
@@ -82,6 +83,10 @@ impl<'a> UnixProcess<'a> {
             .arg(socket_rx)
             .arg("--socket_recv")
             .arg(socket_tx)
+            .arg("--buf")
+            .arg((unsafe { SHARED_BUFFER.get_start_addr() } as usize).to_string())
+            .arg("--buf_size")
+            .arg((unsafe { SHARED_BUFFER.get_size() }).to_string())
             .arg("--log")
             .arg(config.app_log_level.to_string());
         if config.app_log_level != 0 {

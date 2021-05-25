@@ -48,6 +48,7 @@ pub mod ipc_syscalls;
 mod log;
 pub mod mpu;
 pub mod process;
+pub mod shared_buf;
 pub mod syscall;
 pub mod syscall_transport;
 pub mod systick;

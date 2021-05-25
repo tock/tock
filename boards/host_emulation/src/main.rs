@@ -15,6 +15,7 @@ mod i2cp;
 mod ipc_syscalls;
 mod log;
 mod process;
+mod shared_buf;
 mod syscall;
 mod syscall_transport;
 mod systick;
