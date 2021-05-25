@@ -134,13 +134,14 @@ impl<'a> MAX17205<'a> {
         self.client.set(client);
     }
 
-    fn setup_read_status(&self) -> Result<(), ErrorCode> {
+    fn setup_readstatus(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_lower.enable();
 
             buffer[0] = Registers::Status as u8;
 
-            self.i2c_lower.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c_lower.write(buffer, 2);
             self.state.set(State::SetupReadStatus);
 
             Ok(())
@@ -154,7 +155,8 @@ impl<'a> MAX17205<'a> {
             // Get SOC mAh and percentage
             // Write reqcap address
             buffer[0] = Registers::RepCap as u8;
-            self.i2c_lower.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadSOC);
 
             Ok(())
@@ -168,7 +170,8 @@ impl<'a> MAX17205<'a> {
             // Get current and voltage
             // Write Batt address
             buffer[0] = Registers::Batt as u8;
-            self.i2c_lower.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadVolt);
 
             Ok(())
@@ -182,7 +185,8 @@ impl<'a> MAX17205<'a> {
             // Get raw coulomb count.
             // Write Coulomb address
             buffer[0] = Registers::Coulomb as u8;
-            self.i2c_lower.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c_lower.write(buffer, 1);
             self.state.set(State::SetupReadCoulomb);
 
             Ok(())
@@ -194,7 +198,8 @@ impl<'a> MAX17205<'a> {
             self.i2c_upper.enable();
 
             buffer[0] = Registers::NRomID as u8;
-            self.i2c_upper.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c_upper.write(buffer, 1);
             self.state.set(State::SetupReadRomID);
 
             Ok(())
@@ -203,23 +208,26 @@ impl<'a> MAX17205<'a> {
 }
 
 impl i2c::I2CClient for MAX17205<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], error: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SetupReadStatus => {
                 // Read status
-                self.i2c_lower.read(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 2);
                 self.state.set(State::ReadStatus);
             }
             State::ReadStatus => {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
-                self.client.map(|client| client.status(status, error));
+                self.client.map(|client| {
+                    client.status(
+                        status,
+                        match error {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(e.into()),
+                        },
+                    )
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c_lower.disable();
@@ -227,7 +235,8 @@ impl i2c::I2CClient for MAX17205<'_> {
             }
             State::SetupReadSOC => {
                 // Write of SOC memory address complete, now issue read
-                self.i2c_lower.read(buffer, 4);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 4);
                 self.state.set(State::ReadSOC);
             }
             State::ReadSOC => {
@@ -244,27 +253,31 @@ impl i2c::I2CClient for MAX17205<'_> {
                     // Get SOC mAh and percentage
                     // Write reqcap address
                     selfbuf[0] = ((Registers::FullCapRep as u8) & 0xFF) as u8;
-                    self.i2c_lower.write(selfbuf, 1);
+                    // TODO verify errors
+                    let _ = self.i2c_lower.write(selfbuf, 1);
 
                     self.state.set(State::SetupReadCap);
                 });
             }
             State::SetupReadCap => {
                 // Now issue read
-                self.i2c_lower.read(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 2);
                 self.state.set(State::ReadCap);
             }
             State::ReadCap => {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
                 self.client.map(|client| {
-                    client.state_of_charge(self.soc.get(), self.soc_mah.get(), full_mah, error);
+                    client.state_of_charge(
+                        self.soc.get(),
+                        self.soc_mah.get(),
+                        full_mah,
+                        match error {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(e.into()),
+                        },
+                    );
                 });
 
                 self.buffer.replace(buffer);
@@ -273,21 +286,22 @@ impl i2c::I2CClient for MAX17205<'_> {
             }
             State::SetupReadCoulomb => {
                 // Write of voltage memory address complete, now issue read
-                self.i2c_lower.read(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 2);
                 self.state.set(State::ReadCoulomb);
             }
             State::ReadCoulomb => {
                 // Read of voltage memory address complete
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
                 self.client.map(|client| {
-                    client.coulomb(coulomb, error);
+                    client.coulomb(
+                        coulomb,
+                        match error {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(e.into()),
+                        },
+                    );
                 });
 
                 self.buffer.replace(buffer);
@@ -296,7 +310,8 @@ impl i2c::I2CClient for MAX17205<'_> {
             }
             State::SetupReadVolt => {
                 // Write of voltage memory address complete, now issue read
-                self.i2c_lower.read(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 2);
                 self.state.set(State::ReadVolt);
             }
             State::ReadVolt => {
@@ -310,34 +325,39 @@ impl i2c::I2CClient for MAX17205<'_> {
                 // Setup read capacity
                 self.buffer.take().map(|selfbuf| {
                     selfbuf[0] = ((Registers::Current as u8) & 0xFF) as u8;
-                    self.i2c_lower.write(selfbuf, 1);
+                    // TODO verify errors
+                    let _ = self.i2c_lower.write(selfbuf, 1);
 
                     self.state.set(State::SetupReadCurrent);
                 });
             }
             State::SetupReadCurrent => {
                 // Now issue read
-                self.i2c_lower.read(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c_lower.read(buffer, 2);
                 self.state.set(State::ReadCurrent);
             }
             State::ReadCurrent => {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
-                self.client
-                    .map(|client| client.voltage_current(self.voltage.get(), current, error));
+                self.client.map(|client| {
+                    client.voltage_current(
+                        self.voltage.get(),
+                        current,
+                        match error {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(e.into()),
+                        },
+                    )
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c_lower.disable();
                 self.state.set(State::Idle);
             }
             State::SetupReadRomID => {
-                self.i2c_upper.read(buffer, 8);
+                // TODO verify errors
+                let _ = self.i2c_upper.read(buffer, 8);
                 self.state.set(State::ReadRomID);
             }
             State::ReadRomID => {
@@ -349,13 +369,15 @@ impl i2c::I2CClient for MAX17205<'_> {
                     .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
                 self.buffer.replace(buffer);
 
-                let error = if _error != i2c::Error::CommandComplete {
-                    Err(ErrorCode::NOACK)
-                } else {
-                    Ok(())
-                };
-
-                self.client.map(|client| client.romid(rid, error));
+                self.client.map(|client| {
+                    client.romid(
+                        rid,
+                        match error {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(e.into()),
+                        },
+                    )
+                });
 
                 self.i2c_upper.disable();
                 self.state.set(State::Idle);
@@ -518,7 +540,7 @@ impl Driver for MAX17205Driver<'_> {
             0 => CommandReturn::success(),
 
             // read status
-            1 => self.max17205.setup_read_status().into(),
+            1 => self.max17205.setup_readstatus().into(),
 
             // get soc
             2 => self.max17205.setup_read_soc().into(),

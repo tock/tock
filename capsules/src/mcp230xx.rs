@@ -218,7 +218,8 @@ impl<'a> MCP230xx<'a> {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state.set(State::SelectIoDir(pin_number, direction));
 
             Ok(())
@@ -231,7 +232,8 @@ impl<'a> MCP230xx<'a> {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state
                 .set(State::SelectIoDirForGpPu(pin_number, enabled));
 
@@ -244,7 +246,8 @@ impl<'a> MCP230xx<'a> {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpio(pin_number, value));
 
             Ok(())
@@ -256,7 +259,8 @@ impl<'a> MCP230xx<'a> {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioToggle(pin_number));
 
             Ok(())
@@ -268,7 +272,8 @@ impl<'a> MCP230xx<'a> {
             self.i2c.enable();
 
             buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioRead(pin_number));
 
             Ok(())
@@ -302,7 +307,8 @@ impl<'a> MCP230xx<'a> {
             // The next register is the IoCon (configuration) register, which
             // we also want to set.
             buffer[i] = 0b00000010; // Make MCP230xx interrupt pin active high.
-            self.i2c.write(buffer, (i + 1) as u8);
+                                    // TODO verify errors
+            let _ = self.i2c.write(buffer, (i + 1) as u8);
             self.state.set(State::EnableInterruptSettings(pin_number));
 
             Ok(())
@@ -319,7 +325,8 @@ impl<'a> MCP230xx<'a> {
             // Just have to write the new interrupt settings.
             buffer[0] = self.calc_register_addr(Registers::GpIntEn, pin_number);
             buffer[1] = self.get_pin_interrupt_enabled_state(pin_number);
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
             Ok(())
@@ -382,10 +389,11 @@ impl<'a> MCP230xx<'a> {
 }
 
 impl hil::i2c::I2CClient for MCP230xx<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: hil::i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadIoDir(pin_number, direction));
             }
             State::ReadIoDir(pin_number, direction) => {
@@ -395,23 +403,27 @@ impl hil::i2c::I2CClient for MCP230xx<'_> {
                     buffer[1] = buffer[0] & !(1 << pin_number);
                 }
                 buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::SelectIoDirForGpPu(pin_number, enabled) => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadIoDirForGpPu(pin_number, enabled));
             }
             State::ReadIoDirForGpPu(pin_number, enabled) => {
                 // Make sure the pin is enabled.
                 buffer[1] = buffer[0] | (1 << pin_number);
                 buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::SetIoDirForGpPu(pin_number, enabled));
             }
             State::SetIoDirForGpPu(pin_number, enabled) => {
                 buffer[0] = self.calc_register_addr(Registers::GpPu, pin_number);
-                self.i2c.write(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 1);
                 self.state.set(State::ReadGpPu(pin_number, enabled));
             }
             State::ReadGpPu(pin_number, enabled) => {
@@ -422,11 +434,13 @@ impl hil::i2c::I2CClient for MCP230xx<'_> {
                 };
                 buffer[0] = self.calc_register_addr(Registers::GpPu, pin_number);
                 buffer[1] = pullup;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::SelectGpio(pin_number, value) => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadGpio(pin_number, value));
             }
             State::ReadGpio(pin_number, value) => {
@@ -435,21 +449,25 @@ impl hil::i2c::I2CClient for MCP230xx<'_> {
                     PinState::Low => buffer[0] & !(1 << pin_number),
                 };
                 buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::SelectGpioToggle(pin_number) => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadGpioToggle(pin_number));
             }
             State::ReadGpioToggle(pin_number) => {
                 buffer[1] = buffer[0] ^ (1 << pin_number);
                 buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::SelectGpioRead(pin_number) => {
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadGpioRead(pin_number));
             }
             State::ReadGpioRead(pin_number) => {
@@ -468,12 +486,14 @@ impl hil::i2c::I2CClient for MCP230xx<'_> {
                 // back, just write the entire register with our saved state.
                 buffer[0] = self.calc_register_addr(Registers::GpIntEn, pin_number);
                 buffer[1] = self.get_pin_interrupt_enabled_state(pin_number);
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::ReadInterruptSetup(bank_number) => {
                 // Now read the interrupt flags and the state of the lines
-                self.i2c.read(buffer, 3);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 3);
                 self.state.set(State::ReadInterruptValues(bank_number));
             }
             State::ReadInterruptValues(bank_number) => {
@@ -543,7 +563,8 @@ impl gpio::ClientWithValue for MCP230xx<'_> {
             // interrupted.
             buffer[0] =
                 self.calc_register_addr(Registers::IntF, bank_number as u8 * self.bank_size);
-            self.i2c.write(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 1);
             self.state.set(State::ReadInterruptSetup(bank_number as u8));
         });
     }

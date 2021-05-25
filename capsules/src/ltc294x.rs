@@ -172,7 +172,8 @@ impl<'a> LTC294X<'a> {
             self.i2c.enable();
 
             // Address pointer automatically resets to the status register.
-            self.i2c.read(buffer, 1);
+            // TODO verify errors
+            let _ = self.i2c.read(buffer, 1);
             self.state.set(State::ReadStatus);
 
             Ok(())
@@ -191,7 +192,8 @@ impl<'a> LTC294X<'a> {
             buffer[0] = Registers::Control as u8;
             buffer[1] = ((int_pin_conf as u8) << 1) | (prescaler << 3) | ((vbat_alert as u8) << 6);
 
-            self.i2c.write(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
             Ok(())
@@ -207,7 +209,8 @@ impl<'a> LTC294X<'a> {
             buffer[1] = 0;
             buffer[2] = 0;
 
-            self.i2c.write(buffer, 3);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
             Ok(())
@@ -222,7 +225,8 @@ impl<'a> LTC294X<'a> {
             buffer[1] = ((threshold & 0xFF00) >> 8) as u8;
             buffer[2] = (threshold & 0xFF) as u8;
 
-            self.i2c.write(buffer, 3);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
             Ok(())
@@ -237,7 +241,8 @@ impl<'a> LTC294X<'a> {
             buffer[1] = ((threshold & 0xFF00) >> 8) as u8;
             buffer[2] = (threshold & 0xFF) as u8;
 
-            self.i2c.write(buffer, 3);
+            // TODO verify errors
+            let _ = self.i2c.write(buffer, 3);
             self.state.set(State::Done);
 
             Ok(())
@@ -251,7 +256,8 @@ impl<'a> LTC294X<'a> {
 
             // Read all of the first four registers rather than wasting
             // time writing an address.
-            self.i2c.read(buffer, 4);
+            // TODO verify errors
+            let _ = self.i2c.read(buffer, 4);
             self.state.set(State::ReadCharge);
 
             Ok(())
@@ -266,7 +272,8 @@ impl<'a> LTC294X<'a> {
                 self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.i2c.enable();
 
-                    self.i2c.read(buffer, 10);
+                    // TODO verify errors
+                    let _ = self.i2c.read(buffer, 10);
                     self.state.set(State::ReadVoltage);
 
                     Ok(())
@@ -283,7 +290,8 @@ impl<'a> LTC294X<'a> {
             ChipModel::LTC2943 => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                 self.i2c.enable();
 
-                self.i2c.read(buffer, 16);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 16);
                 self.state.set(State::ReadCurrent);
 
                 Ok(())
@@ -299,7 +307,8 @@ impl<'a> LTC294X<'a> {
 
             // Read both the status and control register rather than
             // writing an address.
-            self.i2c.read(buffer, 2);
+            // TODO verify errors
+            let _ = self.i2c.read(buffer, 2);
             self.state.set(State::ReadShutdown);
 
             Ok(())
@@ -327,7 +336,7 @@ impl<'a> LTC294X<'a> {
 }
 
 impl i2c::I2CClient for LTC294X<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadStatus => {
                 let status = buffer[0];
@@ -382,7 +391,8 @@ impl i2c::I2CClient for LTC294X<'_> {
                 // Write the control register back but with a 1 in the shutdown
                 // bit.
                 buffer[0] = Registers::Control as u8;
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
             State::Done => {

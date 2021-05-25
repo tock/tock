@@ -3,7 +3,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::StaticRef;
-use kernel::hil::i2c;
+use kernel::hil::i2c::{self, Error};
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Speed {
@@ -124,14 +124,14 @@ impl<'a> I2c<'a> {
         self.registers.tbcnt.set(val as u16);
     }
 
-    fn invoke_callback(&self, err: i2c::Error) {
+    fn invoke_callback(&self, status: Result<(), Error>) {
         // Reset buffer index and set mode to Idle in order to start a new transfer properly
         self.buf_idx.set(0);
         self.mode.set(OperatingMode::Idle);
 
         self.buffer.take().map(|buf| {
             self.master_client
-                .map(move |cl| cl.command_complete(buf, err))
+                .map(move |cl| cl.command_complete(buf, status))
         });
     }
 
@@ -233,7 +233,7 @@ impl<'a> I2c<'a> {
                 // For some reason generating a stop condition manually in receive mode doesn't
                 // trigger a stop condition interrupt -> invoke the callback here when all bytes
                 // were received
-                self.invoke_callback(i2c::Error::CommandComplete);
+                self.invoke_callback(Ok(()));
             }
         } else if (ifg & (1 << usci::UCBxIFG::UCSTTIFG.shift)) > 0 {
             // Start condition interrupt
@@ -247,20 +247,20 @@ impl<'a> I2c<'a> {
 
             // This interrupt is the default indicator that a transaction finished, thus raise the
             // callback here and prepare for another transfer
-            self.invoke_callback(i2c::Error::CommandComplete);
+            self.invoke_callback(Ok(()));
         } else if (ifg & (1 << usci::UCBxIFG::UCNACKIFG.shift)) > 0 {
             // NACK interrupt
             // TODO: use byte counter to detect address NAK
 
             // Cancel i2c transfer
             self.generate_stop_condition();
-            self.invoke_callback(i2c::Error::DataNak);
+            self.invoke_callback(Err(Error::DataNak));
         } else if (ifg & (1 << usci::UCBxIFG::UCALIFG.shift)) > 0 {
             // Arbitration lost  interrupt
 
             // Cancel i2c transfer
             self.generate_stop_condition();
-            self.invoke_callback(i2c::Error::ArbitrationLost);
+            self.invoke_callback(Err(Error::Busy));
         } else {
             panic!("I2C: unhandled interrupt, ifg: {}", ifg);
         }
@@ -286,10 +286,15 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         self.mode.set(OperatingMode::Disabled);
     }
 
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return;
+            return Err((Error::Busy, data));
         }
 
         self.buffer.replace(data);
@@ -315,12 +320,19 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
 
         // Start transfer
         self.generate_start_condition();
+
+        Ok(())
     }
 
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return;
+            return Err((Error::Busy, buffer));
         }
 
         self.buffer.replace(buffer);
@@ -344,12 +356,19 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
 
         // Start transfer
         self.generate_start_condition();
+        Ok(())
     }
 
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
-            return;
+            return Err((Error::Busy, data));
         }
 
         self.buffer.replace(data);
@@ -371,5 +390,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
 
         // Start transfer
         self.generate_start_condition();
+
+        Ok(())
     }
 }

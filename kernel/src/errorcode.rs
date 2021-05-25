@@ -8,7 +8,7 @@ use core::convert::TryFrom;
 /// does not feature any success cases and is therefore more appropriate for the
 /// Tock 2.0 system call interface, where success payloads and errors are not
 /// packed into the same 32-bit wide register.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]
 pub enum ErrorCode {
     // Reserved value, for when "no error" / "success" should be

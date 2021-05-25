@@ -506,10 +506,7 @@ impl<'a> Iom<'_> {
                 || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
             {
                 self.master_client.map(|client| {
-                    client.command_complete(
-                        self.buffer.take().unwrap(),
-                        hil::i2c::Error::CommandComplete,
-                    );
+                    client.command_complete(self.buffer.take().unwrap(), Ok(()));
                 });
 
                 // Finished with SMBus
@@ -530,7 +527,13 @@ impl<'a> Iom<'_> {
         }
     }
 
-    fn tx_rx(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn tx_rx(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
         let mut offsetlo = 0;
 
@@ -564,37 +567,38 @@ impl<'a> Iom<'_> {
             regs.offsethi.set(data[1] as u32 | ((data[2] as u32) << 8));
         }
 
-        // Save all the data and offsets we still need to send
-        self.buffer.replace(data);
-        self.write_len.set(write_len as usize);
-        self.read_len.set(read_len as usize);
-        self.write_index.set(0);
-        self.read_index.set(0);
-
         if write_len > 3 {
-            // We can't suppord that much data, bail out now
-            self.master_client.map(|client| {
-                client.command_complete(self.buffer.take().unwrap(), hil::i2c::Error::NotSupported);
-            });
-            return;
+            Err((i2c::Error::NotSupported, data))
+        } else {
+            // Save all the data and offsets we still need to send
+            self.buffer.replace(data);
+            self.write_len.set(write_len as usize);
+            self.read_len.set(read_len as usize);
+            self.write_index.set(0);
+            self.read_index.set(0);
+            // Clear and enable interrupts
+            regs.intclr.set(0xFFFF_FFFF);
+            regs.inten.set(0xFFFF_FFFF);
+
+            // Start the transfer
+            regs.cmd.write(
+                CMD::TSIZE.val(read_len as u32)
+                    + CMD::CMD::READ
+                    + CMD::OFFSETCNT.val(write_len as u32)
+                    + CMD::OFFSETLO.val(offsetlo),
+            );
+
+            self.read_data();
+            Ok(())
         }
-
-        // Clear and enable interrupts
-        regs.intclr.set(0xFFFF_FFFF);
-        regs.inten.set(0xFFFF_FFFF);
-
-        // Start the transfer
-        regs.cmd.write(
-            CMD::TSIZE.val(read_len as u32)
-                + CMD::CMD::READ
-                + CMD::OFFSETCNT.val(write_len as u32)
-                + CMD::OFFSETLO.val(offsetlo),
-        );
-
-        self.read_data();
     }
 
-    fn tx(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn tx(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Disable DMA as we don't support it
@@ -632,9 +636,15 @@ impl<'a> Iom<'_> {
         // Start the transfer
         regs.cmd
             .write(CMD::TSIZE.val(len as u32) + CMD::CMD::WRITE + CMD::CONT::CLEAR);
+        Ok(())
     }
 
-    fn rx(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn rx(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Disable DMA as we don't support it
@@ -672,6 +682,8 @@ impl<'a> Iom<'_> {
         self.read_index.set(0);
 
         self.read_data();
+
+        Ok(())
     }
 }
 
@@ -718,16 +730,32 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         regs.submodctrl.write(SUBMODCTRL::SMOD1EN::CLEAR);
     }
 
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.tx_rx(addr, data, write_len, read_len);
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        self.tx_rx(addr, data, write_len, read_len)
     }
 
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        self.tx(addr, data, len);
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        self.tx(addr, data, len)
     }
 
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.rx(addr, buffer, len);
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        self.rx(addr, buffer, len)
     }
 }
 
@@ -738,7 +766,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         data: &'static mut [u8],
         write_len: u8,
         read_len: u8,
-    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz
@@ -753,8 +781,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.tx_rx(addr, data, write_len, read_len);
-        Ok(())
+        self.tx_rx(addr, data, write_len, read_len)
     }
 
     fn smbus_write(
@@ -762,7 +789,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         addr: u8,
         data: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz
@@ -777,8 +804,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.tx(addr, data, len);
-        Ok(())
+        self.tx(addr, data, len)
     }
 
     fn smbus_read(
@@ -786,7 +812,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         addr: u8,
         buffer: &'static mut [u8],
         len: u8,
-    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
         // Setup 100kHz
@@ -801,7 +827,6 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.rx(addr, buffer, len);
-        Ok(())
+        self.rx(addr, buffer, len)
     }
 }

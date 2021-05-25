@@ -135,7 +135,8 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
                 buffer[0] = ((Registers::MEASHIGHREP as u16) >> 8) as u8;
                 buffer[1] = ((Registers::MEASHIGHREP as u16) & 0xff) as u8;
 
-                self.i2c.write(buffer, 2);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, 2);
 
                 Ok(())
             },
@@ -165,9 +166,9 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: i2c::Error) {
-        match error {
-            i2c::Error::CommandComplete => {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
+        match status {
+            Ok(()) => {
                 let state = self.state.get();
 
                 match state {

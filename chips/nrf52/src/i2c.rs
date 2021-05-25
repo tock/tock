@@ -92,7 +92,7 @@ impl TWIM {
             self.client.map(|client| match self.buf.take() {
                 None => (),
                 Some(buf) => {
-                    client.command_complete(buf, hil::i2c::Error::CommandComplete);
+                    client.command_complete(buf, Ok(()));
                 }
             });
         }
@@ -106,14 +106,14 @@ impl TWIM {
             self.client.map(|client| match self.buf.take() {
                 None => (),
                 Some(buf) => {
-                    let i2c_error = if errorsrc.is_set(ERRORSRC::ANACK) {
-                        hil::i2c::Error::AddressNak
+                    let status = if errorsrc.is_set(ERRORSRC::ANACK) {
+                        Err(hil::i2c::Error::AddressNak)
                     } else if errorsrc.is_set(ERRORSRC::DNACK) {
-                        hil::i2c::Error::DataNak
+                        Err(hil::i2c::Error::DataNak)
                     } else {
-                        hil::i2c::Error::CommandComplete
+                        Ok(())
                     };
-                    client.command_complete(buf, i2c_error);
+                    client.command_complete(buf, status);
                 }
             });
         }
@@ -142,7 +142,13 @@ impl hil::i2c::I2CMaster for TWIM {
         self.disable();
     }
 
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));
@@ -167,9 +173,15 @@ impl hil::i2c::I2CMaster for TWIM {
         // start the transfer
         self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
+        Ok(())
     }
 
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));
@@ -188,9 +200,15 @@ impl hil::i2c::I2CMaster for TWIM {
         // start the transfer
         self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
+        Ok(())
     }
 
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address
             .write(ADDRESS::ADDRESS.val(addr as u32));
@@ -209,6 +227,7 @@ impl hil::i2c::I2CMaster for TWIM {
         // start the transfer
         self.registers.tasks_startrx.write(TASK::TASK::SET);
         self.buf.replace(buffer);
+        Ok(())
     }
 }
 

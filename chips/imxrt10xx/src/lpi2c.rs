@@ -602,7 +602,7 @@ impl<'a> Lpi2c<'a> {
                         self.master_client.map(|client| {
                             self.buffer
                                 .take()
-                                .map(|buf| client.command_complete(buf, Error::DataNak))
+                                .map(|buf| client.command_complete(buf, Err(Error::DataNak)))
                         });
                     } else {
                         if self.status.get() == Lpi2cStatus::Writing {
@@ -611,7 +611,7 @@ impl<'a> Lpi2c<'a> {
                             self.master_client.map(|client| {
                                 self.buffer
                                     .take()
-                                    .map(|buf| client.command_complete(buf, Error::CommandComplete))
+                                    .map(|buf| client.command_complete(buf, Ok(())))
                             });
                         } else {
                             self.status.set(Lpi2cStatus::Reading);
@@ -626,14 +626,14 @@ impl<'a> Lpi2c<'a> {
                         self.master_client.map(|client| {
                             self.buffer
                                 .take()
-                                .map(|buf| client.command_complete(buf, Error::CommandComplete))
+                                .map(|buf| client.command_complete(buf, Ok(())))
                         });
                     } else {
                         self.stop();
                         self.master_client.map(|client| {
                             self.buffer
                                 .take()
-                                .map(|buf| client.command_complete(buf, Error::DataNak))
+                                .map(|buf| client.command_complete(buf, Err(Error::DataNak)))
                         });
                     }
                 }
@@ -646,7 +646,7 @@ impl<'a> Lpi2c<'a> {
             self.registers.msr.modify(MSR::NDF::SET);
             self.registers.mtdr.write(MTDR::CMD.val(0b010));
             self.stop();
-            let err = Error::DataNak;
+            let err = Err(Error::DataNak);
             self.master_client.map(|client| {
                 self.buffer
                     .take()
@@ -722,7 +722,13 @@ impl i2c::I2CMaster for Lpi2c<'_> {
     fn disable(&self) {
         self.registers.mcr.modify(MCR::MEN::CLEAR);
     }
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::WritingReading);
@@ -732,10 +738,18 @@ impl i2c::I2CMaster for Lpi2c<'_> {
             self.rx_len.set(read_len);
             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::CLEAR);
             self.start_write();
+            Ok(())
+        } else {
+            Err((i2c::Error::Busy, data))
         }
     }
 
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::Writing);
@@ -744,10 +758,18 @@ impl i2c::I2CMaster for Lpi2c<'_> {
             self.tx_len.set(len);
             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::CLEAR);
             self.start_write();
+            Ok(())
+        } else {
+            Err((i2c::Error::Busy, data))
         }
     }
 
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         if self.status.get() == Lpi2cStatus::Idle {
             self.reset();
             self.status.set(Lpi2cStatus::Reading);
@@ -756,6 +778,9 @@ impl i2c::I2CMaster for Lpi2c<'_> {
             self.rx_len.set(len);
             self.registers.mcfgr1.modify(MCFGR1::AUTOSTOP::CLEAR);
             self.start_read();
+            Ok(())
+        } else {
+            Err((i2c::Error::Busy, buffer))
         }
     }
 }

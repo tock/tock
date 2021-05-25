@@ -83,7 +83,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::i2c::{self, Error};
+use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
@@ -216,7 +216,8 @@ impl<'a> Lsm303agrI2C<'a> {
             // turn on i2c to send commands
             buf[0] = 0x0F;
             self.i2c_magnetometer.enable();
-            self.i2c_magnetometer.write_read(buf, 1, 1);
+            // TODO verify errors
+            let _ = self.i2c_magnetometer.write_read(buf, 1, 1);
         });
     }
 
@@ -232,7 +233,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     + CTRL_REG1::XEN::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write(buf, 2);
             });
         }
     }
@@ -250,7 +252,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     + CTRL_REG4::BDU::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write(buf, 2);
             });
         }
     }
@@ -261,7 +264,8 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write_read(buf, 1, 6);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write_read(buf, 1, 6);
             });
         }
     }
@@ -273,7 +277,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
                 buf[1] = ((data_rate as u8) << 2) | 1 << 7;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write(buf, 2);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write(buf, 2);
             });
         }
     }
@@ -288,7 +293,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[1] = (range as u8) << 5;
                 buf[2] = 0;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write(buf, 3);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write(buf, 3);
             });
         }
     }
@@ -299,7 +305,8 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = AgrAccelerometerRegisters::TEMP_OUT_H_A as u8;
                 self.i2c_accelerometer.enable();
-                self.i2c_accelerometer.write_read(buf, 1, 2);
+                // TODO verify errors
+                let _ = self.i2c_accelerometer.write_read(buf, 1, 2);
             });
         }
     }
@@ -310,17 +317,18 @@ impl<'a> Lsm303agrI2C<'a> {
             self.buffer.take().map(|buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.enable();
-                self.i2c_magnetometer.write_read(buf, 1, 6);
+                // TODO verify errors
+                let _ = self.i2c_magnetometer.write_read(buf, 1, 6);
             });
         }
     }
 }
 
 impl i2c::I2CClient for Lsm303agrI2C<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
-                let present = if error == Error::CommandComplete && buffer[0] == 60 {
+                let present = if status == Ok(()) && buffer[0] == 60 {
                     true
                 } else {
                     false
@@ -335,7 +343,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.state.set(State::Idle);
             }
             State::SetPowerMode => {
-                let set_power = error == Error::CommandComplete;
+                let set_power = status == Ok(());
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
                         app.upcall.schedule(if set_power { 1 } else { 0 }, 0, 0);
@@ -352,7 +360,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 }
             }
             State::SetScaleAndResolution => {
-                let set_scale_and_resolution = error == Error::CommandComplete;
+                let set_scale_and_resolution = status == Ok(());
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
                         app.upcall
@@ -370,7 +378,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
                 let mut z: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let scale_factor = self.accel_scale.get() as usize;
@@ -413,7 +421,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.state.set(State::Idle);
             }
             State::SetDataRate => {
-                let set_magneto_data_rate = error == Error::CommandComplete;
+                let set_magneto_data_rate = status == Ok(());
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
                         app.upcall
@@ -428,7 +436,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 }
             }
             State::SetRange => {
-                let set_range = error == Error::CommandComplete;
+                let set_range = status == Ok(());
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |app| {
                         app.upcall.schedule(if set_range { 1 } else { 0 }, 0, 0);
@@ -443,7 +451,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             }
             State::ReadTemperature => {
                 let mut temp: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     temp = (buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as usize;
                     self.temperature_client.map(|client| {
                         client.callback((temp as i16 / 8) as usize);
@@ -472,7 +480,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
                 let mut z: usize = 0;
-                let values = if error == Error::CommandComplete {
+                let values = if status == Ok(()) {
                     self.nine_dof_client.map(|client| {
                         // compute using only integers
                         let range = self.mag_range.get() as usize;

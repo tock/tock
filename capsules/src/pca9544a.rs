@@ -101,7 +101,8 @@ impl<'a> PCA9544A<'a> {
                     }
                 }
 
-                self.i2c.write(buffer, index as u8);
+                // TODO verify errors
+                let _ = self.i2c.write(buffer, index as u8);
                 self.state.set(State::Done);
 
                 CommandReturn::success()
@@ -123,7 +124,8 @@ impl<'a> PCA9544A<'a> {
                 self.i2c.enable();
 
                 // Just issuing a read to the selector reads its control register.
-                self.i2c.read(buffer, 1);
+                // TODO verify errors
+                let _ = self.i2c.read(buffer, 1);
                 self.state.set(State::ReadControl(field));
 
                 CommandReturn::success()
@@ -132,7 +134,7 @@ impl<'a> PCA9544A<'a> {
 }
 
 impl i2c::I2CClient for PCA9544A<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadControl(field) => {
                 let ret = match field {

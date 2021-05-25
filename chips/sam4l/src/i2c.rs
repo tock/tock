@@ -749,8 +749,6 @@ impl I2CHw {
     }
 
     pub fn handle_interrupt(&self) {
-        use kernel::hil::i2c::Error;
-
         let old_status = {
             let twim = &TWIMRegisterManager::new(&self);
 
@@ -772,13 +770,13 @@ impl I2CHw {
         };
 
         let err = if old_status.is_set(Status::ANAK) {
-            Some(Error::AddressNak)
+            Some(Err(hil::i2c::Error::AddressNak))
         } else if old_status.is_set(Status::DNAK) {
-            Some(Error::DataNak)
+            Some(Err(hil::i2c::Error::DataNak))
         } else if old_status.is_set(Status::ARBLST) {
-            Some(Error::ArbitrationLost)
+            Some(Err(hil::i2c::Error::ArbitrationLost))
         } else if old_status.is_set(Status::CCOMP) {
-            Some(Error::CommandComplete)
+            Some(Ok(()))
         } else {
             None
         };
@@ -940,15 +938,20 @@ impl I2CHw {
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
         len: u8,
-    ) {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
-            dma.enable();
-            dma.prepare_transfer(self.dma_pids.1, data, len as usize);
-            self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
-            self.master_enable(twim);
-            dma.start_transfer();
-        });
+        if self.dma.is_some() {
+            self.dma.map(move |dma| {
+                dma.enable();
+                dma.prepare_transfer(self.dma_pids.1, data, len as usize);
+                self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
+                self.master_enable(twim);
+                dma.start_transfer();
+            });
+            Ok(())
+        } else {
+            Err((hil::i2c::Error::NotSupported, data))
+        }
     }
 
     fn read(
@@ -957,39 +960,55 @@ impl I2CHw {
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
         len: u8,
-    ) {
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
-            dma.enable();
-            dma.prepare_transfer(self.dma_pids.0, data, len as usize);
-            self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
-            self.master_enable(twim);
-            dma.start_transfer();
-        });
+        if self.dma.is_some() {
+            self.dma.map(move |dma| {
+                dma.enable();
+                dma.prepare_transfer(self.dma_pids.0, data, len as usize);
+                self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
+                self.master_enable(twim);
+                dma.start_transfer();
+            });
+            Ok(())
+        } else {
+            Err((hil::i2c::Error::NotSupported, data))
+        }
     }
 
-    fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        chip: u8,
+        data: &'static mut [u8],
+        split: u8,
+        read_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
-            dma.enable();
-            dma.prepare_transfer(self.dma_pids.1, data, split as usize);
-            self.setup_transfer(
-                twim,
-                chip,
-                Command::START::StartCondition,
-                Command::READ::Transmit,
-                split,
-            );
-            self.setup_nextfer(
-                twim,
-                chip,
-                Command::START::StartCondition + Command::STOP::SendStop,
-                Command::READ::Receive,
-                read_len,
-            );
-            self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
-            dma.start_transfer();
-        });
+        if self.dma.is_some() {
+            self.dma.map(move |dma| {
+                dma.enable();
+                dma.prepare_transfer(self.dma_pids.1, data, split as usize);
+                self.setup_transfer(
+                    twim,
+                    chip,
+                    Command::START::StartCondition,
+                    Command::READ::Transmit,
+                    split,
+                );
+                self.setup_nextfer(
+                    twim,
+                    chip,
+                    Command::START::StartCondition + Command::STOP::SendStop,
+                    Command::READ::Receive,
+                    read_len,
+                );
+                self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
+                dma.start_transfer();
+            });
+            Ok(())
+        } else {
+            Err((hil::i2c::Error::NotSupported, data))
+        }
     }
 
     fn disable_interrupts(&self, twim: &TWIMRegisterManager) {
@@ -1220,12 +1239,15 @@ impl I2CHw {
     }
 
     /// Receive the bytes the I2C master is writing to us.
-    fn slave_write_receive(&self, buffer: &'static mut [u8], len: u8) {
-        self.slave_write_buffer.replace(buffer);
-        self.slave_write_buffer_len.set(len);
-
+    fn slave_write_receive(
+        &self,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
+                self.slave_write_buffer.replace(buffer);
+                self.slave_write_buffer_len.set(len);
                 let twis = &TWISRegisterManager::new(&self);
 
                 let status = twis.registers.sr.extract();
@@ -1237,18 +1259,26 @@ impl I2CHw {
                 if interrupts.is_set(StatusSlave::SAM) && !status.is_set(StatusSlave::TRA) {
                     twis.registers.scr.set(status.get());
                 }
+                Ok(())
+            } else {
+                Err((hil::i2c::Error::AddressNak, buffer))
             }
+        } else {
+            Err((hil::i2c::Error::NotSupported, buffer))
         }
     }
 
     /// Prepare a buffer for the I2C master to read from after a read call.
-    fn slave_read_send(&self, buffer: &'static mut [u8], len: u8) {
-        self.slave_read_buffer.replace(buffer);
-        self.slave_read_buffer_len.set(len);
-        self.slave_read_buffer_index.set(0);
-
+    fn slave_read_send(
+        &self,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
+                self.slave_read_buffer.replace(buffer);
+                self.slave_read_buffer_len.set(len);
+                self.slave_read_buffer_index.set(0);
                 let twis = &TWISRegisterManager::new(&self);
 
                 // Check to see if we should send the first byte.
@@ -1279,7 +1309,12 @@ impl I2CHw {
                     // Make it happen by clearing status.
                     twis.registers.scr.set(status.get());
                 }
+                Ok(())
+            } else {
+                Err((hil::i2c::Error::AddressNak, buffer))
             }
+        } else {
+            Err((hil::i2c::Error::NotSupported, buffer))
         }
     }
 
@@ -1350,27 +1385,43 @@ impl hil::i2c::I2CMaster for I2CHw {
         self.disable_interrupts(twim);
     }
 
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write(
             self,
             addr,
             Command::START::StartCondition + Command::STOP::SendStop,
             data,
             len,
-        );
+        )
     }
 
-    fn read(&self, addr: u8, data: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::read(
             self,
             addr,
             Command::START::StartCondition + Command::STOP::SendStop,
             data,
             len,
-        );
+        )
     }
 
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write_read(self, addr, data, write_len, read_len)
     }
 }
@@ -1425,16 +1476,25 @@ impl hil::i2c::I2CSlave for I2CHw {
         }
     }
 
-    fn set_address(&self, addr: u8) {
+    fn set_address(&self, addr: u8) -> Result<(), hil::i2c::Error> {
         self.slave_set_address(addr);
+        Ok(())
     }
 
-    fn write_receive(&self, data: &'static mut [u8], max_len: u8) {
-        self.slave_write_receive(data, max_len);
+    fn write_receive(
+        &self,
+        data: &'static mut [u8],
+        max_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        self.slave_write_receive(data, max_len)
     }
 
-    fn read_send(&self, data: &'static mut [u8], max_len: u8) {
-        self.slave_read_send(data, max_len);
+    fn read_send(
+        &self,
+        data: &'static mut [u8],
+        max_len: u8,
+    ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        self.slave_read_send(data, max_len)
     }
 
     fn listen(&self) {

@@ -1,5 +1,8 @@
 //! Interface for I2C master and slave peripherals.
 
+use crate::ErrorCode;
+
+use core::convert::Into;
 use core::fmt;
 use core::fmt::{Display, Formatter};
 
@@ -25,8 +28,20 @@ pub enum Error {
     /// The requested operation wasn't supported.
     NotSupported,
 
-    /// No error occured and the command completed successfully.
-    CommandComplete,
+    /// The underlaying device has another request in progress
+    Busy,
+}
+
+impl Into<ErrorCode> for Error {
+    fn into(self) -> ErrorCode {
+        match self {
+            Self::AddressNak | Self::DataNak => ErrorCode::NOACK,
+            Self::ArbitrationLost => ErrorCode::RESERVE,
+            Self::Overrun => ErrorCode::SIZE,
+            Self::NotSupported => ErrorCode::NOSUPPORT,
+            Self::Busy => ErrorCode::BUSY,
+        }
+    }
 }
 
 impl Display for Error {
@@ -37,7 +52,7 @@ impl Display for Error {
             Error::ArbitrationLost => "I2C Bus Arbitration Lost",
             Error::Overrun => "I2C receive overrun",
             Error::NotSupported => "I2C/SMBus command not supported",
-            Error::CommandComplete => "I2C Command Completed",
+            Error::Busy => "I2C/SMBus is busy",
         };
         write!(fmt, "{}", display_str)
     }
@@ -55,9 +70,25 @@ pub trait I2CMaster {
     fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient);
     fn enable(&self);
     fn disable(&self);
-    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8);
-    fn write(&self, addr: u8, data: &'static mut [u8], len: u8);
-    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8);
+    fn write_read(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+    fn write(
+        &self,
+        addr: u8,
+        data: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+    fn read(
+        &self,
+        addr: u8,
+        buffer: &'static mut [u8],
+        len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
 }
 
 /// Interface for an SMBus Master hardware driver.
@@ -128,9 +159,17 @@ pub trait I2CSlave {
     fn set_slave_client(&self, slave_client: &'static dyn I2CHwSlaveClient);
     fn enable(&self);
     fn disable(&self);
-    fn set_address(&self, addr: u8);
-    fn write_receive(&self, data: &'static mut [u8], max_len: u8);
-    fn read_send(&self, data: &'static mut [u8], max_len: u8);
+    fn set_address(&self, addr: u8) -> Result<(), Error>;
+    fn write_receive(
+        &self,
+        data: &'static mut [u8],
+        max_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+    fn read_send(
+        &self,
+        data: &'static mut [u8],
+        max_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
     fn listen(&self);
 }
 
@@ -142,7 +181,7 @@ pub trait I2CMasterSlave: I2CMaster + I2CSlave {}
 pub trait I2CHwMasterClient {
     /// Called when an I2C command completed. The `error` denotes whether the command completed
     /// successfully or if an error occured.
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error);
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>);
 }
 
 /// Client interface for capsules that use I2CSlave devices.
@@ -176,9 +215,14 @@ pub trait I2CHwSlaveClient {
 pub trait I2CDevice {
     fn enable(&self);
     fn disable(&self);
-    fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8);
-    fn write(&self, data: &'static mut [u8], len: u8);
-    fn read(&self, buffer: &'static mut [u8], len: u8);
+    fn write_read(
+        &self,
+        data: &'static mut [u8],
+        write_len: u8,
+        read_len: u8,
+    ) -> Result<(), (Error, &'static mut [u8])>;
+    fn write(&self, data: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])>;
+    fn read(&self, buffer: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])>;
 }
 
 pub trait SMBusDevice: I2CDevice {
@@ -239,5 +283,5 @@ pub trait SMBusDevice: I2CDevice {
 pub trait I2CClient {
     /// Called when an I2C command completed. The `error` denotes whether the command completed
     /// successfully or if an error occured.
-    fn command_complete(&self, buffer: &'static mut [u8], error: Error);
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>);
 }
