@@ -297,6 +297,10 @@ pub unsafe fn main() {
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 
+    let _mux_otbn = components::accel::AccelMuxComponent::new(&peripherals.otbn).finalize(
+        components::accel_mux_component_helper!(lowrisc::otbn::Otbn, 1024),
+    );
+
     peripherals.otbn.initialise(
         dynamic_deferred_caller
             .register(&peripherals.otbn)
