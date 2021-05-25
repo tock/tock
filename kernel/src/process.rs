@@ -1180,6 +1180,17 @@ impl<C: Chip> ProcessType for Process<'_, C> {
                     // TODO: We do not currently satisfy the second promise.
                     let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
                     Ok(Some(slice))
+                } else if self.in_mpu_accessible_memory(buf_start_addr, size) {
+                    // Ti50-specific addition. This will need to be adjusted for
+                    // Tock 2.0's RO/RW allows.
+
+                    // The `unsafe` promise we should be making here is that this
+                    // buffer is inside of app memory and that it does not create any
+                    // aliases (i.e. the same buffer has not been `allow`ed twice).
+                    //
+                    // TODO: We do not currently satisfy the second promise.
+                    let slice = unsafe { AppSlice::new(buf_start, size, self.appid()) };
+                    Ok(Some(slice))
                 } else {
                     Err(ReturnCode::EINVAL)
                 }
@@ -2205,6 +2216,29 @@ impl<C: 'static + Chip> Process<'_, C> {
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.mem_start()
             && buf_end_addr <= self.app_break.get()
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are in some MPU region accessible to the process currently.
+    fn in_mpu_accessible_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        for region in self.mpu_regions.iter() {
+            let region = region.get();
+            if region.is_none() {
+                continue;
+            }
+            let region = region.unwrap();
+            let region_start_addr = region.start_address();
+            let region_end_addr = region_start_addr.wrapping_add(region.size());
+            let buf_end_addr = buf_start_addr.wrapping_add(size);
+
+            if buf_end_addr >= buf_start_addr
+                && buf_start_addr >= region_start_addr
+                && buf_end_addr <= region_end_addr
+            {
+                return true;
+            }
+        }
+        false
     }
 
     /// Reset all `grant_ptr`s to NULL.
