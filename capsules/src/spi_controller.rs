@@ -18,7 +18,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Spi as usize;
 pub const DEFAULT_READ_BUF_LENGTH: usize = 1024;
 pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 
-// SPI operations are handled by coping into a kernel buffer for
+// SPI operations are handled by copying into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
 //
 // If the application buffer is larger than the kernel buffer,
