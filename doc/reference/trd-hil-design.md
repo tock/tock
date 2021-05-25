@@ -74,6 +74,9 @@ design rules for HILs. They are:
 8. Use fine-grained traits that separate out different use cases.
 9. Separate control and datapath operations into separate traits.
 10. Blocking APIs are not general: use them sparingly, if at all.
+11. Do not include an `initialize()` method.
+12. Do include a `set_client()` method.
+13. Use a generic lifetime where possible.
 
 The rest of this document describes each of these rules and their
 reasoning.
@@ -278,12 +281,12 @@ speaking, every HIL operation should return a Rust `Result` type, whose `Err`
 variant includes an error code. The Tock kernel provides a standard set of
 error codes, oriented towards system calls, in the `kernel::ErrorCode` enum.
 
-HILs SHOULD return `ErrorCode`. Sometimes, however, these error codes don't 
-quite fit the use case and so in those cases a HIL may defines its own error 
-codes. The I2C HIL, for example, defines an `i2c::Error` enumeration for cases 
+HILs SHOULD return `ErrorCode`. Sometimes, however, these error codes don't
+quite fit the use case and so in those cases a HIL may defines its own error
+codes. The I2C HIL, for example, defines an `i2c::Error` enumeration for cases
 such as address and data negative acknowledgments, which can occur in I2C.
 In cases when a HIL returns its own error code type, this error code type
-should also be able to represent all of the errors returned in a callback 
+should also be able to represent all of the errors returned in a callback
 (see Rule 6 below).
 
 If a method doesn't return a synchronous error, there is no way for a caller
@@ -719,6 +722,42 @@ light-weight implementations.  For this reason, the rule is to *avoid*
 blocking APIs, not to never implement them.  They can and should at
 times exist, but their uses cases should be narrow and constrained as
 they are fundamentally not as reusable.
+
+Rule 11: Do not include `initialize()`
+===============================
+
+Avoid `initialize()` or `start()` or `on()` functions in HIL interfaces. While
+these types of methods are intuitive when implementing a HIL, they are often not
+intuitive for users of that HIL, as it is not often clear when `initialize()`
+should be called. For example, should `initialize()` be called once when the
+board boots? Or before every use? If there are multiple users of the peripheral
+(after a virtualization layer for example) then it isn't clear which user should
+call `initialize()`. In general, it is better to require that the implementation
+track the state of the underlying hardware and configure it as needed.
+
+See https://github.com/tock/tock/issues/1035 for more discussion.
+
+Rule 12: Do include `set_client()`
+===============================
+
+Include the `set_client()` function in the HIL if the HIL uses callbacks. Not
+all HILs require split-phase operation and need a client interface, but for
+those that do the `set_client()` function should be included in the HIL. This
+makes writing generic components for boards possible.
+
+Rule 13: Use a generic lifetime
+===============================
+
+Avoid using `'static` lifetimes in HILs. This limits flexibility, and Tock
+prefers to use a generic `'a` lifetime instead. Also, unless there is a clear
+reason not to, only a single lifetime should be used.
+
+Often the client type will require a lifetime, and you should use the lifetime
+`'a`.
+
+The exception is for buffers, which can use the `'static` lifetime.
+
+See https://github.com/tock/tock/issues/1074 for more discussion.
 
 
 Author Address
