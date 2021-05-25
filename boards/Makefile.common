@@ -139,7 +139,6 @@ ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIM
   $(shell sleep 3s)
   DUMMY := $(shell $(RUSTUP) update)
 endif
-endif # $(NO_RUSTUP) ?
 
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
@@ -154,6 +153,7 @@ endif
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(shell $(RUSTUP) target add $(TARGET))
 endif
+endif # $(NO_RUSTUP) ?
 
 # If the user is using the standard toolchain we need to get the full path.
 # rustup should take care of this for us by putting in a proxy in .cargo/bin,
