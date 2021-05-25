@@ -150,6 +150,11 @@ static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripheral
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+// LMIC_SPI requires buffers for its SPI operations -- TODO: do we need 2 separate buffers?
+// const LMIC_SPI_BUF_SIZE: usize = 16;
+// static mut LMIC_SPI_TXBUF: [u8; LMIC_SPI_BUF_SIZE] = [0x0; LMIC_SPI_BUF_SIZE];
+// static mut LMIC_SPI_RXBUF: [u8; LMIC_SPI_BUF_SIZE] = [0x0; LMIC_SPI_BUF_SIZE];
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -182,11 +187,17 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    syscall_spi: &'static capsules::spi_controller::Spi<
-        'static,
-        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
-    >,
-    // stm32discovery_spi: &'static capsules:: // TODO: add driver for stm32discovery board for lora; would add lora driver here?
+    // syscall_spi: &'static capsules::spi_controller::Spi<
+    //     'static,
+    //     capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+    // >,
+    // syscall_lora: &'static capsules::lora_controller::Lora<
+    //     'static,
+    //     capsules::lmic_spi::LMICSpi<
+    //         'static,
+    //         capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+    //     >,
+    // >,
 }
 
 impl kernel::Platform for Platform {
@@ -208,7 +219,8 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::spi_controller::DRIVER_NUM => f(Some(self.syscall_spi)),
+            // capsules::spi_controller::DRIVER_NUM => f(Some(self.syscall_spi)),
+            // capsules::lora_controller::DRIVER_NUM => f(Some(self.syscall_lora)),
             _ => f(None),
         }
     }
@@ -483,11 +495,11 @@ pub unsafe fn main() {
     ));
 
     // Create SPI component for spi syscall driver (eventually for stm32 Discovery board)
-    let syscall_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
-        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
-
-    // let stm32_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
+    // let syscall_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
     //     .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+
+    let stm32_mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim1)
+        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
 
     base_peripherals.spim1.configure(
         nrf52840::pinmux::Pinmux::new(STM32_SPI_MOSI as u32),
@@ -495,26 +507,29 @@ pub unsafe fn main() {
         nrf52840::pinmux::Pinmux::new(STM32_SPI_CLK as u32),
     );
 
-    let syscall_spi = components::spi::SpiSyscallComponent::new(
-        board_kernel,
-        syscall_mux_spi,
-        &gpio_port[STM32_SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
-    )
-    .finalize(components::spi_syscall_component_helper!(
-        nrf52840::spi::SPIM
-    ));
-
-    // let stm32discovery_spi = components::spi::SpiComponent::new(
-    //     stm32_mux_spi,
+    // let syscall_spi = components::spi::SpiSyscallComponent::new(
+    //     board_kernel,
+    //     syscall_mux_spi,
     //     &gpio_port[STM32_SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
     // )
-    // .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
-    // // Create lmic_spi component
-    // let lmic_spi = lmic_spi::LMICSpi::new(
-    //     stm32discovery_spi,
-    //     // &mut capsules::lmic_spi::TXBUFFER,
-    //     // &mut capsules::lmic_spi::RXBUFFER,
-    // );
+    // .finalize(components::spi_syscall_component_helper!(
+    //     nrf52840::spi::SPIM
+    // ));
+
+    let stm32discovery_spi = components::spi::SpiComponent::new(
+        stm32_mux_spi,
+        &gpio_port[STM32_SPI_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+    )
+    .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
+    // Create lmic_spi component
+    let lmic_spi = lmic_spi::LMICSpi::new(
+        stm32discovery_spi,
+        // &mut capsules::lmic_spi::TXBUFFER,
+        // &mut capsules::lmic_spi::RXBUFFER,
+    );
+
+    // TODO: create component for Lora with static lifetime
+    // let syscall_lora = capsules::lora_controller::Lora::new(&lmic_spi);
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
@@ -601,7 +616,8 @@ pub unsafe fn main() {
         nonvolatile_storage,
         udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        syscall_spi,
+        // syscall_spi,
+        // syscall_lora: &syscall_lora,
     };
 
     let _ = platform.pconsole.start();
