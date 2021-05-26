@@ -6,6 +6,7 @@ pub struct LMICSpi<'a, Spi: spi::SpiMasterDevice> {
     pub spi: &'a Spi,
     // txbuffer: TakeCell<'static, [u8]>,
     // rxbuffer: TakeCell<'static, [u8]>,
+    // Probably need some flag to check if spi is busy...
 }
 
 impl<'a, Spi: spi::SpiMasterDevice> LMICSpi<'a, Spi> {
@@ -22,12 +23,29 @@ impl<'a, Spi: spi::SpiMasterDevice> LMICSpi<'a, Spi> {
     }
 }
 
-impl<Spi: spi::SpiMasterDevice> lmic::LMIC for LMICSpi<'_, Spi> {
+impl<'a, Spi: spi::SpiMasterDevice> lmic::LMIC for LMICSpi<'a, Spi> {
     fn set_tx_data(&self, tx_data: &'static mut [u8]) -> Result<(), ErrorCode> {
         // let wbuf = self.txbuffer.take().unwrap();
         // let rbuf = self.rxbuffer.take().unwrap();
         let _ = self.spi.read_write_bytes(tx_data, None, tx_data.len());
 
         Ok(())
+    }
+}
+
+// Unclear if this should be here or in lora_controller.rs
+impl<Spi: spi::SpiMasterDevice> spi::SpiMasterClient for LMICSpi<'_, Spi> {
+    // Callback for when SPI read_write_bytes() finishes
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
+        // TODO: probably want to read out of spi and manage spi state
+        // self.spi_busy.set(false);
+        // let rbuf = read_buffer.take().unwrap();
+        // self.rxbuffer.replace(rbuf);
+        // Maybe this also triggers lmic_spi set_tx_data() callback??
     }
 }
