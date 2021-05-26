@@ -1,6 +1,9 @@
 use crate::debug::IoWrite;
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use kernel::Chip;
+
+use crate::CHIP;
 
 extern "C" {
     pub(crate) fn semihost_command(command: usize, arg0: usize, arg1: usize) -> !;
@@ -76,5 +79,21 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 fn trivial_assertion() {
     print!("trivial assertion... ");
     assert_eq!(1, 1);
+    print!("    [ok]\r\n");
+}
+
+#[test_case]
+fn check_epmp_regions() {
+    print!("check epmp regions... ");
+    print!("{}", CHIP.unwrap().pmp);
+    print!("    [ok]\r\n");
+}
+
+#[test_case]
+fn check_pending_interrupts() {
+    print!("check pending interrupts... ");
+    unsafe {
+        assert_eq!(CHIP.unwrap().has_pending_interrupts(), false);
+    }
     print!("    [ok]\r\n");
 }
