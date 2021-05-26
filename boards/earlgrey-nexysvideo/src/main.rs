@@ -7,7 +7,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![feature(custom_test_frameworks)]
-#![test_runner(crate::test_runner)]
+#![test_runner(tests::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -42,19 +42,6 @@ pub mod io;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
-
-#[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
-    debug!("Running {} tests", tests.len());
-    for test in tests {
-        test();
-    }
-
-    // Exit QEMU with a return code of 0
-    unsafe {
-        tests::semihost_command(0x18, 0x20026, 0);
-    }
-}
 
 //
 // Actual memory for holding the active process structures. Need an empty list
