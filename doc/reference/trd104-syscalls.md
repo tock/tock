@@ -565,6 +565,14 @@ again to re-allow it with a different size. If userspace passes
 an overlapping buffer, the kernel MUST return a failure result with
 an error code of `INVALID`.
 
+Userspace MUST NOT write a buffer that has been shared with the kernel
+with a Read-Write Allow call. The writing restriction is because
+changing the buffer mid-operation might allow the kernel to observe a
+partially-written state, which is complex to handle correctly. At the
+same time, the kernel MUST NOT read data from a buffer in a non-atomic
+way such that a bug in a userspace program that writes the buffer
+could cause the kernel to panic.
+
 4.4.1 Reading buffers passed with Read-Write Allow
 ---------------------------------
 
@@ -575,27 +583,19 @@ The standard calling pattern for reading data from the Tock kernel is to
   4. in the upcall that signals the operation completes, make another
   Read-Write Allow call to reclaim the buffer shared with the kernel.
   
-Userspace MUST NOT write a buffer that has been shared with the kernel
-with a Read-Write Allow call. The writing restriction is because
-changing the buffer mid-operation might violate invariants within the
-kernel and cause a panic. For example, the kernel might check certain
-invariants on a buffer when a command is called (e.g., the contents
-of a packet buffer are property formatted) and then issue a series of 
-asynchronous I/O calls using the buffer. If the buffer could change
-in between these I/O calls it might then violate the invariants.
-
-In normal circumstances, userspace also MUST NOT read a buffer that has been
-shared with the kernel with a Read-Write Allow call. This reading restriction
-is because the contents of the buffer may be in an intermediate state and so
-not consistent with expected data models. Ensuring every system call driver
-maintains consistency in the presence of arbitrary userspace reads is too great
-a programming burden for an unintended use case.
+In normal circumstances, userspace also MUST NOT read a buffer that
+has been shared with the kernel with a Read-Write Allow call. This
+reading restriction is because the contents of the buffer may be in an
+intermediate state and so not consistent with expected data
+models. Ensuring every system call driver maintains consistency in the
+presence of arbitrary userspace reads is too great a programming
+burden for an unintended use case.
 
 However, there can be cases when it is necessary for userspace to be
 able to read a buffer without first revoking it from the kernel with a
 Read-Write Allow. These cases are situations when the cost of two
 Read-Write Allow system calls is an unacceptable overhead for
-accessing the data. 
+accessing the data.
 
 In these cases, it can be acceptable for a system call driver to allow
 userspace to read from a buffer passed with a Read-Write Allow. An
