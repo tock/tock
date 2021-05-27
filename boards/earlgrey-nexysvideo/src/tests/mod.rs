@@ -72,3 +72,5 @@ fn check_pending_interrupts() {
     debug!("    [ok]");
     run_kernel_op(10);
 }
+
+mod otbn;
