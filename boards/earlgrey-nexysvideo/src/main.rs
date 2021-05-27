@@ -37,7 +37,6 @@ mod multi_alarm_test;
 #[allow(dead_code)]
 mod tickv_test;
 
-#[cfg(not(test))]
 pub mod io;
 pub mod usb;
 
