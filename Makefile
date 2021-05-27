@@ -122,7 +122,7 @@ endef
 
 ## Aggregate targets
 .PHONY: allaudit
-audit:
+allaudit:
 	@for f in `./tools/list_lock.sh`;\
 		do echo "$$(tput bold)Auditing $$f";\
 		(cd "$$f" && cargo audit || exit 1);\
@@ -571,4 +571,3 @@ ci-job-rustdoc:
 ## End CI rules
 ##
 ###################################################################
-
