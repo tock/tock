@@ -454,49 +454,66 @@ impl Kernel {
         }
     }
 
-    /// Main loop of the OS.
+    /// Perform one iteration of the core Tock kernel loop.
     ///
-    /// Most of the behavior of this loop is controlled by the `Scheduler`
-    /// implementation in use.
-    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+    /// This function is responsible for three main operations:
+    ///
+    /// 1. Check if the kernel itself has any work to be done and if
+    /// the scheduler wants to complete that work now. If so, it allows
+    /// the kernel to run.
+    /// 2. Check if any processes have any work to be done, and if so
+    /// if the scheduler wants to allow any processes to run now, and if so
+    /// which one.
+    /// 3. After ensuring the scheduler does not want to complete any kernel
+    /// or process work (or there is no work to be done), are there are no outstanding
+    /// interrupts to handle, put the chip to sleep.
+    ///
+    /// This function has one configuration option: `no_sleep`. If that
+    /// argument is set to true, the kernel will never attempt to put the
+    /// chip to sleep, and this function can be called again immediately.
+    fn kernel_loop_operation<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         scheduler: &SC,
+        no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
-    ) -> ! {
-        chip.watchdog().setup();
-        loop {
-            chip.watchdog().tickle();
-            unsafe {
-                // Ask the scheduler if we should do tasks inside of the kernel,
-                // such as handle interrupts. A scheduler may want to prioritize
-                // processes instead, or there may be no kernel work to do.
-                match scheduler.do_kernel_work_now(chip) {
-                    true => {
-                        // Execute kernel work. This includes handling
-                        // interrupts and is how code in the chips/ and capsules
-                        // crates is able to execute.
-                        scheduler.execute_kernel_work(chip);
-                    }
-                    false => {
-                        // No kernel work ready, so ask scheduler for a process.
-                        match scheduler.next(self) {
-                            SchedulingDecision::RunProcess((appid, timeslice_us)) => {
-                                self.process_map_or((), appid, |process| {
-                                    let (reason, time_executed) = self.do_process(
-                                        platform,
-                                        chip,
-                                        scheduler,
-                                        process,
-                                        ipc,
-                                        timeslice_us,
-                                    );
-                                    scheduler.result(reason, time_executed);
-                                });
-                            }
-                            SchedulingDecision::TrySleep => {
+    ) {
+        chip.watchdog().tickle();
+        unsafe {
+            // Ask the scheduler if we should do tasks inside of the kernel,
+            // such as handle interrupts. A scheduler may want to prioritize
+            // processes instead, or there may be no kernel work to do.
+            match scheduler.do_kernel_work_now(chip) {
+                true => {
+                    // Execute kernel work. This includes handling
+                    // interrupts and is how code in the chips/ and capsules
+                    // crates is able to execute.
+                    scheduler.execute_kernel_work(chip);
+                }
+                false => {
+                    // No kernel work ready, so ask scheduler for a process.
+                    match scheduler.next(self) {
+                        SchedulingDecision::RunProcess((appid, timeslice_us)) => {
+                            self.process_map_or((), appid, |process| {
+                                let (reason, time_executed) = self.do_process(
+                                    platform,
+                                    chip,
+                                    scheduler,
+                                    process,
+                                    ipc,
+                                    timeslice_us,
+                                );
+                                scheduler.result(reason, time_executed);
+                            });
+                        }
+                        SchedulingDecision::TrySleep => {
+                            // For testing, it may be helpful to
+                            // disable sleeping the chip in case
+                            // the running test does not generate
+                            // any interrupts.
+                            if !no_sleep {
                                 chip.atomic(|| {
                                     // Cannot sleep if interrupts are pending,
                                     // as on most platforms unhandled interrupts
@@ -521,6 +538,60 @@ impl Kernel {
                     }
                 }
             }
+        }
+    }
+
+    /// Main loop of the OS.
+    ///
+    /// Most of the behavior of this loop is controlled by the `Scheduler`
+    /// implementation in use.
+    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+        &self,
+        platform: &P,
+        chip: &C,
+        ipc: Option<&ipc::IPC<NUM_PROCS>>,
+        scheduler: &SC,
+        capability: &dyn capabilities::MainLoopCapability,
+    ) -> ! {
+        chip.watchdog().setup();
+        loop {
+            self.kernel_loop_operation(platform, chip, ipc, scheduler, false, capability);
+        }
+    }
+
+    /// Main test loop of the OS.
+    ///
+    /// This is similar to `kernel_loop()` but also calls tests passed in via
+    /// the `tests` argumet. This should only be used for running tests.
+    pub fn test_kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+        &self,
+        platform: &P,
+        chip: &C,
+        ipc: Option<&ipc::IPC<NUM_PROCS>>,
+        scheduler: &SC,
+        capability: &dyn capabilities::MainLoopCapability,
+        tests: &[&dyn Fn()],
+    ) {
+        chip.watchdog().setup();
+        // Run all of the tests.
+        //
+        // The kernel loop work function is run in a loop which should
+        // be long enough to complete each test. However, this has
+        // not been robustly verified, and the loop iteration counts
+        // may have to be adjusted for newer or more complex tests.
+        for test in tests {
+            for _ in 0..200 {
+                self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
+            }
+            test();
+            for _ in 0..200 {
+                self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
+            }
+        }
+
+        // Run the loop a few more times to see all the messaages
+        for _ in 0..100000 {
+            self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
         }
     }
 
