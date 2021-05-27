@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** April 2, 2021<br/>
-**Draft-Version:** 4<br/>
+**Draft-Modified:** May 27, 2021<br/>
+**Draft-Version:** 5<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -578,13 +578,16 @@ The standard calling pattern for reading data from the Tock kernel is to
 Userspace MUST NOT write a buffer that has been shared with the kernel
 with a Read-Write Allow call. The writing restriction is because
 changing the buffer mid-operation might violate invariants within the
-kernel and cause a panic. Rust type safety depends on there not being
-arbitrary concurrent writers.
+kernel and cause a panic. For example, the kernel might check certain
+invariants on a buffer when a command is called (e.g., the contents
+of a packet buffer are property formatted) and then issue a series of 
+asynchronous I/O calls using the buffer. If the buffer could change
+in between these I/O calls it might then violate the invariants.
 
 In normal circumstances, userspace also MUST NOT read a buffer that has been
 shared with the kernel with a Read-Write Allow call. This reading restriction
 is because the contents of the buffer may be in an intermediate state and so
-not consistent with expected data models. Ensuring every system call drivers
+not consistent with expected data models. Ensuring every system call driver
 maintains consistency in the presence of arbitrary userspace reads is too great
 a programming burden for an unintended use case.
 
@@ -616,7 +619,7 @@ system calls:
   - Command 1 - Read: start reading N bytes of data into a buffer
   - Command 2 - Cancel an outstanding read operation (Command 1)
   - Subscribe 0 - Read Done: register the upcall for when the buffer is full of data
-  - Read-Write Allow - Read Buffer: share the buffer to read data into
+  - Read-Write Allow 0 - Read Buffer: share the buffer to read data into
   
 
 If this system call driver wanted to allow userspace to read the data
@@ -624,10 +627,10 @@ in the shared buffer without revoking and re-allowing it, it could specify
 it in this way:
 
 > Userspace MAY access the Read Buffer when it is not in
-> use. Read makes Read Buffer transition to in use. 
-> Read Done makes Read Buffer transition to not in use. Therefore
-> it is safe for userspace to read Read Buffer when there is not an outstanding
-> Read operation.
+> use. The Read Command makes the Read Buffer transition to in use. 
+> The Read Done Upcall makes the Read Buffer transition to not in use. 
+> Therefore it is safe for userspace to read Read Buffer when there is 
+> not an outstanding Read operation.
 
 For a system call API to allow userspace to read allowed buffers in this
 way, it MUST be documented in a Draft or Final Documentary TRD.
