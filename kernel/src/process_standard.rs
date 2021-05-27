@@ -27,6 +27,8 @@ use crate::upcall::UpcallId;
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
+// The completion code for a process being killed by the kernel
+pub(crate) const COMPLETION_KILLED: u32 = 0xfffffffe;
 
 /// State for helping with debugging apps.
 ///

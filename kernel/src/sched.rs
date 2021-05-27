@@ -929,12 +929,12 @@ impl Kernel {
                                     || returned_upcall.fn_ptr != fn_ptr
                                 {
                                     // The capsule did not return the Upcall passed in
-                                    //
-                                    // TODO: How to handle this?
-                                    panic!(
-                                        "Driver {}, subscribe num {}: Upcall swapped in error case",
-                                        driver_number, subdriver_number
-                                    );
+                                    // For now, just kill the process that interacted with this
+                                    // capsule. Since the capsule was only given an upcall
+                                    // associated with this process, the capsule cannot use the
+                                    // acquired upcall to swap upcalls with any other process.
+                                    process.terminate(crate::process_standard::COMPLETION_KILLED);
+                                    None
                                 } else {
                                     // Capsule returned the correct Upcall
 
@@ -948,7 +948,7 @@ impl Kernel {
                                     // and the new instance.
                                     process.remove_pending_upcalls(returned_upcall.upcall_id);
 
-                                    SyscallReturn::SubscribeFailure(err, upcall_ptr, appdata)
+                                    Some(SyscallReturn::SubscribeFailure(err, upcall_ptr, appdata))
                                 }
                             }
                             Ok(returned_upcall) => {
@@ -960,29 +960,31 @@ impl Kernel {
                                 if returned_upcall.app_id != process.processid()
                                     || returned_upcall.upcall_id != upcall_id
                                 {
-                                    // The capsule returned some other Upcall
-                                    //
-                                    // TODO: how to handle this?
-                                    panic!(
-                                        "Driver {}, subscribe num {}: unknown Upcall returned",
-                                        driver_number, subdriver_number
-                                    );
+                                    // The capsule did not return the Upcall passed in
+                                    // For now, just kill the process that interacted with this
+                                    // capsule. Since the capsule was only given an upcall
+                                    // associated with this process, the capsule cannot use the
+                                    // acquired upcall to swap upcalls with any other process.
+                                    process.terminate(crate::process_standard::COMPLETION_KILLED);
+                                    None
                                 } else {
                                     // The capsule returned a matching Upcall,
                                     // return it to userspace
-                                    SyscallReturn::SubscribeSuccess(
+                                    Some(SyscallReturn::SubscribeSuccess(
                                         returned_upcall
                                             .fn_ptr
                                             .map_or(0x0 as *mut (), |nonnull| nonnull.as_ptr()),
                                         returned_upcall.appdata,
-                                    )
+                                    ))
                                 }
                             }
                         }
                     }
-                    None => {
-                        SyscallReturn::SubscribeFailure(ErrorCode::NODEVICE, upcall_ptr, appdata)
-                    }
+                    None => Some(SyscallReturn::SubscribeFailure(
+                        ErrorCode::NODEVICE,
+                        upcall_ptr,
+                        appdata,
+                    )),
                 });
 
                 if config::CONFIG.trace_syscalls {
@@ -997,7 +999,11 @@ impl Kernel {
                     );
                 }
 
-                process.set_syscall_return_value(rval);
+                // Only set the return value if the process has not been terminated as a result
+                // of interacting with a misbehaving capsule.
+                rval.map(|rv| {
+                    process.set_syscall_return_value(rv);
+                });
             }
             Syscall::Command {
                 driver_number,
