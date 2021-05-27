@@ -48,4 +48,5 @@ fn trivial_assertion() {
     run_kernel_op(10);
 }
 
+mod hmac;
 mod otbn;
