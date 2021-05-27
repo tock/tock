@@ -4,7 +4,7 @@
 
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
 #![feature(asm)]
 #![no_std]
 
