@@ -509,8 +509,13 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 ---------------------------------
 
 The Read-Write Allow system call class is how a userspace process
-shares buffer with the kernel that the kernel can read and write. When
-userspace shares a buffer, it can no longer access it. Calling a
+shares buffer with the kernel that the kernel can read and write. After
+userspace shares a buffer, it MUST NOT write to it. In certain
+limited cases, described in 4.4.1 below, userspace MAY read a buffer
+that has been shared with a Read-Write Allow call. In most cases,
+however, userspace MUST NOT read the buffer.
+
+Calling a
 Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
 kernel returns a zero-length buffer. Subsequent successful calls to 
@@ -553,21 +558,93 @@ an error code of `INVALID`.
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
 Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application does not have access to that
-memory. If an application needs to extend a buffer, it must first call
+This is because the application cannot write that memory.
+If an application needs to extend a buffer, it must first call
 Read-Write Allow to reclaim the buffer, then call Read-Write Allow
 again to re-allow it with a different size. If userspace passes
 an overlapping buffer, the kernel MUST return a failure result with
 an error code of `INVALID`.
- 
+
+4.4.1 Reading buffers passed with Read-Write Allow
+---------------------------------
+
+The standard calling pattern for reading data from the Tock kernel is to
+  1. use `subscribe` to register a callback,
+  2. make a Read-Write Allow call to share a buffer with the kernel,
+  3. call a `command` to start an operation that writes the allowed buffer,
+  4. in the upcall that signals the operation completes, make another
+  Read-Write Allow call to reclaim the buffer shared with the kernel.
+  
+Userspace MUST NOT write a buffer that has been shared with the kernel
+with a Read-Write Allow call. The writing restriction is because
+changing the buffer mid-operation might violate invariants within the
+kernel and cause a panic. Rust type safety depends on there not being
+arbitrary concurrent writers.
+
+In normal circumstances, userspace also MUST NOT read a buffer that has been
+shared with the kernel with a Read-Write Allow call. This reading restriction
+is because the contents of the buffer may be in an intermediate state and so
+not consistent with expected data models. Ensuring every system call drivers
+maintains consistency in the presence of arbitrary userspace reads is too great
+a programming burden for an unintended use case.
+
+However, there can be cases when it is necessary for userspace to be
+able to read a buffer without first revoking it from the kernel with a
+Read-Write Allow. These cases are situations when the cost of two
+Read-Write Allow system calls is an unacceptable overhead for
+accessing the data. 
+
+In these cases, it can be acceptable for a system call driver to allow
+userspace to read from a buffer passed with a Read-Write Allow. An
+important invariant is that userspace does not read from the buffer
+while an operation that modifies the buffer is ongoing. Instead, userspace
+can read the buffer *before* or *after* the operation completes.
+
+To allow userspace to read a buffer without revoking it, a system call
+driver MUST specify a state machine for that buffer. This state
+machine MUST specify when the buffer is in use by the kernel and when
+it is not in use.  This specification MUST be a finite state machine
+with two states. The first state is "not in use" and the second state
+is "in use". The specification MUST state a single Command that causes
+the buffer to transition from "not in use" to "in use" and MUST state
+a single upcall (Subscribe identifier) that causes the buffer to
+transition from "in use" to "not in use".
+
+As an example, consider a system call driver that has the following 
+system calls:
+  - Command 0 - Exists
+  - Command 1 - Read: start reading N bytes of data into a buffer
+  - Command 2 - Cancel an outstanding read operation (Command 1)
+  - Subscribe 0 - Read Done: register the upcall for when the buffer is full of data
+  - Read-Write Allow - Read Buffer: share the buffer to read data into
+  
+
+If this system call driver wanted to allow userspace to read the data
+in the shared buffer without revoking and re-allowing it, it could specify
+it in this way:
+
+> Userspace MAY access the Read Buffer when it is not in
+> use. Read makes Read Buffer transition to in use. 
+> Read Done makes Read Buffer transition to not in use. Therefore
+> it is safe for userspace to read Read Buffer when there is not an outstanding
+> Read operation.
+
+For a system call API to allow userspace to read allowed buffers in this
+way, it MUST be documented in a Draft or Final Documentary TRD.
+This TRD MUST specify the state machine for any such buffers. If these
+conditions are met then userspace MAY read the buffer while it is "not
+in use."
+
+
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow class.
 It differs in tow ways: the buffer it passes to the kernel is read-only,
-and the process retains read access to the buffer. The kernel cannot
-write to the buffer. The semantics and calling conventions of
-Read-Only Allow are otherwise identical to Read-Write Allow.
+and the process MAY read the buffer. A process MUST NOT
+write to a buffer shared with the kernel through a Read-Only Allow.
+The kernel also MUST NOT write to the buffer. The semantics and calling
+conventions of Read-Only Allow are otherwise identical to Read-Write Allow.
 
 The Read-Only Allow class exists so that userspace can pass references
 to constant data to the kernel. This is useful, for example, when a
