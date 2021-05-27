@@ -7,7 +7,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![feature(custom_test_frameworks)]
-#![test_runner(tests::test_runner)]
+#![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -107,12 +107,15 @@ impl Platform for EarlGreyNexysVideo {
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// setup and RAM initialization.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn setup() -> (
+    &'static kernel::Kernel,
+    EarlGreyNexysVideo,
+    &'static earlgrey::chip::EarlGrey<
+        'static,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
+        EarlGreyDefaultPeripherals<'static>,
+    >,
+) {
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
 
@@ -124,8 +127,6 @@ pub unsafe fn main() {
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -411,15 +412,57 @@ pub unsafe fn main() {
     });
     debug!("OpenTitan initialisation complete. Entering main loop");
 
+    (board_kernel, earlgrey_nexysvideo, chip)
+}
+
+/// Main function.
+///
+/// This function is called from the arch crate after some very basic RISC-V
+/// setup and RAM initialization.
+#[no_mangle]
+pub unsafe fn main() {
     #[cfg(test)]
     test_main();
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-    board_kernel.kernel_loop(
-        &earlgrey_nexysvideo,
-        chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
-        scheduler,
-        &main_loop_cap,
-    );
+    #[cfg(not(test))]
+    {
+        let (board_kernel, earlgrey_nexysvideo, chip) = setup();
+
+        let scheduler =
+            components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+
+        board_kernel.kernel_loop(
+            &earlgrey_nexysvideo,
+            chip,
+            None::<&kernel::ipc::IPC<NUM_PROCS>>,
+            scheduler,
+            &main_loop_cap,
+        );
+    }
+}
+
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    unsafe {
+        let (board_kernel, earlgrey_nexysvideo, chip) = setup();
+
+        let scheduler =
+            components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+
+        board_kernel.test_kernel_loop(
+            &earlgrey_nexysvideo,
+            chip,
+            None::<&kernel::ipc::IPC<NUM_PROCS>>,
+            scheduler,
+            &main_loop_cap,
+            tests,
+        );
+    }
+
+    // Exit QEMU with a return code of 0
+    unsafe {
+        tests::semihost_command(0x18, 0x20026, 0);
+    }
 }
