@@ -405,6 +405,9 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
+        // Verify that this new grant will have a unique `driver_num`.
+        // We must ensure that two grants do not have the same `driver_num`
+        // to correctly implement the kernel's promised upcall subscribe semantics.
         if self.grant_num_mapping[grant_index].is_none() {
             if self
                 .grant_num_mapping
