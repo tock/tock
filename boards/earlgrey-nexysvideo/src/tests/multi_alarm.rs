@@ -73,7 +73,7 @@ unsafe fn static_init_multi_alarm_test(
 #[test_case]
 pub fn check_multi_alarm_count_1() {
     debug!("check multi alarm test 1...");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     unsafe {
         assert!(TESTS.unwrap()[0].counter.get() > 15);
@@ -83,5 +83,5 @@ pub fn check_multi_alarm_count_1() {
 
     run_kernel_op(100);
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }

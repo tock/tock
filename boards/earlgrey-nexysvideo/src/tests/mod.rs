@@ -40,12 +40,12 @@ fn run_kernel_op(loops: usize) {
 #[test_case]
 fn trivial_assertion() {
     debug!("trivial assertion... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     assert_eq!(1, 1);
 
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }
 
 mod hmac;

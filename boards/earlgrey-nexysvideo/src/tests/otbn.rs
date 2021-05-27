@@ -30,14 +30,14 @@ fn otbn_check_load_empty_binary() {
     let buf = unsafe { LeasableBuffer::new(&mut BUF) };
 
     debug!("check otbn load empty binary... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     otbn.set_client(&CALLBACK);
     assert_eq!(otbn.load_binary(buf), Ok(()));
 
     run_kernel_op(100);
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }
 
 #[test_case]
@@ -46,12 +46,12 @@ fn otbn_check_invalid_prop() {
     let otbn = &perf.otbn;
 
     debug!("check otbn invalid prop... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     assert_eq!(otbn.set_property(100, 0), Err(ErrorCode::NOSUPPORT));
 
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }
 
 #[test_case]
@@ -60,12 +60,12 @@ fn otbn_check_start_addr_prop() {
     let otbn = &perf.otbn;
 
     debug!("check otbn start addr prop... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     assert_eq!(otbn.set_property(0, 0x100), Ok(()));
 
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }
 
 #[test_case]
@@ -74,12 +74,12 @@ fn otbn_check_run_empty_binary() {
     let otbn = &perf.otbn;
 
     debug!("check otbn run empty binary... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     otbn.set_client(&CALLBACK);
     assert_eq!(unsafe { otbn.run(&mut OUTPUT) }, Ok(()));
 
     run_kernel_op(100);
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }

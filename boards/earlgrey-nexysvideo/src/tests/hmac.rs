@@ -27,12 +27,12 @@ fn hmac_check_load_binary() {
     let buf = unsafe { LeasableBuffer::new(&mut BUF) };
 
     debug!("check hmac load binary... ");
-    run_kernel_op(10);
+    run_kernel_op(100);
 
     hmac.set_client(&CALLBACK);
     assert_eq!(hmac.add_data(buf), Ok(32));
 
     run_kernel_op(100);
     debug!("    [ok]");
-    run_kernel_op(10);
+    run_kernel_op(100);
 }
