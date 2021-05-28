@@ -114,6 +114,7 @@ use core::ptr::{write, NonNull};
 
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
+use crate::upcall;
 
 /// This GrantMemory object provides access to the memory allocated for a grant
 /// for a specific process.
@@ -151,6 +152,13 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data
     }
+}
+
+// #[derive(Clone, Copy, Default)]
+struct SavedUpcall {
+    // upcall_id: upcall::UpcallId,
+    appdata: usize,
+    fn_ptr: Option<NonNull<*mut ()>>,
 }
 
 /// An instance of a grant allocated for a particular process.
@@ -232,18 +240,28 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 //
                 // If the grant could not be allocated this will cause the
                 // `new()` function to return with an error.
-                let alloc_size = size_of::<T>();
-                let new_region = processid.kernel.process_map_or(
+                let alloc_size = size_of::<T>() + size_of::<SavedUpcall>();
+
+                // todo: ensure alignment
+
+                let (new_region_grant, new_region_upcalls) = processid.kernel.process_map_or(
                     Err(Error::NoSuchApp),
                     processid,
                     |process| {
                         process
-                            .allocate_grant(grant_num, alloc_size, align_of::<T>())
+                            .allocate_grant(grant_num, 85, alloc_size, align_of::<T>())
                             .map_or(Err(Error::OutOfMemory), |buf| {
                                 // Convert untyped `*mut u8` allocation to
                                 // allocated type
-                                let ptr = NonNull::cast::<T>(buf);
-                                Ok(ptr)
+                                let ptr_grant = NonNull::cast::<T>(buf);
+
+                                let ptr_upcalls = unsafe {
+                                    NonNull::cast::<SavedUpcall>(NonNull::new_unchecked(
+                                        buf.as_ptr().add(size_of::<T>()),
+                                    ))
+                                };
+
+                                Ok((ptr_grant, ptr_upcalls))
                             })
                     },
                 )?;
@@ -263,7 +281,15 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 unsafe {
                     // We use `ptr::write` to avoid `Drop`ping the uninitialized
                     // memory in case `T` implements the `Drop` trait.
-                    write(new_region.as_ptr(), T::default());
+                    write(new_region_grant.as_ptr(), T::default());
+
+                    write(
+                        new_region_upcalls.as_ptr(),
+                        SavedUpcall {
+                            appdata: 0,
+                            fn_ptr: None,
+                        },
+                    );
                 }
             }
 
@@ -502,7 +528,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // # Safety
         //
         // This is safe as long as the memory at grant_ptr is correctly aligned,
-        // the correct size for type `T`, is only every cast as a `T`, and only
+        // the correct size for type `T`, is only ever cast as a `T`, and only
         // one reference to the object exists. We guarantee this because type
         // `T` cannot change, and we ensure the size and alignment are correct
         // when the grant is allocated. We ensure that only one reference can

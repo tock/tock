@@ -417,7 +417,13 @@ pub trait Process {
     /// - There is not enough available memory to do the allocation, or
     /// - The grant_num is invalid, or
     /// - The grant_num already has an allocated grant.
-    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
+    fn allocate_grant(
+        &self,
+        grant_num: usize,
+        driver_num: usize,
+        size: usize,
+        align: usize,
+    ) -> Option<NonNull<u8>>;
 
     /// Check if a given grant for this process has been allocated.
     ///

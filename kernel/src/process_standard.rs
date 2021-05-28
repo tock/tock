@@ -121,12 +121,14 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Number of bytes of memory allocated to this process.
     memory_len: usize,
 
-    /// Reference to the slice of pointers stored in the process's memory
-    /// reserved for the kernel. These pointers are null if the grant region has
-    /// not been allocated. When the grant region is allocated these pointers
-    /// are updated to point to the allocated memory. No other reference to these
-    /// pointers exists in the Tock kernel.
-    grant_pointers: MapCell<&'static mut [*mut u8]>,
+    /// Reference to the slice of (driver number, pointer) tuples stored in the
+    /// process's memory reserved for the kernel. These driver numbers are zero
+    /// and pointers are null if the grant region has not been allocated. When
+    /// the grant region is allocated these pointers are updated to point to the
+    /// allocated memory and the driver number is set to match the driver that
+    /// owns the grant. No other reference to these pointers exists in the Tock
+    /// kernel.
+    grant_pointers: MapCell<&'static mut [(usize, *mut u8)]>,
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
@@ -647,15 +649,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.grant_pointers.map_or(None, |grant_pointers| {
             // Implement `grant_pointers[grant_num]` without a
             // chance of a panic.
-            grant_pointers
-                .get(grant_num)
-                .map_or(None, |grant_pointer_pointer| {
+            grant_pointers.get(grant_num).map_or(
+                None,
+                |(_driver_num_pointer, grant_pointer_pointer)| {
                     Some(!(*grant_pointer_pointer).is_null())
-                })
+                },
+            )
         })
     }
 
-    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>> {
+    fn allocate_grant(
+        &self,
+        grant_num: usize,
+        driver_num: usize,
+        size: usize,
+        align: usize,
+    ) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
         if !self.is_active() {
             return None;
@@ -681,15 +690,17 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             self.grant_pointers.map_or(None, |grant_pointers| {
                 // Implement `grant_pointers[grant_num] = grant_ptr` without a
                 // chance of a panic.
-                grant_pointers
-                    .get_mut(grant_num)
-                    .map_or(None, |grant_pointer_pointer| {
-                        // Actually set the grant pointer.
+                grant_pointers.get_mut(grant_num).map_or(
+                    None,
+                    |(driver_num_pointer, grant_pointer_pointer)| {
+                        // Actually set the driver num and grant pointer.
+                        *driver_num_pointer = driver_num;
                         *grant_pointer_pointer = grant_ptr.as_ptr() as *mut u8;
 
                         // If all of this worked, return the allocated pointer.
                         Some(grant_ptr)
-                    })
+                    },
+                )
             })
         } else {
             // Could not allocate the memory for the grant region.
@@ -735,7 +746,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // Implement `grant_pointers[grant_num]` without a chance of a
                 // panic.
                 match grant_pointers.get_mut(grant_num) {
-                    Some(grant_pointer_pointer) => {
+                    Some((_driver_num_pointer, grant_pointer_pointer)) => {
                         // Get a copy of the actual grant pointer.
                         let grant_ptr = *grant_pointer_pointer;
 
@@ -788,7 +799,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // Implement `grant_pointers[grant_num]` without a chance of a
             // panic.
             match grant_pointers.get_mut(grant_num) {
-                Some(grant_pointer_pointer) => {
+                Some((_driver_num_pointer, grant_pointer_pointer)) => {
                     // Get a copy of the actual grant pointer.
                     let grant_ptr = *grant_pointer_pointer;
 
@@ -814,7 +825,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // null.
             grant_pointers
                 .iter()
-                .filter(|grant_ptr| !grant_ptr.is_null())
+                .filter(|(_driver_num_pointer, grant_pointer_pointer)| {
+                    !grant_pointer_pointer.is_null()
+                })
                 .count()
         })
     }
@@ -1181,17 +1194,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                     // Implement `grant_pointers[grant_num]` without a chance of
                     // a panic.
-                    grant_pointers.get(index).map(|grant_pointer_pointer| {
-                        if grant_pointer_pointer.is_null() {
-                            let _ =
-                                writer.write_fmt(format_args!("  Grant {:>2}: --        ", index));
-                        } else {
-                            let _ = writer.write_fmt(format_args!(
-                                "  Grant {:>2}: {:p}",
-                                index, grant_pointer_pointer
-                            ));
-                        }
-                    });
+                    grant_pointers
+                        .get(index)
+                        .map(|(driver_num_pointer, grant_pointer_pointer)| {
+                            if grant_pointer_pointer.is_null() {
+                                let _ = writer
+                                    .write_fmt(format_args!("  Grant {:>2} : --        ", index));
+                            } else {
+                                let _ = writer.write_fmt(format_args!(
+                                    "  Grant {:>2} {:#x}: {:p}",
+                                    index, driver_num_pointer, grant_pointer_pointer
+                                ));
+                            }
+                        });
                 }
                 let _ = writer.write_fmt(format_args!("\r\n"));
             }
@@ -1350,7 +1365,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // sure we allocate enough memory just for that.
 
         // Make room for grant pointers.
-        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptr_size = mem::size_of::<(usize, *mut u8)>();
         let grant_ptrs_num = kernel.get_grant_count_and_finalize();
         let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
@@ -1515,9 +1530,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
-        let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_ptrs_num);
-        for opt in opts.iter_mut() {
-            *opt = ptr::null_mut()
+        let grant_pointers =
+            slice::from_raw_parts_mut(kernel_memory_break as *mut (usize, *mut u8), grant_ptrs_num);
+        for (driver_num_pointer, grant_pointer_pointer) in grant_pointers.iter_mut() {
+            *driver_num_pointer = 0;
+            *grant_pointer_pointer = ptr::null_mut();
         }
 
         // Now that we know we have the space we can setup the memory for the
@@ -1566,7 +1583,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
-        process.grant_pointers = MapCell::new(opts);
+        process.grant_pointers = MapCell::new(grant_pointers);
 
         process.flash = app_flash;
 
@@ -1712,7 +1729,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             .initial_process_app_brk_size();
 
         // Recalculate initial_kernel_memory_size as was done in create()
-        let grant_ptr_size = mem::size_of::<*const usize>();
+        let grant_ptr_size = mem::size_of::<(usize, *mut u8)>();
         let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
         let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
@@ -1835,19 +1852,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     }
 
     /// Reset all `grant_ptr`s to NULL.
-    // This is safe today, as MPU constraints ensure that `mem_end` will always
-    // be aligned on at least a word boundary. While this is unlikely to
-    // change, it should be more proactively enforced.
-    //
-    // TODO: https://github.com/tock/tock/issues/1739
-    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn grant_ptrs_reset(&self) {
-        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        for grant_num in 0..grant_ptrs_num {
-            let grant_num = grant_num as isize;
-            let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
-            write_volatile(ctr_ptr, ptr::null_mut());
-        }
+        self.grant_pointers.map(|grant_pointers| {
+            for (driver_num_pointer, grant_pointer_pointer) in grant_pointers.iter_mut() {
+                *driver_num_pointer = 0;
+                *grant_pointer_pointer = ptr::null_mut();
+            }
+        });
     }
 
     /// Allocate memory in a process's grant region.
