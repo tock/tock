@@ -5,10 +5,10 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Working Group:** Kernel<br/>
 **Type:** Best Current Practice<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Author:** Brad Campbell, Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** April 22, 2021<br/>
-**Draft-Version:** 5<br/>
+**Draft-Modified:** May 27, 2021<br/>
+**Draft-Version:** 6<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -805,4 +805,11 @@ Stanford, CA 94305
 email: Philip Levis <pal@cs.stanford.edu>
 phone: +1 650 725 9046
 
+Brad Campbell 
+Computer Science	
+241 Olsson	
+P.O. Box 400336
+Charlottesville, Virginia 22904 
+
+email: Brad Campbell <bradjc@virginia.edu>
 ```
