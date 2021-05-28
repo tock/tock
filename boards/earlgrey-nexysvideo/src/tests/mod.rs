@@ -49,4 +49,5 @@ fn trivial_assertion() {
 }
 
 mod hmac;
+mod multi_alarm;
 mod otbn;

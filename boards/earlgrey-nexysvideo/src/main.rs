@@ -33,7 +33,6 @@ mod tests;
 #[allow(dead_code)]
 mod aes_test;
 #[allow(dead_code)]
-mod multi_alarm_test;
 mod otbn;
 #[allow(dead_code)]
 mod tickv_test;
@@ -63,6 +62,8 @@ static mut PLATFORM: Option<&'static EarlGreyNexysVideo> = None;
 // Test access to main loop capability
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+// Test access to alarm
+static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
 
 static mut CHIP: Option<
     &'static earlgrey::chip::EarlGrey<
@@ -213,6 +214,8 @@ unsafe fn setup() -> (
         MuxAlarm::new(hardware_alarm)
     );
     hil::time::Alarm::set_alarm_client(hardware_alarm, mux_alarm);
+
+    ALARM = Some(mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
