@@ -74,9 +74,12 @@ design rules for HILs. They are:
 8. Use fine-grained traits that separate out different use cases.
 9. Separate control and datapath operations into separate traits.
 10. Blocking APIs are not general: use them sparingly, if at all.
-11. Do not include an `initialize()` method.
-12. Do include a `set_client()` method.
-13. Use a generic lifetime where possible.
+11. `initialize()` methods, when needed, should be in a separate
+    trait and invoked in an instantiating Component.
+12. Traits that can trigger callbacks can have a `set_client`
+    method.
+13. Use generic lifetimes where possible, except for buffers used in
+    split-phase operations, which should be `'static`.
 
 The rest of this document describes each of these rules and their
 reasoning.
@@ -723,42 +726,73 @@ blocking APIs, not to never implement them.  They can and should at
 times exist, but their uses cases should be narrow and constrained as
 they are fundamentally not as reusable.
 
-Rule 11: Do not include `initialize()`
+Rule 11: `initialize()` methods, when needed, should be in a separate trait and invoked in an instantiating Component
 ===============================
 
-Avoid `initialize()` or `start()` or `on()` functions in HIL interfaces. While
-these types of methods are intuitive when implementing a HIL, they are often not
-intuitive for users of that HIL, as it is not often clear when `initialize()`
-should be called. For example, should `initialize()` be called once when the
-board boots? Or before every use? If there are multiple users of the peripheral
-(after a virtualization layer for example) then it isn't clear which user should
-call `initialize()`. In general, it is better to require that the implementation
-track the state of the underlying hardware and configure it as needed.
+Occasionally, HIL implementations need an `initialize` method to set up
+state or configure hardware before their first use. When one-time 
+initialization is needed, doing it deterministically at boot is preferable
+than doing it dynamically on the first operation (e.g., by having a 
+`is_initialized` field and calling `initialize` if it is false, then setting
+it true). Doing at boot has two advantages. First, it is fail-fast:
+if the HIL cannot initialize, this will be detected immediately at boot
+instead of potentially non-deterministically on the first operation. Second,
+it makes operations more deterministic in their execution time, which is
+useful for precise applications.
 
-See https://github.com/tock/tock/issues/1035 for more discussion.
+Because one-time initializations should only be invoked at boot, they
+should not be part of standard HIL traits, as those traits are used by
+clients and services. Instead, they should either be in a separate
+trait or part of a structure's implementation.
 
-Rule 12: Do include `set_client()`
+Because forgetting to initialize a module is a common source of errors,
+modules that require one-time initialization should, if at all possible,
+put this in an instantiable `Component` for that module. The `Component`
+can handle all of the setup needed for the module, including invoking
+the call to initialize.
+
+Rule 12: Traits that can trigger callbacks should have a `set_client` method
 ===============================
 
-Include the `set_client()` function in the HIL if the HIL uses callbacks. Not
-all HILs require split-phase operation and need a client interface, but for
-those that do the `set_client()` function should be included in the HIL. This
-makes writing generic components for boards possible.
+If a HIL trait can trigger callbacks should include a method for
+setting the client that handles the callbacks. There are two
+reasons. First, it is generally important to be able to change
+callbacks at runtime, e.g., in response to requests, virtualization,
+or other dynamic runtime behavior. Second, a client that can trigger a
+callback should also be able to control what method the callback
+invokes.  This gives the client flexibility if it needs to change
+dispatch based on internal state, or perform some form of proxying. It
+also allows the client to disable callbacks (by passing an
+implementation of the trait that does nothing).
 
-Rule 13: Use a generic lifetime
+Rule 13: Use a generic lifetimes, except for buffers in split-phase operations, which should be `'static`
 ===============================
 
-Avoid using `'static` lifetimes in HILs. This limits flexibility, and Tock
-prefers to use a generic `'a` lifetime instead. Also, unless there is a clear
-reason not to, only a single lifetime should be used.
+HIL implementations should use generic lifetimes whenever possible. This has
+two major advantages. First, it leaves open the possibilty that the kernel
+might, in the future, support loadable modules which have a finite lifetime.
+Second, an explicit `` `static`` lifetime brings safety and borrow-checker
+limitations, because mutably accessing `` `static `` variables is generally
+considered unsafe. 
 
-Often the client type will require a lifetime, and you should use the lifetime
-`'a`.
+If possible, use a single lifetime unless there are compelling reasons or
+requirements to otherwise. The standard lifetime name in Tock code is `` `a``,
+although code can use other ones if they make sense.
+In practice today, these `` `a`` lifetimes are all bound to `` `static``. 
+However, by not using `` `static`` explicitly these HILs can be used with
+arbitrary lifetimes.
 
-The exception is for buffers, which can use the `'static` lifetime.
-
-See https://github.com/tock/tock/issues/1074 for more discussion.
-
+Buffers used in split-phase operations are the one exception to generic
+lifetimes. In most cases, these buffers will be used by hardware in DMA
+or other operations. In that way, their lifetime is not bound to program
+execution (i.e., lifetimes or stack frames) in a simple way. For example,
+a buffer passed to a DMA engine may be held by the engine indefinitely if
+it is never started. For this reason, buffers that touch hardware usually
+must be `` `static``. If their lifetime is not `` `static``, then they
+must be copied into a static buffer to be used (this is usually what happens
+when application `AppSlice` buffers are passed to hardware). To avoid
+unnecessary copies, HILs should use `` `static`` lifetimes for buffers
+used in split-phase operations.
 
 Author Address
 =================================
