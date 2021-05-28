@@ -86,6 +86,14 @@ impl HostChip {
     pub fn add_terminate_callback(&self, callback: &'static dyn Fn()) {
         self.terminate_callbacks.borrow_mut().push(callback);
     }
+
+    pub fn terminate(&self) {
+        self.terminate.store(true, Ordering::Relaxed);
+        for callback in &*self.terminate_callbacks.borrow() {
+            callback();
+        }
+        std::process::exit(0);
+    }
 }
 
 impl kernel::Chip for HostChip {
