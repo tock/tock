@@ -76,7 +76,7 @@ design rules for HILs. They are:
 10. Blocking APIs are not general: use them sparingly, if at all.
 11. `initialize()` methods, when needed, should be in a separate
     trait and invoked in an instantiating Component.
-12. Traits that can trigger callbacks can have a `set_client`
+12. Traits that can trigger callbacks should have a `set_client`
     method.
 13. Use generic lifetimes where possible, except for buffers used in
     split-phase operations, which should be `'static`.
@@ -754,7 +754,7 @@ the call to initialize.
 Rule 12: Traits that can trigger callbacks should have a `set_client` method
 ===============================
 
-If a HIL trait can trigger callbacks should include a method for
+If a HIL trait can trigger callbacks it should include a method for
 setting the client that handles the callbacks. There are two
 reasons. First, it is generally important to be able to change
 callbacks at runtime, e.g., in response to requests, virtualization,
