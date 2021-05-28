@@ -11,7 +11,7 @@ install: flash
 
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	openocd \
-		-c "source [find board/sifive-hifive1.cfg]; program $<; resume 0x20000000; exit"
+		-c "source [find board/sifive-hifive1-revb.cfg]; program $<; resume 0x20000000; exit"
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	qemu-system-riscv32 -M sifive_e,revb=true -kernel $^  -nographic
