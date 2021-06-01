@@ -448,9 +448,6 @@ if __name__ == "__main__":
         hmatch = re.search('file format (\S+)', hline)
         if hmatch != None:
             arch = hmatch.group(1)
-            if arch != 'ELF32-arm-little':
-                usage(arch + " architecture not supported, only ELF32-arm-little supported")
-                sys.exit(-1)
 
     if arch == "UNKNOWN":
         usage("could not detect architecture of ELF")
