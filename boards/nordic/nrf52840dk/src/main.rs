@@ -66,7 +66,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::lmic_spi; // LMIC SPI capsule that sends LMIC commands over SPI
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -82,7 +81,7 @@ use kernel::hil::usb::Client;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{self, LMICSpiComponent, LoraSyscallComponent, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -187,13 +186,13 @@ pub struct Platform {
     //     'static,
     //     capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
     // >,
-    // syscall_lora: &'static capsules::lora_controller::Lora<
-    //     'static,
-    //     capsules::lmic_spi::LMICSpi<
-    //         'static,
-    //         capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
-    //     >,
-    // >,
+    syscall_lora: &'static capsules::lora_controller::Lora<
+        'static,
+        capsules::lmic_spi::LMICSpi<
+            'static,
+            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        >,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -216,7 +215,7 @@ impl kernel::Platform for Platform {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             // capsules::spi_controller::DRIVER_NUM => f(Some(self.syscall_spi)),
-            // capsules::lora_controller::DRIVER_NUM => f(Some(self.syscall_lora)),
+            capsules::lora_controller::DRIVER_NUM => f(Some(self.syscall_lora)),
             _ => f(None),
         }
     }
@@ -518,14 +517,15 @@ pub unsafe fn main() {
     )
     .finalize(components::spi_component_helper!(nrf52840::spi::SPIM));
     // Create lmic_spi component
-    let lmic_spi = lmic_spi::LMICSpi::new(
-        stm32discovery_spi,
-        // &mut capsules::lmic_spi::TXBUFFER,
-        // &mut capsules::lmic_spi::RXBUFFER,
-    );
+    // let lmic_spi = lmic_spi::LMICSpi::new(
+    //     stm32discovery_spi,
+    //     // &mut capsules::lmic_spi::TXBUFFER,
+    //     // &mut capsules::lmic_spi::RXBUFFER,
+    // );
 
-    // TODO: create component for Lora with static lifetime
-    // let syscall_lora = capsules::lora_controller::Lora::new(&lmic_spi);
+    let lmic_spi = LMICSpiComponent::new(stm32discovery_spi).finalize(());
+
+    let syscall_lora = LoraSyscallComponent::new(board_kernel, lmic_spi).finalize(());
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
@@ -613,7 +613,7 @@ pub unsafe fn main() {
         udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         // syscall_spi,
-        // syscall_lora: &syscall_lora,
+        syscall_lora,
     };
 
     let _ = platform.pconsole.start();
