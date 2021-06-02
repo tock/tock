@@ -278,7 +278,7 @@ pub unsafe fn main() {
         board_kernel,
         components::gpio_component_helper!(
             RPGpioPin,
-            // Used for serial communication. Comment them out if you don't use serial.
+            // Used for serial communication. Comment them in if you don't use serial.
             // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
