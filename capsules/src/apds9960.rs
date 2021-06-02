@@ -132,104 +132,163 @@ impl<'a> APDS9960<'a> {
     }
 
     // Read I2C-based ID of device (should be 0xAB)
-    pub fn read_id(&self) {
-        self.buffer.take().map(|buffer| {
-            self.i2c.enable();
+    pub fn read_id(&self) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Idle {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            buffer[0] = Registers::ID as u8;
-            // TODO verify errors
-            let _ = self.i2c.write_read(buffer, 1, 1);
+                buffer[0] = Registers::ID as u8;
 
-            self.state.set(State::ReadId); // Reading ID
-        });
+                match self.i2c.write_read(buffer, 1, 1) {
+                    Ok(()) => {
+                        self.state.set(State::ReadId); // Reading ID
+                        Ok(())
+                    }
+                    Err((err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                        Err(err.into())
+                    }
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     // Set Proximity Pulse Count and Length(1 = default)
-    pub fn set_proximity_pulse(&self, mut length: u8, mut count: u8) {
-        self.buffer.take().map(|buffer| {
-            self.i2c.enable();
+    pub fn set_proximity_pulse(&self, mut length: u8, mut count: u8) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Idle {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            if length > 3 {
-                length = 3;
-            }
-            if count > 63 {
-                count = 63;
-            }
+                if length > 3 {
+                    length = 3;
+                }
+                if count > 63 {
+                    count = 63;
+                }
 
-            buffer[0] = Registers::PROXPULSEREG as u8;
-            buffer[1] = (length << 6 | count) as u8;
-            // TODO verify errors
-            let _ = self.i2c.write(buffer, 2);
+                buffer[0] = Registers::PROXPULSEREG as u8;
+                buffer[1] = (length << 6 | count) as u8;
 
-            self.state.set(State::SetPulse); // Send pulse control command to device
-        });
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::SetPulse); // Send pulse control command to device
+                        Ok(())
+                    }
+                    Err((err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                        Err(err.into())
+                    }
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     // Set LED Current Strength (0 -> 100 mA , 3 --> 12.5 mA)
-    pub fn set_ldrive(&self, mut ldrive: u8) {
-        self.buffer.take().map(|buffer| {
-            self.i2c.enable();
+    pub fn set_ldrive(&self, mut ldrive: u8) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Idle {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            if ldrive > 3 {
-                ldrive = 3;
-            }
+                if ldrive > 3 {
+                    ldrive = 3;
+                }
 
-            buffer[0] = Registers::CONTROLREG1 as u8;
-            buffer[1] = (ldrive << 6) as u8;
-            // TODO verify errors
-            let _ = self.i2c.write(buffer, 2);
+                buffer[0] = Registers::CONTROLREG1 as u8;
+                buffer[1] = (ldrive << 6) as u8;
 
-            self.state.set(State::SetLdrive); // Send LED Current Control gain
-        });
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::SetLdrive); // Send LED Current Control gain
+                        Ok(())
+                    }
+                    Err((err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                        Err(err.into())
+                    }
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     // Take measurement immediately
-    pub fn take_measurement(&self) {
-        // Enable power and proximity sensor
-        self.buffer.take().map(|buffer| {
-            self.i2c.enable();
+    pub fn take_measurement(&self) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Idle {
+            // Enable power and proximity sensor
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                self.i2c.enable();
 
-            buffer[0] = Registers::ENABLE as u8;
-            buffer[1] = PON | PEN;
+                buffer[0] = Registers::ENABLE as u8;
+                buffer[1] = PON | PEN;
 
-            // TODO verify errors
-            let _ = self.i2c.write(buffer, 2);
-
-            self.state.set(State::TakeMeasurement1);
-        });
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::TakeMeasurement1);
+                        Ok(())
+                    }
+                    Err((err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                        Err(err.into())
+                    }
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     // Take Simple proximity measurement with interrupt persistence set to 4; `low` and `high` indicate upper interrupt threshold values
     // IC fires interrupt when (prox_reading < low) || (prox_reading > high)
-    pub fn take_measurement_on_interrupt(&self, low: u8, high: u8) {
-        // Set threshold values
-        self.buffer.take().map(|buffer| {
-            // Save proximity thresholds to buffer unused space
-            buffer[14] = low;
-            buffer[15] = high;
+    pub fn take_measurement_on_interrupt(&self, low: u8, high: u8) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Idle {
+            // Set threshold values
+            self.buffer.take().map(|buffer| {
+                // Save proximity thresholds to buffer unused space
+                buffer[14] = low;
+                buffer[15] = high;
 
-            self.buffer.replace(buffer);
-        });
+                self.buffer.replace(buffer);
+            });
 
-        // Configure interrupt pin
-        self.interrupt_pin.make_input();
-        self.interrupt_pin
-            .set_floating_state(gpio::FloatingState::PullUp);
-        self.interrupt_pin.disable_interrupts();
-        self.interrupt_pin
-            .enable_interrupts(gpio::InterruptEdge::FallingEdge);
+            // Configure interrupt pin
+            self.interrupt_pin.make_input();
+            self.interrupt_pin
+                .set_floating_state(gpio::FloatingState::PullUp);
+            self.interrupt_pin.disable_interrupts();
+            self.interrupt_pin
+                .enable_interrupts(gpio::InterruptEdge::FallingEdge);
 
-        self.buffer.take().map(|buffer| {
-            // Set the device to Sleep-After-Interrupt Mode
-            self.i2c.enable();
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                // Set the device to Sleep-After-Interrupt Mode
+                self.i2c.enable();
 
-            buffer[0] = Registers::CONFIG3 as u8;
-            buffer[1] = SAI;
-            // TODO verify errors
-            let _ = self.i2c.write(buffer, 2);
+                buffer[0] = Registers::CONFIG3 as u8;
+                buffer[1] = SAI;
 
-            self.state.set(State::SendSAI);
-        });
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::SendSAI);
+                        Ok(())
+                    }
+                    Err((err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                        Err(err.into())
+                    }
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 }
 
@@ -246,40 +305,80 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // Set persistence to 4
                 buffer[0] = Registers::PERS as u8;
                 buffer[1] = (PERS) << 4;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::StartingProximity);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::StartingProximity);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::StartingProximity => {
                 // Set low prox thresh to value in buffer
                 buffer[0] = Registers::PILT as u8;
                 buffer[1] = buffer[14];
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::ConfiguringProximity1);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::ConfiguringProximity1);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::ConfiguringProximity1 => {
                 // Set high prox thresh to value in buffer
                 buffer[0] = Registers::PIHT as u8;
                 buffer[1] = buffer[15];
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::ConfiguringProximity2);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::ConfiguringProximity2);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::ConfiguringProximity2 => {
                 // Clear proximity interrupt.
                 buffer[0] = Registers::PICCLR as u8;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 1);
-                self.state.set(State::ConfiguringProximity3);
+
+                match self.i2c.write(buffer, 1) {
+                    Ok(()) => {
+                        self.state.set(State::ConfiguringProximity3);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::ConfiguringProximity3 => {
                 // Enable Device
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = PON | PEN | PIEN;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::PowerOn);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::PowerOn);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::PowerOn => {
                 // Go into idle state and wait for interrupt for data
@@ -293,19 +392,35 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 // Clear proximity interrupt
                 buffer[0] = Registers::PICCLR as u8;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 1);
-                self.interrupt_pin.disable_interrupts();
-                self.state.set(State::PowerOff);
+
+                match self.i2c.write(buffer, 1) {
+                    Ok(()) => {
+                        self.interrupt_pin.disable_interrupts();
+                        self.state.set(State::PowerOff);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::PowerOff => {
                 // Deactivate the device
 
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0 as u8;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::Done);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::Done);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::Done => {
                 // Return to IDLE and perform callback
@@ -320,10 +435,17 @@ impl i2c::I2CClient for APDS9960<'_> {
             State::TakeMeasurement1 => {
                 // Read status reg
                 buffer[0] = Registers::STATUS as u8;
-                // TODO verify errors
-                let _ = self.i2c.write_read(buffer, 1, 1);
 
-                self.state.set(State::TakeMeasurement2);
+                match self.i2c.write_read(buffer, 1, 1) {
+                    Ok(()) => {
+                        self.state.set(State::TakeMeasurement2);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::TakeMeasurement2 => {
                 // Determine if prox data is valid by checking PVALID bit in status reg
@@ -332,15 +454,31 @@ impl i2c::I2CClient for APDS9960<'_> {
 
                 if status_reg & PVALID > 0 {
                     buffer[0] = Registers::PDATA as u8;
-                    // TODO verify errors
-                    let _ = self.i2c.write_read(buffer, 1, 1);
-                    self.state.set(State::TakeMeasurement3);
+
+                    match self.i2c.write_read(buffer, 1, 1) {
+                        Ok(()) => {
+                            self.state.set(State::TakeMeasurement3);
+                        }
+                        Err((_err, buffer)) => {
+                            self.buffer.replace(buffer);
+                            self.state.set(State::Idle);
+                            self.i2c.disable();
+                        }
+                    }
                 } else {
                     // If not valid then keep rechecking status reg
                     buffer[0] = Registers::STATUS as u8;
-                    // TODO verify errors
-                    let _ = self.i2c.write_read(buffer, 1, 1);
-                    self.state.set(State::TakeMeasurement2);
+
+                    match self.i2c.write_read(buffer, 1, 1) {
+                        Ok(()) => {
+                            self.state.set(State::TakeMeasurement2);
+                        }
+                        Err((_err, buffer)) => {
+                            self.buffer.replace(buffer);
+                            self.state.set(State::Idle);
+                            self.i2c.disable();
+                        }
+                    }
                 }
             }
             State::TakeMeasurement3 => {
@@ -349,9 +487,17 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // Reset callback value
                 buffer[0] = Registers::ENABLE as u8;
                 buffer[1] = 0;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::TakeMeasurement4);
+
+                match self.i2c.write(buffer, 2) {
+                    Ok(()) => {
+                        self.state.set(State::TakeMeasurement4);
+                    }
+                    Err((_err, buffer)) => {
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
+                        self.i2c.disable();
+                    }
+                }
             }
             State::TakeMeasurement4 => {
                 // Return to IDLE and perform callback
@@ -390,9 +536,16 @@ impl gpio::Client for APDS9960<'_> {
             self.i2c.enable();
 
             buffer[0] = Registers::PDATA as u8;
-            // TODO verify errors
-            let _ = self.i2c.write_read(buffer, 1, 1);
-            self.state.set(State::ReadData);
+
+            match self.i2c.write_read(buffer, 1, 1) {
+                Ok(()) => {
+                    self.state.set(State::ReadData);
+                }
+                Err((_err, buffer)) => {
+                    self.buffer.replace(buffer);
+                    self.i2c.disable();
+                }
+            }
         });
     }
 }
@@ -400,13 +553,11 @@ impl gpio::Client for APDS9960<'_> {
 /// Proximity Driver Trait Implementation
 impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
     fn read_proximity(&self) -> Result<(), ErrorCode> {
-        self.take_measurement();
-        Ok(())
+        self.take_measurement()
     }
 
     fn read_proximity_on_interrupt(&self, low: u8, high: u8) -> Result<(), ErrorCode> {
-        self.take_measurement_on_interrupt(low, high);
-        Ok(())
+        self.take_measurement_on_interrupt(low, high)
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::ProximityClient) {
