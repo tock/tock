@@ -23,6 +23,7 @@ Attending:
 ### Libtock-c fuzzing
 
 Alexandru: a student is working on fuzzing libtock-c, seems to crash. Would love help figuring out what is actually happenning
+
 Phil: experience is dumps for panic has all the information necessary but hard to find
 
 ## Hardware-in-the-loop CI
@@ -127,4 +128,3 @@ Symbol table question: whether the kernel should export is memory symbols
 Process console wants to print out the kernel memory map, so kernel in current PR exports symbols
 
 Brad suggests passing symbols into process console rather than relying on exported symbols
-
