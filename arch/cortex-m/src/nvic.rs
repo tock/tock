@@ -17,15 +17,11 @@ use kernel::common::StaticRef;
 /// Generates the (u128, u128) tuple used for the NVIC's mask functions
 /// `next_pending_with_mask` and `next_pending_with_mask`.
 ///
-/// Usage example
-/// -------------
-/// ```rust
 /// if let Some(interrupt) =
 ///     cortexm0p::nvic::next_pending_with_mask(interrupt_mask!(interrupts::SIO_IRQ_PROC1))
 /// {
 ///     // ...
 /// }
-/// ```
 #[macro_export]
 macro_rules! interrupt_mask {
     ($($interrupt: expr),+) => {{
