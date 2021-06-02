@@ -1,4 +1,4 @@
-//! Driver for STM ADC MCU temperature sensor
+//! Driver for RP2040 ADC MCU temperature sensor
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
