@@ -57,7 +57,7 @@ Arvin: RasPI is running the tests and the GitHub actions, so only one machine in
 Leon: Is it possible for others to have others providing different boards?
 Jack: Idea is anyone from anywhere could spin up a PI with their target board, will listen for a _particular_ board in the Tock repo.
 
-Branden: Please share slide deck? Video?
+Branden: Please share slide deck? Video? [Slides are located here](https://docs.google.com/presentation/d/1rWZU8UPYhbEYJ44ri1KKlzCbSIzo_eYPDP9AnRPs0DY/edit?usp=sharing)
 
 You can specify different Raspberry PIs for the same board by giving each board an ID
 
