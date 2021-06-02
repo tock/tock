@@ -12,7 +12,7 @@ First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
-The kernel can be programmed using a second Raspberry Pi device and OpenOCD. OpenOCD needs to be installed on the Regular Raspberry Pi device.
+The Raspberry Pi Pico can be programmed via an SWD connection, which requires the Pico to be connected to a regular Raspberry Pi device that exposes the necessary pins. The kernel is transferred to the Raspberry Pi Pico using a [custom version of OpenOCD](https://github.com/raspberrypi/openocd).
 
 ### Raspberry Pi Setup
 
@@ -31,7 +31,9 @@ $ cd ~
 
 Enable SSH on the Raspberry Pi by following the [instructions on the Raspberry Pi website](https://www.raspberrypi.org/documentation/remote-access/ssh/).
 
-Next, connect the Pico to the Raspberry Pi by following the instructions in the [official documentation](https://datasheets.raspberrypi.org/pico/getting-started-with-pico.pdf#%5B%7B%22num%22%3A22%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C115%2C431.757%2Cnull%5D).
+Next, connect the SWD pins of the Pico (the tree lower wires) to GND, GPIO 24, and GPIO 25 of the Raspberry Pi. You can follow the schematic in the [official documentation](https://datasheets.raspberrypi.org/pico/getting-started-with-pico.pdf#%5B%7B%22num%22%3A22%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C115%2C431.757%2Cnull%5D) and connect the blue, black, and purple wires.
+
+Also connect the other three wires as shown in the schematic, which will connect the Pico UART to the Raspberry Pi. This will enable the serial communication between the two devices.
 ### Flash the tock kernel
 
 `cd` into `boards/raspberry_pi_pico` directory and run:

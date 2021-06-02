@@ -35,10 +35,6 @@ mod io;
 
 mod flash_bootloader;
 
-extern "C" {
-    static _stext: *const u32;
-}
-
 /// Allocate memory for the stack
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -333,8 +329,8 @@ pub unsafe fn main() {
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
         .finalize(components::adc_mux_component_helper!(Adc));
 
-    let temp_sensor = components::temperature_rp2040::TemperatureRp4020Component::new(1.721, 0.706)
-        .finalize(components::temperaturerp4020_adc_component_helper!(
+    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(1.721, 0.706)
+        .finalize(components::temperaturerp2040_adc_component_helper!(
             rp2040::adc::Adc,
             Channel::Channel4,
             adc_mux

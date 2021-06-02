@@ -9,9 +9,10 @@ include ../Makefile.common
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
-APP=../../../libtock-c/examples/blink/build/cortex-m0/cortex-m0.tbf
+APP=$(TOCK_ROOT_DIRECTORY)/../libtock/libtock-c/examples/c_hello/build/cortex-m0/cortex-m0.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf
+
 
 # Default target for installing the kernel.
 .PHONY: install

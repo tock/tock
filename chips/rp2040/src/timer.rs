@@ -247,6 +247,12 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.armed.set(1);
+        unsafe {
+            atomic(|| {
+                // Clear pending interrupts
+                cortexm0p::nvic::Nvic::new(TIMER_IRQ_0).clear_pending();
+            });
+        }
         self.disable_interrupt();
         self.disable_timer_interrupt();
         Ok(())

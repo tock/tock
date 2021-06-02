@@ -167,13 +167,11 @@ impl Adc {
     }
 
     fn enable_interrupt(&self) {
-        let n = unsafe { cortexm0p::nvic::Nvic::new(interrupts::ADC_IRQ_FIFO) };
-        n.enable();
+        self.registers.inte.modify(INTE::FIFO::SET);
     }
 
     fn disable_interrupt(&self) {
-        let n = unsafe { cortexm0p::nvic::Nvic::new(interrupts::ADC_IRQ_FIFO) };
-        n.disable();
+        self.registers.inte.modify(INTE::FIFO::CLEAR);
     }
 
     fn enable_temperature(&self) {
@@ -207,7 +205,6 @@ impl hil::adc::Adc for Adc {
             self.registers
                 .fcs
                 .modify(FCS::THRESH.val(1 as u32) + FCS::EN::SET);
-            self.registers.inte.modify(INTE::FIFO::SET);
             self.enable_interrupt();
             self.registers.cs.modify(CS::START_ONCE::SET);
             Ok(())

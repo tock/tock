@@ -647,9 +647,6 @@ impl Configure for Uart<'_> {
             .uartdmacr
             .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
 
-        let n = unsafe { cortexm0p::nvic::Nvic::new(self.interrupt) };
-        n.enable();
-
         Ok(())
     }
 }

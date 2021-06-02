@@ -4,7 +4,6 @@
 pub mod adc;
 pub mod chip;
 pub mod clocks;
-pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod interrupts;
 pub mod resets;

@@ -61,13 +61,13 @@ register_structs! {
         (0x084 => fc0_min_khz: ReadWrite<u32>),
         /// Maximum pass frequency in kHz. This is optional. Set to 0x1ffffff if you are not
         (0x088 => fc0_max_khz: ReadWrite<u32>),
-        /// Delays the start of frequency counting to allow the mux to settle\n
+        /// Delays the start of frequency counting to allow the mux to settle
         /// Delay is measured in multiples of the reference clock period
         (0x08C => fc0_delay: ReadWrite<u32>),
-        /// The test interval is 0.98us * 2**interval, but let's call it 1us * 2**interval\n
+        /// The test interval is 0.98us * 2**interval, but let's call it 1us * 2**interval
         /// The default gives a test interval of 250us
         (0x090 => fc0_interval: ReadWrite<u32>),
-        /// Clock sent to frequency counter, set to 0 when not required\n
+        /// Clock sent to frequency counter, set to 0 when not required
         /// Writing to this register initiates the frequency count
         (0x094 => fc0_src: ReadWrite<u32>),
         /// Frequency counter status
@@ -97,19 +97,19 @@ register_structs! {
         (0x0C8 => @END),
     },
     PllRegisters {
-        /// Control and Status\n
-        /// GENERAL CONSTRAINTS:\n
-        /// Reference clock frequency min=5MHz, max=800MHz\n
-        /// Feedback divider min=16, max=320\n
+        /// Control and Status
+        /// GENERAL CONSTRAINTS:
+        /// Reference clock frequency min=5MHz, max=800MHz
+        /// Feedback divider min=16, max=320
         /// VCO frequency min=400MHz, max=1600MHz
         (0x000 => cs: ReadWrite<u32, CS::Register>),
         /// Controls the PLL power modes.
         (0x004 => pwr: ReadWrite<u32, PWR::Register>),
-        /// Feedback divisor\n
+        /// Feedback divisor
         /// (note: this PLL does not support fractional division)
         (0x008 => fbdiv_int: ReadWrite<u32, FBDIV_INT::Register>),
-        /// Controls the PLL post dividers for the primary output\n
-        /// (note: this PLL does not have a secondary output)\n
+        /// Controls the PLL post dividers for the primary output
+        /// (note: this PLL does not have a secondary output)
         /// the primary output is driven from VCO divided by postdiv1*postdiv2
         (0x00C => prim: ReadWrite<u32, PRIM::Register>),
         (0x010 => @END),
@@ -121,7 +121,7 @@ register_bitfields![u32,
         /// An edge on this signal shifts the phase of the output by 1 cycle of the input cl
         /// This can be done at any time
         NUDGE OFFSET(20) NUMBITS(1) [],
-        /// This delays the enable signal by up to 3 cycles of the input clock\n
+        /// This delays the enable signal by up to 3 cycles of the input clock
         /// This must be set before the clock is enabled to have any effect
         PHASE OFFSET(16) NUMBITS(2) [],
         /// Enables duty cycle correction for odd divisors
@@ -226,7 +226,7 @@ register_bitfields![u32,
         /// An edge on this signal shifts the phase of the output by 1 cycle of the input cl
         /// This can be done at any time
         NUDGE OFFSET(20) NUMBITS(1) [],
-        /// This delays the enable signal by up to 3 cycles of the input clock\n
+        /// This delays the enable signal by up to 3 cycles of the input clock
         /// This must be set before the clock is enabled to have any effect
         PHASE OFFSET(16) NUMBITS(2) [],
         /// Starts and stops the clock generator cleanly
@@ -255,7 +255,7 @@ register_bitfields![u32,
         /// An edge on this signal shifts the phase of the output by 1 cycle of the input cl
         /// This can be done at any time
         NUDGE OFFSET(20) NUMBITS(1) [],
-        /// This delays the enable signal by up to 3 cycles of the input clock\n
+        /// This delays the enable signal by up to 3 cycles of the input clock
         /// This must be set before the clock is enabled to have any effect
         PHASE OFFSET(16) NUMBITS(2) [],
         /// Starts and stops the clock generator cleanly
@@ -284,7 +284,7 @@ register_bitfields![u32,
         /// An edge on this signal shifts the phase of the output by 1 cycle of the input cl
         /// This can be done at any time
         NUDGE OFFSET(20) NUMBITS(1) [],
-        /// This delays the enable signal by up to 3 cycles of the input clock\n
+        /// This delays the enable signal by up to 3 cycles of the input clock
         /// This must be set before the clock is enabled to have any effect
         PHASE OFFSET(16) NUMBITS(2) [],
         /// Starts and stops the clock generator cleanly
@@ -318,7 +318,7 @@ register_bitfields![u32,
         FRCE OFFSET(12) NUMBITS(1) [],
         /// Enable resus
         ENABLE OFFSET(8) NUMBITS(1) [],
-        /// This is expressed as a number of clk_ref cycles\n
+        /// This is expressed as a number of clk_ref cycles
         /// and must be >= 2x clk_ref_freq/min_clk_tst_freq
         TIMEOUT OFFSET(0) NUMBITS(8) []
     ],
@@ -695,22 +695,22 @@ register_bitfields![u32,
         LOCK OFFSET(31) NUMBITS(1) [],
         /// Passes the reference clock to the output instead of the divided VCO. The VCO con
         BYPASS OFFSET(8) NUMBITS(1) [],
-        /// Divides the PLL input reference clock.\n
-        /// Behaviour is undefined for div=0.\n
+        /// Divides the PLL input reference clock.
+        /// Behaviour is undefined for div=0.
         /// PLL output will be unpredictable during refdiv changes, wait for
         REFDIV OFFSET(0) NUMBITS(6) []
     ],
     PWR [
-        /// PLL VCO powerdown\n
+        /// PLL VCO powerdown
         /// To save power set high when PLL output not required or bypass=1.
         VCOPD OFFSET(5) NUMBITS(1) [],
-        /// PLL post divider powerdown\n
+        /// PLL post divider powerdown
         /// To save power set high when PLL output not required or bypass=1.
         POSTDIVPD OFFSET(3) NUMBITS(1) [],
-        /// PLL DSM powerdown\n
+        /// PLL DSM powerdown
         /// Nothing is achieved by setting this low.
         DSMPD OFFSET(2) NUMBITS(1) [],
-        /// PLL powerdown\n
+        /// PLL powerdown
         /// To save power set high when PLL output not required.
         PD OFFSET(0) NUMBITS(1) []
     ],
