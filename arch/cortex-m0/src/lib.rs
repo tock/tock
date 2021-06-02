@@ -202,10 +202,15 @@ pub unsafe extern "C" fn switch_to_user(
     process_regs: &mut [usize; 8],
 ) -> *mut u8 {
     asm!("
-    // Manually save r6 in r2 and r7 in r3 since as of Feb 2021 asm!() will not
-    // let us mark r6 or r7 as clobbers.
+    // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
+    // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
+    // the frame pointer. However, in the process of restoring and saving the
+    // process's registers, we do in fact clobber r6, r7 and r9. So, we work
+    // around this by doing our own manual saving of r6 using r2, r7 using r3,
+    // r9 using r12, and then mark those as clobbered.
     mov r2, r6
     mov r3, r7
+    mov r12, r9
 
     /* Load non-hardware-stacked registers from Process stack */
     ldmia r1!, {{r4-r7}}
@@ -243,15 +248,16 @@ pub unsafe extern "C" fn switch_to_user(
 
     mrs r0, PSP /* PSP into user_stack */
 
-    // Manually restore r6 and r7.
+    // Manually restore r6, r7 and r9.
     mov r6, r2
     mov r7, r3
+    mov r9, r12
 
     ",
     inout("r0") user_stack,
     in("r1") process_regs,
-    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r9") _,
-    out("r10") _, out("r11") _);
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, 
+    out("r10") _, out("r11") _, out("r12") _);
 
     user_stack as *mut u8
 }

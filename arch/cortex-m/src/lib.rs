@@ -339,7 +339,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     // application has executed.
     mrs r0, PSP   // r0 = PSP
 
-    // Need to restore r6 and r7 since we clobbered them when switching to and
+    // Need to restore r6, r7 and r12 since we clobbered them when switching to and
     // from the app.
     mov r6, r2
     mov r7, r3
