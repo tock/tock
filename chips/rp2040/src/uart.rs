@@ -1,4 +1,3 @@
-use crate::interrupts::{UART0_IRQ, UART1_IRQ};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -374,7 +373,6 @@ const UART1_BASE: StaticRef<UartRegisters> =
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
-    interrupt: u32,
     tx_client: OptionalCell<&'a dyn TransmitClient>,
     rx_client: OptionalCell<&'a dyn ReceiveClient>,
 
@@ -405,7 +403,6 @@ impl<'a> Uart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
-            interrupt: UART0_IRQ,
         }
     }
     pub const fn new_uart1() -> Self {
@@ -422,7 +419,6 @@ impl<'a> Uart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
-            interrupt: UART1_IRQ,
         }
     }
 
