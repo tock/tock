@@ -229,7 +229,7 @@ SECTIONS
         . = ALIGN(4);
         _sapps = .;
 
-        /* Include a placeholder byte(s) in this section so that the linker
+        /* Include placeholder bytes in this section so that the linker
          * includes a segment for it. Otherwise the section will be empty and
          * the linker will ignore it when defining the segments.
          * If less then 4 bytes, some linkers set this section to size 0
