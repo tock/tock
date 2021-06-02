@@ -189,11 +189,11 @@ impl<'a> RPTimer<'a> {
     }
 
     fn enable_timer_interrupt(&self) {
-        // Even though setting the INTE::ALARM_0 bit should be enough to enable 
+        // Even though setting the INTE::ALARM_0 bit should be enough to enable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // enabling of the interrupt.
         //
-        // Failing to do so results in the interrupt being set as pending but 
+        // Failing to do so results in the interrupt being set as pending but
         // not fired. This means that the interrupt will be handled whenever the
         // next kernel tasks are processed.
         unsafe {
@@ -205,7 +205,7 @@ impl<'a> RPTimer<'a> {
     }
 
     fn disable_timer_interrupt(&self) {
-        // Even though clearing the INTE::ALARM_0 bit should be enough to disable 
+        // Even though clearing the INTE::ALARM_0 bit should be enough to disable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // disabling of the interrupt.
         unsafe {
