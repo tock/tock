@@ -191,6 +191,9 @@ pub unsafe fn main() {
 
     let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
 
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
         Peripheral::IOQSpi,

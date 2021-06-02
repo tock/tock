@@ -17,6 +17,7 @@ PAGE_SIZE = 4K;
 
 ENTRY(reset)
 
+/* RP2040 has a bootloader that occupies the first 256 bytes of .text */
 SECTIONS {
   .text  : ALIGN(4)
     {

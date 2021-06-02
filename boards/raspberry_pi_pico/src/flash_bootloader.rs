@@ -1,4 +1,9 @@
-/// padded bootloader used to boot from flash
+/// Padded bootloader used to boot from flash
+///
+/// The RP2040 chip requires a padded and signed bootloader (RP2040 Datasheet, 2.8 Bootrom Page, page 156)
+/// This is the result of running [pad_checksum](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/boot_stage2/pad_checksum)
+/// with the object file of [boot2_w25q080.S](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/boot_stage2/boot2_w25q080.S)
+
 pub const FLASH_BOOTLOADER: [u8; 256] = [
     0x00, 0xb5, 0x32, 0x4b, 0x21, 0x20, 0x58, 0x60, 0x98, 0x68, 0x02, 0x21, 0x88, 0x43, 0x98, 0x60,
     0xd8, 0x60, 0x18, 0x61, 0x58, 0x61, 0x2e, 0x4b, 0x00, 0x21, 0x99, 0x60, 0x02, 0x21, 0x59, 0x61,
