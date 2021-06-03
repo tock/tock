@@ -5,13 +5,14 @@ use core::cell::Cell;
 use core::mem;
 use kernel::{
     common::cells::{OptionalCell, TakeCell},
+    debug,
     hil::lmic::LMIC,
 };
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
-use crate::driver;
+use crate::{driver, st77xx::Command};
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
 
 pub const MAX_LORA_PACKET_SIZE: usize = 256;
@@ -25,6 +26,7 @@ pub struct App {
     upcall: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
+    len: usize,
 }
 
 pub struct Lora<'a, L: LMIC> {
@@ -56,14 +58,11 @@ impl<'a, L: LMIC> Lora<'a, L> {
 
     // Assumes checks for busy already done.
     fn do_set_tx_data(&self, app: &mut App) {
-        // TODO: Right now it writes all contents of app_write buffer into the
-        // kernel_write buffer. We probably only want to transfer what we want
-        // instead of everything.
-        // Also having dummy return values is kind of wack. Is there a better
+        // TODO: Also having dummy return values is kind of wack. Is there a better
         // way to do this?
         self.kernel_write.map_or(0, |kernel_write_buf| {
             app.app_write.map_or(0, |src| {
-                let end = src.len();
+                let end = app.len;
 
                 for (i, c) in src.as_ref()[..end].iter().enumerate() {
                     kernel_write_buf[i] = *c;
@@ -72,11 +71,13 @@ impl<'a, L: LMIC> Lora<'a, L> {
             });
             0 // Dummy return
         });
-
+        debug!("do_set_tx_data");
         let _ = self
             .lora_device
-            .set_tx_data(self.kernel_write.take().unwrap());
+            .set_tx_data(self.kernel_write.take().unwrap(), app.len);
         self.busy.set(false);
+        // TODO: At some point, need to kernel_write.replace(some_buf); otherwise, kernel_write
+        // will remain None
     }
 }
 
@@ -158,9 +159,17 @@ impl<'a, L: LMIC> Driver for Lora<'a, L> {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
                 self.grants.enter(caller_id, |app| {
-                    self.busy.set(true);
-                    self.do_set_tx_data(app);
-                    CommandReturn::success()
+                    let app_write_len = app.app_write.map_or(0, |w| w.len());
+
+                    if app_write_len >= r2 && r2 > 0 {
+                        app.len = r2;
+                        self.busy.set(true);
+                        self.do_set_tx_data(app);
+                        CommandReturn::success()
+                    } else {
+                        CommandReturn::failure(ErrorCode::INVAL)
+                    }
+
                 }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)

@@ -1,6 +1,9 @@
 // use kernel::common::cells::TakeCell;
-use kernel::hil::{lmic, spi};
 use kernel::ErrorCode;
+use kernel::{
+    debug,
+    hil::{lmic, spi},
+};
 
 pub struct LMICSpi<'a, Spi: spi::SpiMasterDevice> {
     pub spi: &'a Spi,
@@ -24,11 +27,12 @@ impl<'a, Spi: spi::SpiMasterDevice> LMICSpi<'a, Spi> {
 }
 
 impl<'a, Spi: spi::SpiMasterDevice> lmic::LMIC for LMICSpi<'a, Spi> {
-    fn set_tx_data(&self, tx_data: &'static mut [u8]) -> Result<(), ErrorCode> {
+    fn set_tx_data(&self, tx_data: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
         // let wbuf = self.txbuffer.take().unwrap();
         // let rbuf = self.rxbuffer.take().unwrap();
         // read_write_bytes always returns Ok(())
-        let _ = self.spi.read_write_bytes(tx_data, None, tx_data.len());
+        debug!("lmic_spi call to spi read_write_bytes");
+        let _ = self.spi.read_write_bytes(tx_data, None, len);
 
         Ok(())
     }
@@ -43,10 +47,14 @@ impl<Spi: spi::SpiMasterDevice> spi::SpiMasterClient for LMICSpi<'_, Spi> {
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) {
+        debug!("Spi read_write_done callback!");
         // TODO: probably want to read out of spi and manage spi state
         // self.spi_busy.set(false);
         // let rbuf = read_buffer.take().unwrap();
         // self.rxbuffer.replace(rbuf);
         // Maybe this also triggers lmic_spi set_tx_data() callback??
+
+        // TODO: Somehow bubble up these buffers from this callback up to LoraSyscall object
+        // to call replace on LoraSyscall object's kernel_write and read buffers
     }
 }
