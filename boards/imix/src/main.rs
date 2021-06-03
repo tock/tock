@@ -43,7 +43,6 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
-
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
