@@ -8,7 +8,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};

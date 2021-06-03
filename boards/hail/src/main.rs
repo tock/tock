@@ -9,7 +9,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::VirtualSpiMasterDevice;

@@ -66,7 +66,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;

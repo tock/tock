@@ -66,7 +66,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
