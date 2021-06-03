@@ -137,7 +137,7 @@ The OpenTitan application can be run in the QEMU emulation platform for
 RISC-V, allowing quick and easy testing. This is also a good option for
 those who can't afford the FPGA development board.
 
-Unfortunately you need QEMU 5.2, which at the time of writing is unlikely
+Unfortunately you need QEMU 6.1, which at the time of writing is unlikely
 to be avaliable in your distro. Luckily Tock can build QEMU for you. From
 the top level of the Tock source just run `make ci-setup-qemu` and
 follow the steps.
