@@ -794,7 +794,7 @@ when application `AppSlice` buffers are passed to hardware). To avoid
 unnecessary copies, HILs should use `` `static`` lifetimes for buffers
 used in split-phase operations.
 
-Author Address
+Author Addresses
 =================================
 ```
 Philip Levis
