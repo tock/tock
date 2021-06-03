@@ -16,7 +16,12 @@ TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
+
+ifeq ($(NO_RUSTUP),)
 RUSTUP    ?= rustup
+else
+RUSTUP    ?= true
+endif
 
 # Default location of target directory (relative to board makefile)
 # passed to cargo --target_dir
@@ -113,6 +118,18 @@ endif
 # a set string which should be updated with every release.
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "1.4+")
 
+# Allow users to opt out of using rustup
+ifeq ($(NO_RUSTUP),)
+# Validate that rustup exists.
+RUSTUP_ERROR := $(shell $(RUSTUP) --version > /dev/null 2>&1; echo $$?)
+ifneq ($(RUSTUP_ERROR),0)
+    $(info Error! rustup not found.)
+    $(info Please follow the instructions at https://rustup.rs/ to install rustup.)
+    $(info Alternatively, install all required tools and Rust targets and set NO_RUSTUP to disable this check.)
+    $(info )
+    $(error Rustup required to build Tock.)
+endif
+
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
@@ -136,6 +153,7 @@ endif
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(shell $(RUSTUP) target add $(TARGET))
 endif
+endif # $(NO_RUSTUP) ?
 
 # If the user is using the standard toolchain we need to get the full path.
 # rustup should take care of this for us by putting in a proxy in .cargo/bin,
