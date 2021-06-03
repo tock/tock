@@ -9,7 +9,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::driver_debug;
+
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
@@ -50,31 +50,31 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 // A structure representing this platform that holds references to all
 // capsules for this platform.
-driver_debug! {
-    struct Hail {
-        console: &'static capsules::console::Console<'static>,
-        gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
-        alarm: &'static capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-        >,
-        ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-        temp: &'static capsules::temperature::TemperatureSensor<'static>,
-        ninedof: &'static capsules::ninedof::NineDof<'static>,
-        humidity: &'static capsules::humidity::HumiditySensor<'static>,
-        spi: &'static capsules::spi_controller::Spi<
-            'static,
-            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        >,
-        nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-        adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-        led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
-        button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-        rng: &'static capsules::rng::RngDriver<'static>,
-        ipc: kernel::ipc::IPC<NUM_PROCS>,
-        crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        dac: &'static capsules::dac::Dac<'static>,
-    }
+
+/// Supported drivers by the platform
+struct Hail {
+    console: &'static capsules::console::Console<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    >,
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    spi: &'static capsules::spi_controller::Spi<
+        'static,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+    >,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
+    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    dac: &'static capsules::dac::Dac<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -444,7 +444,7 @@ pub unsafe fn main() {
     // Setup the UART bus for nRF51 serialization..
     hail.nrf51822.initialize();
 
-    let _ = process_console.start(driver_debug_str);
+    let _ = process_console.start();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();

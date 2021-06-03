@@ -177,7 +177,6 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
-    drivers: OptionalCell<&'static str>,
 
     /// Flag to mark that the process console is active and has called receive
     /// from the underlying UART.
@@ -222,17 +221,6 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-//macro generates list of drivers used by platform
-#[macro_export]
-macro_rules! driver_debug {
-    ($vis:vis struct $struct:ident {$( $field:ident:$type:ty ),*,}) => {
-        /// Supported drivers by the platform
-        $vis struct $struct { $($field: $type),*}
-
-        static driver_debug_str : Option<&'static str> = Some(concat!($("\t",stringify!($field),"\n"),*));
-    };
-}
-
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
@@ -259,20 +247,18 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             execute: Cell::new(false),
             kernel: kernel,
             capability: capability,
-            drivers: OptionalCell::empty(),
         }
     }
 
-    pub fn start(&self, driver_str: Option<&'static str>) -> Result<(), ErrorCode> {
+    pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
-            self.drivers.insert(driver_str);
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
                 let _ = self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
             });
             //Starts the process console while printing base information about
-            //The kernel version and the drivers installed
+            //The kernel version installed
             let mut console_writer = ConsoleWriter::new();
             let _ = write(
                 &mut console_writer,
@@ -282,15 +268,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 ),
             );
             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-            console_writer.clear();
-            if driver_str.is_some() {
-                driver_str.map(|driver| {
-                    let _ = self.write_bytes(b"Drivers:\n");
-                    let _ = write(&mut console_writer, format_args!("{}", driver));
-                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                    console_writer.clear();
-                });
-            };
             let _ = self.write_bytes(b"Welcome to the process console.\n");
             let _ = self.write_bytes(
                 b"Valid commands are: help status list stop start fault process kernel\n",
@@ -868,16 +845,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
-                            if self.drivers.is_some() {
-                                self.drivers.map(|driver| {
-                                    let _ = self.write_bytes(b"Drivers:\n");
-                                    let _ = write(&mut console_writer,format_args!(
-                                        "{}",
-                                        driver));
-                                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                                    console_writer.clear();
-                                });
-                            };
                             //prints kernel memory by moving the writer to the start state
                             self.write_state(WriterState::KernelStart,None);
 

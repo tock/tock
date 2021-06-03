@@ -8,7 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::driver_debug;
+
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -113,32 +113,31 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
-driver_debug! {
-    pub struct Platform {
-        ble_radio: &'static capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52::ble_radio::Radio<'static>,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        >,
-        ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-        console: &'static capsules::console::Console<'static>,
-        pconsole: &'static capsules::process_console::ProcessConsole<
-            'static,
-            components::process_console::Capability,
-        >,
-        proximity: &'static capsules::proximity::ProximitySensor<'static>,
-        temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-        humidity: &'static capsules::humidity::HumiditySensor<'static>,
-        gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-        led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
-        rng: &'static capsules::rng::RngDriver<'static>,
-        ipc: kernel::ipc::IPC<NUM_PROCS>,
-        alarm: &'static capsules::alarm::AlarmDriver<
-            'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        >,
-        udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    }
+/// Supported drivers by the platform
+pub struct Platform {
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        nrf52::ble_radio::Radio<'static>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
+    console: &'static capsules::console::Console<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
+    proximity: &'static capsules::proximity::ProximitySensor<'static>,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    >,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -511,7 +510,7 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    let _ = platform.pconsole.start(driver_debug_str);
+    let _ = platform.pconsole.start();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

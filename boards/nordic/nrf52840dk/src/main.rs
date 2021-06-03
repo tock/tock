@@ -66,7 +66,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::driver_debug;
+
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -141,39 +141,38 @@ static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripheral
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-driver_debug! {
-    pub struct Platform {
-        ble_radio: &'static capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52840::ble_radio::Radio<'static>,
-            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        >,
-        ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-        button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-        pconsole: &'static capsules::process_console::ProcessConsole<
-            'static,
-            components::process_console::Capability,
-        >,
-        console: &'static capsules::console::Console<'static>,
-        gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-        led: &'static capsules::led::LedDriver<
-            'static,
-            kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-        >,
-        rng: &'static capsules::rng::RngDriver<'static>,
-        temp: &'static capsules::temperature::TemperatureSensor<'static>,
-        ipc: kernel::ipc::IPC<NUM_PROCS>,
-        analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
-            'static,
-            nrf52840::acomp::Comparator<'static>,
-        >,
-        alarm: &'static capsules::alarm::AlarmDriver<
-            'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        >,
-        nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-        udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    }
+/// Supported drivers by the platform
+pub struct Platform {
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        nrf52840::ble_radio::Radio<'static>,
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
+    button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
+    console: &'static capsules::console::Console<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
+    >,
+    rng: &'static capsules::rng::RngDriver<'static>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        nrf52840::acomp::Comparator<'static>,
+    >,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -554,7 +553,7 @@ pub unsafe fn main() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let _ = platform.pconsole.start(driver_debug_str);
+    let _ = platform.pconsole.start();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
