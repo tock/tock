@@ -559,24 +559,26 @@ an error code of `INVALID`.
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
 Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application cannot write that memory.
-If an application needs to extend a buffer, it must first call
-Read-Write Allow to reclaim the buffer, then call Read-Write Allow
-again to re-allow it with a different size. If userspace passes
-an overlapping buffer, the kernel MUST return a failure result with
-an error code of `INVALID`.
+This is because the application cannot write that memory.  If an
+application needs to extend a buffer, it must first call Read-Write
+Allow to reclaim the buffer, then call Read-Write Allow again to
+re-allow it with a different size. If userspace passes an overlapping
+buffer, the kernel MUST return a failure result with an error code of
+`INVALID`.
 
+4.4.1 Buffers Can Change
+---------------------------------
 The standard use of Read-Write Allow requires that userspace does not
 access a buffer once it has been allowed. However, the kernel MUST NOT
-assume that an allowed buffer does not change: there could be a bug, 
-compromise, or other error in the userspace code. The fact that the kernel thread always
-preempts any user thread in Tock allows capsules to
-assume that a series of accesses to an allowed buffer is atomic. However,
-if the capsule relinquishes execution (e.g., returns from a method
-called on it), it may be that userspace runs in the meantime and
-modifies the buffer. Note that userspace could also, in this time,
-issue another allow call to revoke the buffer, or crash, such that
-the buffer is no longer valid. 
+assume that an allowed buffer does not change: there could be a bug,
+compromise, or other error in the userspace code. The fact that the
+kernel thread always preempts any user thread in Tock allows capsules
+to assume that a series of accesses to an allowed buffer is
+atomic. However, if the capsule relinquishes execution (e.g., returns
+from a method called on it), it may be that userspace runs in the
+meantime and modifies the buffer. Note that userspace could also, in
+this time, issue another allow call to revoke the buffer, or crash,
+such that the buffer is no longer valid.
 
 The canonical case of incorrectly assuming a buffer does not change
 involves the length of a buffer. In this example, userspace allows a 
@@ -593,7 +595,7 @@ an allowed buffer, as if the buffer changes those computations may no
 longer be correct (e.g., computing a length based on fields in the buffer).
 
 
-4.4.1 Simultaneous userspace/kernel access of a buffer
+4.4.2 Simultaneous userspace/kernel access of a buffer
 ---------------------------------
 
 The standard calling pattern for reading data from the Tock kernel is to
@@ -619,29 +621,51 @@ accessing the data.
 
 In these cases, it can be acceptable for a system call driver to allow
 userspace to read or write a buffer passed with a Read-Write Allow. An
-important invariant is that userspace does not access the buffer
-while an operation that modifies the buffer is ongoing. Instead, userspace
-can access the buffer *before* or *after* the operation completes.
+important invariant is that userspace does use buffer data read while
+an operation that modifies the buffer is ongoing. Instead, userspace
+only uses data collected from a buffer *before* or *after* an
+operation completes: data reads and operations MUST be atomic with
+respect to one another.
 
-To allow userspace to access a buffer without revoking it, a system call
-driver MUST specify a state machine for that buffer. This state
-machine MUST specify when the buffer is in use by the kernel and when
-it is not in use.  This specification MUST be a finite state machine
-with two states. The first state is "not in use" and the second state
-is "in use". The specification MUST state a single Command that causes
-the buffer to transition from "not in use" to "in use" and MUST state
-a single upcall (Subscribe identifier) that causes the buffer to
-transition from "in use" to "not in use".
+For a system call API to allow userspace to read allowed buffers, the
+mechanism that ensures data reads are atomic MUST be documented in a
+Draft or Final Documentary TRD. If this conditions are met then
+userspace MAY read the buffer under the conditions specified in the
+TRD.
 
-The system call API specification MAY allow userspace code to 
-access the buffer when it is "not in use" and MUST NOT
-support userspace reading from the buffer when it is "in use."
-Inversely, the system call API specfication MUST NOT involve
-the kernel accessing a buffer when it is "not in use". This
-finite state machine specification allows userspace and the kernel
-to enforce exclusive access through commands and upcalls. However,
-since this enforcement is not checkable, it should be used sparingly
-and code implementing it should be carefully checked.
+One example mechanism for atomic access is to specify a state machine
+for that buffer as described below. Other mechanisms (e.g., based on
+monotonic counters) can be acceptable as well.
+
+A system call API that supports userspace reading from an allowed
+buffer MUST NOT require it. Some userspace implementations may not
+support this behavior. Reading an allowed buffer without revoking it
+is considered an *optimization* and is not required. The system call
+API MUST support accessing the data through revoking the buffer to
+regain exclusive access.
+
+4.4.3 Example State Machine Specification 
+---------------------------------
+
+One way to specify atomic access to a shared buffer is through a state
+machine.  This state machine specifies when the buffer is in use by
+the kernel and when it is not in use.  This specification is be a
+finite state machine with two states. The first state is "not in use"
+and the second state is "in use". The specification states a single
+Command that causes the buffer to transition from "not in use" to "in
+use" and states a single upcall (Subscribe identifier) that causes the
+buffer to transition from "in use" to "not in use".
+
+The system call API specification using this state machine approach
+MAY allow userspace code to access the buffer when it is "not in use"
+and MUST NOT support or rely on userspace reading from the buffer when
+it is "in use."  Inversely, the system call API specfication using
+this state machine approach MUST NOT involve the kernel accessing a
+buffer when it is "not in use". This finite state machine
+specification allows userspace and the kernel to enforce exclusive
+access through commands and upcalls. However, since this enforcement
+is not checkable, it should be used sparingly and code implementing it
+should be carefully checked.
 
 As an example, consider a system call driver that has the following 
 system calls:
@@ -662,27 +686,25 @@ it in this way:
 > Therefore it is safe for userspace to read Read Buffer when there is 
 > not an outstanding Read operation.
 
-For a system call API to allow userspace to read allowed buffers in this
-way, it MUST be documented in a Draft or Final Documentary TRD.
-This TRD MUST specify the state machine for any such buffers. If these
-conditions are met then userspace MAY read the buffer while it is "not
-in use."
 
-A system call API that supports userspace reading from an allowed buffer
-MUST NOT require it. Some userspace implementations may not support this
-behavior. Reading an allowed buffer without revoking it is considered
-an *optimization* and is not required. The system call API MUST support
-accessing the data through revoking the buffer to regain exclusive access.
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
-The Read-Only Allow class is very similar to the Read-Write Allow class.
-It differs in tow ways: the buffer it passes to the kernel is read-only,
-and the process MAY freely read the buffer. A process MUST NOT
-write to a buffer shared with the kernel through a Read-Only Allow.
-The kernel also MUST NOT write to the buffer. The semantics and calling
-conventions of Read-Only Allow are otherwise identical to Read-Write Allow.
+The Read-Only Allow class is very similar to the Read-Write Allow
+class.  It differs in tow ways: the buffer it passes to the kernel is
+read-only, and the process MAY freely read the buffer. A syscall API
+MUST NOT include or depend on a process writing to a buffer shared
+with the kernel through a Read-Only Allow.  The kernel also MUST NOT
+write to the buffer. The semantics and calling conventions of
+Read-Only Allow are otherwise identical to Read-Write Allow.
+
+This restriction on writing to buffers is to limit the complexity of
+code review in the kernel. If a userspace library relies on writes to
+shared buffers, then kernel code correspondingly relies on them. This
+sort of concurrent access can have unforeseen edge cases which cause
+the kernel to panic, e.g., because values changed between method
+calls.
 
 The Read-Only Allow class exists so that userspace can pass references
 to constant data to the kernel. This is useful, for example, when a
