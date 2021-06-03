@@ -621,11 +621,13 @@ accessing the data.
 
 In these cases, it can be acceptable for a system call driver to allow
 userspace to read or write a buffer passed with a Read-Write Allow. An
-important invariant is that userspace does use buffer data read while
-an operation that modifies the buffer is ongoing. Instead, userspace
+important invariant is that userspace MUST NOT use buffer data 
+that is read while that data is in an inconsistent state. It MAY
+read the data, detect it is inconsistent, and discard it.
+Instead, userspace
 only uses data collected from a buffer *before* or *after* an
 operation completes: data reads and operations MUST be atomic with
-respect to one another.
+respect to one another. 
 
 For a system call API to allow userspace to read allowed buffers, the
 mechanism that ensures data reads are atomic MUST be documented in a
