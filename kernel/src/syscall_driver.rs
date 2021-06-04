@@ -17,6 +17,9 @@
 //!   * `allow_readwrite` provides the driver read-write access to an
 //!   application buffer.
 //!
+//!   * `allow_shared` provides the driver read-write access to an
+//!   application buffer that is still shared with the app.
+//!
 //!   * `allow_readonly` provides the driver read-only access to an
 //!   application buffer.
 //!
@@ -75,7 +78,7 @@ use core::convert::TryFrom;
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::process::ProcessId;
-use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, SharedProcessBuffer};
 use crate::syscall::SyscallReturn;
 
 /// Possible return values of a `command` driver method, as specified
@@ -207,6 +210,23 @@ pub trait SyscallDriver {
         buffer: ReadWriteProcessBuffer,
     ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         Err((buffer, ErrorCode::NOSUPPORT))
+    }
+
+    /// System call for a process to pass a buffer (a SharedProcessBuffer) to
+    /// the kernel that the kernel can either read or write. The kernel calls
+    /// this method only after it checks that the entire buffer is
+    /// within memory the process can both read and write.
+    ///
+    /// This is different to `allow_readwrite()` in that the app is allowed
+    /// to read/write the buffer once it has been passed to the kernel.
+    /// For more details on how this can be done safely see TRD104.
+    fn allow_shared(
+        &self,
+        app: ProcessId,
+        which: usize,
+        slice: SharedProcessBuffer,
+    ) -> Result<SharedProcessBuffer, (SharedProcessBuffer, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
     }
 
     /// System call for a process to pass a read-only buffer (a

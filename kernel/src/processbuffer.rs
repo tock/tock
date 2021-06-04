@@ -557,6 +557,14 @@ impl Default for ReadWriteProcessBuffer {
     }
 }
 
+/// A shareable region of userspace memory.
+///
+/// This trait can be used to gain read-write access to memory regions
+/// wrapped in an AppSlice type.
+// We currently don't need any special functionality in the kernel for this
+// type so we alias it as `ReadWriteAppSlice`.
+pub type SharedProcessBuffer = ReadWriteProcessBuffer;
+
 /// Read-only wrapper around a [`Cell`]
 ///
 /// This type is used in providing the [`ReadableProcessSlice`]. The
