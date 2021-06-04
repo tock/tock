@@ -353,28 +353,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         })
     }
 
-    fn flash_protected(&self) -> u32 {
-        self.header.get_protected_size()
-    }
-    fn app_memory_break(&self) -> *const u8 {
-        self.app_break.get()
-    }
-    fn get_app_heap_start(&self) -> Option<usize> {
-        self.debug.map_or(None, |debug| {
-            debug.app_heap_start_pointer.map(|p| p as usize)
-        })
-    }
-    fn get_app_stack_start(&self) -> Option<usize> {
-        self.debug.map_or(None, |debug| {
-            debug.app_stack_start_pointer.map(|p| p as usize)
-        })
-    }
-    fn get_app_stack_end(&self) -> Option<usize> {
-        self.debug.map_or(None, |debug| {
-            debug.app_stack_min_pointer.map(|p| p as usize)
-        })
-    }
-
     fn mem_start(&self) -> *const u8 {
         self.memory_start
     }
@@ -425,6 +403,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 debug.app_heap_start_pointer = Some(heap_pointer);
             });
         }
+    }
+
+    fn app_memory_break(&self) -> *const u8 {
+        self.app_break.get()
     }
 
     fn setup_mpu(&self) {
@@ -986,6 +968,21 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             debug.syscall_count += 1;
             debug.last_syscall = Some(last_syscall);
         });
+    }
+
+    fn debug_heap_start(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
+    }
+
+    fn debug_stack_start(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_stack_start_pointer.map(|p| p))
+    }
+
+    fn debug_stack_end(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
     }
 
     fn print_memory_map(&self, writer: &mut dyn Write) {

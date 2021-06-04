@@ -278,12 +278,6 @@ pub trait Process {
     /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
-    fn flash_protected(&self) -> u32;
-    fn app_memory_break(&self) -> *const u8;
-    fn get_app_heap_start(&self) -> Option<usize>;
-    fn get_app_stack_start(&self) -> Option<usize>;
-    fn get_app_stack_end(&self) -> Option<usize>;
-
     /// The start address of allocated RAM for this process.
     fn mem_start(&self) -> *const u8;
 
@@ -318,6 +312,10 @@ pub trait Process {
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
 
     // additional memop like functions
+
+    /// Return the highest address the process has access to, or the current
+    /// process memory brk.
+    fn app_memory_break(&self) -> *const u8;
 
     /// Creates a `ReadWriteAppSlice` from the given offset and size
     /// in process memory.
@@ -535,6 +533,15 @@ pub trait Process {
     /// Increment the number of times the process called a syscall and record
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
+
+    /// Return the address of the start of the process heap, if known.
+    fn debug_heap_start(&self) -> Option<*const u8>;
+
+    /// Return the address of the start of the process stack, if known.
+    fn debug_stack_start(&self) -> Option<*const u8>;
+
+    /// Return the lowest recorded address of the process stack, if known.
+    fn debug_stack_end(&self) -> Option<*const u8>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's

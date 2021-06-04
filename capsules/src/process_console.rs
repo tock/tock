@@ -632,15 +632,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             if proc_id == process.processid() {
                                 let sram_grant_start = process.kernel_memory_break() as usize;
                                 let sram_heap_end = process.app_memory_break() as usize;
-                                let sram_heap_start: Option<usize> = process.get_app_heap_start();
+                                let sram_heap_start = process.debug_heap_start();
 
                                 if let Some(sram_heap_start) = sram_heap_start {
-                                    let sram_heap_size = sram_heap_end - sram_heap_start;
-                                    let sram_heap_allocated = sram_grant_start - sram_heap_start;
+                                    let sram_heap_size =
+                                        sram_heap_end as usize - sram_heap_start as usize;
+                                    let sram_heap_allocated =
+                                        sram_grant_start as usize - sram_heap_start as usize;
                                     self.print_process_heap_populated(
                                         sram_heap_size,
                                         sram_heap_allocated,
-                                        sram_heap_start,
+                                        sram_heap_start as usize,
                                     );
                                 } else {
                                     self.print_process_heap_unknown();
@@ -654,13 +656,14 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
                             if proc_id == process.processid() {
-                                let sram_heap_start: Option<usize> = process.get_app_heap_start();
-                                let sram_stack_start: Option<usize> = process.get_app_stack_start();
+                                let sram_heap_start = process.debug_heap_start();
+                                let sram_stack_start = process.debug_stack_start();
 
                                 if let (Some(sram_heap_start), Some(sram_stack_start)) =
                                     (sram_heap_start, sram_stack_start)
                                 {
-                                    let sram_data_size = sram_heap_start - sram_stack_start;
+                                    let sram_data_size =
+                                        sram_heap_start as usize - sram_stack_start as usize;
                                     let sram_data_allocated = sram_data_size as usize;
 
                                     self.print_process_data_populated(
@@ -679,18 +682,20 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
                             if proc_id == process.processid() {
-                                let sram_stack_start: Option<usize> = process.get_app_stack_start();
-                                let sram_stack_bottom: Option<usize> = process.get_app_stack_end();
+                                let sram_stack_start = process.debug_stack_start();
+                                let sram_stack_bottom = process.debug_stack_end();
                                 let sram_start = process.mem_start() as usize;
 
                                 if let (Some(sram_stack_start), Some(sram_stack_bottom)) =
                                     (sram_stack_start, sram_stack_bottom)
                                 {
-                                    let sram_stack_size = sram_stack_start - sram_stack_bottom;
-                                    let sram_stack_allocated = sram_stack_start - sram_start;
+                                    let sram_stack_size =
+                                        sram_stack_start as usize - sram_stack_bottom as usize;
+                                    let sram_stack_allocated =
+                                        sram_stack_start as usize - sram_start as usize;
 
                                     self.print_process_stack_populated(
-                                        sram_stack_start,
+                                        sram_stack_start as usize,
                                         sram_stack_size,
                                         sram_stack_allocated,
                                     );
@@ -709,7 +714,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             if proc_id == process.processid() {
                                 let mut console_writer = ConsoleWriter::new();
 
-                                let sram_stack_bottom: Option<usize> = process.get_app_stack_end();
+                                let sram_stack_bottom =
+                                    process.debug_stack_end().map_or_else(|| 0, |p| p as usize);
                                 let sram_start = process.mem_start() as usize;
 
                                 let _ = write(
@@ -720,8 +726,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                     \r\n             │ Unused\
                                     \r\n  {:#010X} ┴───────────────────────────────────────────\
                                     \r\n             .....",
-                                        sram_stack_bottom.unwrap_or(0),
-                                        sram_start
+                                        sram_stack_bottom, sram_start
                                     ),
                                 );
                                 let _ =
@@ -752,8 +757,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             if proc_id == process.processid() {
                                 // Flash
                                 let flash_start = process.flash_start() as usize;
-                                let flash_protected_size = process.flash_protected() as usize;
                                 let flash_app_start = process.flash_non_protected_start() as usize;
+                                let flash_protected_size = flash_app_start - flash_start;
 
                                 self.print_process_protected(
                                     flash_app_start,
