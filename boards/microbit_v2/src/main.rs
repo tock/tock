@@ -479,7 +479,6 @@ pub unsafe fn main() {
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
-
     let _ = process_console.start();
 
     //--------------------------------------------------------------------------

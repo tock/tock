@@ -508,7 +508,6 @@ pub unsafe fn main() {
     // );
 
     debug!("Initialization complete. Entering main loop.");
-
     let _ = platform.pconsole.start();
 
     //--------------------------------------------------------------------------

@@ -374,7 +374,6 @@ pub unsafe fn main() {
     };
 
     let _ = platform.pconsole.start();
-
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);
 
