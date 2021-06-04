@@ -139,6 +139,9 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
+/// States used for state machine to allow printing large strings asynchronously
+/// across multiple calls. This reduces the size of the buffer needed to print
+/// each section of the debug message.
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum WriterState {
     Empty,
@@ -165,6 +168,23 @@ impl Default for WriterState {
     }
 }
 
+/// Data structure to hold addresses about how the kernel is stored in memory on
+/// the chip.
+///
+/// All "end" addresses are the memory addresses immediately following the end
+/// of the memory region.
+pub struct KernelAddresses {
+    pub stack_start: *const u8,
+    pub stack_end: *const u8,
+    pub text_start: *const u8,
+    pub text_end: *const u8,
+    pub read_only_data_start: *const u8,
+    pub relocations_start: *const u8,
+    pub relocations_end: *const u8,
+    pub bss_start: *const u8,
+    pub bss_end: *const u8,
+}
+
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
@@ -185,7 +205,15 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     /// Internal flag that the process console should parse the command it just
     /// received after finishing echoing the last newline character.
     execute: Cell<bool>,
+
+    /// Reference to the kernel object so we can access process state.
     kernel: &'static Kernel,
+
+    /// Memory addresses of where the kernel is placed in memory on chip.
+    kernel_addresses: KernelAddresses,
+
+    /// This capsule needs to use potentially dangerous APIs related to
+    /// processes, and requires a capability to access those APIs.
     capability: C,
 }
 
@@ -229,6 +257,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
+        kernel_addresses: KernelAddresses,
         capability: C,
     ) -> ProcessConsole<'a, C> {
         ProcessConsole {
@@ -246,6 +275,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             running: Cell::new(false),
             execute: Cell::new(false),
             kernel: kernel,
+            kernel_addresses: kernel_addresses,
             capability: capability,
         }
     }
@@ -257,8 +287,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 let _ = self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
             });
-            //Starts the process console while printing base information about
-            //The kernel version installed
+
+            // Starts the process console while printing base information about
+            // the kernel version installed.
             let mut console_writer = ConsoleWriter::new();
             let _ = write(
                 &mut console_writer,
@@ -268,6 +299,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 ),
             );
             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+
             let _ = self.write_bytes(b"Welcome to the process console.\n");
             let _ = self.write_bytes(
                 b"Valid commands are: help status list stop start fault process kernel\n",
@@ -275,7 +307,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
         Ok(())
     }
-    //simple state machine that identifies the next state
+
+    /// Simple state machine helper function that identifies the next state for
+    /// printing log debug messages.
     fn next_state(&self, state: WriterState) -> WriterState {
         match state {
             WriterState::KernelStart => WriterState::KernelBss,
@@ -296,16 +330,153 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             WriterState::Empty => WriterState::Empty,
         }
     }
-    //defines the behavior at each state
+
+    // These `print_process_()` functions are split out from the main state
+    // machine because of an incompatibility with rustfmt. Rustfmt cannot handle
+    // long lines inside of match statements, so we use individual functions to
+    // avoid the issue.
+
+    fn print_process_heap_populated(
+        &self,
+        sram_heap_size: usize,
+        sram_heap_allocated: usize,
+        sram_heap_start: usize,
+    ) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+            \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
+            \r\n  {:#010X} ┼─────────────────────────────────────────── R",
+                sram_heap_size,
+                sram_heap_allocated,
+                exceeded_check(sram_heap_size, sram_heap_allocated),
+                sram_heap_start,
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_heap_unknown(&self) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+            \r\n             │ ▲ Heap            ? |      ?               S\
+            \r\n  ?????????? ┼─────────────────────────────────────────── R",
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_data_populated(&self, sram_data_size: usize, sram_data_allocated: usize) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+                \r\n             │ Data         {:6} | {:6}               A",
+                sram_data_size, sram_data_allocated,
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_data_unknown(&self) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+                \r\n             │ Data              ? |      ?               A",
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_stack_populated(
+        &self,
+        sram_stack_start: usize,
+        sram_stack_size: usize,
+        sram_stack_allocated: usize,
+    ) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+            \r\n  {:#010X} ┼─────────────────────────────────────────── M\
+            \r\n             │ ▼ Stack      {:6} | {:6}{}",
+                sram_stack_start,
+                sram_stack_size,
+                sram_stack_allocated,
+                exceeded_check(sram_stack_size, sram_stack_allocated),
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_stack_unknown(&self) {
+        let mut console_writer = ConsoleWriter::new();
+
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+            \r\n  ?????????? ┼─────────────────────────────────────────── M\
+            \r\n             │ ▼ Stack           ? |      ?",
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_flash(&self, flash_end: usize, flash_app_size: usize) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+                \r\n  {:#010X} ┬─────────────────────────────────────────── F\
+                \r\n             │ App Flash    {:6}                        L",
+                flash_end, flash_app_size
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    fn print_process_protected(
+        &self,
+        flash_app_start: usize,
+        flash_protected_size: usize,
+        flash_start: usize,
+    ) {
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "\
+                \r\n  {:#010X} ┼─────────────────────────────────────────── A\
+                \r\n             │ Protected    {:6}                        S\
+                \r\n  {:#010X} ┴─────────────────────────────────────────── H\
+                \r\n",
+                flash_app_start, flash_protected_size, flash_start
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+    }
+
+    /// Create the debug message for each state in the state machine.
     fn create_state_buffer(&self, state: WriterState, process_id: Option<ProcessId>) {
         match state {
             WriterState::KernelBss => {
                 let mut console_writer = ConsoleWriter::new();
-                let kernel_info = KernelInfo::new(self.kernel);
-                let init_bottom: usize = kernel_info.get_kernel_init_end() as usize;
-                //let bss_start: usize = kernel_info.get_kernel_bss_start() as usize;
-                let bss_bottom: usize = kernel_info.get_kernel_bss_end() as usize;
-                let bss_size = bss_bottom - init_bottom;
+
+                let bss_start = self.kernel_addresses.bss_start as usize;
+                let bss_end = self.kernel_addresses.bss_end as usize;
+                let bss_size = bss_end - bss_start;
+
                 let _ = write(
                     &mut console_writer,
                     format_args!(
@@ -313,37 +484,36 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     \r\n ║  Address  │ Region Name    Used (bytes)  ║\
                     \r\n ╚{:#010X}═╪══════════════════════════════╝\
                     \r\n             │   Bss        {:6}",
-                        bss_bottom, bss_size
+                        bss_end, bss_size
                     ),
                 );
+
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelInit => {
                 let mut console_writer = ConsoleWriter::new();
-                let kernel_info = KernelInfo::new(self.kernel);
-                let init_bottom: usize = kernel_info.get_kernel_init_end() as usize;
-                //let init_start: usize = kernel_info.get_kernel_init_start() as usize;
-                let stack_bottom: usize = kernel_info.get_kernel_stack_end() as usize;
-                let init_size = init_bottom - stack_bottom;
+
+                let relocate_start = self.kernel_addresses.relocations_start as usize;
+                let relocate_end = self.kernel_addresses.relocations_end as usize;
+                let relocate_size = relocate_end - relocate_start;
 
                 let _ = write(
                     &mut console_writer,
                     format_args!(
                         "\
                     \r\n  {:#010X} ┼─────────────────────────────── S\
-                    \r\n             │   Init       {:6}            R",
-                        init_bottom, init_size
+                    \r\n             │   Relocate   {:6}            R",
+                        relocate_end, relocate_size
                     ),
                 );
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelStack => {
                 let mut console_writer = ConsoleWriter::new();
-                let kernel_info = KernelInfo::new(self.kernel);
-                let stack_start: usize = kernel_info.get_kernel_stack_start() as usize;
-                let stack_bottom: usize = kernel_info.get_kernel_stack_end() as usize;
 
-                let stack_size = stack_bottom - stack_start;
+                let stack_start = self.kernel_addresses.stack_start as usize;
+                let stack_end = self.kernel_addresses.stack_end as usize;
+                let stack_size = stack_end - stack_start;
 
                 let _ = write(
                     &mut console_writer,
@@ -352,18 +522,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     \r\n  {:#010X} ┼─────────────────────────────── A\
                     \r\n             │ ▼ Stack      {:6}            M\
                     \r\n  {:#010X} ┼───────────────────────────────",
-                        stack_bottom, stack_size, stack_start
+                        stack_end, stack_size, stack_start
                     ),
                 );
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelRoData => {
                 let mut console_writer = ConsoleWriter::new();
-                let kernel_info = KernelInfo::new(self.kernel);
-                let rodata_start: usize = kernel_info.get_kernel_rodata_start() as usize;
-                let rodata_bottom: usize = kernel_info.get_kernel_rodata_end() as usize;
 
-                let rodata_size = rodata_bottom - rodata_start;
+                let rodata_start = self.kernel_addresses.read_only_data_start as usize;
+                let text_end = self.kernel_addresses.text_end as usize;
+                let rodata_size = text_end - rodata_start;
 
                 let _ = write(
                     &mut console_writer,
@@ -372,40 +541,36 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         \r\n             .....\
                      \r\n  {:#010X} ┼─────────────────────────────── F\
                      \r\n             │   RoData     {:6}            L",
-                        rodata_bottom, rodata_size
+                        text_end, rodata_size
                     ),
                 );
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::KernelText => {
                 let mut console_writer = ConsoleWriter::new();
-                let kernel_info = KernelInfo::new(self.kernel);
-                let text_start: usize = kernel_info.get_kernel_text_start() as usize;
-                //let text_bottom: usize = kernel_info.get_kernel_text_end() as usize;
-                let rodata_start: usize = kernel_info.get_kernel_rodata_start() as usize;
 
-                let text_size = rodata_start - text_start;
+                let code_start = self.kernel_addresses.text_start as usize;
+                let code_end = self.kernel_addresses.read_only_data_start as usize;
+                let code_size = code_end - code_start;
 
                 let _ = write(
                     &mut console_writer,
                     format_args!(
                         "\
                      \r\n  {:#010X} ┼─────────────────────────────── A\
-                     \r\n             │   Text       {:6}            S\
+                     \r\n             │   Code       {:6}            S\
                      \r\n  {:#010X} ┼─────────────────────────────── H\
                      \r\n",
-                        rodata_start, text_size, text_start
+                        code_end, code_size, code_start
                     ),
                 );
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
             WriterState::ProcessGrant => {
-                if process_id.is_none() {
-                } else {
+                if let Some(proc_id) = process_id {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
+                            if proc_id == process.processid() {
                                 let mut console_writer = ConsoleWriter::new();
                                 // SRAM addresses
                                 let sram_end = process.mem_end() as usize;
@@ -435,12 +600,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 }
             }
             WriterState::ProcessHeapUnused => {
-                if process_id.is_none() {
-                } else {
+                if let Some(proc_id) = process_id {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
+                            if proc_id == process.processid() {
                                 let mut console_writer = ConsoleWriter::new();
                                 // SRAM addresses
                                 let sram_grant_start = process.kernel_memory_break() as usize;
@@ -463,156 +626,87 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 }
             }
             WriterState::ProcessHeap => {
-                if process_id.is_none() {
-                } else {
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
-                                let mut console_writer = ConsoleWriter::new();
+                if let Some(proc_id) = process_id {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
+                            if proc_id == process.processid() {
                                 let sram_grant_start = process.kernel_memory_break() as usize;
                                 let sram_heap_end = process.app_memory_break() as usize;
                                 let sram_heap_start: Option<usize> = process.get_app_heap_start();
 
-                                match sram_heap_start {
-                                    Some(sram_heap_start) => {
-                                        let sram_heap_size = sram_heap_end - sram_heap_start;
-                                        let sram_heap_allocated = sram_grant_start - sram_heap_start;
-
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-                                            \r\n  {:#010X} ┼─────────────────────────────────────────── R",
-                                                sram_heap_size,
-                                                sram_heap_allocated,
-                                                exceeded_check(sram_heap_size, sram_heap_allocated),
-                                                sram_heap_start,
-                                            ),
-                                        );
-                                    }
-                                    None => {
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n             │ ▲ Heap            ? |      ?               S\
-                                            \r\n  ?????????? ┼─────────────────────────────────────────── R",
-                                            ),
-                                        );
-                                    }
+                                if let Some(sram_heap_start) = sram_heap_start {
+                                    let sram_heap_size = sram_heap_end - sram_heap_start;
+                                    let sram_heap_allocated = sram_grant_start - sram_heap_start;
+                                    self.print_process_heap_populated(
+                                        sram_heap_size,
+                                        sram_heap_allocated,
+                                        sram_heap_start,
+                                    );
+                                } else {
+                                    self.print_process_heap_unknown();
                                 }
-                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
                             }
-                        },
-                    );
+                        });
                 }
             }
             WriterState::ProcessData => {
-                if process_id.is_none() {
-                } else {
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
-                                let mut console_writer = ConsoleWriter::new();
-
+                if let Some(proc_id) = process_id {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
+                            if proc_id == process.processid() {
                                 let sram_heap_start: Option<usize> = process.get_app_heap_start();
                                 let sram_stack_start: Option<usize> = process.get_app_stack_start();
 
-                                match (sram_heap_start, sram_stack_start) {
-                                    (Some(sram_heap_start), Some(sram_stack_start)) => {
-                                        let sram_data_size = sram_heap_start - sram_stack_start;
-                                        let sram_data_allocated = sram_data_size as usize;
+                                if let (Some(sram_heap_start), Some(sram_stack_start)) =
+                                    (sram_heap_start, sram_stack_start)
+                                {
+                                    let sram_data_size = sram_heap_start - sram_stack_start;
+                                    let sram_data_allocated = sram_data_size as usize;
 
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n             │ Data         {:6} | {:6}               A",
-                                                sram_data_size, sram_data_allocated,
-                                            ),
-                                        );
-                                    }
-                                    _ => {
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n             │ Data              ? |      ?               A",
-                                            ),
-                                        );
-                                    }
+                                    self.print_process_data_populated(
+                                        sram_data_size,
+                                        sram_data_allocated,
+                                    );
+                                } else {
+                                    self.print_process_data_unknown();
                                 }
-                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
                             }
-                        },
-                    );
+                        });
                 }
             }
             WriterState::ProcessStack => {
-                if process_id.is_none() {
-                } else {
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
-                                let mut console_writer = ConsoleWriter::new();
-
+                if let Some(proc_id) = process_id {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
+                            if proc_id == process.processid() {
                                 let sram_stack_start: Option<usize> = process.get_app_stack_start();
                                 let sram_stack_bottom: Option<usize> = process.get_app_stack_end();
                                 let sram_start = process.mem_start() as usize;
 
-                                match (sram_stack_start, sram_stack_bottom) {
-                                    (Some(sram_stack_start), Some(sram_stack_bottom)) => {
-                                        let sram_stack_size = sram_stack_start - sram_stack_bottom;
-                                        let sram_stack_allocated = sram_stack_start - sram_start;
+                                if let (Some(sram_stack_start), Some(sram_stack_bottom)) =
+                                    (sram_stack_start, sram_stack_bottom)
+                                {
+                                    let sram_stack_size = sram_stack_start - sram_stack_bottom;
+                                    let sram_stack_allocated = sram_stack_start - sram_start;
 
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-                                            \r\n             │ ▼ Stack      {:6} | {:6}{}",
-                                                sram_stack_start,
-                                                sram_stack_size,
-                                                sram_stack_allocated,
-                                                exceeded_check(sram_stack_size, sram_stack_allocated),
-                                            ),
-                                        );
-                                    }
-                                    _ => {
-                                        let _ = write(
-                                            &mut console_writer,
-                                            format_args!(
-                                                "\
-                                            \r\n  ?????????? ┼─────────────────────────────────────────── M\
-                                            \r\n             │ ▼ Stack           ? |      ?",
-                                            ),
-                                        );
-                                    }
+                                    self.print_process_stack_populated(
+                                        sram_stack_start,
+                                        sram_stack_size,
+                                        sram_stack_allocated,
+                                    );
+                                } else {
+                                    self.print_process_stack_unknown();
                                 }
-                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
                             }
-                        },
-                    );
+                        });
                 }
             }
 
             WriterState::ProcessStackUnused => {
-                if process_id.is_none() {
-                } else {
+                if let Some(proc_id) = process_id {
                     self.kernel
                         .process_each_capability(&self.capability, |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
+                            if proc_id == process.processid() {
                                 let mut console_writer = ConsoleWriter::new();
 
                                 let sram_stack_bottom: Option<usize> = process.get_app_stack_end();
@@ -637,77 +731,43 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 }
             }
             WriterState::ProcessFlash => {
-                if process_id.is_none() {
-                } else {
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
-                                let mut console_writer = ConsoleWriter::new();
-
+                if let Some(proc_id) = process_id {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
+                            if proc_id == process.processid() {
                                 // Flash
                                 let flash_end = process.flash_end() as usize;
                                 let flash_app_start = process.flash_non_protected_start() as usize;
                                 let flash_app_size = flash_end - flash_app_start;
 
-
-                                let _ = write(
-                                    &mut console_writer,
-                                    format_args!(
-                                        "\
-                                        \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-                                        \r\n             │ App Flash    {:6}                        L",
-                                        flash_end,
-                                        flash_app_size,
-                                    ),
-                                );
-                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
+                                self.print_process_flash(flash_end, flash_app_size);
                             }
-                        },
-                    );
+                        });
                 }
             }
             WriterState::ProcessProtected => {
-                if process_id.is_none() {
-                } else {
-                    self.kernel.process_each_capability(
-                        &self.capability,
-                        |process| {
-                            let proc_id = process.processid();
-                            if proc_id == process_id.unwrap() {
-                                let mut console_writer = ConsoleWriter::new();
-
+                if let Some(proc_id) = process_id {
+                    self.kernel
+                        .process_each_capability(&self.capability, |process| {
+                            if proc_id == process.processid() {
                                 // Flash
                                 let flash_start = process.flash_start() as usize;
                                 let flash_protected_size = process.flash_protected() as usize;
                                 let flash_app_start = process.flash_non_protected_start() as usize;
 
-
-                                let _ = write(
-                                    &mut console_writer,
-                                    format_args!(
-                                        "\
-                                        \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-                                        \r\n             │ Protected    {:6}                        S\
-                                        \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-                                        \r\n",
-                                        flash_app_start,
-                                        flash_protected_size,
-                                        flash_start
-                                    ),
+                                self.print_process_protected(
+                                    flash_app_start,
+                                    flash_protected_size,
+                                    flash_start,
                                 );
-                                let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
                             }
-                        },
-                    );
+                        });
                 }
             }
             _ => {}
         }
     }
+
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
         self.command_buffer.map(|command| {
@@ -728,133 +788,172 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         let clean_str = s.trim();
 
                         if clean_str.starts_with("help") {
-
                             let _ = self.write_bytes(b"Welcome to the process console.\n");
-                            let _ = self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
-
+                            let _ = self.write_bytes(b"Valid commands are: ");
+                            let _ = self
+                                .write_bytes(b"help status list stop start fault process kernel\n");
                         } else if clean_str.starts_with("start") {
+                            // self.command_start(clean_str);
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(
-                                    &self.capability,
-                                    |proc| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
                                             let mut console_writer = ConsoleWriter::new();
-                                            let _ = write(&mut console_writer,format_args!("Process {} resumed.\n", name));
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} resumed.\n", name),
+                                            );
 
-                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
                                         }
-                                    },
-                                );
+                                    });
                             });
                         } else if clean_str.starts_with("stop") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(
-                                    &self.capability,
-                                    |proc| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
                                             let mut console_writer = ConsoleWriter::new();
-                                            let _ = write(&mut console_writer,format_args!("Process {} stopped\n", proc_name));
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} stopped\n", proc_name),
+                                            );
 
-                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
                                         }
-                                    },
-                                );
+                                    });
                             });
                         } else if clean_str.starts_with("fault") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(
-                                    &self.capability,
-                                    |proc| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
                                             let mut console_writer = ConsoleWriter::new();
-                                            let _ = write(&mut console_writer,format_args!("Process {} now faulted\n", proc_name));
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} now faulted\n", proc_name),
+                                            );
 
-                                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
                                         }
-                                    },
-                                );
+                                    });
                             });
                         } else if clean_str.starts_with("list") {
-                            let _ = self.write_bytes(b" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants\n");
+                            let _ = self.write_bytes(b" PID    Name                Quanta  ");
+                            let _ = self.write_bytes(b"Syscalls  Dropped Callbacks  ");
+                            let _ = self.write_bytes(b"Restarts    State  Grants\n");
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
 
                                     let pname = proc.get_process_name();
                                     let process_id = proc.processid();
-                                    let (grants_used, grants_total) = info.number_app_grant_uses(process_id, &self.capability);
+                                    let (grants_used, grants_total) =
+                                        info.number_app_grant_uses(process_id, &self.capability);
                                     let mut console_writer = ConsoleWriter::new();
-                                    let _ = write(&mut console_writer,format_args!(
-                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
-                                        process_id,
-                                        pname,
-                                        proc.debug_timeslice_expiration_count(),
-                                        proc.debug_syscall_count(),
-                                        proc.debug_dropped_upcall_count(),
-                                        proc.get_restart_count(),
-                                        proc.get_state(),
-                                        grants_used,
-                                        grants_total));
+                                    let _ = write(
+                                        &mut console_writer,
+                                        format_args!(
+                                            "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
+                                            process_id,
+                                            pname,
+                                            proc.debug_timeslice_expiration_count(),
+                                            proc.debug_syscall_count(),
+                                            proc.debug_dropped_upcall_count(),
+                                            proc.get_restart_count(),
+                                            proc.get_state(),
+                                            grants_used,
+                                            grants_total
+                                        ),
+                                    );
 
-                                    let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                                    let _ = self
+                                        .write_bytes(&(console_writer.buf)[..console_writer.size]);
                                 });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
                             let mut console_writer = ConsoleWriter::new();
-                            let _ = write(&mut console_writer,format_args!(
-                                "Total processes: {}\n",
-                                info.number_loaded_processes(&self.capability)));
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "Total processes: {}\n",
+                                    info.number_loaded_processes(&self.capability)
+                                ),
+                            );
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
-                            let _ = write(&mut console_writer,format_args!(
-                                "Active processes: {}\n",
-                                info.number_active_processes(&self.capability)));
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "Active processes: {}\n",
+                                    info.number_active_processes(&self.capability)
+                                ),
+                            );
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
-                            let _ = write(&mut console_writer,format_args!(
-                                "Timeslice expirations: {}\n",
-                                info.timeslice_expirations(&self.capability)));
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "Timeslice expirations: {}\n",
+                                    info.timeslice_expirations(&self.capability)
+                                ),
+                            );
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                        } else if clean_str.starts_with("process"){
+                        } else if clean_str.starts_with("process") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(
-                                    &self.capability,
-                                    |proc| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             //prints process memory by moving the writer to the start state
-                                            self.write_state(WriterState::ProcessStart,Some(proc.processid()));
+                                            self.write_state(
+                                                WriterState::ProcessStart,
+                                                Some(proc.processid()),
+                                            );
                                         }
-                                    },
-                                );
+                                    });
                             });
-                        }else if clean_str.starts_with("kernel"){
+                        } else if clean_str.starts_with("kernel") {
                             let mut console_writer = ConsoleWriter::new();
-                            let _ = write(&mut console_writer,format_args!(
-                                "Kernel version: {}\r\n",
-                                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")));
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "Kernel version: {}\r\n",
+                                    option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+                                ),
+                            );
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
                             //prints kernel memory by moving the writer to the start state
-                            self.write_state(WriterState::KernelStart,None);
-
+                            self.write_state(WriterState::KernelStart, None);
                         } else {
-                            let _ = self.write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+                            let _ = self.write_bytes(b"Valid commands are: ");
+                            let _ = self
+                                .write_bytes(b"help status list stop start fault process kernel\n");
                         }
                     }
                     Err(_e) => {
                         let mut console_writer = ConsoleWriter::new();
-                        let _ = write(&mut console_writer,format_args!("Invalid command: {:?}", command));
+                        let _ = write(
+                            &mut console_writer,
+                            format_args!("Invalid command: {:?}", command),
+                        );
                         let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                     }
                 }
@@ -865,6 +964,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         });
         self.command_index.set(0);
     }
+
     fn write_state(&self, state: WriterState, process: Option<ProcessId>) {
         if self.writer_state.get() == WriterState::Empty {
             self.writer_state.replace(state);
@@ -877,6 +977,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             self.create_state_buffer(self.writer_state.get(), self.writer_process.get());
         }
     }
+
     fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
