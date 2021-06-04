@@ -116,7 +116,7 @@ pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::into_statuscode;
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{Grant, ProcessGrant};
-pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice, SharedAppSlice};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};

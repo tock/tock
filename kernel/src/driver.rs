@@ -16,6 +16,9 @@
 //!   * `allow_readwrite` provides the driver read-write access to an
 //!   application buffer.
 //!
+//!   * `allow_shared` provides the driver read-write access to an
+//!   application buffer that is still shared with the app.
+//!
 //!   * `allow_readonly` provides the driver read-only access to an
 //!   application buffer.
 //!
@@ -70,7 +73,7 @@
 //! encoding these types into the Tock system call ABI specification.
 
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice, SharedAppSlice};
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
@@ -198,6 +201,23 @@ pub trait Driver {
         which: usize,
         slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        Err((slice, ErrorCode::NOSUPPORT))
+    }
+
+    /// System call for a process to pass a buffer (a SharedAppSlice) to
+    /// the kernel that the kernel can either read or write. The kernel calls
+    /// this method only after it checks that the entire buffer is
+    /// within memory the process can both read and write.
+    ///
+    /// This is different to `allow_readwrite()` in that the app is allowed
+    /// to read/write the buffer once it has been passed to the kernel.
+    /// For more details on how this can be done safely see TRD104.
+    fn allow_shared(
+        &self,
+        app: ProcessId,
+        which: usize,
+        slice: SharedAppSlice,
+    ) -> Result<SharedAppSlice, (SharedAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 

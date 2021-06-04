@@ -37,6 +37,7 @@ pub enum SyscallClass {
     ReadOnlyAllow = 4,
     Memop = 5,
     Exit = 6,
+    SharedAllow = 7,
 }
 
 /// Enumeration of the yield system calls based on the Yield identifier
@@ -62,6 +63,7 @@ impl TryFrom<u8> for SyscallClass {
             4 => Ok(SyscallClass::ReadOnlyAllow),
             5 => Ok(SyscallClass::Memop),
             6 => Ok(SyscallClass::Exit),
+            7 => Ok(SyscallClass::SharedAllow),
             i => Err(i),
         }
     }
@@ -100,6 +102,17 @@ pub enum Syscall {
     /// the buffer identifier, `allow_address` is the address, and `allow_size`
     /// is the size.
     ReadWriteAllow {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *mut u8,
+        allow_size: usize,
+    },
+
+    /// Structure representing an invocation of the ReadWriteAllow system call
+    /// class, but with shared kernel and app access. `driver_number` is the
+    /// driver identifier, `subdriver_number` is the buffer identifier,
+    // `allow_address` is the address, and `allow_size` is the size.
+    SharedAllow {
         driver_number: usize,
         subdriver_number: usize,
         allow_address: *mut u8,
@@ -165,6 +178,12 @@ impl Syscall {
                 arg1: r3,
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
+            Ok(SyscallClass::SharedAllow) => Some(Syscall::SharedAllow {
                 driver_number: r0,
                 subdriver_number: r1,
                 allow_address: r2 as *mut u8,
@@ -268,6 +287,13 @@ pub enum SyscallReturn {
     /// buffer and size to the process.
     AllowReadWriteFailure(ErrorCode, *mut u8, usize),
 
+    /// Shared Read/Write allow success case, returns the previous allowed
+    /// buffer and size to the process.
+    SharedAllowSuccess(*mut u8, usize),
+    /// Shared Read/Write allow failure case, returns the passed allowed
+    /// buffer and size to the process.
+    SharedAllowFailure(ErrorCode, *mut u8, usize),
+
     /// Read only allow success case, returns the previous allowed
     /// buffer and size to the process.
     AllowReadOnlySuccess(*const u8, usize),
@@ -304,6 +330,7 @@ impl SyscallReturn {
             SyscallReturn::SuccessU64(_) => true,
             SyscallReturn::SuccessU64U32(_, _) => true,
             SyscallReturn::AllowReadWriteSuccess(_, _) => true,
+            SyscallReturn::SharedAllowSuccess(_, _) => true,
             SyscallReturn::AllowReadOnlySuccess(_, _) => true,
             SyscallReturn::SubscribeSuccess(_, _) => true,
             SyscallReturn::Failure(_) => false,
@@ -311,6 +338,7 @@ impl SyscallReturn {
             SyscallReturn::FailureU32U32(_, _, _) => false,
             SyscallReturn::FailureU64(_, _) => false,
             SyscallReturn::AllowReadWriteFailure(_, _, _) => false,
+            SyscallReturn::SharedAllowFailure(_, _, _) => false,
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
         }
@@ -381,7 +409,18 @@ impl SyscallReturn {
                 *a1 = ptr as u32;
                 *a2 = len as u32;
             }
+            &SyscallReturn::SharedAllowSuccess(ptr, len) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = len as u32;
+            }
             &SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
+            }
+            &SyscallReturn::SharedAllowFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
