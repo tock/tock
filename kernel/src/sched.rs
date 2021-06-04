@@ -1008,6 +1008,77 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
+            Syscall::SharedAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => {
+                        // Try to create an appropriate [`ReadWriteAppSlice`]
+                        // that can be shared access with the app.
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readwrite_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`ReadWriteAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_shared(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::SharedAllowSuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::SharedAllowFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`ReadWriteAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::SharedAllowFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
+                    None => SyscallReturn::SharedAllowFailure(
+                        ErrorCode::NODEVICE,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] shared allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.processid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+                process.set_syscall_return_value(res);
+            }
             Syscall::ReadOnlyAllow {
                 driver_number,
                 subdriver_number,
