@@ -4,26 +4,26 @@
 //!
 //! * `LoraSyscallComponent` provides a controller system call interface to LoRa.
 
-use core::mem::MaybeUninit;
+// use core::mem::MaybeUninit;
 
-use capsules::{
-    lmic_spi::LMICSpi,
-    lora_controller::{Lora, MAX_LORA_PACKET_SIZE},
-    virtual_spi::VirtualSpiMasterDevice,
-};
-use kernel::{capabilities, static_init};
-use kernel::{component::Component, create_capability, hil::lmic};
+// use capsules::{
+//     lmic_spi::LMICSpi,
+//     lora_controller::{Lora, MAX_LORA_PACKET_SIZE},
+//     virtual_spi::VirtualSpiMasterDevice,
+// };
+// use kernel::{capabilities, static_init};
+// use kernel::{component::Component, create_capability, hil::lmic};
 
-pub struct LoraSyscallComponent<L: 'static + lmic::LMIC> {
-    board_kernel: &'static kernel::Kernel,
-    lmic: &'static L,
-}
+// pub struct LoraSyscallComponent<L: 'static + lmic::LMIC> {
+//     board_kernel: &'static kernel::Kernel,
+//     lmic: &'static L,
+// }
 
-impl<L: 'static + lmic::LMIC> LoraSyscallComponent<L> {
-    pub fn new(board_kernel: &'static kernel::Kernel, lmic: &'static L) -> Self {
-        LoraSyscallComponent { board_kernel, lmic }
-    }
-}
+// impl<L: 'static + lmic::LMIC> LoraSyscallComponent<L> {
+//     pub fn new(board_kernel: &'static kernel::Kernel, lmic: &'static L) -> Self {
+//         LoraSyscallComponent { board_kernel, lmic }
+//     }
+// }
 
 // TODO: For less initialization in main.rs, could initialize lmic_spi component
 // here instead. but to do that would need VirtualLMIC<'static, L>, where L is LMICSpi.

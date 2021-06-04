@@ -41,6 +41,7 @@ pub mod isl29035;
 pub mod l3gd20;
 pub mod led;
 pub mod led_matrix;
+pub mod lmic_i2c;
 pub mod lmic_spi;
 pub mod log;
 pub mod lora_controller;

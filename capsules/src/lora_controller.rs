@@ -9,10 +9,10 @@ use kernel::{
     hil::lmic::LMIC,
 };
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{Read, ReadOnlyAppSlice, ReadWriteAppSlice};
 
+use crate::driver;
 /// Syscall driver number.
-use crate::{driver, st77xx::Command};
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
 
 pub const MAX_LORA_PACKET_SIZE: usize = 256;
@@ -26,7 +26,7 @@ pub struct App {
     upcall: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
-    len: usize,
+    len: u8,
 }
 
 pub struct Lora<'a, L: LMIC> {
@@ -62,7 +62,7 @@ impl<'a, L: LMIC> Lora<'a, L> {
         // way to do this?
         self.kernel_write.map_or(0, |kernel_write_buf| {
             app.app_write.map_or(0, |src| {
-                let end = app.len;
+                let end = app.len as usize; // NOTE: will silently overflow since app.len is u8
 
                 for (i, c) in src.as_ref()[..end].iter().enumerate() {
                     kernel_write_buf[i] = *c;
@@ -135,7 +135,7 @@ impl<'a, L: LMIC> Driver for Lora<'a, L> {
 
     // 1: set tx data to transmit over LoRa network
     //   - requires app write buffer registered with allow
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandReturn {
+    fn command(&self, which: usize, r2: usize, _r3: usize, caller_id: ProcessId) -> CommandReturn {
         if which == 0 {
             // Handle this first as it should be returned unconditionally.
             return CommandReturn::success();
@@ -162,7 +162,7 @@ impl<'a, L: LMIC> Driver for Lora<'a, L> {
                     let app_write_len = app.app_write.map_or(0, |w| w.len());
 
                     if app_write_len >= r2 && r2 > 0 {
-                        app.len = r2;
+                        app.len = r2 as u8; // NOTE: will silently overflow
                         self.busy.set(true);
                         self.do_set_tx_data(app);
                         CommandReturn::success()

@@ -27,12 +27,12 @@ impl<'a, Spi: spi::SpiMasterDevice> LMICSpi<'a, Spi> {
 }
 
 impl<'a, Spi: spi::SpiMasterDevice> lmic::LMIC for LMICSpi<'a, Spi> {
-    fn set_tx_data(&self, tx_data: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
+    fn set_tx_data(&self, tx_data: &'static mut [u8], len: u8) -> Result<(), ErrorCode> {
         // let wbuf = self.txbuffer.take().unwrap();
         // let rbuf = self.rxbuffer.take().unwrap();
         // read_write_bytes always returns Ok(())
         debug!("lmic_spi call to spi read_write_bytes");
-        let _ = self.spi.read_write_bytes(tx_data, None, len);
+        let _ = self.spi.read_write_bytes(tx_data, None, usize::from(len));
 
         Ok(())
     }
