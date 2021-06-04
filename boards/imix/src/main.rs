@@ -102,7 +102,6 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-/// Supported drivers by the platform
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,

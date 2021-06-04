@@ -47,10 +47,8 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// A structure representing this platform that holds references to all
-// capsules for this platform.
-
-/// Supported drivers by the platform
+/// A structure representing this platform that holds references to all
+/// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,

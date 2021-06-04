@@ -127,16 +127,16 @@ use kernel::introspection::KernelInfo;
 use kernel::ErrorCode;
 use kernel::Kernel;
 
-// Since writes are character echoes, we do not need more than 4 bytes:
-// the longest write is 3 bytes for a backspace (backspace, space, backspace).
+/// Buffer to hold outgoing data that is passed to the UART hardware.
 pub static mut WRITE_BUF: [u8; 500] = [0; 500];
+/// Buffer responses are initially held in until copied to the TX buffer and
+/// transmitted.
 pub static mut QUEUE_BUF: [u8; 300] = [0; 300];
-pub static mut SIZE: usize = 0;
-// Since reads are byte-by-byte, to properly echo what's typed,
-// we can use a very small read buffer.
+/// Since reads are byte-by-byte, to properly echo what's typed,
+/// we can use a very small read buffer.
 pub static mut READ_BUF: [u8; 4] = [0; 4];
-// Commands can be up to 32 bytes long: since commands themselves are 4-5
-// characters, limiting arguments to 25 bytes or so seems fine for now.
+/// Commands can be up to 32 bytes long: since commands themselves are 4-5
+/// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 /// States used for state machine to allow printing large strings asynchronously
@@ -785,6 +785,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 }
             }
 
+            // A command is valid only if it starts inside the buffer,
+            // ends before the beginning of the buffer, and ends after
+            // it starts.
             if terminator > 0 {
                 let cmd_str = str::from_utf8(&command[0..terminator]);
 
@@ -798,7 +801,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = self
                                 .write_bytes(b"help status list stop start fault process kernel\n");
                         } else if clean_str.starts_with("start") {
-                            // self.command_start(clean_str);
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
                                 self.kernel
@@ -945,7 +947,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             );
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                             console_writer.clear();
-                            //prints kernel memory by moving the writer to the start state
+
+                            // Prints kernel memory by moving the writer to the
+                            // start state.
                             self.write_state(WriterState::KernelStart, None);
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
@@ -1031,24 +1035,26 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
     ) {
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
-        //if in the middle of an active state, finish the state machine
+
+        // If in the middle of an active state, finish the state machine.
         if self.writer_state.get() != WriterState::Empty
             && self.writer_state.get() != WriterState::KernelStart
             && self.writer_state.get() != WriterState::ProcessStart
         {
             self.write_state(WriterState::Empty, None);
         }
-        //check the queue for data
+
+        // Check the queue for data.
         self.queue_buffer.map(|buf| {
             let len = self.queue_size.get();
             if len != 0 {
                 let _ = self.write_bytes(&buf[..len]);
             }
-            //self.uart.transmit_buffer(buf, len);
             self.queue_size.set(0);
         });
-        //when queue is empty then we can start the state machine
-        //for a new input
+
+        // When queue is empty then we can start the state machine
+        // for a new input.
         if self.writer_state.get() != WriterState::Empty {
             self.write_state(WriterState::Empty, None);
         }
