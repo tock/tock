@@ -166,6 +166,16 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
+        // We need to ensure that the compiler does not reorder
+        // kernel memory writes to after the userspace context switch
+        // to ensure we provide a consistent memory view of
+        // application-accessible buffers.
+        //
+        // The compiler will not be able to reorder memory accesses
+        // beyond this point, as the "nomem" option on the asm!-block
+        // is not set, hence the compiler has to assume the assembly
+        // will issue arbitrary memory accesses (acting as a compiler
+        // fence).
         asm!("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
