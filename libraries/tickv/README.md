@@ -8,7 +8,7 @@ on flash. It was written to be generic though, so other Rust applications can
 use it if they want.
 
 TicKV is based on similar concepts as
-[Yaffs1](https://yaffs.net/documents/how-yaffs-works]).
+[Yaffs1](https://yaffs.net/documents/how-yaffs-works).
 
 ## Goals of TicKV
 
