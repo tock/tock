@@ -68,7 +68,7 @@ register_bitfields![u32,
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
 
-    client: OptionalCell<&'a dyn hil::digest::Client<'a, [u8; 32]>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
 
     data: Cell<Option<LeasableBuffer<'static, u8>>>,
     data_len: Cell<usize>,
@@ -89,12 +89,12 @@ impl Hmac<'_> {
         }
     }
 
-    fn data_progress(&self) {
+    fn data_progress(&self) -> bool {
         let regs = self.registers;
         let idx = self.data_index.get();
         let len = self.data_len.get();
 
-        self.data.take().map(|buf| {
+        self.data.take().map_or(false, |buf| {
             let slice = buf.take();
 
             if idx < len {
@@ -103,16 +103,7 @@ impl Hmac<'_> {
                 for i in 0..(data_len / 4) {
                     if regs.status.is_set(STATUS::FIFO_FULL) {
                         self.data.set(Some(LeasableBuffer::new(slice)));
-                        // Enable interrupts
-                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                        return;
-                    }
-
-                    if !regs.status.is_set(STATUS::FIFO_EMPTY) {
-                        self.data.set(Some(LeasableBuffer::new(slice)));
-                        // Enable interrupts
-                        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-                        return;
+                        return false;
                     }
 
                     let data_idx = idx + i * 4;
@@ -136,14 +127,9 @@ impl Hmac<'_> {
                     self.data_index.set(data_idx + 1)
                 }
             }
-
-            self.client.map(move |client| {
-                client.add_data_done(Ok(()), slice);
-            });
-        });
-
-        // Make sure we don't get any more FIFO empty interrupts
-        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
+            self.data.set(Some(LeasableBuffer::new(slice)));
+            true
+        })
     }
 
     pub fn handle_interrupt(&self) {
@@ -179,7 +165,20 @@ impl Hmac<'_> {
             // Clear the FIFO empty interrupt
             regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
 
-            self.data_progress();
+            if self.data_progress() {
+                self.client.map(move |client| {
+                    self.data.take().map(|buf| {
+                        let slice = buf.take();
+                        client.add_data_done(Ok(()), slice);
+                    })
+                });
+
+                // Make sure we don't get any more FIFO empty interrupts
+                regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
+            } else {
+                // Enable interrupts
+                regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+            }
         } else if intrs.is_set(INTR_STATE::HMAC_ERR) {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
@@ -190,8 +189,8 @@ impl Hmac<'_> {
     }
 }
 
-impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, [u8; 32]>) {
+impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
         self.client.set(client);
     }
 
@@ -210,13 +209,20 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
         // Clear the FIFO empty interrupt
         regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
 
+        // Enable interrupts
+        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+
         // Set the length and data index of the data to write
         self.data_len.set(data.len());
         self.data.set(Some(data));
         self.data_index.set(0);
 
         // Call the process function, this will start an async fill method
-        self.data_progress();
+        let ret = self.data_progress();
+
+        if ret {
+            regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
+        }
 
         Ok(self.data_len.get())
     }
@@ -227,7 +233,9 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         let regs = self.registers;
 
-        // Enable interrrupts
+        // Enable interrupts
+        regs.intr_state
+            .modify(INTR_STATE::HMAC_DONE::SET + INTR_STATE::HMAC_ERR::SET);
         regs.intr_enable
             .modify(INTR_ENABLE::HMAC_DONE::SET + INTR_ENABLE::HMAC_ERR::SET);
 
@@ -248,8 +256,12 @@ impl<'a> hil::digest::Digest<'a, [u8; 32]> for Hmac<'a> {
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
+
+        if key.len() != 32 {
+            return Err(ErrorCode::NOSUPPORT);
+        }
 
         // Ensure the HMAC is setup
         regs.cfg
@@ -267,5 +279,17 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
         }
 
         Ok(())
+    }
+}
+
+impl hil::digest::HMACSha384 for Hmac<'_> {
+    fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl hil::digest::HMACSha512 for Hmac<'_> {
+    fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }

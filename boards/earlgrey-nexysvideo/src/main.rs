@@ -71,8 +71,8 @@ struct EarlGreyNexysVideo {
     >,
     hmac: &'static capsules::hmac::HmacDriver<
         'static,
-        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, [u8; 32]>,
-        [u8; 32],
+        VirtualMuxHmac<'static, lowrisc::hmac::Hmac<'static>, 32>,
+        32,
     >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -236,7 +236,7 @@ pub unsafe fn main() {
     let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
 
     let mux_hmac = components::hmac::HmacMuxComponent::new(&peripherals.hmac).finalize(
-        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, [u8; 32]),
+        components::hmac_mux_component_helper!(lowrisc::hmac::Hmac, 32),
     );
 
     let hmac = components::hmac::HmacComponent::new(
@@ -245,10 +245,7 @@ pub unsafe fn main() {
         hmac_data_buffer,
         hmac_dest_buffer,
     )
-    .finalize(components::hmac_component_helper!(
-        lowrisc::hmac::Hmac,
-        [u8; 32]
-    ));
+    .finalize(components::hmac_component_helper!(lowrisc::hmac::Hmac, 32,));
 
     let i2c_master = static_init!(
         capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,

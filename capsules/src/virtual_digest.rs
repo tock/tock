@@ -2,31 +2,29 @@
 //! Digest hardware peripheral.
 
 use core::cell::Cell;
-use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{ListLink, ListNode};
 use kernel::hil::digest;
-use kernel::hil::digest::DigestType;
 use kernel::ErrorCode;
 
-pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, T>, T: DigestType> {
-    mux: &'a MuxDigest<'a, A, T>,
-    next: ListLink<'a, VirtualMuxDigest<'a, A, T>>,
-    client: OptionalCell<&'a dyn digest::Client<'a, T>>,
+pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
+    mux: &'a MuxDigest<'a, A, L>,
+    next: ListLink<'a, VirtualMuxDigest<'a, A, L>>,
+    client: OptionalCell<&'a dyn digest::Client<'a, L>>,
     id: u32,
 }
 
-impl<'a, A: digest::Digest<'a, T>, T: DigestType> ListNode<'a, VirtualMuxDigest<'a, A, T>>
-    for VirtualMuxDigest<'a, A, T>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxDigest<'a, A, L>>
+    for VirtualMuxDigest<'a, A, L>
 {
-    fn next(&self) -> &'a ListLink<VirtualMuxDigest<'a, A, T>> {
+    fn next(&self) -> &'a ListLink<VirtualMuxDigest<'a, A, L>> {
         &self.next
     }
 }
 
-impl<'a, A: digest::Digest<'a, T>, T: DigestType> VirtualMuxDigest<'a, A, T> {
-    pub fn new(mux_digest: &'a MuxDigest<'a, A, T>) -> VirtualMuxDigest<'a, A, T> {
+impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
+    pub fn new(mux_digest: &'a MuxDigest<'a, A, L>) -> VirtualMuxDigest<'a, A, L> {
         let id = mux_digest.next_id.get();
         mux_digest.next_id.set(id + 1);
 
@@ -39,12 +37,12 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> VirtualMuxDigest<'a, A, T> {
     }
 }
 
-impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
-    for VirtualMuxDigest<'a, A, T>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+    for VirtualMuxDigest<'a, A, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, T>) {
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
         self.client.set(client);
     }
 
@@ -70,7 +68,10 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
     /// Request the hardware block to generate a Digest
     /// This doesn't return anything, instead the client needs to have
     /// set a `hash_done` handler.
-    fn run(&'a self, digest: &'static mut T) -> Result<(), (ErrorCode, &'static mut T)> {
+    fn run(
+        &'a self,
+        digest: &'static mut [u8; L],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; L])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -93,24 +94,24 @@ impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Digest<'a, T>
     }
 }
 
-impl<'a, A: digest::Digest<'a, T>, T: DigestType> digest::Client<'a, T>
-    for VirtualMuxDigest<'a, A, T>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Client<'a, L>
+    for VirtualMuxDigest<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
             .map(move |client| client.add_data_done(result, data));
     }
 
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.client
             .map(move |client| client.hash_done(result, digest));
     }
 }
 
-impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::HMACSha256
-    for VirtualMuxDigest<'a, A, T>
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::HMACSha256
+    for VirtualMuxDigest<'a, A, L>
 {
-    fn set_mode_hmacsha256(&self, key: &[u8; 32]) -> Result<(), ErrorCode> {
+    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -124,26 +125,58 @@ impl<'a, A: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::H
     }
 }
 
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::HMACSha384
+    for VirtualMuxDigest<'a, A, L>
+{
+    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.digest.set_mode_hmacsha384(key)
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.digest.set_mode_hmacsha384(key)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::HMACSha512
+    for VirtualMuxDigest<'a, A, L>
+{
+    fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.digest.set_mode_hmacsha512(key)
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.digest.set_mode_hmacsha512(key)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
 /// Calling a 'set_mode*()' function from a `VirtualMuxDigest` will mark that
 /// `VirtualMuxDigest` as the one that has been enabled and running. Until that
 /// Mux calls `clear_data()` it will be the only `VirtualMuxDigest` that can
 /// interact with the underlying device.
-pub struct MuxDigest<'a, A: digest::Digest<'a, T>, T: DigestType> {
+pub struct MuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     digest: &'a A,
     running: Cell<bool>,
     running_id: Cell<u32>,
     next_id: Cell<u32>,
-    phantom: PhantomData<&'a T>,
 }
 
-impl<'a, A: digest::Digest<'a, T>, T: DigestType> MuxDigest<'a, A, T> {
-    pub const fn new(digest: &'a A) -> MuxDigest<'a, A, T> {
+impl<'a, A: digest::Digest<'a, L>, const L: usize> MuxDigest<'a, A, L> {
+    pub const fn new(digest: &'a A) -> MuxDigest<'a, A, L> {
         MuxDigest {
             digest: digest,
             running: Cell::new(false),
             running_id: Cell::new(0),
             next_id: Cell::new(0),
-            phantom: PhantomData,
         }
     }
 }

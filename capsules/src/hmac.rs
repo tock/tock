@@ -29,46 +29,50 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 
 use core::cell::Cell;
 use core::convert::TryInto;
-use core::marker::PhantomData;
 use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
-use kernel::hil::digest::DigestType;
 use kernel::{
     CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
 };
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, T>, T: 'static + DigestType> {
+enum ShaOperation {
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
+pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
     hmac: &'a H,
 
     active: Cell<bool>,
 
     apps: Grant<App>,
     appid: OptionalCell<ProcessId>,
-    phantom: PhantomData<&'a T>,
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, T>,
+    dest_buffer: TakeCell<'static, [u8; L]>,
 }
 
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> HmacDriver<'a, H, T>
-where
-    T: AsMut<[u8]>,
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > HmacDriver<'a, H, L>
 {
     pub fn new(
         hmac: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut T,
+        dest_buffer: &'static mut [u8; L],
         grant: Grant<App>,
-    ) -> HmacDriver<'a, H, T> {
+    ) -> HmacDriver<'a, H, L> {
         HmacDriver {
             hmac: hmac,
             active: Cell::new(false),
             apps: grant,
             appid: OptionalCell::empty(),
-            phantom: PhantomData,
             data_buffer: TakeCell::new(data_buffer),
             data_copied: Cell::new(0),
             dest_buffer: TakeCell::new(dest_buffer),
@@ -79,11 +83,26 @@ where
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
                 .enter(*appid, |app| {
-                    app.key.map_or((), |k| {
-                        self.hmac
-                            .set_mode_hmacsha256(k.as_ref().try_into().unwrap())
-                            .unwrap();
+                    let ret = app.key.map_or(Err(ErrorCode::RESERVE), |k| {
+                        if let Some(op) = &app.sha_operation {
+                            match op {
+                                ShaOperation::Sha256 => self
+                                    .hmac
+                                    .set_mode_hmacsha256(k.as_ref().try_into().unwrap()),
+                                ShaOperation::Sha384 => self
+                                    .hmac
+                                    .set_mode_hmacsha384(k.as_ref().try_into().unwrap()),
+                                ShaOperation::Sha512 => self
+                                    .hmac
+                                    .set_mode_hmacsha512(k.as_ref().try_into().unwrap()),
+                            }
+                        } else {
+                            Err(ErrorCode::INVAL)
+                        }
                     });
+                    if ret.is_err() {
+                        return ret;
+                    }
 
                     app.data.map_or(Err(ErrorCode::RESERVE), |d| {
                         self.data_buffer.map(|buf| {
@@ -139,14 +158,18 @@ where
     }
 }
 
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::Client<'a, T>
-    for HmacDriver<'a, H, T>
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::Client<'a, L> for HmacDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app| {
                     let mut data_len = 0;
+                    let mut exit = false;
                     let mut static_buffer_len = 0;
 
                     self.data_buffer.replace(data);
@@ -179,9 +202,13 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                             // No data buffer, clear the appid and data
                             self.hmac.clear_data();
                             self.appid.clear();
-                            self.check_queue();
+                            exit = true;
                         }
                     });
+
+                    if exit {
+                        return;
+                    }
 
                     if static_buffer_len > 0 {
                         let copied_data = self.data_copied.get();
@@ -202,7 +229,6 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                                 // Error, clear the appid and data
                                 self.hmac.clear_data();
                                 self.appid.clear();
-                                self.check_queue();
                                 return;
                             }
 
@@ -221,9 +247,6 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 
                         app.callback
                             .schedule(kernel::into_statuscode(e.0.into()), 0, 0);
-
-                        self.check_queue();
-                        return;
                     }
                 })
                 .map_err(|err| {
@@ -231,13 +254,14 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
                         || err == kernel::procs::Error::InactiveApp
                     {
                         self.appid.clear();
-                        self.check_queue();
                     }
                 })
         });
+
+        self.check_queue();
     }
 
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut T) {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |app| {
@@ -245,7 +269,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
-                    app.data.mut_map_or((), |dest| {
+                    app.dest.mut_map_or((), |dest| {
                         dest.as_mut().copy_from_slice(digest.as_ref());
                     });
 
@@ -260,18 +284,17 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 
                     // Clear the current appid as it has finished running
                     self.appid.clear();
-                    self.check_queue();
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
                         || err == kernel::procs::Error::InactiveApp
                     {
                         self.appid.clear();
-                        self.check_queue();
                     }
                 })
         });
 
+        self.check_queue();
         self.dest_buffer.replace(digest);
     }
 }
@@ -291,8 +314,11 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
 /// - `2`: Allow a buffer for storing the digest.
 ///        The kernel will fill this with the HMAC digest before calling
 ///        the `hash_done` callback.
-impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
-    for HmacDriver<'a, H, T>
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > Driver for HmacDriver<'a, H, L>
 {
     fn allow_readwrite(
         &self,
@@ -424,14 +450,28 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
         match command_num {
             // set_algorithm
             0 => {
-                match data1 {
-                    // SHA256
-                    0 => {
-                        // Only Sha256 is supported, we don't need to do anything
-                        CommandReturn::success()
-                    }
-                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                }
+                self.apps
+                    .enter(appid, |app| {
+                        match data1 {
+                            // SHA256
+                            0 => {
+                                app.sha_operation = Some(ShaOperation::Sha256);
+                                CommandReturn::success()
+                            }
+                            // SHA384
+                            1 => {
+                                app.sha_operation = Some(ShaOperation::Sha384);
+                                CommandReturn::success()
+                            }
+                            // SHA512
+                            2 => {
+                                app.sha_operation = Some(ShaOperation::Sha512);
+                                CommandReturn::success()
+                            }
+                            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into())
             }
 
             // run
@@ -477,6 +517,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
 pub struct App {
     callback: Upcall,
     pending_run_app: Option<ProcessId>,
+    sha_operation: Option<ShaOperation>,
     key: ReadWriteAppSlice,
     data: ReadWriteAppSlice,
     dest: ReadWriteAppSlice,

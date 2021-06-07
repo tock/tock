@@ -5,7 +5,6 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::LocalRegisterCopy;
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-//use kernel::debug;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x4101_0000 as *const PlicRegisters) };
@@ -85,6 +84,30 @@ impl Plic {
 
         // Accept all interrupts.
         self.registers.threshold.write(priority::Priority.val(1));
+    }
+
+    /// Disable specific interrupt.
+    pub fn disable(&self, index: u32) {
+        let offset = if index < 32 {
+            0
+        } else if index < 64 {
+            1
+        } else if index < 96 {
+            2
+        } else if index < 128 {
+            3
+        } else if index < 160 {
+            4
+        } else if index < 192 {
+            5
+        } else {
+            panic!("Invalid IRQ: {}", index);
+        };
+
+        let irq = index % 32;
+        let mask = !(1 << irq);
+
+        self.registers.enable[offset].set(self.registers.enable[offset].get() & mask);
     }
 
     /// Disable all interrupts.
