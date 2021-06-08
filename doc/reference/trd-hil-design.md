@@ -765,7 +765,7 @@ dispatch based on internal state, or perform some form of proxying. It
 also allows the client to disable callbacks (by passing an
 implementation of the trait that does nothing).
 
-Rule 13: Use a generic lifetimes, except for buffers in split-phase operations, which should be `'static`
+Rule 13: Use generic lifetimes, except for buffers in split-phase operations, which should be `'static`
 ===============================
 
 HIL implementations should use generic lifetimes whenever possible. This has
@@ -776,7 +776,7 @@ limitations, because mutably accessing `` `static `` variables is generally
 considered unsafe. 
 
 If possible, use a single lifetime unless there are compelling reasons or
-requirements to otherwise. The standard lifetime name in Tock code is `` `a``,
+requirements otherwise. The standard lifetime name in Tock code is `` `a``,
 although code can use other ones if they make sense.
 In practice today, these `` `a`` lifetimes are all bound to `` `static``. 
 However, by not using `` `static`` explicitly these HILs can be used with
