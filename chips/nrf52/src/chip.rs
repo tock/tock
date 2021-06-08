@@ -43,9 +43,9 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub timer2: crate::timer::Timer,
     pub uarte0: crate::uart::Uarte<'a>,
     pub spim0: crate::spi::SPIM,
-    pub twim0: crate::i2c::TWIM,
+    pub twi0: crate::i2c::TWI,
     pub spim1: crate::spi::SPIM,
-    pub twim1: crate::i2c::TWIM,
+    pub twi1: crate::i2c::TWI,
     pub spim2: crate::spi::SPIM,
     pub adc: crate::adc::Adc,
     pub nvmc: crate::nvmc::Nvmc,
@@ -69,9 +69,9 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             timer2: crate::timer::Timer::new(2),
             uarte0: crate::uart::Uarte::new(),
             spim0: crate::spi::SPIM::new(0),
-            twim0: crate::i2c::TWIM::new_twim0(),
+            twi0: crate::i2c::TWI::new_twi0(),
             spim1: crate::spi::SPIM::new(1),
-            twim1: crate::i2c::TWIM::new_twim1(),
+            twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
             adc: crate::adc::Adc::new(),
             nvmc: crate::nvmc::Nvmc::new(),
@@ -114,10 +114,10 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
             crate::peripheral_interrupts::SPI0_TWI0 => {
                 // SPI0 and TWI0 share interrupts.
                 // Dispatch the correct handler.
-                match (self.spim0.is_enabled(), self.twim0.is_enabled()) {
+                match (self.spim0.is_enabled(), self.twi0.is_enabled()) {
                     (false, false) => (),
                     (true, false) => self.spim0.handle_interrupt(),
-                    (false, true) => self.twim0.handle_interrupt(),
+                    (false, true) => self.twi0.handle_interrupt(),
                     (true, true) => debug_assert!(
                         false,
                         "SPIM0 and TWIM0 cannot be \
@@ -128,10 +128,10 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
             crate::peripheral_interrupts::SPI1_TWI1 => {
                 // SPI1 and TWI1 share interrupts.
                 // Dispatch the correct handler.
-                match (self.spim1.is_enabled(), self.twim1.is_enabled()) {
+                match (self.spim1.is_enabled(), self.twi1.is_enabled()) {
                     (false, false) => (),
                     (true, false) => self.spim1.handle_interrupt(),
-                    (false, true) => self.twim1.handle_interrupt(),
+                    (false, true) => self.twi1.handle_interrupt(),
                     (true, true) => debug_assert!(
                         false,
                         "SPIM1 and TWIM1 cannot be \

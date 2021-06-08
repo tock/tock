@@ -14,6 +14,7 @@ use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::rng::Rng;
 use kernel::hil::time::{Alarm, Counter};
@@ -294,13 +295,13 @@ pub unsafe fn main() {
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
+        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None, dynamic_deferred_caller)
     );
-    base_peripherals.twim0.configure(
+    base_peripherals.twi0.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),
     );
-    base_peripherals.twim0.set_client(i2c_mux);
+    base_peripherals.twi0.set_master_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(

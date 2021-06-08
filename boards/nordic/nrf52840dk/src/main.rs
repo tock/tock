@@ -179,7 +179,7 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWIM>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWI>,
 }
 
 impl kernel::Platform for Platform {
@@ -490,20 +490,20 @@ pub unsafe fn main() {
     ));
 
     let i2c_master = static_init!(
-        capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWIM>,
+        capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWI>,
         capsules::i2c_master::I2CMasterDriver::new(
-            &base_peripherals.twim1,
+            &base_peripherals.twi1,
             &mut capsules::i2c_master::BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    base_peripherals.twim1.configure(
+    base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
-    base_peripherals.twim1.set_master_client(i2c_master);
-    base_peripherals.twim1.set_speed(nrf52840::i2c::Speed::K400);
-    base_peripherals.twim1.enable();
+    base_peripherals.twi1.set_master_client(i2c_master);
+    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
+    base_peripherals.twi1.enable();
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
