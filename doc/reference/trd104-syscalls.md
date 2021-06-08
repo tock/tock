@@ -511,19 +511,16 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 The Read-Write Allow system call class is how a userspace process
 shares buffer with the kernel that the kernel can read and write. 
 
-Calling a
-Read-Write Allow system call returns a buffer (address and
+Calling a Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
-kernel returns a zero-length buffer. Subsequent successful calls to 
-Read-Write Allow return the previous buffer passed. 
-The standard access model for allowed buffers is that userspace does 
-not read or write a buffer that has been allowed: access to the memory
-is exclusive either to userspace or to the kernel. To 
-regain exclusive access to a passed buffer, the process must call the same 
-Read-Write Allow system call again. It can do so with a zero-length 
-buffer if it wishes to pass no memory to the kernel. Section 4.4.1
-describes the requirements for when and how a system call API
-can allow simultaneous userspace and kernel access of a buffer.
+kernel returns a zero-length buffer. Subsequent successful calls to
+Read-Write Allow return the previous buffer passed.  The standard
+access model for allowed buffers is that userspace does not read or
+write a buffer that has been allowed: access to the memory is
+exclusive either to userspace or to the kernel. To regain exclusive
+access to a passed buffer, the process must call the same Read-Write
+Allow system call again. It can do so with a zero-length buffer if it
+wishes to pass no memory to the kernel. 
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
@@ -565,6 +562,13 @@ Allow to reclaim the buffer, then call Read-Write Allow again to
 re-allow it with a different size. If userspace passes an overlapping
 buffer, the kernel MUST return a failure result with an error code of
 `INVALID`.
+
+Finally, because a process relinquishes access to a buffer when it
+makes a Read-Write Allow call with it, a userspace API MUST NOT assume
+or rely on a process accessing an allowed buffer. If userspace needs
+to read or write to the buffer, it MUST first regain access to it by
+calling the corresponding Read-Write Allow.
+
 
 4.4.1 Buffers Can Change
 ---------------------------------
@@ -637,11 +641,12 @@ the buffer).
 
 The Read-Only Allow class is very similar to the Read-Write Allow
 class.  It differs in two ways: the buffer it passes to the kernel is
-read-only, and the process MAY freely read the buffer. A syscall API
-MUST NOT include or depend on a process writing to a buffer shared
-with the kernel through a Read-Only Allow.  The kernel also MUST NOT
-write to the buffer. The semantics and calling conventions of
-Read-Only Allow are otherwise identical to Read-Write Allow.
+read-only, and the process MAY freely read the buffer. The kernel
+also MUST NOT write to a buffer shared with a Read-Only Allow. The
+semantics and calling conventions of Read-Only Allow are otherwise
+identical to Read-Write Allow: a userspace API MUST NOT depend on writing 
+to a shared buffer and the kernel MUST NOT assume the buffer does 
+not change.
 
 This restriction on writing to buffers is to limit the complexity of
 code review in the kernel. If a userspace library relies on writes to
