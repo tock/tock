@@ -105,6 +105,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             }
             transport.wait_for_connection();
             return_value = None;
+
+            let ok = process.recv_ready(&transport);
+            if !ok {
+                panic!("KERN: Process sent ready not ok");
+            }
         } else {
             return_value = Some(state.syscall_ret);
         }

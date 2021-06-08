@@ -46,6 +46,12 @@ pub struct AllowSliceInfo {
     pub length: usize,
 }
 
+#[repr(C, packed)]
+#[derive(Unaligned, AsBytes, FromBytes, Default, Debug, Copy, Clone)]
+pub struct Ready {
+    pub status_ok: u32,
+}
+
 impl Syscall {}
 
 impl Callback {
@@ -101,6 +107,7 @@ pub enum IpcMsgType {
     KERNELRETURN,
     ALLOWSINFO,
     ALLOWSLICEINFO,
+    READY,
 }
 
 pub trait IntoIpcMsgType {
@@ -148,6 +155,12 @@ impl IntoIpcMsgType for AllowsInfo {
 impl IntoIpcMsgType for AllowSliceInfo {
     fn to_ipc_msg_type() -> IpcMsgType {
         IpcMsgType::ALLOWSLICEINFO
+    }
+}
+
+impl IntoIpcMsgType for Ready {
+    fn to_ipc_msg_type() -> IpcMsgType {
+        IpcMsgType::READY
     }
 }
 
