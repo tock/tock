@@ -11,7 +11,9 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
+use kernel::common::registers::{
+    register_bitfields, register_structs, ReadWrite, WriteOnly,
+};
 use kernel::common::StaticRef;
 use kernel::hil;
 use nrf5x::pinmux::Pinmux;
@@ -78,7 +80,7 @@ impl TWIM {
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        self.registers.enable.write(ENABLE::ENABLE::Enable);
+        self.registers.enable.write(ENABLE::ENABLE::EnableMaster);
     }
 
     /// Disables hardware TWIM peripheral.
@@ -126,7 +128,9 @@ impl TWIM {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.registers.enable.matches_all(ENABLE::ENABLE::Enable)
+        self.registers
+            .enable
+            .matches_all(ENABLE::ENABLE::EnableMaster)
     }
 }
 
@@ -235,84 +239,86 @@ impl hil::i2c::I2CMaster for TWIM {
 // correct handler by the service_pending_interrupts() routine in
 // chip.rs based on which peripheral is enabled.
 
-#[repr(C)]
-struct TwimRegisters {
-    /// Start TWI receive sequence
-    tasks_startrx: WriteOnly<u32, TASK::Register>,
-    _reserved0: [u8; 4],
-    /// Start TWI transmit sequence
-    tasks_starttx: WriteOnly<u32, TASK::Register>,
-    _reserved1: [u8; 8],
-    /// Stop TWI transaction
-    tasks_stop: WriteOnly<u32, TASK::Register>,
-    _reserved2: [u8; 4],
-    /// Suspend TWI transaction
-    tasks_suspend: WriteOnly<u32, TASK::Register>,
-    /// Resume TWI transaction
-    tasks_resume: WriteOnly<u32, TASK::Register>,
-    _reserved3: [u8; 224],
-    /// TWI stopped
-    events_stopped: ReadWrite<u32, EVENT::Register>,
-    _reserved4: [u8; 28],
-    /// TWI error
-    events_error: ReadWrite<u32, EVENT::Register>,
-    _reserved5: [u8; 32],
-    /// Last byte has been sent out after the SUSPEND task has been issued, TWI
-    /// traffic is now suspended.
-    events_suspended: ReadWrite<u32, EVENT::Register>,
-    /// Receive sequence started
-    events_rxstarted: ReadWrite<u32, EVENT::Register>,
-    /// Transmit sequence started
-    events_txstarted: ReadWrite<u32, EVENT::Register>,
-    _reserved6: [u8; 8],
-    /// Byte boundary, starting to receive the last byte
-    events_lastrx: ReadWrite<u32, EVENT::Register>,
-    /// Byte boundary, starting to transmit the last byte
-    events_lasttx: ReadWrite<u32, EVENT::Register>,
-    _reserved7: [u8; 156],
-    /// Shortcut register
-    shorts: ReadWrite<u32, SHORTS::Register>,
-    _reserved8: [u8; 252],
-    /// Enable or disable interrupt
-    inten: ReadWrite<u32, INTE::Register>,
-    /// Enable interrupt
-    intenset: ReadWrite<u32, INTE::Register>,
-    /// Disable interrupt
-    intenclr: ReadWrite<u32, INTE::Register>,
-    _reserved9: [u8; 440],
-    /// Error source
-    errorsrc: ReadWrite<u32, ERRORSRC::Register>,
-    _reserved10: [u8; 56],
-    /// Enable TWIM
-    enable: ReadWrite<u32, ENABLE::Register>,
-    _reserved11: [u8; 4],
-    /// Pin select for SCL signal
-    psel_scl: VolatileCell<Pinmux>,
-    /// Pin select for SDA signal
-    psel_sda: VolatileCell<Pinmux>,
-    _reserved_12: [u8; 20],
-    /// TWI frequency
-    frequency: ReadWrite<u32>,
-    _reserved13: [u8; 12],
-    /// Data pointer
-    rxd_ptr: VolatileCell<*mut u8>,
-    /// Maximum number of bytes in receive buffer
-    rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>,
-    /// Number of bytes transferred in the last transaction
-    rxd_amount: ReadWrite<u32>,
-    /// EasyDMA list type
-    rxd_list: ReadWrite<u32>,
-    /// Data pointer
-    txd_ptr: VolatileCell<*mut u8>,
-    /// Maximum number of bytes in transmit buffer
-    txd_maxcnt: ReadWrite<u32, MAXCNT::Register>,
-    /// Number of bytes transferred in the last transaction
-    txd_amount: ReadWrite<u32>,
-    /// EasyDMA list type
-    txd_list: ReadWrite<u32>,
-    _reserved_14: [u8; 52],
-    /// Address used in the TWI transfer
-    address: ReadWrite<u32, ADDRESS::Register>,
+register_structs! {
+    pub TwimRegisters {
+        /// Start TWI receive sequence
+        (0x00 => tasks_startrx: WriteOnly<u32, TASK::Register>),
+        (0x04 => _reserved0),
+        /// Start TWI transmit sequence
+        (0x08 => tasks_starttx: WriteOnly<u32, TASK::Register>),
+        (0x0C => _reserved1),
+        /// Stop TWI transaction
+        (0x14 => tasks_stop: WriteOnly<u32, TASK::Register>),
+        (0x18 => _reserved2),
+        /// Suspend TWI transaction
+        (0x1C => tasks_suspend: WriteOnly<u32, TASK::Register>),
+        /// Resume TWI transaction
+        (0x20 => tasks_resume: WriteOnly<u32, TASK::Register>),
+        (0x24 => _reserved3),
+        /// TWI stopped
+        (0x104 => events_stopped: ReadWrite<u32, EVENT::Register>),
+        (0x108 => _reserved4),
+        /// TWI error
+        (0x124 => events_error: ReadWrite<u32, EVENT::Register>),
+        (0x128 => _reserved5),
+        /// Last byte has been sent out after the SUSPEND task has been issued, TWI
+        /// traffic is now suspended.
+        (0x148 => events_suspended: ReadWrite<u32, EVENT::Register>),
+        /// Receive sequence started
+        (0x14C => events_rxstarted: ReadWrite<u32, EVENT::Register>),
+        /// Transmit sequence started
+        (0x150 => events_txstarted: ReadWrite<u32, EVENT::Register>),
+        (0x154 => _reserved6),
+        /// Byte boundary, starting to receive the last byte
+        (0x15C => events_lastrx: ReadWrite<u32, EVENT::Register>),
+        /// Byte boundary, starting to transmit the last byte
+        (0x160 => events_lasttx: ReadWrite<u32, EVENT::Register>),
+        (0x164 => _reserved7),
+        /// Shortcut register
+        (0x200 => shorts: ReadWrite<u32, SHORTS::Register>),
+        (0x204 => _reserved8),
+        /// Enable or disable interrupt
+        (0x300 => inten: ReadWrite<u32, INTE::Register>),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, INTE::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, INTE::Register>),
+        (0x30C => _reserved9),
+        /// Error source
+        (0x4C4 => errorsrc: ReadWrite<u32, ERRORSRC::Register>),
+        (0x4C8 => _reserved10),
+        /// Enable TWI
+        (0x500 => enable: ReadWrite<u32, ENABLE::Register>),
+        (0x504 => _reserved11),
+        /// Pin select for SCL signal
+        (0x508 => psel_scl: VolatileCell<Pinmux>),
+        /// Pin select for SDA signal
+        (0x50C => psel_sda: VolatileCell<Pinmux>),
+        (0x510 => _reserved_12),
+        /// TWI frequency
+        (0x524 => frequency: ReadWrite<u32>),
+        (0x528 => _reserved13),
+        /// Data pointer
+        (0x534 => rxd_ptr: VolatileCell<*mut u8>),
+        /// Maximum number of bytes in receive buffer
+        (0x538 => rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>),
+        /// Number of bytes transferred in the last transaction
+        (0x53C => rxd_amount: ReadWrite<u32>),
+        /// EasyDMA list type
+        (0x540 => rxd_list: ReadWrite<u32>),
+        /// Data pointer
+        (0x544 => txd_ptr: VolatileCell<*mut u8>),
+        /// Maximum number of bytes in transmit buffer
+        (0x548 => txd_maxcnt: ReadWrite<u32, MAXCNT::Register>),
+        /// Number of bytes transferred in the last transaction
+        (0x54C => txd_amount: ReadWrite<u32>),
+        /// EasyDMA list type
+        (0x550 => txd_list: ReadWrite<u32>),
+        (0x554 => _reserved_14),
+        /// Address used in the TWI transfer
+        (0x588 => address: ReadWrite<u32, ADDRESS::Register>),
+        (0x58C => @END),
+    }
 }
 
 register_bitfields![u32,
@@ -420,10 +426,11 @@ register_bitfields![u32,
         TASK 0
     ],
     ENABLE [
-        /// Enable or disable TWIM
+        /// Enable or disable TWI
         ENABLE OFFSET(0) NUMBITS(4) [
             Disable = 0,
-            Enable = 6
+            EnableMaster = 6,
+            EnableSlave = 9,
         ]
     ],
     MAXCNT [
