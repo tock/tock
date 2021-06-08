@@ -581,118 +581,62 @@ this time, issue another allow call to revoke the buffer, or crash,
 such that the buffer is no longer valid.
 
 The canonical case of incorrectly assuming a buffer does not change
-involves the length of a buffer. In this example, userspace allows a 
-buffer, then a command specifies a length of how many bytes
-of the buffer to read or write. Checking that the length fits within
-the allowed buffer when the command is issued is insufficient, as
-it could be that the buffer changes during the underlying hardware I/O operation.
-If the buffer is replaced with one that is much smaller, the length passed
-in the command may now be too large. If capsule code blindly copies the
-number of bytes specified in the command, without re-checking buffer length,
-then it can cause the kernel to panic for an out-of-bounds error. For
-similar reasons, a capsule should not cache computations on values from
-an allowed buffer, as if the buffer changes those computations may no
-longer be correct (e.g., computing a length based on fields in the buffer).
+involves the length of a buffer. In this example, taken from the SPI
+controller capsule, userspace allows a buffer, then a command
+specifies a length (`arg1`) of how many bytes of the buffer to read or write.
+The variable `mlen` is the length of the buffer.
 
+```rust
+if mlen >= arg1 && arg1 > 0 {
+    app.len = arg1;
+    app.index = 0;
+    self.busy.set(true);
+    self.do_next_read_write(app);
+    CommandReturn::success()
+} 
+```
 
-4.4.2 Simultaneous userspace/kernel access of a buffer
----------------------------------
+Checking that the length fits within the allowed buffer when the
+command is issued is insufficient, as it could be that the buffer
+changes during the underlying hardware I/O operation.  If the buffer
+is replaced with one that is much smaller, the length passed in the
+command may now be too large. The `index` variable keeps track of
+where in the buffer the next write should occur: the capsule breaks up
+long writes into multiple, smaller writes to bound the size of its
+static kernel buffer. If capsule code blindly copies the number of
+bytes specified in the command, without re-checking buffer length,
+then it can cause the kernel to panic for an out-of-bounds error. 
 
-The standard calling pattern for reading data from the Tock kernel is to
-  1. use `subscribe` to register a callback,
-  2. make a Read-Write Allow call to share a buffer with the kernel,
-  3. call a `command` to start an operation that writes the allowed buffer,
-  4. in the upcall that signals the operation completes, make another
-  Read-Write Allow call to reclaim the buffer shared with the kernel.
-  
-In normal use, userspace does not read a buffer that
-has been shared with the kernel with a Read-Write Allow call. This
-reading restriction is because the contents of the buffer may be in an
-intermediate state and so not consistent with expected data
-models. Ensuring every system call driver maintains consistency in the
-presence of arbitrary userspace reads is too great a programming
-burden for an unintended use case.
+Therefore, in the `read_write_done` callback, the capsule checks the
+length of the buffer that userspace wants to read data into. The third
+line checks that the end of the just completed operation isn't past
+the end of the current userspace buffer (which could happen if the
+userspace buffer became shorter).
 
-However, there can be cases when it is necessary for userspace to be
-able to read a buffer without first revoking it from the kernel with a
-Read-Write Allow. These cases are situations when the cost of a
-Read-Write Allow system call is an unacceptable overhead for
-accessing the data.
+```rust
+let end = index;
+let start = index - length;
+let end = cmp::min(end, dest.len());
+let start = cmp::min(start, end);
 
-In these cases, it can be acceptable for a system call driver to allow
-userspace to read or write a buffer passed with a Read-Write Allow. An
-important invariant is that userspace does use buffer data read while
-an operation that modifies the buffer is ongoing. Instead, userspace
-only uses data collected from a buffer *before* or *after* an
-operation completes: data reads and operations MUST be atomic with
-respect to one another.
+let real_len = cmp::min(end - start, src.len());
+let dest_area = &mut dest[start..end];
 
-For a system call API to allow userspace to read allowed buffers, the
-mechanism that ensures data reads are atomic MUST be documented in a
-Draft or Final Documentary TRD. If this conditions are met then
-userspace MAY read the buffer under the conditions specified in the
-TRD.
+for (i, c) in src[0..real_len].iter().enumerate() {
+    dest_area[i] = *c;
+}
+```
 
-One example mechanism for atomic access is to specify a state machine
-for that buffer as described below. Other mechanisms (e.g., based on
-monotonic counters) can be acceptable as well.
-
-A system call API that supports userspace reading from an allowed
-buffer MUST NOT require it. Some userspace implementations may not
-support this behavior. Reading an allowed buffer without revoking it
-is considered an *optimization* and is not required. The system call
-API MUST support accessing the data through revoking the buffer to
-regain exclusive access.
-
-4.4.3 Example State Machine Specification 
----------------------------------
-
-One way to specify atomic access to a shared buffer is through a state
-machine.  This state machine specifies when the buffer is in use by
-the kernel and when it is not in use.  This specification is be a
-finite state machine with two states. The first state is "not in use"
-and the second state is "in use". The specification states a single
-Command that causes the buffer to transition from "not in use" to "in
-use" and states a single upcall (Subscribe identifier) that causes the
-buffer to transition from "in use" to "not in use".
-
-The system call API specification using this state machine approach
-MAY allow userspace code to access the buffer when it is "not in use"
-and MUST NOT support or rely on userspace reading from the buffer when
-it is "in use."  Inversely, the system call API specfication using
-this state machine approach MUST NOT involve the kernel accessing a
-buffer when it is "not in use". This finite state machine
-specification allows userspace and the kernel to enforce exclusive
-access through commands and upcalls. However, since this enforcement
-is not checkable, it should be used sparingly and code implementing it
-should be carefully checked.
-
-As an example, consider a system call driver that has the following 
-system calls:
-  - Command 0 - Exists
-  - Command 1 - Read: start reading N bytes of data into a buffer
-  - Command 2 - Cancel an outstanding read operation (Command 1)
-  - Subscribe 0 - Read Done: register the upcall for when the buffer is full of data
-  - Read-Write Allow 0 - Read Buffer: share the buffer to read data into
-  
-
-If this system call driver wanted to allow userspace to read the data
-in the shared buffer without revoking and re-allowing it, it could specify
-it in this way:
-
-> Userspace MAY access the Read Buffer when it is not in
-> use. The Read Command makes the Read Buffer transition to in use. 
-> The Read Done Upcall makes the Read Buffer transition to not in use. 
-> Therefore it is safe for userspace to read Read Buffer when there is 
-> not an outstanding Read operation.
-
-
+For similar reasons, a capsule should not cache computations on values
+from an allowed buffer, as if the buffer changes those computations
+may no longer be correct (e.g., computing a length based on fields in
+the buffer).
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow
-class.  It differs in tow ways: the buffer it passes to the kernel is
+class.  It differs in two ways: the buffer it passes to the kernel is
 read-only, and the process MAY freely read the buffer. A syscall API
 MUST NOT include or depend on a process writing to a buffer shared
 with the kernel through a Read-Only Allow.  The kernel also MUST NOT
