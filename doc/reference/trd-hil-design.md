@@ -5,10 +5,10 @@ Design of Kernel Hardware Interface Layers (HILs)
 **Working Group:** Kernel<br/>
 **Type:** Best Current Practice<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Author:** Brad Campbell, Philip Levis <br/>
 **Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** April 22, 2021<br/>
-**Draft-Version:** 5<br/>
+**Draft-Modified:** May 27, 2021<br/>
+**Draft-Version:** 6<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -74,6 +74,12 @@ design rules for HILs. They are:
 8. Use fine-grained traits that separate out different use cases.
 9. Separate control and datapath operations into separate traits.
 10. Blocking APIs are not general: use them sparingly, if at all.
+11. `initialize()` methods, when needed, should be in a separate
+    trait and invoked in an instantiating Component.
+12. Traits that can trigger callbacks should have a `set_client`
+    method.
+13. Use generic lifetimes where possible, except for buffers used in
+    split-phase operations, which should be `'static`.
 
 The rest of this document describes each of these rules and their
 reasoning.
@@ -278,12 +284,12 @@ speaking, every HIL operation should return a Rust `Result` type, whose `Err`
 variant includes an error code. The Tock kernel provides a standard set of
 error codes, oriented towards system calls, in the `kernel::ErrorCode` enum.
 
-HILs SHOULD return `ErrorCode`. Sometimes, however, these error codes don't 
-quite fit the use case and so in those cases a HIL may defines its own error 
-codes. The I2C HIL, for example, defines an `i2c::Error` enumeration for cases 
+HILs SHOULD return `ErrorCode`. Sometimes, however, these error codes don't
+quite fit the use case and so in those cases a HIL may defines its own error
+codes. The I2C HIL, for example, defines an `i2c::Error` enumeration for cases
 such as address and data negative acknowledgments, which can occur in I2C.
 In cases when a HIL returns its own error code type, this error code type
-should also be able to represent all of the errors returned in a callback 
+should also be able to represent all of the errors returned in a callback
 (see Rule 6 below).
 
 If a method doesn't return a synchronous error, there is no way for a caller
@@ -720,8 +726,75 @@ blocking APIs, not to never implement them.  They can and should at
 times exist, but their uses cases should be narrow and constrained as
 they are fundamentally not as reusable.
 
+Rule 11: `initialize()` methods, when needed, should be in a separate trait and invoked in an instantiating Component
+===============================
 
-Author Address
+Occasionally, HIL implementations need an `initialize` method to set up
+state or configure hardware before their first use. When one-time 
+initialization is needed, doing it deterministically at boot is preferable
+than doing it dynamically on the first operation (e.g., by having a 
+`is_initialized` field and calling `initialize` if it is false, then setting
+it true). Doing at boot has two advantages. First, it is fail-fast:
+if the HIL cannot initialize, this will be detected immediately at boot
+instead of potentially non-deterministically on the first operation. Second,
+it makes operations more deterministic in their execution time, which is
+useful for precise applications.
+
+Because one-time initializations should only be invoked at boot, they
+should not be part of standard HIL traits, as those traits are used by
+clients and services. Instead, they should either be in a separate
+trait or part of a structure's implementation.
+
+Because forgetting to initialize a module is a common source of errors,
+modules that require one-time initialization should, if at all possible,
+put this in an instantiable `Component` for that module. The `Component`
+can handle all of the setup needed for the module, including invoking
+the call to initialize.
+
+Rule 12: Traits that can trigger callbacks should have a `set_client` method
+===============================
+
+If a HIL trait can trigger callbacks it should include a method for
+setting the client that handles the callbacks. There are two
+reasons. First, it is generally important to be able to change
+callbacks at runtime, e.g., in response to requests, virtualization,
+or other dynamic runtime behavior. Second, a client that can trigger a
+callback should also be able to control what method the callback
+invokes.  This gives the client flexibility if it needs to change
+dispatch based on internal state, or perform some form of proxying. It
+also allows the client to disable callbacks (by passing an
+implementation of the trait that does nothing).
+
+Rule 13: Use generic lifetimes, except for buffers in split-phase operations, which should be `'static`
+===============================
+
+HIL implementations should use generic lifetimes whenever possible. This has
+two major advantages. First, it leaves open the possibilty that the kernel
+might, in the future, support loadable modules which have a finite lifetime.
+Second, an explicit `` `static`` lifetime brings safety and borrow-checker
+limitations, because mutably accessing `` `static `` variables is generally
+considered unsafe. 
+
+If possible, use a single lifetime unless there are compelling reasons or
+requirements otherwise. The standard lifetime name in Tock code is `` `a``,
+although code can use other ones if they make sense.
+In practice today, these `` `a`` lifetimes are all bound to `` `static``. 
+However, by not using `` `static`` explicitly these HILs can be used with
+arbitrary lifetimes.
+
+Buffers used in split-phase operations are the one exception to generic
+lifetimes. In most cases, these buffers will be used by hardware in DMA
+or other operations. In that way, their lifetime is not bound to program
+execution (i.e., lifetimes or stack frames) in a simple way. For example,
+a buffer passed to a DMA engine may be held by the engine indefinitely if
+it is never started. For this reason, buffers that touch hardware usually
+must be `` `static``. If their lifetime is not `` `static``, then they
+must be copied into a static buffer to be used (this is usually what happens
+when application `AppSlice` buffers are passed to hardware). To avoid
+unnecessary copies, HILs should use `` `static`` lifetimes for buffers
+used in split-phase operations.
+
+Author Addresses
 =================================
 ```
 Philip Levis
@@ -732,4 +805,11 @@ Stanford, CA 94305
 email: Philip Levis <pal@cs.stanford.edu>
 phone: +1 650 725 9046
 
+Brad Campbell 
+Computer Science	
+241 Olsson	
+P.O. Box 400336
+Charlottesville, Virginia 22904 
+
+email: Brad Campbell <bradjc@virginia.edu>
 ```
