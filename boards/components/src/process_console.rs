@@ -37,6 +37,20 @@ impl ProcessConsoleComponent {
     }
 }
 
+/// These constants are defined in the linker script for where the
+/// kernel is placed in memory on chip.
+extern "C" {
+    static _estack: u8;
+    static _sstack: u8;
+    static _stext: u8;
+    static _srodata: u8;
+    static _etext: u8;
+    static _srelocate: u8;
+    static _erelocate: u8;
+    static _szero: u8;
+    static _ezero: u8;
+}
+
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
@@ -49,14 +63,30 @@ impl Component for ProcessConsoleComponent {
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
         console_uart.setup();
 
+        // Get addresses of where the kernel is placed to enable additional
+        // debugging in process console.
+        let kernel_addresses = process_console::KernelAddresses {
+            stack_start: &_sstack as *const u8,
+            stack_end: &_estack as *const u8,
+            text_start: &_stext as *const u8,
+            text_end: &_etext as *const u8,
+            read_only_data_start: &_srodata as *const u8,
+            relocations_start: &_srelocate as *const u8,
+            relocations_end: &_erelocate as *const u8,
+            bss_start: &_szero as *const u8,
+            bss_end: &_ezero as *const u8,
+        };
+
         let console = static_init!(
             process_console::ProcessConsole<'static, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
+                &mut process_console::QUEUE_BUF,
                 &mut process_console::COMMAND_BUF,
                 self.board_kernel,
+                kernel_addresses,
                 Capability,
             )
         );

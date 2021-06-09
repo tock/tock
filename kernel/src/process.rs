@@ -313,6 +313,10 @@ pub trait Process {
 
     // additional memop like functions
 
+    /// Return the highest address the process has access to, or the current
+    /// process memory brk.
+    fn app_memory_break(&self) -> *const u8;
+
     /// Creates a `ReadWriteAppSlice` from the given offset and size
     /// in process memory.
     ///
@@ -529,6 +533,15 @@ pub trait Process {
     /// Increment the number of times the process called a syscall and record
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
+
+    /// Return the address of the start of the process heap, if known.
+    fn debug_heap_start(&self) -> Option<*const u8>;
+
+    /// Return the address of the start of the process stack, if known.
+    fn debug_stack_start(&self) -> Option<*const u8>;
+
+    /// Return the lowest recorded address of the process stack, if known.
+    fn debug_stack_end(&self) -> Option<*const u8>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's

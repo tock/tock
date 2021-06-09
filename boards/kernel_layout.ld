@@ -110,6 +110,8 @@ SECTIONS
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
         *(.text .text.* .gnu.linkonce.t.*)
+        
+        _srodata = .;
         *(.rodata .rodata.* .gnu.linkonce.r.*)
 
         /* C++ exception unwinding information */
@@ -203,6 +205,7 @@ SECTIONS
 
     /* Mark the end of static elements */
     . = ALIGN(4);
+    _erodata = .;
     _etext = .;
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 

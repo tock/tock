@@ -405,6 +405,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
+    fn app_memory_break(&self) -> *const u8 {
+        self.app_break.get()
+    }
+
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
             self.chip.mpu().configure_mpu(&config, &self.processid());
@@ -964,6 +968,21 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             debug.syscall_count += 1;
             debug.last_syscall = Some(last_syscall);
         });
+    }
+
+    fn debug_heap_start(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
+    }
+
+    fn debug_stack_start(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_stack_start_pointer.map(|p| p))
+    }
+
+    fn debug_stack_end(&self) -> Option<*const u8> {
+        self.debug
+            .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
     }
 
     fn print_memory_map(&self, writer: &mut dyn Write) {
