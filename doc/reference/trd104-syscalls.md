@@ -5,7 +5,7 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
 **Draft-Modified:** May 27, 2021<br/>
 **Draft-Version:** 5<br/>
@@ -556,7 +556,7 @@ an error code of `INVALID`.
 Because a process relinquishes access to a buffer when it makes a
 Read-Write Allow call with it, the buffer passed on the subsequent
 Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application cannot write that memory.  If an
+This is because the application cannot access that memory.  If an
 application needs to extend a buffer, it must first call Read-Write
 Allow to reclaim the buffer, then call Read-Write Allow again to
 re-allow it with a different size. If userspace passes an overlapping
