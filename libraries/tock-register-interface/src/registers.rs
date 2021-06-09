@@ -56,55 +56,10 @@
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::marker::PhantomData;
-use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
-use crate::fields::{Field, FieldValue};
+use crate::fields::{Field, FieldValue, TryFromValue};
 use crate::interfaces::{Readable, Writeable};
-
-/// IntLike properties needed to read/write/modify a register.
-pub trait IntLike:
-    BitAnd<Output = Self>
-    + BitOr<Output = Self>
-    + BitOrAssign
-    + Not<Output = Self>
-    + Eq
-    + Shr<usize, Output = Self>
-    + Shl<usize, Output = Self>
-    + Copy
-    + Clone
-{
-    fn zero() -> Self;
-}
-
-macro_rules! IntLike_impl_for {
-    ($type:ty) => {
-        impl IntLike for $type {
-            fn zero() -> Self {
-                0
-            }
-        }
-    };
-}
-
-IntLike_impl_for!(u8);
-IntLike_impl_for!(u16);
-IntLike_impl_for!(u32);
-IntLike_impl_for!(u64);
-IntLike_impl_for!(u128);
-IntLike_impl_for!(usize);
-
-/// Descriptive name for each register.
-pub trait RegisterLongName {}
-
-impl RegisterLongName for () {}
-
-/// Conversion of raw register value into enumerated values member.
-/// Implemented inside register_bitfields! macro for each bit field.
-pub trait TryFromValue<V> {
-    type EnumType;
-
-    fn try_from(v: V) -> Option<Self::EnumType>;
-}
+use crate::{IntLike, RegisterLongName};
 
 /// Read/Write registers.
 ///
@@ -395,14 +350,14 @@ mod tests {
         Foo7,
     }
 
-    impl super::TryFromValue<u16> for Foo {
+    impl crate::fields::TryFromValue<u16> for Foo {
         type EnumType = Foo;
 
         fn try_from(v: u16) -> Option<Self::EnumType> {
             Self::try_from(v as u32)
         }
     }
-    impl super::TryFromValue<u32> for Foo {
+    impl crate::fields::TryFromValue<u32> for Foo {
         type EnumType = Foo;
 
         fn try_from(v: u32) -> Option<Self::EnumType> {

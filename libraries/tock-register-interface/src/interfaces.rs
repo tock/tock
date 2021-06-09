@@ -7,14 +7,13 @@
 //!
 //! Each trait has two associated type parameters, namely:
 //!
-//! - `T`: [`IntLike`](crate::registers::IntLike), indicating the
-//!   underlying integer type used to represent the register's raw
-//!   contents.
+//! - `T`: [`IntLike`](crate::IntLike), indicating the underlying
+//!   integer type used to represent the register's raw contents.
 //!
-//! - `R`: [`RegisterLongName`](crate::registers::RegisterLongName),
-//!   functioning as a type to identify this register's descriptive
-//!   name and semantic meaning. It is further used to impose type
-//!   constraints on values passed through the API, such as
+//! - `R`: [`RegisterLongName`](crate::RegisterLongName), functioning
+//!   as a type to identify this register's descriptive name and
+//!   semantic meaning. It is further used to impose type constraints
+//!   on values passed through the API, such as
 //!   [`FieldValue`](crate::fields::FieldValue).
 //!
 //! Registers can have different access levels, which are mapped to
@@ -35,10 +34,9 @@
 //!   example a memory-mapped UART register might transmit when
 //!   writing and receive when reading.
 //!
-//!   If a type implements both [`Readable`] and [`Writeable`], and the
-//!   associated
-//!   [`RegisterLongName`](crate::registers::RegisterLongName) type
-//!   parameters are identical, it will automatically implement
+//!   If a type implements both [`Readable`] and [`Writeable`], and
+//!   the associated [`RegisterLongName`](crate::RegisterLongName)
+//!   type parameters are identical, it will automatically implement
 //!   [`ReadWriteable`]. In particular, for
 //!   [`Aliased`](crate::registers::Aliased) this is -- in general --
 //!   not the case, so
@@ -91,7 +89,7 @@
 //! # use core::marker::PhantomData;
 //! #
 //! # use tock_registers::interfaces::{Readable, Writeable, ReadWriteable};
-//! # use tock_registers::registers::RegisterLongName;
+//! # use tock_registers::RegisterLongName;
 //! # use tock_registers::register_bitfields;
 //! #
 //! struct DummyRegister<'a, R: RegisterLongName> {
@@ -149,8 +147,9 @@
 //! assert!(dummy.read(DummyReg::HIGH) == 0xb);
 //! ```
 
-use crate::fields::{Field, FieldValue};
-use crate::registers::{IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue};
+use crate::fields::{Field, FieldValue, TryFromValue};
+use crate::registers::LocalRegisterCopy;
+use crate::{IntLike, RegisterLongName};
 
 /// Readable register
 ///

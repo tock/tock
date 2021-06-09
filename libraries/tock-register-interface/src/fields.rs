@@ -9,7 +9,7 @@
 //!
 //! A specific section (bitfield) in a register is described by the
 //! [`Field`] type, consisting of an unshifted bitmask over the base
-//! register [`IntLike`](crate::registers::IntLike) type, and a shift
+//! register [`IntLike`](crate::IntLike) type, and a shift
 //! parameter. It is further associated with a specific
 //! [`RegisterLongName`], which can prevent its use with incompatible
 //! registers.
@@ -23,9 +23,9 @@
 //! ## `register_bitfields` macro
 //!
 //! For defining register layouts with an associated
-//! [`RegisterLongName`](crate::registers::RegisterLongName), along
-//! with [`Field`]s and matching [`FieldValue`]s, a convenient
-//! macro-based interface can be used.
+//! [`RegisterLongName`](crate::RegisterLongName), along with
+//! [`Field`]s and matching [`FieldValue`]s, a convenient macro-based
+//! interface can be used.
 //!
 //! The following example demonstrates how two registers can be
 //! defined, over a `u32` base type:
@@ -59,7 +59,6 @@
 //! assert!(reg.get() == 0x00000008);
 //! ```
 
-
 // The register interface uses `+` in a way that is fine for bitfields, but
 // looks unusual (and perhaps problematic) to a linter. We just ignore those
 // lints for this file.
@@ -69,8 +68,7 @@
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign};
 
-use crate::registers::TryFromValue;
-use crate::registers::{IntLike, RegisterLongName};
+use crate::{IntLike, RegisterLongName};
 
 /// Specific section of a register.
 ///
@@ -249,6 +247,14 @@ impl<T: IntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
     }
 }
 
+/// Conversion of raw register value into enumerated values member.
+/// Implemented inside register_bitfields! macro for each bit field.
+pub trait TryFromValue<V> {
+    type EnumType;
+
+    fn try_from(v: V) -> Option<Self::EnumType>;
+}
+
 /// Helper macro for computing bitmask of variable number of bits
 #[macro_export]
 macro_rules! bitmask {
@@ -322,8 +328,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::registers::TryFromValue;
-            use $crate::fields::FieldValue;
+            use $crate::fields::{TryFromValue, FieldValue};
             use super::$reg_desc;
 
             $(
@@ -389,8 +394,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::registers::TryFromValue;
-            use $crate::fields::FieldValue;
+            use $crate::fields::{FieldValue, TryFromValue};
             use super::$reg_desc;
 
             #[allow(non_upper_case_globals)]
@@ -438,7 +442,7 @@ macro_rules! register_bitfields {
                 // (if you can access $reg, you can access $reg::Register)
                 #[derive(Clone, Copy)]
                 pub struct Register;
-                impl $crate::registers::RegisterLongName for Register {}
+                impl $crate::RegisterLongName for Register {}
 
                 use $crate::fields::Field;
 
