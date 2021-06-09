@@ -5,9 +5,15 @@
 #![feature(const_fn_trait_bound)]
 #![no_std]
 
+// If we don't build any actual register types, we don't need unsafe
+// code in this crate
+#![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
+
 pub mod fields;
 pub mod interfaces;
 pub mod macros;
+
+#[cfg(feature = "register_types")]
 pub mod registers;
 
 mod local_register;

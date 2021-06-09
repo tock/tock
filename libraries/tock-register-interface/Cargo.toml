@@ -15,4 +15,11 @@ edition = "2018"
 travis-ci = { repository = "tock/tock", branch = "master" }
 
 [features]
+default = [ "register_types" ]
+
+# Include actual register types (except LocalRegisterCopy). Disabling
+# the feature makes this an interface-only library and removes all
+# usage of unsafe code
+register_types = []
+
 no_std_unit_tests = []
