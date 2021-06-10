@@ -112,6 +112,12 @@ impl<'a> UnixProcess<'a> {
         self.id
     }
 
+    pub fn recv_ready(&self, transport: &SyscallTransport) -> bool {
+        let ready: ipc::Ready = transport.recv_msg();
+
+        ready.status_ok != 0
+    }
+
     /// Iterates through all known allow'ed slices and transfers the contents of
     /// each slice to the app. First kernel sends information about number of
     /// allowed slices, then each meta data of slice `AllowsInfo` after which
