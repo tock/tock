@@ -49,6 +49,13 @@ impl HostChip {
         let terminate = Arc::new(AtomicBool::new(false));
         signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&terminate)).unwrap();
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&terminate)).unwrap();
+        unsafe {
+            signal_hook::low_level::register(signal_hook::consts::SIGCHLD, || {
+                println!("The app process has terminated, exiting!");
+                std::process::exit(0)
+            })
+            .unwrap();
+        }
 
         HostChip {
             systick: SysTick::new(),
