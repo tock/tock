@@ -2,7 +2,7 @@
 //!
 //!
 
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
 #![cfg_attr(not(feature = "mmio_emu"), no_std)]
 
 pub mod macros;

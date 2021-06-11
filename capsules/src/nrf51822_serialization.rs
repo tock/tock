@@ -32,6 +32,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct App {
     callback: Option<Callback>,
     tx_buffer: Option<AppSlice<Shared, u8>>,
