@@ -12,6 +12,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::time::Counter;
+use kernel::Platform;
 
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -75,7 +76,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
-pub struct Platform {
+pub struct MicroBit {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
@@ -107,7 +108,7 @@ pub struct Platform {
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 }
 
-impl kernel::Platform for Platform {
+impl Platform for MicroBit {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -493,7 +494,7 @@ pub unsafe fn main() {
     while !base_peripherals.clock.low_started() {}
     while !base_peripherals.clock.high_started() {}
 
-    let platform = Platform {
+    let microbit = MicroBit {
         ble_radio: ble_radio,
         console: console,
         gpio: gpio,
@@ -558,9 +559,9 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(
-        &platform,
+        &microbit,
         chip,
-        Some(&platform.ipc),
+        Some(&microbit.ipc),
         scheduler,
         &main_loop_capability,
     );
