@@ -56,6 +56,32 @@ impl kernel::Platform for Teensy40 {
     }
 }
 
+/// Static configurations for DMA channels.
+///
+/// All DMA channels must be unique.
+mod dma_config {
+    use super::imxrt1060::nvic;
+
+    /// DMA channel for LPUART2_RX (arbitrary).
+    pub const LPUART2_RX: usize = 7;
+    /// DMA channel for LPUART2_TX (arbitrary).
+    pub const LPUART2_TX: usize = 8;
+
+    /// Add your DMA interrupt vector numbers here.
+    const DMA_INTERRUPTS: &[u32] = &[nvic::DMA7_23, nvic::DMA8_24];
+
+    /// Enable DMA interrupts for the selected channels.
+    #[inline(always)]
+    pub fn enable_interrupts() {
+        DMA_INTERRUPTS
+            .iter()
+            .copied()
+            // Safety: creating NVIC vector in platform code. Vector is valid.
+            .map(|vector| unsafe { cortexm7::nvic::Nvic::new(vector) })
+            .for_each(|intr| intr.enable());
+    }
+}
+
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
@@ -162,8 +188,17 @@ pub unsafe fn main() {
         peripherals.ccm.perclk_divider(),
     );
 
+    peripherals.dma.clock().enable();
+    peripherals.dma.reset_tcds();
+    peripherals
+        .lpuart2
+        .set_rx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_RX]);
+    peripherals
+        .lpuart2
+        .set_tx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_TX]);
+
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
-    cortexm7::nvic::Nvic::new(imxrt1060::nvic::LPUART2).enable();
+    dma_config::enable_interrupts();
 
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
