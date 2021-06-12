@@ -38,11 +38,6 @@ pub static NO_TOUCH: TouchEvent = TouchEvent {
     pressure: None,
 };
 
-enum State {
-    Idle,
-    ReadingTouches,
-}
-
 enum_from_primitive! {
     enum Registers {
         REG_GEST_ID = 0x01,
@@ -57,7 +52,6 @@ pub struct Ft6x06<'a> {
     touch_client: OptionalCell<&'a dyn touch::TouchClient>,
     gesture_client: OptionalCell<&'a dyn touch::GestureClient>,
     multi_touch_client: OptionalCell<&'a dyn touch::MultiTouchClient>,
-    state: Cell<State>,
     num_touches: Cell<usize>,
     buffer: TakeCell<'static, [u8]>,
     events: TakeCell<'static, [TouchEvent]>,
@@ -78,7 +72,6 @@ impl<'a> Ft6x06<'a> {
             touch_client: OptionalCell::empty(),
             gesture_client: OptionalCell::empty(),
             multi_touch_client: OptionalCell::empty(),
-            state: Cell::new(State::Idle),
             num_touches: Cell::new(0),
             buffer: TakeCell::new(buffer),
             events: TakeCell::new(events),
@@ -88,7 +81,6 @@ impl<'a> Ft6x06<'a> {
 
 impl<'a> i2c::I2CClient for Ft6x06<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
-        self.state.set(State::Idle);
         self.num_touches.set((buffer[1] & 0x0F) as usize);
         self.touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
@@ -171,11 +163,16 @@ impl<'a> gpio::Client for Ft6x06<'a> {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin.disable_interrupts();
 
-            self.state.set(State::ReadingTouches);
-
             buffer[0] = Registers::REG_GEST_ID as u8;
-            // TODO verify errors
-            let _ = self.i2c.write_read(buffer, 1, 15);
+
+            match self.i2c.write_read(buffer, 1, 15) {
+                Ok(()) => {}
+                Err((_err, buffer)) => {
+                    self.buffer.replace(buffer);
+                    self.interrupt_pin
+                        .enable_interrupts(gpio::InterruptEdge::FallingEdge);
+                }
+            }
         });
     }
 }

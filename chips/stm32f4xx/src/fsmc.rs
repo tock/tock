@@ -242,12 +242,12 @@ impl<'a> Fsmc<'a> {
         self.buffer.take().map_or_else(
             || {
                 self.client.map(move |client| {
-                    client.command_complete(None, 0);
+                    client.command_complete(None, 0, Ok(()));
                 });
             },
             |buffer| {
                 self.client.map(move |client| {
-                    client.command_complete(Some(buffer), self.len.get());
+                    client.command_complete(Some(buffer), self.len.get(), Ok(()));
                 });
             },
         );
@@ -310,7 +310,7 @@ impl Bus8080<'static> for Fsmc<'_> {
         data_width: BusWidth,
         buffer: &'static mut [u8],
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
@@ -332,7 +332,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             DEFERRED_CALL.set();
             Ok(())
         } else {
-            Err(ErrorCode::NOMEM)
+            Err((ErrorCode::NOMEM, buffer))
         }
     }
 
@@ -341,7 +341,7 @@ impl Bus8080<'static> for Fsmc<'_> {
         data_width: BusWidth,
         buffer: &'static mut [u8],
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         let bytes = data_width.width_in_bytes();
         if buffer.len() >= len * bytes {
             for pos in 0..len {
@@ -354,7 +354,7 @@ impl Bus8080<'static> for Fsmc<'_> {
                             }] = (data >> (8 * byte)) as u8;
                     }
                 } else {
-                    return Err(ErrorCode::NOMEM);
+                    return Err((ErrorCode::NOMEM, buffer));
                 }
             }
             self.buffer.replace(buffer);
@@ -363,7 +363,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             DEFERRED_CALL.set();
             Ok(())
         } else {
-            Err(ErrorCode::NOMEM)
+            Err((ErrorCode::NOMEM, buffer))
         }
     }
 

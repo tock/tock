@@ -314,16 +314,17 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                         // -pal 12/9/20
                         let end = index;
                         let start = index - length;
-                        let end = cmp::min(end, cmp::min(src.len(), dest.len()));
+                        let end = cmp::min(end, dest.len());
 
                         // If the new endpoint is earlier than our expected
                         // startpoint, we set the startpoint to be the same;
                         // This results in a zero-length operation. -pal 12/9/20
                         let start = cmp::min(start, end);
 
+                        // The amount to copy can't be longer than the size of the
+                        // read buffer. -pal 6/8/21
+                        let real_len = cmp::min(end - start, src.len());
                         let dest_area = &mut dest[start..end];
-                        let real_len = end - start;
-
                         for (i, c) in src[0..real_len].iter().enumerate() {
                             dest_area[i] = *c;
                         }

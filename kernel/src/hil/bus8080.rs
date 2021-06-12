@@ -28,11 +28,15 @@ pub trait Bus8080<'a> {
         data_width: BusWidth,
         buffer: &'a mut [u8],
         len: usize,
-    ) -> Result<(), ErrorCode>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Read data items from the previously set address
-    fn read(&self, data_width: BusWidth, buffer: &'a mut [u8], len: usize)
-        -> Result<(), ErrorCode>;
+    fn read(
+        &self,
+        data_width: BusWidth,
+        buffer: &'a mut [u8],
+        len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     fn set_client(&self, client: &'a dyn Client);
 }
@@ -43,5 +47,10 @@ pub trait Client {
     /// set_address does not return a buffer
     /// write and read return a buffer
     /// len should be set to the number of data elements written
-    fn command_complete(&self, buffer: Option<&'static mut [u8]>, len: usize);
+    fn command_complete(
+        &self,
+        buffer: Option<&'static mut [u8]>,
+        len: usize,
+        status: Result<(), ErrorCode>,
+    );
 }

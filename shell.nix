@@ -56,6 +56,9 @@ in
       rust_build
       llvm
       qemu
+
+      # Required for tools/print_tock_memory_usage.py
+      pythonPackages.cxxfilt
     ];
 
     LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";
