@@ -59,6 +59,8 @@
 //! | P0.21 | P24 11 | SPI MISO |
 //! | P0.24 | P24 14 | Button 3 |
 //! | P0.25 | P24 15 | Button 4 |
+//! | P0.26 | P24 16 | I2C SDA  |
+//! | P0.27 | P24 17 | I2C SCL  |
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -72,6 +74,7 @@ use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
@@ -108,6 +111,10 @@ const SPI_CLK: Pin = Pin::P0_19;
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
+
+/// I2C pins
+const I2C_SDA_PIN: Pin = Pin::P0_26;
+const I2C_SCL_PIN: Pin = Pin::P0_27;
 
 // Constants related to the configuration of the 15.4 network stack
 const PAN_ID: u16 = 0xABCD;
@@ -172,6 +179,7 @@ pub struct Platform {
     >,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWIM>,
 }
 
 impl kernel::Platform for Platform {
@@ -193,6 +201,7 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
@@ -258,8 +267,6 @@ pub unsafe fn main() {
             11 => &nrf52840_peripherals.gpio_port[Pin::P1_13],
             12 => &nrf52840_peripherals.gpio_port[Pin::P1_14],
             13 => &nrf52840_peripherals.gpio_port[Pin::P1_15],
-            14 => &nrf52840_peripherals.gpio_port[Pin::P0_26],
-            15 => &nrf52840_peripherals.gpio_port[Pin::P0_27]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -482,6 +489,22 @@ pub unsafe fn main() {
         >
     ));
 
+    let i2c_master = static_init!(
+        capsules::i2c_master::I2CMasterDriver<'static, nrf52840::i2c::TWIM>,
+        capsules::i2c_master::I2CMasterDriver::new(
+            &base_peripherals.twim1,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    base_peripherals.twim1.configure(
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    );
+    base_peripherals.twim1.set_master_client(i2c_master);
+    base_peripherals.twim1.set_speed(nrf52840::i2c::Speed::K400);
+    base_peripherals.twim1.enable();
+
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
     let analog_comparator = components::analog_comparator::AcComponent::new(
@@ -550,6 +573,7 @@ pub unsafe fn main() {
         nonvolatile_storage,
         udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        i2c_master,
     };
 
     let _ = platform.pconsole.start();

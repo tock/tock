@@ -53,40 +53,36 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         wlen: u8,
         rlen: u8,
     ) -> Result<(), ErrorCode> {
-        self.apps
-            .enter(app_id, |_| {
-                app.slice.map_or(Err(ErrorCode::INVAL), |app_buffer| {
-                    self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-                        buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
+        app.slice.map_or(Err(ErrorCode::INVAL), |app_buffer| {
+            self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
 
-                        let read_len: OptionalCell<usize>;
-                        if rlen == 0 {
-                            read_len = OptionalCell::empty();
-                        } else {
-                            read_len = OptionalCell::new(rlen as usize);
-                        }
-                        self.tx.put(Transaction { app_id, read_len });
+                let read_len: OptionalCell<usize>;
+                if rlen == 0 {
+                    read_len = OptionalCell::empty();
+                } else {
+                    read_len = OptionalCell::new(rlen as usize);
+                }
+                self.tx.put(Transaction { app_id, read_len });
 
-                        let res = match command {
-                            Cmd::Ping => {
-                                self.buf.put(Some(buffer));
-                                return Err(ErrorCode::INVAL);
-                            }
-                            Cmd::Write => self.i2c.write(addr, buffer, wlen),
-                            Cmd::Read => self.i2c.read(addr, buffer, rlen),
-                            Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
-                        };
-                        match res {
-                            Ok(_) => Ok(()),
-                            Err((error, data)) => {
-                                self.buf.put(Some(data));
-                                Err(error.into())
-                            }
-                        }
-                    })
-                })
+                let res = match command {
+                    Cmd::Ping => {
+                        self.buf.put(Some(buffer));
+                        return Err(ErrorCode::INVAL);
+                    }
+                    Cmd::Write => self.i2c.write(addr, buffer, wlen),
+                    Cmd::Read => self.i2c.read(addr, buffer, rlen),
+                    Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
+                };
+                match res {
+                    Ok(_) => Ok(()),
+                    Err((error, data)) => {
+                        self.buf.put(Some(data));
+                        Err(error.into())
+                    }
+                }
             })
-            .expect("Appid does not map to app")
+        })
     }
 }
 
@@ -166,9 +162,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
-                        // TODO verify errors
-                        let _ = self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
-                        CommandReturn::success()
+                        self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0)
+                            .into()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
@@ -176,9 +171,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
-                        // TODO verify errors
-                        let _ = self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
-                        CommandReturn::success()
+                        self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8)
+                            .into()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::WriteRead => {
@@ -187,16 +181,15 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
                         .enter(appid, |app| {
-                            // TODO verify errors
-                            let _ = self.operation(
+                            self.operation(
                                 appid,
                                 app,
                                 Cmd::WriteRead,
                                 addr,
                                 write_len as u8,
                                 read_len as u8,
-                            );
-                            CommandReturn::success()
+                            )
+                            .into()
                         })
                         .unwrap_or_else(|err| err.into())
                 }
