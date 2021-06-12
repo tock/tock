@@ -247,8 +247,6 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
         self.registers.alarm0.set(expire.into_u32());
         self.enable_timer_interrupt();
         self.enable_interrupt();
-
-        // panic!("{} now {:?}", self.registers.alarm0.get(), self.now());
     }
 
     fn get_alarm(&self) -> Self::Ticks {
