@@ -28,6 +28,7 @@ use rv32i::csr;
 mod aes_test;
 #[allow(dead_code)]
 mod multi_alarm_test;
+mod otbn;
 #[allow(dead_code)]
 mod tickv_test;
 
@@ -297,9 +298,8 @@ pub unsafe fn main() {
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 
-    let _mux_otbn = components::accel::AccelMuxComponent::new(&peripherals.otbn).finalize(
-        components::accel_mux_component_helper!(lowrisc::otbn::Otbn, 1024),
-    );
+    let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
+        .finalize(otbn_mux_component_helper!(1024));
 
     peripherals.otbn.initialise(
         dynamic_deferred_caller

@@ -1,6 +1,5 @@
 #![no_std]
 
-pub mod accel;
 pub mod adc;
 pub mod adc_microphone;
 pub mod alarm;

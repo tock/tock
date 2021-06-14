@@ -11,8 +11,20 @@ use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
-use kernel::hil::accel;
 use kernel::ErrorCode;
+
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+pub trait Client<'a, const T: usize> {
+    /// This callback is called when the binary data has been loaded
+    /// On error or success `input` will contain a reference to the original
+    /// data supplied to `load_binary()`.
+    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]);
+
+    /// This callback is called when a operation is computed.
+    /// On error or success `output` will contain a reference to the original
+    /// data supplied to `run()`.
+    fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8; T]);
+}
 
 register_structs! {
     pub OtbnRegisters {
@@ -70,7 +82,7 @@ register_bitfields![u32,
 
 pub struct Otbn<'a> {
     registers: StaticRef<OtbnRegisters>,
-    client: OptionalCell<&'a dyn accel::Client<'a, 1024>>,
+    client: OptionalCell<&'a dyn Client<'a, 1024>>,
 
     in_buffer: Cell<Option<LeasableBuffer<'static, u8>>>,
     out_buffer: TakeCell<'static, [u8; 1024]>,
@@ -121,14 +133,22 @@ impl<'a> Otbn<'a> {
     pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
         self.deferred_handle.set(deferred_call_handle);
     }
-}
 
-impl<'a> accel::Accel<'a, 1024> for Otbn<'a> {
-    fn set_client(&'a self, client: &'a dyn accel::Client<'a, 1024>) {
+    /// Set the client instance which will receive
+    pub fn set_client(&'a self, client: &'a dyn Client<'a, 1024>) {
         self.client.set(client);
     }
 
-    fn load_binary(
+    /// Load the acceleration binary data into the accelerator.
+    /// This data will be accelerator specific and could be an
+    /// elf file which will be run or could be binary settings used to
+    /// configure the accelerator.
+    /// This function can be called multiple times if multiple binary blobs
+    /// are required.
+    /// There is no guarantee the data has been written until the `binary_load_done()`
+    /// callback is fired.
+    /// On error the return value will contain a return code and the original data
+    pub fn load_binary(
         &self,
         input: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
@@ -162,7 +182,7 @@ impl<'a> accel::Accel<'a, 1024> for Otbn<'a> {
     /// Set the OTBN properties
     /// key values:
     ///  `0` -> Start Address, set the start address
-    fn set_property(&self, key: usize, value: usize) -> Result<(), ErrorCode> {
+    pub fn set_property(&self, key: usize, value: usize) -> Result<(), ErrorCode> {
         if self.registers.status.is_set(STATUS::BUSY) {
             // OTBN is performing and operation
             return Err(ErrorCode::BUSY);
@@ -177,7 +197,13 @@ impl<'a> accel::Accel<'a, 1024> for Otbn<'a> {
         }
     }
 
-    fn run(
+    /// Run the acceleration operation.
+    /// This doesn't return any data, instead the client needs to have
+    /// set a `op_done` handler to determine when this is complete.
+    /// On error the return value will contain a return code and the original data
+    /// If there is data from the `load_binary()` command asyncrously waiting to
+    /// be written it will be written before the operation starts.
+    pub fn run(
         &'a self,
         output: &'static mut [u8; 1024],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 1024])> {
@@ -197,7 +223,10 @@ impl<'a> accel::Accel<'a, 1024> for Otbn<'a> {
         Ok(())
     }
 
-    fn clear_data(&self) {}
+    /// Clear the keys and any other sensitive data.
+    /// This won't clear the buffers provided to this API, that is up to the
+    /// user to clear those.
+    pub fn clear_data(&self) {}
 }
 
 impl<'a> DynamicDeferredCallClient for Otbn<'a> {
