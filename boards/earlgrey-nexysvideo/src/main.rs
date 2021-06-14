@@ -47,6 +47,22 @@ const NUM_PROCS: usize = 4;
 // at least.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; 4] = [None; NUM_PROCS];
 
+// Test access to the peripherals
+#[cfg(test)]
+static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals> = None;
+// Test access to scheduler
+#[cfg(test)]
+static mut SCHEDULER: Option<&kernel::PrioritySched> = None;
+// Test access to board
+#[cfg(test)]
+static mut BOARD: Option<&'static kernel::Kernel> = None;
+// Test access to platform
+#[cfg(test)]
+static mut PLATFORM: Option<&'static EarlGreyNexysVideo> = None;
+// Test access to main loop capability
+#[cfg(test)]
+static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+
 static mut CHIP: Option<
     &'static earlgrey::chip::EarlGrey<
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
@@ -108,12 +124,13 @@ impl Platform for EarlGreyNexysVideo {
 
 unsafe fn setup() -> (
     &'static kernel::Kernel,
-    EarlGreyNexysVideo,
+    &'static EarlGreyNexysVideo,
     &'static earlgrey::chip::EarlGrey<
         'static,
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
         EarlGreyDefaultPeripherals<'static>,
     >,
+    &'static EarlGreyDefaultPeripherals<'static>,
 ) {
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
@@ -334,15 +351,18 @@ unsafe fn setup() -> (
         static _ezero: u8;
     }
 
-    let earlgrey_nexysvideo = EarlGreyNexysVideo {
-        gpio: gpio,
-        led: led,
-        console: console,
-        alarm: alarm,
-        hmac,
-        lldb: lldb,
-        i2c_master,
-    };
+    let earlgrey_nexysvideo = static_init!(
+        EarlGreyNexysVideo,
+        EarlGreyNexysVideo {
+            gpio: gpio,
+            led: led,
+            console: console,
+            alarm: alarm,
+            hmac,
+            lldb: lldb,
+            i2c_master,
+        }
+    );
 
     let mut mpu_config = rv32i::epmp::PMPConfig::default();
     // The kernel stack
@@ -411,7 +431,7 @@ unsafe fn setup() -> (
     });
     debug!("OpenTitan initialisation complete. Entering main loop");
 
-    (board_kernel, earlgrey_nexysvideo, chip)
+    (board_kernel, earlgrey_nexysvideo, chip, peripherals)
 }
 
 /// Main function.
@@ -425,14 +445,14 @@ pub unsafe fn main() {
 
     #[cfg(not(test))]
     {
-        let (board_kernel, earlgrey_nexysvideo, chip) = setup();
+        let (board_kernel, earlgrey_nexysvideo, chip, _peripherals) = setup();
 
         let scheduler =
             components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
         board_kernel.kernel_loop(
-            &earlgrey_nexysvideo,
+            earlgrey_nexysvideo,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS>>,
             scheduler,
@@ -447,11 +467,14 @@ use kernel::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, earlgrey_nexysvideo, chip) = setup();
+        let (board_kernel, earlgrey_nexysvideo, chip, peripherals) = setup();
 
-        let scheduler =
-            components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        BOARD = Some(board_kernel);
+        PLATFORM = Some(&earlgrey_nexysvideo);
+        PERIPHERALS = Some(peripherals);
+        SCHEDULER =
+            Some(components::sched::priority::PriorityComponent::new(board_kernel).finalize(()));
+        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         chip.watchdog().setup();
 
