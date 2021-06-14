@@ -442,6 +442,9 @@ pub unsafe fn main() {
 }
 
 #[cfg(test)]
+use kernel::watchdog::WatchDog;
+
+#[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
         let (board_kernel, earlgrey_nexysvideo, chip) = setup();
@@ -450,14 +453,11 @@ fn test_runner(tests: &[&dyn Fn()]) {
             components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-        board_kernel.test_kernel_loop(
-            &earlgrey_nexysvideo,
-            chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS>>,
-            scheduler,
-            &main_loop_cap,
-            tests,
-        );
+        chip.watchdog().setup();
+
+        for test in tests {
+            test();
+        }
     }
 
     // Exit QEMU with a return code of 0

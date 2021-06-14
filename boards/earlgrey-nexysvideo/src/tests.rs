@@ -7,6 +7,7 @@ extern "C" {
 
 #[test_case]
 fn trivial_assertion() {
+    kernel_loop_operation(platform, CHIP.unwrap(), None, scheduler, true, capability);
     debug!("trivial assertion... ");
     assert_eq!(1, 1);
     debug!("    [ok]");

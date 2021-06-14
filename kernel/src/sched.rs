@@ -471,7 +471,7 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that
     /// argument is set to true, the kernel will never attempt to put the
     /// chip to sleep, and this function can be called again immediately.
-    fn kernel_loop_operation<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+    pub fn kernel_loop_operation<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
         &self,
         platform: &P,
         chip: &C,
@@ -556,42 +556,6 @@ impl Kernel {
         chip.watchdog().setup();
         loop {
             self.kernel_loop_operation(platform, chip, ipc, scheduler, false, capability);
-        }
-    }
-
-    /// Main test loop of the OS.
-    ///
-    /// This is similar to `kernel_loop()` but also calls tests passed in via
-    /// the `tests` argumet. This should only be used for running tests.
-    pub fn test_kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
-        &self,
-        platform: &P,
-        chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
-        scheduler: &SC,
-        capability: &dyn capabilities::MainLoopCapability,
-        tests: &[&dyn Fn()],
-    ) {
-        chip.watchdog().setup();
-        // Run all of the tests.
-        //
-        // The kernel loop work function is run in a loop which should
-        // be long enough to complete each test. However, this has
-        // not been robustly verified, and the loop iteration counts
-        // may have to be adjusted for newer or more complex tests.
-        for test in tests {
-            for _ in 0..200 {
-                self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
-            }
-            test();
-            for _ in 0..200 {
-                self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
-            }
-        }
-
-        // Run the loop a few more times to see all the messaages
-        for _ in 0..100000 {
-            self.kernel_loop_operation(platform, chip, ipc, scheduler, true, capability);
         }
     }
 
