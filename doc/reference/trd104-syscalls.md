@@ -516,11 +516,12 @@ length).  On the first call to a Read-Write Allow system call, the
 kernel returns a zero-length buffer. Subsequent successful calls to
 Read-Write Allow return the previous buffer passed.  The standard
 access model for allowed buffers is that userspace does not read or
-write a buffer that has been allowed: access to the memory is
-exclusive either to userspace or to the kernel. To regain exclusive
-access to a passed buffer, the process must call the same Read-Write
-Allow system call again. It can do so with a zero-length buffer if it
-wishes to pass no memory to the kernel. 
+write a buffer that has been allowed: access to the memory is intended
+to be exclusive either to userspace or to the kernel. To regain access
+to a passed buffer, the process calls the same Read-Write Allow system
+call again, which, if successful, returns the buffer. It can do so
+with a zero-length buffer if it wishes to pass no memory to the
+kernel. 
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
@@ -546,29 +547,24 @@ The buffer identifier specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
-the calling process's writeable address space. Every byte of the
-passed buffer must be readable and writeable by the
-process. Zero-length buffers may therefore have abitrary addresses. If
-the passed buffer is not complete within the calling process's
-writeable address space, the kernel MUST return a failure result with
-an error code of `INVALID`.
+the calling process's writeable address space. Every byte of a passed
+buffer must be readable and writeable by the process. Zero-length
+buffers may therefore have abitrary addresses. If the passed buffer is
+not complete within the calling process's writeable address space, the
+kernel MUST return a failure result with an error code of `INVALID`.
 
-Because a process relinquishes access to a buffer when it makes a
-Read-Write Allow call with it, the buffer passed on the subsequent
-Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application cannot access that memory.  If an
-application needs to extend a buffer, it must first call Read-Write
-Allow to reclaim the buffer, then call Read-Write Allow again to
-re-allow it with a different size. If userspace passes an overlapping
-buffer, the kernel MUST return a failure result with an error code of
-`INVALID`.
+Note that buffers held by the kernel are still considered part of a
+process address space, even if conceptually the process should not
+access that memory. This means, for example, that userspace may extend
+a buffer by calling allow with the same pointer and a longer length
+and such a call is not required to return an error code if `INVALID`.
 
-Finally, because a process relinquishes access to a buffer when it
-makes a Read-Write Allow call with it, a userspace API MUST NOT assume
-or rely on a process accessing an allowed buffer. If userspace needs
-to read or write to the buffer, it MUST first regain access to it by
-calling the corresponding Read-Write Allow.
-
+Finally, because a process conceptually relinquishes access to a
+buffer when it makes a Read-Write Allow call with it, a userspace API
+MUST NOT assume or rely on a process accessing an allowed buffer. If
+userspace needs to read or write to a buffer held by the kernel, it
+MUST first regain access to it by calling the corresponding Read-Write
+Allow.
 
 4.4.1 Buffers Can Change
 ---------------------------------
@@ -640,13 +636,16 @@ the buffer).
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow
-class.  It differs in two ways: the buffer it passes to the kernel is
-read-only, and the process MAY freely read the buffer. The kernel
-also MUST NOT write to a buffer shared with a Read-Only Allow. The
-semantics and calling conventions of Read-Only Allow are otherwise
-identical to Read-Write Allow: a userspace API MUST NOT depend on writing 
-to a shared buffer and the kernel MUST NOT assume the buffer does 
-not change.
+class.  It differs in two ways:
+
+  1. The buffer it passes to the kernel is read-only, and the process MAY 
+  freely read the buffer.
+  2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow. 
+  
+The semantics and calling conventions of Read-Only Allow are otherwise
+identical to Read-Write Allow: a userspace API MUST NOT depend on
+writing to a shared buffer and the kernel MUST NOT assume the buffer
+does not change.
 
 This restriction on writing to buffers is to limit the complexity of
 code review in the kernel. If a userspace library relies on writes to
@@ -658,8 +657,8 @@ calls.
 The Read-Only Allow class exists so that userspace can pass references
 to constant data to the kernel. This is useful, for example, when a
 process prints a constant string to the console; it wants to allow the
-constant string to the kernel as an application slice, then call
-a command that transmits the allowed slice. Constant strings are usually
+constant string to the kernel as an application slice, then call a
+command that transmits the allowed slice. Constant strings are usually
 stored in flash, rather than RAM, which Tock's memory protection marks
 as read-only memory. Therefore, if a process tries to pass a constant
 string stored in flash through a Read-Write Allow, the allow will fail
@@ -682,9 +681,9 @@ RAM so it can be passed with a Read-Write Allow.
 
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's readable address space. Every byte of the passed
-buffer must be readable and writeable by the process. Zero-length
-buffers may therefore have abitrary addresses. If the passed buffer is
-not complete within the calling process's readable address space, the
+buffer must be readable by the process. Zero-length buffers may
+therefore have abitrary addresses. If the passed buffer is not
+complete within the calling process's readable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
 
 4.6 Memop (Class ID: 5)
