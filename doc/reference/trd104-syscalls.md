@@ -558,6 +558,11 @@ process address space, even if conceptually the process should not
 access that memory. This means, for example, that userspace may extend
 a buffer by calling allow with the same pointer and a longer length
 and such a call is not required to return an error code if `INVALID`.
+Similarly, it is possible for userspace to allow the same buffer
+multiple times to the kernel. This means, in practice, that the kernel
+may have multiple writeable references to the same memory and must
+take precautions to ensure this does not violate safety within the
+kernel.
 
 Finally, because a process conceptually relinquishes access to a
 buffer when it makes a Read-Write Allow call with it, a userspace API
