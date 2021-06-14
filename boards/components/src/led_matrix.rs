@@ -41,6 +41,24 @@
 //! );
 //! ```
 //!
+//! Array LED usage
+//! ----------------
+//!
+//! ```rust
+//! let leds = components::led_matrix_leds!(
+//!     nrf52::gpio::GPIOPin<'static>,
+//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     led,
+//!     (0, 0),
+//!     (1, 0),
+//!     (2, 0),
+//!     (3, 0),
+//!     (4, 0),
+//!     (0, 1)
+//!     // ...
+//! );
+//! ```
+//!
 
 use capsules::led_matrix::LedMatrixDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -105,6 +123,23 @@ macro_rules! led_matrix_led {
             LedMatrixLed<'static, $Pin, $A>,
             LedMatrixLed::new($led_matrix, $col, $row)
         )
+    };};
+}
+
+#[macro_export]
+macro_rules! led_matrix_leds {
+    ($Pin:ty, $A: ty, $led_matrix: expr, $(($col: expr, $row: expr)),+) => {{
+        use capsules::led_matrix::LedMatrixLed;
+        use kernel::count_expressions;
+
+        const NUM_LEDS: usize = count_expressions!($(($col, $row)),+);
+        let leds = static_init!(
+            [&LedMatrixLed<'static, $Pin, $A>; NUM_LEDS],
+            [$(
+                $crate::led_matrix_led! ($Pin, $A, $led_matrix, $col, $row)
+            ),+]
+        );
+        leds
     };};
 }
 
