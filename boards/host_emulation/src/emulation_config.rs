@@ -1,4 +1,6 @@
 use clap::{App, Arg};
+use serde::Deserialize;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::vec::Vec;
 use tempfile;
@@ -48,11 +50,40 @@ impl LogLevel {
     }
 }
 
+#[derive(Deserialize)]
+pub struct ConfigFile {
+    pub socket_path_base: String,
+}
+
+pub trait ConfigFileReader {
+    fn read(&self, file_path: &str) -> ConfigFile;
+}
+
+pub struct DefaultConfigFileReader {}
+
+impl ConfigFileReader for DefaultConfigFileReader {
+    fn read(&self, file_path: &str) -> ConfigFile {
+        let mut deserializer = serde_json::Deserializer::from_reader(
+            File::open(file_path).expect("Could not open config file"),
+        );
+        ConfigFile::deserialize(&mut deserializer).expect("Could not deserialize config file")
+    }
+}
+
 pub struct Config {
     runtime_path: tempfile::TempDir,
     apps: Vec<AppInfo>,
     pub emulation_log_level: LogLevel,
     pub app_log_level: u8,
+    pub config_file: ConfigFile,
+}
+
+impl ConfigFile {
+    pub fn default() -> Self {
+        ConfigFile {
+            socket_path_base: "/tmp/he_".to_string(),
+        }
+    }
 }
 
 impl Config {
@@ -70,7 +101,7 @@ impl Config {
         }
     }
 
-    pub fn from_cmd_line_args() -> Result<Config> {
+    pub fn from_cmd_line_args(config_reader: &dyn ConfigFileReader) -> Result<Config> {
         let arg_match = App::new("The Tock kernel")
             .arg(
                 Arg::with_name("apps")
@@ -99,6 +130,15 @@ impl Config {
                     .help("Log level 0 for no logs, 1 errors, 2 warnings, 3 info, 4 dbg")
                     .required(false),
             )
+            .arg(
+                Arg::with_name("config")
+                    .short("c")
+                    .long("config")
+                    .multiple(false)
+                    .takes_value(true)
+                    .help("Configuration file path")
+                    .required(false),
+            )
             .get_matches();
 
         let runtime_path = tempfile::tempdir()?;
@@ -115,11 +155,20 @@ impl Config {
         let emulation_log_level = emulation_log_level.parse::<u8>().unwrap();
         let emulation_log_level = LogLevel::from(emulation_log_level);
 
+        let config_path = arg_match.value_of("config");
+
+        let config_file = if let Some(config_path) = config_path {
+            config_reader.read(config_path)
+        } else {
+            ConfigFile::default()
+        };
+
         Ok(Config {
             runtime_path,
             apps,
             emulation_log_level,
             app_log_level,
+            config_file,
         })
     }
 

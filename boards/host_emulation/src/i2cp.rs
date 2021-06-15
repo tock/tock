@@ -1,5 +1,6 @@
 //! I2C peripheral driver
 
+use crate::emulation_config::Config;
 use core::cell::{Cell, RefCell};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -8,8 +9,6 @@ use std::path::Path;
 use std::sync::mpsc::TryRecvError;
 
 use crate::async_data_stream::AsyncDataStream;
-
-const SOCKET_PATH_BASE: &str = "/tmp/he_i2c";
 
 pub struct I2CPeripheral<'a> {
     client: OptionalCell<&'static dyn kernel::hil::i2c::I2CHwSlaveClient>,
@@ -41,8 +40,10 @@ impl<'a> I2CPeripheral<'a> {
     }
 
     pub fn initialize(&mut self) {
+        let config = Config::get();
+
         *self.stream.borrow_mut() = Some(AsyncDataStream::new_socket_stream(
-            Path::new(&(SOCKET_PATH_BASE.to_owned() + self.id)),
+            Path::new(&(config.config_file.socket_path_base.clone() + "i2c" + self.id)),
             false,
         ));
     }

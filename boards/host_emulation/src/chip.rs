@@ -9,7 +9,7 @@ use std::{thread, time};
 use crate::syscall::SysCall;
 use crate::systick::SysTick;
 
-use crate::emulation_config::Config;
+use crate::emulation_config::{Config, ConfigFileReader};
 use std::path::Path;
 
 pub trait Callback {
@@ -30,9 +30,9 @@ pub struct HostChip {
 impl HostChip {
     /// Parse cmdline args to setup chip syscall interface
     /// Required to be called before any HostChip is created
-    pub fn basic_setup() {
+    pub fn basic_setup(config_reader: &dyn ConfigFileReader) {
         unsafe {
-            let cfg = static_init!(Config, Config::from_cmd_line_args().unwrap());
+            let cfg = static_init!(Config, Config::from_cmd_line_args(config_reader).unwrap());
             let apps = cfg.apps();
             assert_eq!(apps.len(), 1);
             Config::set(cfg);

@@ -3,13 +3,12 @@ use std::path::Path;
 use std::sync::mpsc::TryRecvError;
 
 use crate::async_data_stream::AsyncDataStream;
+use crate::emulation_config::Config;
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil::uart;
 use kernel::hil::uart::{Configure, Receive, Transmit, Uart, UartData};
 use kernel::ReturnCode;
-
-const SOCKET_PATH_BASE: &str = "/tmp/he_uart";
 
 struct RxRequest {
     buffer: &'static mut [u8],
@@ -44,8 +43,10 @@ impl<'a> UartIO<'a> {
     }
 
     pub fn initialize(&mut self) {
+        let config = Config::get();
+
         *self.stream.borrow_mut() = Some(AsyncDataStream::new_socket_stream(
-            Path::new(&(SOCKET_PATH_BASE.to_owned() + self.id)),
+            Path::new(&(config.config_file.socket_path_base.clone() + "uart" + self.id)),
             true,
         ));
     }
