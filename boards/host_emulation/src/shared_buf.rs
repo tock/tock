@@ -3,6 +3,7 @@ use std::slice;
 
 pub static mut SHARED_BUFFER: SharedBuffer = SharedBuffer::new();
 
+#[allow(dead_code)]
 pub struct SharedBuffer {
     buf_start: *mut u8,
     buf_head: *mut u8,
@@ -10,6 +11,7 @@ pub struct SharedBuffer {
     size: usize,
 }
 
+#[allow(dead_code)]
 impl SharedBuffer {
     const fn new() -> Self {
         SharedBuffer {
