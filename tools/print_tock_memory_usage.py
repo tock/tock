@@ -103,7 +103,7 @@ escape_sequences = [
     ["$u27$",   "\'"],
     ["$u5b$",   "["],
     ["$u5d$",   "]"],
-    ["..",      ":"],
+    ["..",      "::"],
     [".",       "-"]
 ]
 
@@ -167,7 +167,6 @@ def parse_mangled_name(name):
     if symbol[0:7] == "-hidden":
         symbol = "Hidden"
 
-#    print(name, "->", symbol)
     return symbol
 
 def process_symbol_line(line):
@@ -287,8 +286,12 @@ def group_symbols(groups, symbols, waste, section):
             # Packages have a trailing :: while other categories don't;
             # this allows us to disambiguate when * is relevant or not
             # in printing.
-            key = "::".join(tokens[0:symbol_depth]) + "::"
-            name = "::".join(tokens[symbol_depth:])
+            key = "::".join(tokens[0:symbol_depth])
+            name = ""
+            
+            if len(tokens[symbol_depth:]) > 0:
+                key = key + "::"
+                name = "::".join(tokens[symbol_depth:])
 
             if key in groups.keys():
                 groups[key].append((name, size))
@@ -308,20 +311,14 @@ def string_for_group(key, padding_size, group_size, num_elements):
     """Return the string for a group of variables, with padding added on the
        right; decides whether to add a * or not based on the name of the group
        and number of elements in it."""
-    if num_elements == 1: # If there's a single symbol (a variable), print it.
-        key = key[:-2]
-        key = key + ":"
+    if key[-2:] == "::":
+        key = key + "*"
         key = key.ljust(padding_size + 2, ' ')
         return ("  " + key + str(group_size) + " bytes\n")
-    else: # If there's more than one, print the key as a namespace
-        if key[-2:] == "::":
-            key = key + "*"
-            key = key.ljust(padding_size + 2, ' ')
-            return ("  " + key + str(group_size) + " bytes\n")
-        else:
-            key = key + ":"
-            key = key.ljust(padding_size + 2, ' ')
-            return ("  " + key + str(group_size) + " bytes\n")
+    else:
+        key = key + ""
+        key = key.ljust(padding_size + 2, ' ')
+        return ("  " + key + str(group_size) + " bytes\n")
 
 def print_groups(title, groups):
     """Print title, then all of the variable groups in groups."""
@@ -341,11 +338,13 @@ def print_groups(title, groups):
     if sort_by_size:
         for k, v in sorted(group_sizes.items(), key=lambda item: item[1], reverse=True):
             group_size = v
+            symbols = groups[key]
             output = output + string_for_group(k, max_string_len, group_size, len(symbols))
             group_sum = group_sum + group_size
     else:
         for key in sorted(group_sizes.keys()):
             group_size = group_sizes[key]
+            symbols = groups[key]
             output = output + string_for_group(key, max_string_len, group_size, len(symbols))
             group_sum = group_sum + group_size
 
@@ -368,6 +367,7 @@ def print_symbol_information():
     # in the symbol's size, so detecting waste in code has too many false
     # positives.
     gaps = group_symbols(function_groups, kernel_functions, False, "Flash")
+
     print_groups("Function groups (flash)", function_groups)
     print(gaps)
 
