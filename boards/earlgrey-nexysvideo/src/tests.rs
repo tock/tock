@@ -6,10 +6,6 @@ use crate::PLATFORM;
 use crate::SCHEDULER;
 use kernel::{debug, Chip};
 
-extern "C" {
-    pub(crate) fn semihost_command(command: usize, arg0: usize, arg1: usize) -> !;
-}
-
 fn run_kernel_op(loops: usize) {
     unsafe {
         for _i in 0..loops {

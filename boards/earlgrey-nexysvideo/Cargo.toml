@@ -28,6 +28,3 @@ lowrisc = { path = "../../chips/lowrisc" }
 #      OpenTitan SoC design simulated in Verilator.
 fpga_nexysvideo = ["earlgrey/config_fpga_nexysvideo"]
 sim_verilator = ["earlgrey/config_sim_verilator"]
-# This is used to indicate that we should include the prebuilt
-# RISC-V assmebly. This is currently just used to run RISC-V tests
-semihost_asm = []
