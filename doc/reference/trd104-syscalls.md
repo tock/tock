@@ -5,10 +5,10 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** April 2, 2021<br/>
-**Draft-Version:** 4<br/>
+**Draft-Modified:** May 27, 2021<br/>
+**Draft-Version:** 5<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -509,15 +509,19 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 ---------------------------------
 
 The Read-Write Allow system call class is how a userspace process
-shares buffer with the kernel that the kernel can read and write. When
-userspace shares a buffer, it can no longer access it. Calling a
-Read-Write Allow system call returns a buffer (address and
+shares buffer with the kernel that the kernel can read and write. 
+
+Calling a Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
-kernel returns a zero-length buffer. Subsequent successful calls to 
-Read-Write Allow return the previous buffer passed. Therefore, to 
-regain access to a passed buffer, the process must call the same 
-Read-Write Allow system call again. It can do so with a zero-length 
-buffer if it wishes to pass no memory to the kernel.
+kernel returns a zero-length buffer. Subsequent successful calls to
+Read-Write Allow return the previous buffer passed.  The standard
+access model for allowed buffers is that userspace does not read or
+write a buffer that has been allowed: access to the memory is intended
+to be exclusive either to userspace or to the kernel. To regain access
+to a passed buffer, the process calls the same Read-Write Allow system
+call again, which, if successful, returns the buffer. It can do so
+with a zero-length buffer if it wishes to pass no memory to the
+kernel. 
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
@@ -543,37 +547,123 @@ The buffer identifier specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
-the calling process's writeable address space. Every byte of the
-passed buffer must be readable and writeable by the
-process. Zero-length buffers may therefore have abitrary addresses. If
-the passed buffer is not complete within the calling process's
-writeable address space, the kernel MUST return a failure result with
-an error code of `INVALID`.
+the calling process's writeable address space. Every byte of a passed
+buffer must be readable and writeable by the process. Zero-length
+buffers may therefore have abitrary addresses. If the passed buffer is
+not complete within the calling process's writeable address space, the
+kernel MUST return a failure result with an error code of `INVALID`.
 
-Because a process relinquishes access to a buffer when it makes a
-Read-Write Allow call with it, the buffer passed on the subsequent
-Read-Write Allow call cannot overlap with the first passed buffer.
-This is because the application does not have access to that
-memory. If an application needs to extend a buffer, it must first call
-Read-Write Allow to reclaim the buffer, then call Read-Write Allow
-again to re-allow it with a different size. If userspace passes
-an overlapping buffer, the kernel MUST return a failure result with
-an error code of `INVALID`.
- 
+Note that buffers held by the kernel are still considered part of a
+process address space, even if conceptually the process should not
+access that memory. This means, for example, that userspace may extend
+a buffer by calling allow with the same pointer and a longer length
+and such a call is not required to return an error code if `INVALID`.
+Similarly, it is possible for userspace to allow the same buffer
+multiple times to the kernel. This means, in practice, that the kernel
+may have multiple writeable references to the same memory and must
+take precautions to ensure this does not violate safety within the
+kernel.
+
+Finally, because a process conceptually relinquishes access to a
+buffer when it makes a Read-Write Allow call with it, a userspace API
+MUST NOT assume or rely on a process accessing an allowed buffer. If
+userspace needs to read or write to a buffer held by the kernel, it
+MUST first regain access to it by calling the corresponding Read-Write
+Allow.
+
+4.4.1 Buffers Can Change
+---------------------------------
+The standard use of Read-Write Allow requires that userspace does not
+access a buffer once it has been allowed. However, the kernel MUST NOT
+assume that an allowed buffer does not change: there could be a bug,
+compromise, or other error in the userspace code. The fact that the
+kernel thread always preempts any user thread in Tock allows capsules
+to assume that a series of accesses to an allowed buffer is
+atomic. However, if the capsule relinquishes execution (e.g., returns
+from a method called on it), it may be that userspace runs in the
+meantime and modifies the buffer. Note that userspace could also, in
+this time, issue another allow call to revoke the buffer, or crash,
+such that the buffer is no longer valid.
+
+The canonical case of incorrectly assuming a buffer does not change
+involves the length of a buffer. In this example, taken from the SPI
+controller capsule, userspace allows a buffer, then a command
+specifies a length (`arg1`) of how many bytes of the buffer to read or write.
+The variable `mlen` is the length of the buffer.
+
+```rust
+if mlen >= arg1 && arg1 > 0 {
+    app.len = arg1;
+    app.index = 0;
+    self.busy.set(true);
+    self.do_next_read_write(app);
+    CommandReturn::success()
+} 
+```
+
+Checking that the length fits within the allowed buffer when the
+command is issued is insufficient, as it could be that the buffer
+changes during the underlying hardware I/O operation.  If the buffer
+is replaced with one that is much smaller, the length passed in the
+command may now be too large. The `index` variable keeps track of
+where in the buffer the next write should occur: the capsule breaks up
+long writes into multiple, smaller writes to bound the size of its
+static kernel buffer. If capsule code blindly copies the number of
+bytes specified in the command, without re-checking buffer length,
+then it can cause the kernel to panic for an out-of-bounds error. 
+
+Therefore, in the `read_write_done` callback, the capsule checks the
+length of the buffer that userspace wants to read data into. The third
+line checks that the end of the just completed operation isn't past
+the end of the current userspace buffer (which could happen if the
+userspace buffer became shorter).
+
+```rust
+let end = index;
+let start = index - length;
+let end = cmp::min(end, dest.len());
+let start = cmp::min(start, end);
+
+let real_len = cmp::min(end - start, src.len());
+let dest_area = &mut dest[start..end];
+
+for (i, c) in src[0..real_len].iter().enumerate() {
+    dest_area[i] = *c;
+}
+```
+
+For similar reasons, a capsule should not cache computations on values
+from an allowed buffer, as if the buffer changes those computations
+may no longer be correct (e.g., computing a length based on fields in
+the buffer).
+
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
-The Read-Only Allow class is very similar to the Read-Write Allow class.
-It differs in tow ways: the buffer it passes to the kernel is read-only,
-and the process retains read access to the buffer. The kernel cannot
-write to the buffer. The semantics and calling conventions of
-Read-Only Allow are otherwise identical to Read-Write Allow.
+The Read-Only Allow class is very similar to the Read-Write Allow
+class.  It differs in two ways:
+
+  1. The buffer it passes to the kernel is read-only, and the process MAY 
+  freely read the buffer.
+  2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow. 
+  
+The semantics and calling conventions of Read-Only Allow are otherwise
+identical to Read-Write Allow: a userspace API MUST NOT depend on
+writing to a shared buffer and the kernel MUST NOT assume the buffer
+does not change.
+
+This restriction on writing to buffers is to limit the complexity of
+code review in the kernel. If a userspace library relies on writes to
+shared buffers, then kernel code correspondingly relies on them. This
+sort of concurrent access can have unforeseen edge cases which cause
+the kernel to panic, e.g., because values changed between method
+calls.
 
 The Read-Only Allow class exists so that userspace can pass references
 to constant data to the kernel. This is useful, for example, when a
 process prints a constant string to the console; it wants to allow the
-constant string to the kernel as an application slice, then call
-a command that transmits the allowed slice. Constant strings are usually
+constant string to the kernel as an application slice, then call a
+command that transmits the allowed slice. Constant strings are usually
 stored in flash, rather than RAM, which Tock's memory protection marks
 as read-only memory. Therefore, if a process tries to pass a constant
 string stored in flash through a Read-Write Allow, the allow will fail
@@ -596,9 +686,9 @@ RAM so it can be passed with a Read-Write Allow.
 
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's readable address space. Every byte of the passed
-buffer must be readable and writeable by the process. Zero-length
-buffers may therefore have abitrary addresses. If the passed buffer is
-not complete within the calling process's readable address space, the
+buffer must be readable by the process. Zero-length buffers may
+therefore have abitrary addresses. If the passed buffer is not
+complete within the calling process's readable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
 
 4.6 Memop (Class ID: 5)
