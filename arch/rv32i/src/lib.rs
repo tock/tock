@@ -447,8 +447,7 @@ pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: 
       ebreak
       srai x0, x0, 7
       .option pop
-      ",
-        options(noreturn)
+      "
     );
 }
 

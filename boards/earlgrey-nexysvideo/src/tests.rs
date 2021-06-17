@@ -6,6 +6,22 @@ use crate::PLATFORM;
 use crate::SCHEDULER;
 use kernel::{debug, Chip};
 
+pub fn semihost_command_exit_success() -> ! {
+    // Exit QEMU with a return code of 0
+    unsafe {
+        rv32i::semihost_command(0x18, 0x20026, 0);
+    }
+    loop {}
+}
+
+pub fn semihost_command_exit_failure() -> ! {
+    // Exit QEMU with a return code of 1
+    unsafe {
+        rv32i::semihost_command(0x18, 1, 0);
+    }
+    loop {}
+}
+
 fn run_kernel_op(loops: usize) {
     unsafe {
         for _i in 0..loops {

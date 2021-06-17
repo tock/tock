@@ -484,7 +484,5 @@ fn test_runner(tests: &[&dyn Fn()]) {
     }
 
     // Exit QEMU with a return code of 0
-    unsafe {
-        rv32i::semihost_command(0x18, 0x20026, 0);
-    }
+    crate::tests::semihost_command_exit_success()
 }

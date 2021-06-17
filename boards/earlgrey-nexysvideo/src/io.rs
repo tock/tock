@@ -70,5 +70,5 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let _ = write!(writer, "{}", pi);
     // Exit QEMU with a return code of 1
-    rv32i::semihost_command(0x18, 1, 0);
+    crate::tests::semihost_command_exit_failure();
 }
