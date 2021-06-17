@@ -1,3 +1,6 @@
+use crate::ErrorCode;
+
+#[derive(Copy, Clone)]
 pub enum Security {
     Wep,
     Wpa,
@@ -13,14 +16,14 @@ pub enum Status {
 }
 
 #[derive(Copy, Clone)]
-pub struct Network<'a> {
-    ssid: [u8; 32],
-    rssi: u32,
-    security: Option<WiFiSecurity>,
+pub struct Network {
+    pub ssid: [u8; 32],
+    pub rssi: u32,
+    pub security: Option<Security>,
 }
 
 pub trait Controller {
-    fn connect(&self, network: WiFiNetwork) -> Result<(), ErrorCode>;
+    fn connect(&self, network: Network) -> Result<(), ErrorCode>;
     fn disconnect(&self) -> Result<(), ErrorCode>;
 
     fn get_status(&self) -> Status;
@@ -35,5 +38,5 @@ pub trait ControllerClient {
 }
 
 pub trait ScannerClient {
-    fn scan_done(&self, networks: &'a [Network], status: Result<(), ErrorCode>);
+    fn scan_done(&self, networks: &[Network], len: usize, status: Result<(), ErrorCode>);
 }
