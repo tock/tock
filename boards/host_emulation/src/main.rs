@@ -158,7 +158,8 @@ pub unsafe fn reset_handler() {
 
 pub fn main() {
     unsafe {
-        chip::HostChip::basic_setup();
+        let config_reader = emulation_config::DefaultConfigFileReader {};
+        chip::HostChip::basic_setup(&config_reader);
         let chip = static_init!(chip::HostChip, chip::HostChip::new());
         let app_path = chip::HostChip::get_app_path();
 
