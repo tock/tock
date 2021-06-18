@@ -30,9 +30,6 @@ use rv32i::csr;
 #[cfg(test)]
 mod tests;
 
-#[allow(dead_code)]
-mod aes_test;
-#[allow(dead_code)]
 mod otbn;
 #[allow(dead_code)]
 mod tickv_test;

@@ -48,6 +48,7 @@ fn trivial_assertion() {
     run_kernel_op(100);
 }
 
+mod aes_test;
 mod hmac;
 mod multi_alarm;
 mod otbn;
