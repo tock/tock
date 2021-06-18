@@ -33,6 +33,17 @@ pub fn run_multi_alarm() {
         TESTS.unwrap()[1].run();
         TESTS.unwrap()[2].run();
     }
+
+    run_kernel_op(10000);
+
+    unsafe {
+        assert!(TESTS.unwrap()[0].counter.get() > 15);
+        assert!(TESTS.unwrap()[1].counter.get() > 40);
+        assert!(TESTS.unwrap()[2].counter.get() > 80);
+    }
+
+    debug!("    [ok]");
+    run_kernel_op(100);
 }
 
 unsafe fn static_init_multi_alarm_test(
@@ -68,20 +79,4 @@ unsafe fn static_init_multi_alarm_test(
     );
     virtual_alarm3.set_alarm_client(test3);
     [&*test1, &*test2, &*test3]
-}
-
-#[test_case]
-pub fn check_multi_alarm_count_1() {
-    debug!("check multi alarm test 1...");
-    run_kernel_op(100);
-
-    unsafe {
-        assert!(TESTS.unwrap()[0].counter.get() > 15);
-        assert!(TESTS.unwrap()[1].counter.get() > 40);
-        assert!(TESTS.unwrap()[2].counter.get() > 80);
-    }
-
-    run_kernel_op(100);
-    debug!("    [ok]");
-    run_kernel_op(100);
 }
