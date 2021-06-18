@@ -307,6 +307,9 @@ target:
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
+size: release
+	$(TOCK_ROOT_DIRECTORY)/tools/print_tock_memory_usage.py -d4 $(TARGET_PATH)/release/$(PLATFORM).elf > $(PLATFORM)-size-4.txt
+
 
 $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml

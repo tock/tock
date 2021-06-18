@@ -178,7 +178,8 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
-            process_identifier_max: Cell::new(0),
+            // Start at 1 because 0 is used initialization
+            process_identifier_max: Cell::new(1),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
@@ -668,13 +669,18 @@ impl Kernel {
                     }
                 }
                 process::State::Yielded | process::State::Unstarted => {
+                    debug!("Process {:?} is unstarted/yielded. Try starting it.", process.processid());
                     // If the process is yielded or hasn't been started it is
                     // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
                     match process.dequeue_task() {
-                        None => break,
+                        None => {
+                            debug!("No tasks.");
+                            break;
+                        },
                         Some(cb) => match cb {
                             Task::FunctionCall(ccb) => {
+                                debug!("Invoking callback.");
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
                                         "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",

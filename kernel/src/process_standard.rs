@@ -128,9 +128,15 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// pointers exists in the Tock kernel.
     grant_pointers: MapCell<&'static mut [*mut u8]>,
 
+    /// Pointer to where the kernel break is at boot; cache for restarts.
+    initial_kernel_memory_break: Cell<*const u8>,
+    
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
 
+    /// Pointer to where the app break is at boot; cache for restarts.
+    initial_app_break: Cell<*const u8>,
+    
     /// Pointer to the end of process RAM that has been sbrk'd to the process.
     app_break: Cell<*const u8>,
 
@@ -259,46 +265,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn stop(&self) {
-        match self.state.get() {
-            State::Running => self.state.update(State::StoppedRunning),
-            State::Yielded => self.state.update(State::StoppedYielded),
-            _ => {} // Do nothing
-        }
-    }
+    fn stop(&self) {}
 
-    fn resume(&self) {
-        match self.state.get() {
-            State::StoppedRunning => self.state.update(State::Running),
-            State::StoppedYielded => self.state.update(State::Yielded),
-            _ => {} // Do nothing
-        }
-    }
+    fn resume(&self) {}
 
     fn set_fault_state(&self) {
-        // Use the per-process fault policy to determine what action the kernel
-        // should take since the process faulted.
-        let action = self.fault_policy.action(self);
-
-        match action {
-            FaultAction::Panic => {
-                // process faulted. Panic and print status
-                self.state.update(State::Faulted);
-                panic!("Process {} had a fault", self.process_name);
-            }
-            FaultAction::Restart => {
-                self.try_restart(COMPLETION_FAULT);
-            }
-            FaultAction::Stop => {
-                // This looks a lot like restart, except we just leave the app
-                // how it faulted and mark it as `Faulted`. By clearing
-                // all of the app's todo work it will not be scheduled, and
-                // clearing all of the grant regions will cause capsules to drop
-                // this app as well.
-                self.terminate(COMPLETION_FAULT);
-                self.state.update(State::Faulted);
-            }
-        }
+        self.try_restart(COMPLETION_FAULT);
     }
 
     fn try_restart(&self, completion_code: u32) {
@@ -1251,6 +1223,25 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     // Memory offset to make room for this process's metadata.
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
+    fn check_fixed_header(tbf_header: &tock_tbf::types::TbfHeader,
+                          app_flash: &[u8]) -> Result<(), ProcessLoadError> {
+        // If the TBF header specified a fixed address, check the process is
+        // at that location.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
+            }
+        }
+        Ok(())
+    }
+    
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1270,132 +1261,54 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
 
-        // First thing: check that the process is at the correct location in
-        // flash if the TBF header specified a fixed address. If there is a
-        // mismatch we catch that early.
-        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
-            // The flash address in the header is based on the app binary,
-            // so we need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-            let expected_address = fixed_flash_start;
-            if actual_address != expected_address {
-                return Err(ProcessLoadError::IncorrectFlashAddress {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        }
-
-        let process_name = tbf_header.get_package_name();
+        // Check that a fixed header is in the right location.
+        Self::check_fixed_header(&tbf_header, app_flash)?;
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
         // isn't enabled, then we can skip it and do not create a `Process`
         // object.
         if !tbf_header.is_app() || !tbf_header.enabled() {
-            if config::CONFIG.debug_load_processes {
-                if !tbf_header.is_app() {
-                    debug!(
-                        "Padding in flash={:#010X}-{:#010X}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1
-                    );
-                }
-                if !tbf_header.enabled() {
-                    debug!(
-                        "Process not enabled flash={:#010X}-{:#010X} process={:?}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1,
-                        process_name
-                    );
-                }
-            }
-            // Return no process and the full memory slice we were given.
             return Ok((None, remaining_memory));
         }
-
-        // Otherwise, actually load the app.
-        let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
-        let init_fn = app_flash
-            .as_ptr()
-            .offset(tbf_header.get_init_function_offset() as isize) as usize;
-
-        // Initialize MPU region configuration.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
-
-        // Allocate MPU region for flash.
-        if chip
-            .mpu()
-            .allocate_region(
-                app_flash.as_ptr(),
-                app_flash.len(),
-                app_flash.len(),
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            )
-            .is_none()
-        {
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                    "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate MPU region for flash",
-                    app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len() - 1,
-                    process_name
-                );
-            }
-            return Err(ProcessLoadError::MpuInvalidFlashLength);
-        }
-
-        // Determine how much space we need in the application's
-        // memory space just for kernel and grant state. We need to make
-        // sure we allocate enough memory just for that.
-
-        // Make room for grant pointers.
-        let grant_ptr_size = mem::size_of::<*const usize>();
-        let grant_ptrs_num = kernel.get_grant_count_and_finalize();
-        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
-
-        // Initial size of the kernel-owned part of process memory can be
-        // calculated directly based on the initial size of all kernel-owned
-        // data structures.
-        let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
-
-        // By default we start with the initial size of process-accessible
-        // memory set to 0. This maximizes the flexibility that processes have
-        // to allocate their memory as they see fit. If a process needs more
-        // accessible memory it must use the `brk` memop syscalls to request more
-        // memory.
-        //
-        // We must take into account any process-accessible memory required by
-        // the context switching implementation and allocate at least that much
-        // memory so that we can successfully switch to the process. This is
-        // architecture and implementation specific, so we query that now.
-        let min_process_memory_size = chip
+        
+        let process_name = tbf_header.get_package_name();
+        
+        // The TBF checks out: try to load the application. Loading an application
+        // involves:
+        //   1. calculating and allocating RAM for the process
+        //   2. allocating and initializing the Process structure in RAM
+        //   3. booting the process
+        // Create the Process struct in the app grant region.
+        
+        // The process RAM minimum size is:
+        //    the size needed for the grant pointers (kernel) +
+        //    the size of the task (upcall) queue (kernel) +
+        //    the size of the process itself (kernel) +
+        //    max(application RAM requested, saved context) (userspace), 
+        // Furthermore, the MPU allocation may need to pad this because it has
+        // alignment/size restrictions.
+        
+        let grant_pointers_num = kernel.get_grant_count_and_finalize();
+        let grant_pointers_size = grant_pointers_num * mem::size_of::<*const usize>();
+        let min_kernel_ram_size = grant_pointers_size +
+                                  Self::CALLBACKS_OFFSET +
+                                  Self::PROCESS_STRUCT_OFFSET;
+        
+        let application_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;        
+        let context_switch_size = chip
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
+        
+        let min_userspace_ram_size = cmp::max(application_ram_requested_size, context_switch_size);
+        let min_process_ram_size = min_userspace_ram_size + min_kernel_ram_size;
 
-        // We have to ensure that we at least ask the MPU for
-        // `min_process_memory_size` so that we can be sure that `app_brk` is
-        // not set inside the kernel-owned memory region. Now, in practice,
-        // processes should not request 0 (or very few) bytes of memory in their
-        // TBF header (i.e. `process_ram_requested_size` will almost always be
-        // much larger than `min_process_memory_size`), as they are unlikely to
-        // work with essentially no available memory. But, we still must protect
-        // for that case.
-        let min_process_ram_size = cmp::max(process_ram_requested_size, min_process_memory_size);
+        // Now that we have the minimum size, we need to try to allocate it. There are two cases:
+        // a fixed location (marked in the TBF header) for non-relocatable code, and relocatable.
 
-        // Minimum memory size for the process.
-        let min_total_memory_size = min_process_ram_size + initial_kernel_memory_size;
-
-        // Check if this process requires a fixed memory start address. If so,
-        // try to adjust the memory region to work for this process.
-        //
-        // Right now, we only support skipping some RAM and leaving a chunk
-        // unused so that the memory region starts where the process needs it
-        // to.
+        // Case 1: if the process requires RAM at a fixed address: see if we can skip forward
+        // to the correct address.
         let remaining_memory = if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram()
         {
-            // The process does have a fixed address.
             if fixed_memory_start == remaining_memory.as_ptr() as u32 {
                 // Address already matches.
                 remaining_memory
@@ -1413,8 +1326,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                         expected_address,
                     });
                 } else {
-                    // Change the memory range to start where the process
-                    // requested it.
+                    // Change the memory range to start where the process requested
                     remaining_memory
                         .get_mut(diff..)
                         .ok_or(ProcessLoadError::InternalError)?
@@ -1429,58 +1341,48 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 });
             }
         } else {
+            // Case 2.
             remaining_memory
         };
 
-        // Determine where process memory will go and allocate MPU region for
-        // app-owned memory.
-        let (app_memory_start, app_memory_size) = match chip.mpu().allocate_app_memory_region(
+        // Actually allocate a block of the right size from the MPU
+        
+        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        
+        let (app_ram_start, app_ram_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
-            min_total_memory_size,
-            min_process_memory_size,
-            initial_kernel_memory_size,
+            min_process_ram_size,
+            min_userspace_ram_size,
+            min_kernel_ram_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
         ) {
             Some((memory_start, memory_size)) => (memory_start, memory_size),
             None => {
                 // Failed to load process. Insufficient memory.
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1,
-                        process_name,
-                        min_total_memory_size
-                    );
-                }
                 return Err(ProcessLoadError::NotEnoughMemory);
             }
         };
 
-        // Get a slice for the memory dedicated to the process. This can fail if
-        // the MPU returns a region of memory that is not inside of the
-        // `remaining_memory` slice passed to `create()` to allocate the
-        // process's memory out of.
-        let memory_start_offset = app_memory_start as usize - remaining_memory.as_ptr() as usize;
-        // First split the remaining memory into a slice that contains the
-        // process memory and a slice that will not be used by this process.
-        let (app_memory_oversize, unused_memory) =
-            remaining_memory.split_at_mut(memory_start_offset + app_memory_size);
-        // Then since the process's memory need not start at the beginning of
-        // the remaining slice given to create(), get a smaller slice as needed.
-        let app_memory = app_memory_oversize
+        // Based on the values returned from the MPU, compute a slice for the
+        // process RAM. This can fail if the block returned by the MPU doesn't fit
+        // inside `remaining_memory.`
+       
+        // Carve off the memory the MPU allocated for the process, then shrink it down
+        // if needed to the actual size requested.
+        let memory_start_offset = app_ram_start as usize - remaining_memory.as_ptr() as usize;
+        let (app_ram_oversize, unused_ram) =
+            remaining_memory.split_at_mut(memory_start_offset + app_ram_size);
+        let app_ram_slice = app_ram_oversize
             .get_mut(memory_start_offset..)
             .ok_or(ProcessLoadError::InternalError)?;
 
-        // Check if the memory region is valid for the process. If a process
-        // included a fixed address for the start of RAM in its TBF header (this
-        // field is optional, processes that are position independent do not
-        // need a fixed address) then we check that we used the same address
-        // when we allocated it in RAM.
+        // If a process requires a fixed RAM block, check that the memory allocated
+        // matches this fixed address. This can fail if the fixed address requested
+        // is incompatible with MPU alignment.
         if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
-            let actual_address = app_memory.as_ptr() as u32;
+            let actual_address = app_ram_slice.as_ptr() as u32;
             let expected_address = fixed_memory_start;
             if actual_address != expected_address {
                 return Err(ProcessLoadError::MemoryAddressMismatch {
@@ -1490,20 +1392,17 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
-        // Set the initial process-accessible memory to the amount specified by
-        // the context switch implementation.
-        let initial_app_brk = app_memory.as_ptr().add(min_process_memory_size);
+        // kernel_memory_break marks the end of the free part of the grant region;
+        // allocation is down (like a stack), so allocations lower the break. From high
+        // to low, the regions allocated are:
+        //    Grant pointers
+        //    Upcall queue
+        //    Process structure
+        //    Grant regions 
+        let mut kernel_memory_break = app_ram_slice.as_mut_ptr().add(app_ram_size);
 
-        // Set the initial allow high water mark to the start of process memory
-        // since no `allow` calls have been made yet.
-        let initial_allow_high_water_mark = app_memory.as_ptr();
-
-        // Set up initial grant region.
-        let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
-
-        // Now that we know we have the space we can setup the grant
-        // pointers.
-        kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
+        // Grant pointers
+        kernel_memory_break = kernel_memory_break.offset(-(grant_pointers_size as isize));
 
         // This is safe today, as MPU constraints ensure that `memory_start`
         // will always be aligned on at least a word boundary, and that
@@ -1515,13 +1414,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
-        let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_ptrs_num);
-        for opt in opts.iter_mut() {
-            *opt = ptr::null_mut()
+        let grant_pointers = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_pointers_num);
+        for pointer in grant_pointers.iter_mut() {
+            *pointer = ptr::null_mut()
         }
 
-        // Now that we know we have the space we can setup the memory for the
-        // upcalls.
+        // Upcall queue
         kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
 
         // This is safe today, as MPU constraints ensure that `memory_start`
@@ -1537,36 +1435,30 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let upcall_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
         let tasks = RingBuffer::new(upcall_buf);
-
-        // Last thing in the kernel region of process RAM is the process struct.
-        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
-        let process_struct_memory_location = kernel_memory_break;
-
-        // Create the Process struct in the app grant region.
+        
+        let process_struct_memory_location = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
         let mut process: &mut ProcessStandard<C> =
             &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
 
-        // Ask the kernel for a unique identifier for this process that is being
-        // created.
-        let unique_identifier = kernel.create_process_identifier();
+        // Set the initial process-accessible memory to the amount specified by
+        // the context switch implementation.
+        let initial_app_brk = app_ram_slice.as_ptr().add(min_process_ram_size);
 
-        // Save copies of these in case the app was compiled for fixed addresses
-        // for later debugging.
         let fixed_address_flash = tbf_header.get_fixed_address_flash();
         let fixed_address_ram = tbf_header.get_fixed_address_ram();
-
-        process
-            .process_id
-            .set(ProcessId::new(kernel, unique_identifier, index));
+        
+        process.process_id.set(ProcessId::new(kernel, 0, index));
         process.kernel = kernel;
         process.chip = chip;
-        process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory_start = app_memory.as_ptr();
-        process.memory_len = app_memory.len();
+        //process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
+        process.memory_start = app_ram_slice.as_ptr();
+        process.memory_len = app_ram_slice.len();
         process.header = tbf_header;
+        process.initial_kernel_memory_break = Cell::new(kernel_memory_break);
         process.kernel_memory_break = Cell::new(kernel_memory_break);
+        process.initial_app_break = Cell::new(initial_app_brk);
         process.app_break = Cell::new(initial_app_brk);
-        process.grant_pointers = MapCell::new(opts);
+        process.grant_pointers = MapCell::new(grant_pointers);
 
         process.flash = app_flash;
 
@@ -1577,6 +1469,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.restart_count = Cell::new(0);
 
         process.mpu_config = MapCell::new(mpu_config);
+
         process.mpu_regions = [
             Cell::new(None),
             Cell::new(None),
@@ -1590,7 +1483,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         process.debug = MapCell::new(ProcessStandardDebug {
             fixed_address_flash: fixed_address_flash,
-            fixed_address_ram: fixed_address_ram,
+            fixed_address_ram:  fixed_address_ram,
             app_heap_start_pointer: None,
             app_stack_start_pointer: None,
             app_stack_min_pointer: None,
@@ -1602,6 +1495,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         let flash_protected_size = process.header.get_protected_size() as usize;
         let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
+
+        let init_fn = app_flash
+            .as_ptr()
+            .offset(process.header.get_init_function_offset() as isize) as usize;
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -1622,9 +1519,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // region, we trust the MPU to give us a word-aligned starting address.
         //
         // TODO: https://github.com/tock/tock/issues/1739
+        let initial_app_brk = process.memory_start.add(min_userspace_ram_size);
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                app_memory_start,
+                app_ram_start,
                 initial_app_brk,
                 stored_state,
             )
@@ -1643,10 +1541,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        kernel.increment_work();
+        process.restart();
 
         // Return the process object and a remaining memory for processes slice.
-        Ok((Some(process), unused_memory))
+        Ok((Some(process), unused_ram))
     }
 
     /// Restart the process, resetting all of its state and re-initializing
@@ -1654,6 +1552,20 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
+        
+        let init_fn = unsafe { self.flash
+                               .as_ptr()
+                               .offset(self.header.get_init_function_offset() as isize) as usize};
+            
+        let kernel_memory_break = unsafe {self.memory_start.offset(self.memory_len as isize)};
+
+        // Set the initial allow high water mark to the start of process memory
+        // since no `allow` calls have been made yet.
+        let initial_allow_high_water_mark = self.memory_start;
+
+ 
+        let unique_identifier = self.kernel.create_process_identifier();
+
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `ProcessId`s that point to the old version of the
@@ -1744,14 +1656,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // app_brk is set based on minimum syscall size above the start of
         // memory.
-        let app_brk = app_mpu_mem_start.wrapping_add(min_process_memory_size);
-        self.app_break.set(app_brk);
-        // kernel_brk is calculated backwards from the end of memory the size of
-        // the initial kernel data structures.
-        let kernel_brk = app_mpu_mem_start
-            .wrapping_add(app_mpu_mem_len)
-            .wrapping_sub(initial_kernel_memory_size);
-        self.kernel_memory_break.set(kernel_brk);
+        self.app_break.set(self.initial_app_break.get());
+        self.kernel_memory_break.set(self.initial_kernel_memory_break.get());
         // High water mark for `allow`ed memory is reset to the start of the
         // process's memory region.
         self.allow_high_water_mark.set(app_mpu_mem_start);
@@ -1764,7 +1670,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| unsafe {
             self.chip.userspace_kernel_boundary().initialize_process(
                 app_mpu_mem_start,
-                app_brk,
+                self.app_break.get(),
                 stored_state,
             )
         });
