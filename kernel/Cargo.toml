@@ -11,3 +11,4 @@ tock-cells = { path = "../libraries/tock-cells" }
 [features]
 trace_syscall = []
 debug_load_processes = []
+debug_processes = []

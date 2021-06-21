@@ -602,9 +602,25 @@ impl<C: 'static + Chip> ProcessType for EmulatedProcess<C> {
         (0, 0)
     }
 
-    fn update_stack_start_pointer(&self, _stack_pointer: *const u8) {}
+    fn debug_update_stack_start_pointer(&self, _stack_pointer: *const u8) {}
 
-    fn update_heap_start_pointer(&self, _heap_pointer: *const u8) {}
+    fn debug_update_heap_start_pointer(&self, _heap_pointer: *const u8) {}
+
+    fn debug_app_heap_start_pointer(&self) -> Option<usize> {
+        None
+    }
+
+    fn debug_app_stack_start_pointer(&self) -> Option<usize> {
+        None
+    }
+
+    fn debug_min_stack_pointer(&self) -> *const u8 {
+        ptr::null()
+    }
+
+    fn debug_last_syscall(&self) -> Option<Syscall> {
+        self.debug.map_or(None, |debug| debug.last_syscall)
+    }
 }
 
 fn get_dummy_process_state() -> ProcessState {

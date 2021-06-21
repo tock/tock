@@ -40,6 +40,15 @@ pub(crate) struct Config {
     /// into which SRAM addresses. This can be useful to debug whether the kernel could
     /// successfully load processes, and whether the allocated SRAM is as expected.
     pub(crate) debug_load_processes: bool,
+
+    /// Whether the kernel should collect debugging information for processes.
+    ///
+    /// If enabled, the kernel will collect debugging information such as stack and heap pointers,
+    /// syscall count, and timeslice expiration count. This can be useful to debug app crashes or
+    /// performance issues. As of 06/21/2021, disabling this option reduces the size of the kernel
+    /// by about 2kB. As of 05/06/2020, disabling this option reduced system call overhead by
+    /// about 200 cycles.
+    pub(crate) debug_processes: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
@@ -53,4 +62,8 @@ pub(crate) const CONFIG: Config = Config {
     debug_load_processes: false,
     #[cfg(debug_load_processes)]
     debug_load_processes: true,
+    #[cfg(not(debug_processes))]
+    debug_processes: false,
+    #[cfg(debug_processes)]
+    debug_processes: true,
 };
