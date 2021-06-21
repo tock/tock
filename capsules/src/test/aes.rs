@@ -261,7 +261,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (CTR {} {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 "Ctr",
@@ -413,7 +413,7 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (CBC {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 if self.use_source.get() {
@@ -468,7 +468,7 @@ impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (ECB {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 if self.use_source.get() {
