@@ -28,6 +28,7 @@ use rv32i::csr;
 mod aes_test;
 #[allow(dead_code)]
 mod multi_alarm_test;
+mod otbn;
 #[allow(dead_code)]
 mod tickv_test;
 
@@ -109,11 +110,6 @@ pub unsafe fn main() {
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
 
-    let peripherals = static_init!(
-        EarlGreyDefaultPeripherals,
-        EarlGreyDefaultPeripherals::new()
-    );
-
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -123,12 +119,17 @@ pub unsafe fn main() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
+    let peripherals = static_init!(
+        EarlGreyDefaultPeripherals,
+        EarlGreyDefaultPeripherals::new(dynamic_deferred_caller)
+    );
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -296,6 +297,15 @@ pub unsafe fn main() {
         lowrisc::flash_ctrl::FlashCtrl
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+
+    let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
+        .finalize(otbn_mux_component_helper!(1024));
+
+    peripherals.otbn.initialise(
+        dynamic_deferred_caller
+            .register(&peripherals.otbn)
+            .expect("dynamic deferred caller out of slots"),
+    );
 
     /// These symbols are defined in the linker script.
     extern "C" {
