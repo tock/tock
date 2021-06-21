@@ -53,6 +53,12 @@ RUSTC_FLAGS_TOCK ?= \
   $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
 
+# Additional flags that can be passed to cargo bloat via an
+# environment variable. Allows users to pass arbitrary flags
+# supported by cargo bloat to customize the output. By default,
+# pass an empty string.
+BLOAT_FLAGS ?=
+
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
@@ -259,6 +265,26 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 .PHONY: show-target
 show-target:
 	$(info $(TARGET))
+
+# This rule is a copy of the rule used to build the release target, but
+# `cargo rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
+# interface of `cargo build`, rather than `cargo rustc`, so we need to move
+# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only means
+# that cargo cannot reuse built dependencies built using `cargo bloat`.
+# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details.
+# To pass additional flags to `cargo bloat`, populate the
+# BLOAT_FLAGS environment variable, e.g. call
+# `BLOAT_FLAGS=--crates make cargobloat`
+.PHONY: cargobloat
+cargobloat:
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(BLOAT_FLAGS)
+
+# To pass additional flags to `cargo bloat`, populate the
+# BLOAT_FLAGS environment variable, e.g. call
+# `BLOAT_FLAGS=--crates make cargobloatnoinline`
+.PHONY: cargobloatnoinline
+cargobloatnoinline:
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(BLOAT_FLAGS)
 
 # Support rules
 
