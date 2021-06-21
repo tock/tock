@@ -326,13 +326,13 @@ pub unsafe fn main() {
     // SENSORS
     //--------------------------------------------------------------------------
 
-    base_peripherals.twim0.configure(
+    base_peripherals.twi0.configure(
         nrf52833::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(
-        &base_peripherals.twim0,
+        &base_peripherals.twi0,
         None,
         dynamic_deferred_caller,
     )

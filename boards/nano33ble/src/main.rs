@@ -338,13 +338,13 @@ pub unsafe fn main() {
 
     let sensors_i2c_bus = static_init!(
         capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twim0, None, dynamic_deferred_caller)
+        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None, dynamic_deferred_caller)
     );
-    base_peripherals.twim0.configure(
+    base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
-    base_peripherals.twim0.set_master_client(sensors_i2c_bus);
+    base_peripherals.twi0.set_master_client(sensors_i2c_bus);
 
     &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
     &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
