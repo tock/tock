@@ -1,6 +1,5 @@
 //! Tock Cell types.
 
-#![feature(const_fn)]
 #![feature(const_mut_refs)]
 // Feature used to opt-in the new `core::Option::contains()` API.
 //

@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
 use std::io;
 
 use kernel::capabilities;

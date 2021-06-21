@@ -8,10 +8,10 @@
 
 #![feature(
     core_intrinsics,
-    const_fn,
+    const_fn_trait_bound,
     associated_type_defaults,
-    try_trait,
-    min_const_generics
+    try_trait_v2,
+    control_flow_enum
 )]
 #![warn(unreachable_pub)]
 #![no_std]

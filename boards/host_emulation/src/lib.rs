@@ -1,4 +1,10 @@
-#![feature(asm, concat_idents, const_fn, const_mut_refs, naked_functions)]
+#![feature(
+    asm,
+    concat_idents,
+    const_fn_trait_bound,
+    const_mut_refs,
+    naked_functions
+)]
 #![feature(in_band_lifetimes)]
 
 use std::io;

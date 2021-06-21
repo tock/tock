@@ -77,17 +77,44 @@ impl From<ReturnCode> for Result<ReturnCode, ReturnCode> {
     }
 }
 
-impl core::ops::Try for ReturnCode {
-    type Error = Self;
-    type Ok = Self;
+impl<T: Into<ReturnCode>> core::ops::FromResidual<T> for ReturnCode {
+    fn from_residual(residual: T) -> Self {
+        residual.into()
+    }
+}
 
-    fn into_result(self) -> Result<Self::Ok, Self::Error> {
-        self.into()
+impl<T: Into<ReturnCode>> core::ops::FromResidual<Result<core::convert::Infallible, T>>
+    for ReturnCode
+{
+    fn from_residual(residual: Result<core::convert::Infallible, T>) -> Self {
+        match residual {
+            Err(err) => err.into(),
+            Ok(never) => match never {},
+        }
     }
-    fn from_error(v: Self::Error) -> Self {
-        v
+}
+
+impl<T, F: From<ReturnCode>> core::ops::FromResidual<ReturnCode> for Result<T, F> {
+    fn from_residual(residual: ReturnCode) -> Self {
+        Err(residual.into())
     }
-    fn from_ok(v: Self::Ok) -> Self {
-        v
+}
+
+impl core::ops::Try for ReturnCode {
+    type Output = Self;
+    type Residual = Self;
+
+    fn from_output(output: Self::Output) -> Self {
+        output
+    }
+
+    fn branch(self) -> core::ops::ControlFlow<Self::Residual, Self::Output> {
+        match self {
+            ReturnCode::SUCCESS => core::ops::ControlFlow::Continue(ReturnCode::SUCCESS),
+            ReturnCode::SuccessWithValue { value } => {
+                core::ops::ControlFlow::Continue(ReturnCode::SuccessWithValue { value })
+            }
+            error => core::ops::ControlFlow::Break(error),
+        }
     }
 }

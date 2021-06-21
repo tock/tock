@@ -202,6 +202,7 @@ pub static mut BUFFER: [u8; BUFSIZE] = [0; BUFSIZE];
 pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
 
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct App {
     text_buffer: Option<AppSlice<Shared, u8>>,
 }
