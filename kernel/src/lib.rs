@@ -129,6 +129,9 @@ pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 pub use crate::sched::{Kernel, Scheduler};
 pub use crate::upcall::Upcall;
 
+/// Standard kernel result that uses [`ErrorCode`] as the error.
+pub type KernelResult<T = ()> = Result<T, ErrorCode>;
+
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These
 // functions and types are used by board files to setup the platform and setup
