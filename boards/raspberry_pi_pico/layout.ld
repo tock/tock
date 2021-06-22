@@ -15,7 +15,7 @@ MEMORY
 MPU_MIN_ALIGN = 8K;
 PAGE_SIZE = 4K;
 
-ENTRY(reset)
+ENTRY(jump_to_bootloader)
 
 /* RP2040 has a bootloader that occupies the first 256 bytes of .text */
 SECTIONS {

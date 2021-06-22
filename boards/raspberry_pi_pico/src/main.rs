@@ -100,7 +100,7 @@ impl Platform for RaspberryPiPico {
 /// sqeuence is performed.
 #[no_mangle]
 #[naked]
-pub unsafe extern "C" fn reset() {
+pub unsafe extern "C" fn jump_to_bootloader() {
     asm!(
         "
     movs r0, #0
