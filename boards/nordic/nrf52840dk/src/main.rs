@@ -57,6 +57,7 @@
 //! | P0.19 | P24 9  | SPI CLK  |
 //! | P0.20 | P24 10 | SPI MOSI |
 //! | P0.21 | P24 11 | SPI MISO |
+//! | P0.22 | P24 12 | SPI CS   |
 //! | P0.24 | P24 14 | Button 3 |
 //! | P0.25 | P24 15 | Button 4 |
 //! | P0.26 | P24 16 | I2C SDA  |
@@ -108,6 +109,7 @@ const UART_RXD: Pin = Pin::P0_08;
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
 const SPI_CLK: Pin = Pin::P0_19;
+const SPI_CS: Pin = Pin::P0_22;
 
 const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
@@ -181,6 +183,10 @@ pub struct Platform {
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     i2c_master_slave: &'static capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+    spi_controller: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -203,6 +209,7 @@ impl kernel::Platform for Platform {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             _ => f(None),
         }
     }
@@ -453,6 +460,12 @@ pub unsafe fn main() {
     // SPI
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
         .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+    // Create the SPI system call capsule.
+    let spi_controller =
+        components::spi::SpiSyscallComponent::new(board_kernel, mux_spi, &gpio_port[SPI_CS])
+            .finalize(components::spi_syscall_component_helper!(
+                nrf52840::spi::SPIM
+            ));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
@@ -581,6 +594,7 @@ pub unsafe fn main() {
         udp_driver,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         i2c_master_slave,
+        spi_controller,
     };
 
     let _ = platform.pconsole.start();
