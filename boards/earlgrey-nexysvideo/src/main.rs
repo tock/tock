@@ -289,7 +289,9 @@ unsafe fn setup() -> (
         components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
     );
 
-    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
+    let digest_key_buffer = static_init!([u8; 32], [0; 32]);
+
+    let digest = components::digest::DigestComponent::new(&mux_digest, digest_key_buffer).finalize(
         components::digest_component_helper!(lowrisc::hmac::Hmac, 32,),
     );
 

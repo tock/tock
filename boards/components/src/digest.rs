@@ -52,8 +52,17 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestMuxComponent
     }
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> Component
-    for DigestMuxComponent<A, L>
+impl<
+        A: 'static
+            + digest::Digest<'static, L>
+            + digest::HMACSha256
+            + digest::HMACSha384
+            + digest::HMACSha512
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
+        const L: usize,
+    > Component for DigestMuxComponent<A, L>
 {
     type StaticInput = &'static mut MaybeUninit<MuxDigest<'static, A, L>>;
     type Output = &'static MuxDigest<'static, A, L>;
@@ -80,11 +89,18 @@ macro_rules! digest_component_helper {
 
 pub struct DigestComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     mux_digest: &'static MuxDigest<'static, A, L>,
+    key_buffer: &'static mut [u8],
 }
 
 impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestComponent<A, L> {
-    pub fn new(mux_digest: &'static MuxDigest<'static, A, L>) -> DigestComponent<A, L> {
-        DigestComponent { mux_digest }
+    pub fn new(
+        mux_digest: &'static MuxDigest<'static, A, L>,
+        key_buffer: &'static mut [u8],
+    ) -> DigestComponent<A, L> {
+        DigestComponent {
+            mux_digest,
+            key_buffer,
+        }
     }
 }
 
@@ -105,7 +121,7 @@ impl<
         let virtual_digest_user = static_init_half!(
             s,
             VirtualMuxDigest<'static, A, L>,
-            VirtualMuxDigest::new(self.mux_digest)
+            VirtualMuxDigest::new(self.mux_digest, self.key_buffer)
         );
 
         virtual_digest_user
