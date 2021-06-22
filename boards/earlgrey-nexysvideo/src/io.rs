@@ -1,13 +1,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
-use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::gpio::Configure;
-use kernel::hil::led;
-
-use crate::CHIP;
-use crate::PROCESSES;
 
 struct Writer {}
 
@@ -32,6 +26,17 @@ impl IoWrite for Writer {
     }
 }
 
+#[cfg(not(test))]
+use crate::CHIP;
+#[cfg(not(test))]
+use crate::PROCESSES;
+#[cfg(not(test))]
+use kernel::debug;
+#[cfg(not(test))]
+use kernel::hil::gpio::Configure;
+#[cfg(not(test))]
+use kernel::hil::led;
+
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
@@ -55,4 +60,15 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &PROCESSES,
         &CHIP,
     )
+}
+
+#[cfg(test)]
+#[no_mangle]
+#[panic_handler]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+    let writer = &mut WRITER;
+
+    let _ = write!(writer, "{}", pi);
+    // Exit QEMU with a return code of 1
+    crate::tests::semihost_command_exit_failure();
 }

@@ -425,6 +425,38 @@ pub extern "C" fn _start_trap() {
     }
 }
 
+/// RISC-V semihosting needs three exact instructions in uncompressed form.
+///
+/// See https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence
+/// for more details on the three insturctions.
+///
+/// In order to work with semihosting we include the assembly here
+/// where we are able to disable compressed instruction support. This
+/// follows the example used in the Linux kernel:
+/// https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21
+/// as suggested by the RISC-V developers:
+/// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+    asm!(
+        "
+      .option push
+      .option norelax
+      .option norvc
+      slli x0, x0, 0x1f
+      ebreak
+      srai x0, x0, 7
+      .option pop
+      "
+    );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+    unimplemented!()
+}
+
 /// Print a readable string for an mcause reason.
 pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
     match mcval {
