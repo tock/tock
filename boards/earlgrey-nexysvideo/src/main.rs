@@ -430,6 +430,9 @@ unsafe fn setup() -> (
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     TICKV = Some(tickv);
 
+    // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
+    // to the OTBN hardware will hang.
+    // OTBN is still connected though as it works on simulation runs
     let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
 
