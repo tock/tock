@@ -1,6 +1,7 @@
 //! Implementations for generic LowRISC peripherals.
 
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
+#![feature(const_mut_refs)]
 #![no_std]
 #![crate_name = "lowrisc"]
 #![crate_type = "rlib"]

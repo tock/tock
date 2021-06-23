@@ -32,7 +32,11 @@ extern "C" {
     static mut _erelocate: usize;
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    any(chip_dauntless, chip_opentitan)
+))]
 extern "C" {
     // This function is provided by ports/dauntless/libs/runtime/start.S
     // All patches to assembler part should be done to start.S!
@@ -44,7 +48,11 @@ extern "C" {
 /// It initializes the stack pointer, the frame pointer (needed for closures to
 /// work in start_rust) and the global pointer. Then it calls `reset_handler()`,
 /// the main entry point for Tock boards.
-#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    not(any(chip_dauntless, chip_opentitan))
+))]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
 #[naked]
@@ -135,7 +143,11 @@ pub extern "C" fn _start_trap() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    any(chip_dauntless, chip_opentitan)
+))]
 extern "C" {
     // This function is provided by ports/dauntless/libs/runtime/start_trap.S
     pub fn _start_trap();
@@ -156,7 +168,11 @@ extern "C" {
 /// need to. If the trap happens while and application was executing, we have to
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
-#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    not(any(chip_dauntless, chip_opentitan))
+))]
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
 #[naked]
@@ -394,7 +410,11 @@ pub extern "C" fn _start_trap() {
     }
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none", chip_dauntless))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    any(chip_dauntless, chip_opentitan)
+))]
 extern "C" {
     // This function is provided by ports/dauntless/libs/runtime/abort.S
     // All patches to assembler part should be done to abort.S!
@@ -402,7 +422,11 @@ extern "C" {
 }
 
 /// Ensure an abort symbol exists.
-#[cfg(all(target_arch = "riscv32", target_os = "none", not(chip_dauntless)))]
+#[cfg(all(
+    target_arch = "riscv32",
+    target_os = "none",
+    not(any(chip_dauntless, chip_opentitan))
+))]
 #[link_section = ".init"]
 #[export_name = "abort"]
 pub extern "C" fn abort() {
