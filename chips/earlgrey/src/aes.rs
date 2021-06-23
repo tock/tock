@@ -4,6 +4,9 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::dynamic_deferred_call::{
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+};
 use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -116,17 +119,28 @@ pub struct Aes<'a> {
     source: TakeCell<'a, [u8]>,
     dest: TakeCell<'a, [u8]>,
     mode: Cell<Mode>,
+
+    deferred_call: Cell<bool>,
+    deferred_caller: &'static DynamicDeferredCall,
+    deferred_handle: OptionalCell<DeferredCallHandle>,
 }
 
 impl<'a> Aes<'a> {
-    pub const fn new() -> Aes<'a> {
+    pub const fn new(deferred_caller: &'static DynamicDeferredCall) -> Aes<'a> {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),
             source: TakeCell::empty(),
             dest: TakeCell::empty(),
             mode: Cell::new(Mode::IDLE),
+            deferred_call: Cell::new(false),
+            deferred_caller,
+            deferred_handle: OptionalCell::empty(),
         }
+    }
+
+    pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
+        self.deferred_handle.set(deferred_call_handle);
     }
 
     fn idle(&self) -> bool {
@@ -379,6 +393,14 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             }
         }
 
+        if self.deferred_call.get() {
+            return Some((
+                Err(ErrorCode::BUSY),
+                self.source.take(),
+                self.dest.take().unwrap(),
+            ));
+        }
+
         let ret;
         self.dest.replace(dest);
         match source {
@@ -392,9 +414,10 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         }
 
         if ret.is_ok() {
-            self.client.map(|client| {
-                client.crypt_done(self.source.take(), self.dest.take().unwrap());
-            });
+            // Schedule a deferred call
+            self.deferred_call.set(true);
+            self.deferred_handle
+                .map(|handle| self.deferred_caller.set(*handle));
             None
         } else {
             Some((ret, self.source.take(), self.dest.take().unwrap()))
@@ -471,5 +494,18 @@ impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
         // We need to set the control register twice as it's shadowed
         self.registers.ctrl.write(ctrl);
         self.registers.ctrl.write(ctrl);
+    }
+}
+
+impl<'a> DynamicDeferredCallClient for Aes<'_> {
+    fn call(&self, _handle: DeferredCallHandle) {
+        // Are we currently in a TX or RX transaction?
+        if self.deferred_call.get() {
+            self.deferred_call.set(false);
+
+            self.client.map(|client| {
+                client.crypt_done(self.source.take(), self.dest.take().unwrap());
+            });
+        }
     }
 }
