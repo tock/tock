@@ -55,7 +55,15 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacMuxComponent<A
     }
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> Component for HmacMuxComponent<A, L> {
+impl<
+        A: 'static
+            + digest::Digest<'static, L>
+            + digest::HMACSha256
+            + digest::HMACSha384
+            + digest::HMACSha512,
+        const L: usize,
+    > Component for HmacMuxComponent<A, L>
+{
     type StaticInput = &'static mut MaybeUninit<MuxHmac<'static, A, L>>;
     type Output = &'static MuxHmac<'static, A, L>;
 
@@ -85,6 +93,7 @@ pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     mux_hmac: &'static MuxHmac<'static, A, L>,
+    key_buffer: &'static mut [u8],
     data_buffer: &'static mut [u8],
     dest_buffer: &'static mut [u8; L],
 }
@@ -94,6 +103,7 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mux_hmac: &'static MuxHmac<'static, A, L>,
+        key_buffer: &'static mut [u8],
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
     ) -> HmacComponent<A, L> {
@@ -101,6 +111,7 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L
             board_kernel,
             driver_num,
             mux_hmac,
+            key_buffer,
             data_buffer,
             dest_buffer,
         }
@@ -129,7 +140,7 @@ impl<
         let virtual_hmac_user = static_init_half!(
             s.0,
             VirtualMuxHmac<'static, A, L>,
-            VirtualMuxHmac::new(self.mux_hmac)
+            VirtualMuxHmac::new(self.mux_hmac, self.key_buffer)
         );
 
         let hmac = static_init_half!(
