@@ -2,6 +2,15 @@
 
 ## master
 
+## v0.6.1
+
+ - #2589: Bump rust nightly version to 2021-05-27 to fix tock-registers
+
+  This is a backport of some of the changes introduced in #2589, in
+  order to allow tock-register-interface to compile with the latest
+  Rust nightlies. It replaces the now removed `const_fn` feature by
+  the required `const_fn_trait_bound` feature.
+
 ## v0.6
 
  - #2095: Fix syntax errors and inconsistencies in documentation
