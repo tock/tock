@@ -55,7 +55,11 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaMuxComponent<A,
     }
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> Component for ShaMuxComponent<A, L> {
+impl<
+        A: 'static + digest::Digest<'static, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
+    > Component for ShaMuxComponent<A, L>
+{
     type StaticInput = &'static mut MaybeUninit<MuxSha<'static, A, L>>;
     type Output = &'static MuxSha<'static, A, L>;
 

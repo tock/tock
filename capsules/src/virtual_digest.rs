@@ -9,14 +9,14 @@ use kernel::hil::digest::{self, Client, Digest};
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
-enum Operation {
+pub enum Operation {
     Sha256,
     Sha384,
     Sha512,
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Mode {
+pub enum Mode {
     None,
     Hmac(Operation),
     Sha(Operation),
