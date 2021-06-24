@@ -39,6 +39,15 @@ pub enum ReturnCode {
     ENOACK,
 }
 
+impl ReturnCode {
+    pub fn is_ok(&self) -> bool {
+        match self {
+            ReturnCode::SUCCESS | ReturnCode::SuccessWithValue { .. } => true,
+            _ => false,
+        }
+    }
+}
+
 impl From<ReturnCode> for isize {
     fn from(original: ReturnCode) -> isize {
         match original {
@@ -58,6 +67,25 @@ impl From<ReturnCode> for isize {
             ReturnCode::EUNINSTALLED => -12,
             ReturnCode::ENOACK => -13,
         }
+    }
+}
+
+impl From<Result<(), crate::ErrorCode>> for ReturnCode {
+    fn from(result: Result<(), crate::ErrorCode>) -> Self {
+        match result {
+            Ok(_) => ReturnCode::SUCCESS,
+            Err(e) => e.into(),
+        }
+    }
+}
+
+impl From<ReturnCode> for Result<(), crate::ErrorCode> {
+    fn from(result: ReturnCode) -> Self {
+        use core::convert::TryInto;
+        result
+            .try_into()
+            .map(|e: crate::ErrorCode| Err(e))
+            .unwrap_or(Ok(()))
     }
 }
 
