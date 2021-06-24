@@ -142,13 +142,13 @@ impl<'a> UnixProcess<'a> {
         transport: &SyscallTransport,
     ) -> *mut u8 {
         let slices_count: ipc::AllowsInfo = transport.recv_msg();
-        if slices_count.number_of_slices != 1 {
-            unsafe {
-                panic!(
-                    "Received incorrect number of slices got {} expected 1",
-                    slices_count.number_of_slices
-                );
-            }
+        let slices_count_number_of_slices =
+            unsafe { std::ptr::addr_of!(slices_count.number_of_slices).read_unaligned() };
+        if slices_count_number_of_slices != 1 {
+            panic!(
+                "Received incorrect number of slices got {} expected 1",
+                slices_count_number_of_slices
+            );
         }
         let allow_slice: ipc::AllowSliceInfo = transport.recv_msg();
 
@@ -159,13 +159,12 @@ impl<'a> UnixProcess<'a> {
         let mut buf: Vec<u8> = Vec::new();
         buf.resize_with(allow_slice.length, Default::default);
         let rx_len = transport.recv_bytes(buf.as_mut_slice());
-        if rx_len != allow_slice.length {
-            unsafe {
-                panic!(
-                    "Slice length mismatch, expected {}, but got {}",
-                    allow_slice.length, rx_len
-                );
-            }
+        let allow_slice_length = unsafe { std::ptr::addr_of!(allow_slice.length).read_unaligned() };
+        if rx_len != allow_slice_length {
+            panic!(
+                "Slice length mismatch, expected {}, but got {}",
+                allow_slice_length, rx_len
+            );
         }
         let app_slice_addr = allow_slice.address as *const u8;
         if app_slice_addr != app_allow_address {
