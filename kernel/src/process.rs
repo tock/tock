@@ -635,6 +635,19 @@ impl From<Error> for ReturnCode {
     }
 }
 
+impl From<Error> for crate::ErrorCode {
+    fn from(err: Error) -> Self {
+        use crate::ErrorCode;
+        match err {
+            Error::NoSuchApp => ErrorCode::INVAL,
+            Error::OutOfMemory => ErrorCode::NOMEM,
+            Error::AddressOutOfBounds => ErrorCode::INVAL,
+            Error::InactiveApp => ErrorCode::FAIL,
+            Error::KernelError => ErrorCode::FAIL,
+        }
+    }
+}
+
 /// Various states a process can be in.
 ///
 /// This is made public in case external implementations of `ProcessType` want
