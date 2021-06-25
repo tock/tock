@@ -266,6 +266,10 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 show-target:
 	$(info $(TARGET))
 
+# cargo bloat does not support -Z build-std, so we must remove it from cargo flags
+# see https://github.com/RazrFalcon/cargo-bloat/issues/62
+CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
+
 # This rule is a copy of the rule used to build the release target, but
 # `cargo rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
 # interface of `cargo build`, rather than `cargo rustc`, so we need to move
@@ -277,7 +281,7 @@ show-target:
 # `BLOAT_FLAGS=--crates make cargobloat`
 .PHONY: cargobloat
 cargobloat:
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(BLOAT_FLAGS)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(BLOAT_FLAGS)
 
 # To pass additional flags to `cargo bloat`, populate the
 # BLOAT_FLAGS environment variable, e.g. call
