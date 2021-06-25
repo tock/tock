@@ -34,7 +34,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
+    ReadWriteAppSlice,
 };
 
 enum ShaOperation {
@@ -105,26 +106,27 @@ impl<
                     }
 
                     app.data.map_or(Err(ErrorCode::RESERVE), |d| {
+                        let mut static_buffer_len = 0;
                         self.data_buffer.map(|buf| {
                             let data = d.as_ref();
 
                             // Determine the size of the static buffer we have
-                            let static_buffer_len = buf.len();
+                            static_buffer_len = buf.len();
 
-                            // If we have more data then the static buffer we set how much data we are going to copy
-                            if data.len() > static_buffer_len {
-                                self.data_copied.set(static_buffer_len);
+                            if static_buffer_len > data.len() {
+                                static_buffer_len = data.len()
                             }
 
+                            self.data_copied.set(static_buffer_len);
+
                             // Copy the data into the static buffer
-                            buf.copy_from_slice(&data[..static_buffer_len]);
+                            buf[..static_buffer_len].copy_from_slice(&data[..static_buffer_len]);
                         });
 
                         // Add the data from the static buffer to the HMAC
-                        if let Err(e) = self
-                            .hmac
-                            .add_data(LeasableBuffer::new(self.data_buffer.take().unwrap()))
-                        {
+                        let mut lease_buf = LeasableBuffer::new(self.data_buffer.take().unwrap());
+                        lease_buf.slice(0..static_buffer_len);
+                        if let Err(e) = self.hmac.add_data(lease_buf) {
                             self.data_buffer.replace(e.1);
                             return Err(e.0);
                         }
@@ -269,7 +271,7 @@ impl<
                     let pointer = digest.as_ref()[0] as *mut u8;
 
                     app.dest.mut_map_or((), |dest| {
-                        dest.as_mut().copy_from_slice(digest.as_ref());
+                        dest.as_mut()[0..L].copy_from_slice(&digest.as_ref()[0..L]);
                     });
 
                     match result {
@@ -327,11 +329,37 @@ impl<
         mut slice: ReadWriteAppSlice,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = match allow_num {
+            // Pass buffer for the digest to be in.
+            2 => self
+                .apps
+                .enter(appid, |app, _| {
+                    mem::swap(&mut slice, &mut app.dest);
+                    Ok(())
+                })
+                .unwrap_or(Err(ErrorCode::FAIL)),
+
+            // default
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
+
+        match res {
+            Ok(()) => Ok(slice),
+            Err(e) => Err((slice, e)),
+        }
+    }
+
+    fn allow_readonly(
+        &self,
+        appid: ProcessId,
+        allow_num: usize,
+        mut slice: ReadOnlyAppSlice,
+    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        let res = match allow_num {
             // Pass buffer for the key to be in
             0 => self
                 .apps
                 .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.key);
+                    mem::swap(&mut app.key, &mut slice);
                     Ok(())
                 })
                 .unwrap_or(Err(ErrorCode::FAIL)),
@@ -340,16 +368,7 @@ impl<
             1 => self
                 .apps
                 .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.data);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // Pass buffer for the digest to be in.
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.dest);
+                    mem::swap(&mut app.data, &mut slice);
                     Ok(())
                 })
                 .unwrap_or(Err(ErrorCode::FAIL)),
@@ -495,7 +514,7 @@ impl<
 pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
-    key: ReadWriteAppSlice,
-    data: ReadWriteAppSlice,
+    key: ReadOnlyAppSlice,
+    data: ReadOnlyAppSlice,
     dest: ReadWriteAppSlice,
 }

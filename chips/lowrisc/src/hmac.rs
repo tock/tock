@@ -28,7 +28,9 @@ register_structs! {
         (0x64 => msg_length_upper: ReadOnly<u32>),
         (0x68 => _reserved0),
         (0x800 => msg_fifo: WriteOnly<u32>),
-        (0x804 => @END),
+        (0x804 => msg_fifo_8: WriteOnly<u8>),
+        (0x805 => _reserved1),
+        (0x808 => @END),
     }
 }
 
@@ -108,23 +110,24 @@ impl Hmac<'_> {
 
                     let data_idx = idx + i * 4;
 
-                    let mut d = (slice[data_idx + 0] as u32) << 0;
-                    d |= (slice[data_idx + 1] as u32) << 8;
-                    d |= (slice[data_idx + 2] as u32) << 16;
-                    d |= (slice[data_idx + 3] as u32) << 24;
+                    let mut d = (slice[data_idx + 3] as u32) << 0;
+                    d |= (slice[data_idx + 2] as u32) << 8;
+                    d |= (slice[data_idx + 1] as u32) << 16;
+                    d |= (slice[data_idx + 0] as u32) << 24;
 
                     regs.msg_fifo.set(d);
                     self.data_index.set(data_idx + 4);
                 }
 
-                let idx = self.data_index.get();
+                if (data_len % 4) != 0 {
+                    let idx = self.data_index.get();
 
-                for i in 0..(data_len % 4) {
-                    let data_idx = idx + i;
-                    let d = (slice[data_idx]) as u32;
+                    for i in 0..(data_len % 4) {
+                        let data_idx = idx + i;
 
-                    regs.msg_fifo.set(d);
-                    self.data_index.set(data_idx + 1)
+                        regs.msg_fifo_8.set(slice[data_idx]);
+                        self.data_index.set(data_idx + 1)
+                    }
                 }
             }
             self.data.set(Some(LeasableBuffer::new(slice)));
@@ -254,6 +257,7 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
 impl hil::digest::HMACSha256 for Hmac<'_> {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
+        let mut key_idx = 0;
 
         if key.len() != 32 {
             return Err(ErrorCode::NOSUPPORT);
@@ -261,7 +265,7 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
 
         // Ensure the HMAC is setup
         regs.cfg.write(
-            CFG::HMAC_EN::SET + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::SET + CFG::DIGEST_SWAP::SET,
+            CFG::HMAC_EN::SET + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::CLEAR + CFG::DIGEST_SWAP::SET,
         );
 
         for i in 0..8 {
@@ -273,6 +277,17 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
             k |= (key[i * 4 + 3] as u32) << 24;
 
             regs.key[i as usize].set(k);
+            key_idx = i + 1;
+        }
+
+        if (key.len() % 4) != 0 {
+            let mut k = 0;
+
+            for i in 0..(key.len() % 4) {
+                k = k | (key[key_idx * 4 + i] as u32) << (8 * (3 - i));
+            }
+
+            regs.key[key_idx].set(k);
         }
 
         Ok(())
@@ -297,7 +312,10 @@ impl hil::digest::Sha256 for Hmac<'_> {
 
         // Ensure the SHA is setup
         regs.cfg.write(
-            CFG::HMAC_EN::CLEAR + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::SET + CFG::DIGEST_SWAP::SET,
+            CFG::HMAC_EN::CLEAR
+                + CFG::SHA_EN::SET
+                + CFG::ENDIAN_SWAP::CLEAR
+                + CFG::DIGEST_SWAP::SET,
         );
 
         Ok(())
