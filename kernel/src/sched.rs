@@ -395,7 +395,7 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
-        Grant::new(self, grant_index)
+        Grant::new(self, grant_index, 2)
     }
 
     /// Returns the number of grants that have been setup in the system and

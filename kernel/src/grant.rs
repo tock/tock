@@ -111,6 +111,7 @@ use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
+use core::slice;
 
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
@@ -181,6 +182,8 @@ pub struct ProcessGrant<'a, T: 'a> {
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
 
+    number_of_upcalls: usize,
+
     /// Used to keep the Rust type of the grant.
     _phantom: PhantomData<T>,
 }
@@ -225,6 +228,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // used.
 
         let grant_num = grant.grant_num;
+        let number_of_upcalls = grant.number_of_upcalls;
         let processid = process.processid();
 
         // Check if the grant is allocated. If not, we allocate it process
@@ -240,31 +244,49 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 //
                 // If the grant could not be allocated this will cause the
                 // `new()` function to return with an error.
-                let alloc_size = size_of::<T>() + size_of::<SavedUpcall>();
+                //
+                // MATH
+                let alloc_size = size_of::<T>()
+                    + size_of::<usize>()
+                    + (number_of_upcalls * size_of::<SavedUpcall>());
 
                 // todo: ensure alignment
 
-                let (new_region_grant, new_region_upcalls) = processid.kernel.process_map_or(
-                    Err(Error::NoSuchApp),
-                    processid,
-                    |process| {
+                let (new_region_upcall_count, new_region_upcalls, new_region_grant) = processid
+                    .kernel
+                    .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                         process
                             .allocate_grant(grant_num, 85, alloc_size, align_of::<T>())
                             .map_or(Err(Error::OutOfMemory), |buf| {
-                                // Convert untyped `*mut u8` allocation to
-                                // allocated type
-                                let ptr_grant = NonNull::cast::<T>(buf);
+                                let ptr_upcall_count = NonNull::cast::<usize>(buf);
+
+                                // let ptr_upcalls = NonNull::cast::<[SavedUpcall; number_of_upcalls]>(buf);
 
                                 let ptr_upcalls = unsafe {
-                                    NonNull::cast::<SavedUpcall>(NonNull::new_unchecked(
-                                        buf.as_ptr().add(size_of::<T>()),
-                                    ))
+                                    slice::from_raw_parts_mut(
+                                        buf.as_ptr().add(size_of::<usize>()) as *mut SavedUpcall,
+                                        number_of_upcalls,
+                                    )
                                 };
 
-                                Ok((ptr_grant, ptr_upcalls))
+                                // let ptr_upcalls = unsafe {
+                                //     NonNull::cast::<[SavedUpcall]>(NonNull::new_unchecked(
+                                //         buf.as_ptr().add(size_of::<usize>()),
+                                //     ))
+                                // };
+
+                                // Convert untyped `*mut u8` allocation to
+                                // allocated type
+                                let ptr_grant = unsafe {
+                                    NonNull::cast::<T>(NonNull::new_unchecked(buf.as_ptr().add(
+                                        size_of::<usize>()
+                                            + (number_of_upcalls * size_of::<SavedUpcall>()),
+                                    )))
+                                };
+
+                                Ok((ptr_upcall_count, ptr_upcalls, ptr_grant))
                             })
-                    },
-                )?;
+                    })?;
 
                 // ### Safety
                 //
@@ -279,17 +301,29 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 // 2. The pointer is correct aligned. The `allocate_grant()`
                 //    function ensures the pointer is correctly aligned.
                 unsafe {
+                    write(new_region_upcall_count.as_ptr(), number_of_upcalls);
+
+                    // write(
+                    //     new_region_upcalls.as_mut_ptr(),
+                    //     SavedUpcall {
+                    //         appdata: 0,
+                    //         fn_ptr: None,
+                    //     },
+                    // );
+
+                    for upcall_ptr in new_region_upcalls.iter_mut() {
+                        write(
+                            upcall_ptr,
+                            SavedUpcall {
+                                appdata: 0,
+                                fn_ptr: None,
+                            },
+                        );
+                    }
+
                     // We use `ptr::write` to avoid `Drop`ping the uninitialized
                     // memory in case `T` implements the `Drop` trait.
                     write(new_region_grant.as_ptr(), T::default());
-
-                    write(
-                        new_region_upcalls.as_ptr(),
-                        SavedUpcall {
-                            appdata: 0,
-                            fn_ptr: None,
-                        },
-                    );
                 }
             }
 
@@ -298,6 +332,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             Ok(ProcessGrant {
                 process: process,
                 grant_num: grant_num,
+                number_of_upcalls: number_of_upcalls,
                 _phantom: PhantomData,
             })
         } else {
@@ -316,6 +351,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                 Some(ProcessGrant {
                     process: process,
                     grant_num: grant.grant_num,
+                    number_of_upcalls: grant.number_of_upcalls,
                     _phantom: PhantomData,
                 })
             } else {
@@ -833,6 +869,9 @@ pub struct Grant<T: Default> {
     /// process.
     grant_num: usize,
 
+    /// How many upcalls the capsule that is using this grant requires.
+    number_of_upcalls: usize,
+
     /// Used to keep the Rust type of the grant.
     ptr: PhantomData<T>,
 }
@@ -843,10 +882,15 @@ impl<T: Default> Grant<T> {
     ///
     /// This must only be called from the main kernel so that it can ensure that
     /// `grant_index` is a valid index.
-    pub(crate) fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
+    pub(crate) fn new(
+        kernel: &'static Kernel,
+        grant_index: usize,
+        number_of_upcalls: usize,
+    ) -> Grant<T> {
         Grant {
             kernel: kernel,
             grant_num: grant_index,
+            number_of_upcalls: number_of_upcalls,
             ptr: PhantomData,
         }
     }
