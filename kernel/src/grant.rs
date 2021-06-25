@@ -557,6 +557,20 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             return None;
         };
 
+        // `grant_ptr` now refers to the special memory we store for each
+        // `Grant` which contains the number of upcalls for this grant, an array
+        // of upcall data, and then the object of type T.
+        //
+        // To get to the correct pointer where object of type T is store, we
+        // have to increment the pointer past our saved upcall state.
+        //
+        // # Safety
+        //
+        // TODO
+        let grant_type_ptr = unsafe {
+            grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
+        };
+
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
         // grant is restricted by the type system to access this memory safely.
@@ -570,7 +584,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // when the grant is allocated. We ensure that only one reference can
         // ever exist by marking the grant entered in `enter_grant()`, and
         // subsequent calls to `enter_grant()` will fail.
-        let grant = unsafe { &mut *(grant_ptr as *mut T) };
+        let grant = unsafe { &mut *(grant_type_ptr as *mut T) };
 
         // Create a wrapped object that is passed to the capsule.
         let mut grant_memory = GrantMemory::new(grant);
@@ -628,6 +642,13 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             return None;
         };
 
+        // # Safety
+        //
+        // TODO
+        let grant_type_ptr = unsafe {
+            grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
+        };
+
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
         // grant is restricted by the type system to access this memory safely.
@@ -641,7 +662,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // when the grant is allocated. We ensure that only one reference can
         // ever exist by marking the grant entered in `enter_grant()`, and
         // subsequent calls to `enter_grant()` will fail.
-        let grant = unsafe { &mut *(grant_ptr as *mut T) };
+        let grant = unsafe { &mut *(grant_type_ptr as *mut T) };
 
         // Create a wrapped object that is passed to the capsule.
         let mut grant_memory = GrantMemory::new(grant);
