@@ -14,6 +14,32 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
+/// Generates the (u128, u128) tuple used for the NVIC's mask functions
+/// `next_pending_with_mask` and `next_pending_with_mask`.
+///
+/// if let Some(interrupt) =
+///     cortexm0p::nvic::next_pending_with_mask(interrupt_mask!(interrupts::SIO_IRQ_PROC1))
+/// {
+///     // ...
+/// }
+#[macro_export]
+macro_rules! interrupt_mask {
+    ($($interrupt: expr),+) => {{
+        let mut high_interrupt: u128 = 0;
+        let mut low_interrupt: u128 = 0;
+        $(
+            if ($interrupt < 128) {
+                low_interrupt = low_interrupt | (1 << $interrupt) as u128
+            }
+            else
+            {
+                high_interrupt = high_interrupt | (1 << ($interrupt-128)) as u128
+            }
+        );+
+        (high_interrupt, low_interrupt)
+    }};
+}
+
 register_structs! {
     /// NVIC Registers.
     ///
@@ -134,11 +160,56 @@ pub unsafe fn next_pending() -> Option<u32> {
     None
 }
 
+/// Get the index (0-240) the lowest number pending interrupt while ignoring the interrupts
+/// that correspond to the bits set in mask, or `None` if none
+/// are pending.
+///
+/// Mask is defined as two u128 fields,
+///   mask.0 has the bits corresponding to interrupts from 128 to 240
+///   mask.1 has the bits corresponding to interrupts from 0 to 127
+pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
+    for (block, ispr) in NVIC
+        .ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .enumerate()
+    {
+        let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
+        let ispr_masked = ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32);
+
+        // If there are any high bits there is a pending interrupt
+        if ispr_masked != 0 {
+            // trailing_zeros == index of first high bit
+            let bit = ispr_masked.trailing_zeros();
+            return Some(block as u32 * 32 + bit);
+        }
+    }
+    None
+}
+
 pub unsafe fn has_pending() -> bool {
     NVIC.ispr
         .iter()
         .take(number_of_nvic_registers())
         .fold(0, |i, ispr| ispr.get() | i)
+        != 0
+}
+
+/// Returns whether there are any pending interrupt bits set while ignoring
+/// the indices that correspond to the bits set in mask
+///
+/// Mask is defined as two u128 fields,
+///   mask.0 has the bits corresponding to interrupts from 128 to 240
+///   mask.1 has the bits corresponding to interrupts from 0 to 127
+pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
+    NVIC.ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .enumerate()
+        .fold(0, |i, (block, ispr)| {
+            let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
+            (ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32)) | i
+        })
         != 0
 }
 

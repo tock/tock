@@ -202,10 +202,15 @@ pub unsafe extern "C" fn switch_to_user(
     process_regs: &mut [usize; 8],
 ) -> *mut u8 {
     asm!("
-    // Manually save r6 in r2 and r7 in r3 since as of Feb 2021 asm!() will not
-    // let us mark r6 or r7 as clobbers.
+    // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
+    // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
+    // the frame pointer. However, in the process of restoring and saving the
+    // process's registers, we do in fact clobber r6, r7 and r9. So, we work
+    // around this by doing our own manual saving of r6 using r2, r7 using r3,
+    // r9 using r12, and then mark those as clobbered.
     mov r2, r6
     mov r3, r7
+    mov r12, r9
 
     /* Load non-hardware-stacked registers from Process stack */
     ldmia r1!, {{r4-r7}}
@@ -243,15 +248,16 @@ pub unsafe extern "C" fn switch_to_user(
 
     mrs r0, PSP /* PSP into user_stack */
 
-    // Manually restore r6 and r7.
+    // Manually restore r6, r7 and r9.
     mov r6, r2
     mov r7, r3
+    mov r9, r12
 
     ",
     inout("r0") user_stack,
     in("r1") process_regs,
-    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, out("r9") _,
-    out("r10") _, out("r11") _);
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, 
+    out("r10") _, out("r11") _, out("r12") _);
 
     user_stack as *mut u8
 }
@@ -282,17 +288,27 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         xpsr: *faulting_stack.offset(7),
     };
 
-    // NOTE: Unlike Cortex-M3, `panic!` does not seem to work
-    //       here. `panic!` seems to be producing wrong `PanicInfo`
-    //       value. Therefore as a workaround, capture the stacked
-    //       registers and invoke a breakpoint.
-    //
-    asm!(
-        "
-         bkpt
-1:
-         b 1b
-         "
+    panic!(
+        "Kernel HardFault.\r\n\
+         \tKernel version {}\r\n\
+         \tr0  0x{:x}\r\n\
+         \tr1  0x{:x}\r\n\
+         \tr2  0x{:x}\r\n\
+         \tr3  0x{:x}\r\n\
+         \tr12  0x{:x}\r\n\
+         \tlr  0x{:x}\r\n\
+         \tpc  0x{:x}\r\n\
+         \txpsr  0x{:x}\r\n\
+         ",
+        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
+        hardfault_stacked_registers.r0,
+        hardfault_stacked_registers.r1,
+        hardfault_stacked_registers.r2,
+        hardfault_stacked_registers.r3,
+        hardfault_stacked_registers.r12,
+        hardfault_stacked_registers.lr,
+        hardfault_stacked_registers.pc,
+        hardfault_stacked_registers.xpsr
     );
 }
 

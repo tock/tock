@@ -239,7 +239,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     ldr r0, ={sbss}     // r0 = first address of .bss
     ldr r1, ={ebss}     // r1 = first address after .bss
 
-    mov r2, #0          // r2 = 0
+    movs r2, #0          // r2 = 0
 
   bss_init_loop:
     cmp r1, r0          // We increment r0. Check if we have reached r1
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     // application has executed.
     mrs r0, PSP   // r0 = PSP
 
-    // Need to restore r6 and r7 since we clobbered them when switching to and
+    // Need to restore r6, r7 and r12 since we clobbered them when switching to and
     // from the app.
     mov r6, r2
     mov r7, r3

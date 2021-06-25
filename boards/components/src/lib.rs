@@ -46,6 +46,7 @@ pub mod sound_pressure;
 pub mod spi;
 pub mod st77xx;
 pub mod temperature;
+pub mod temperature_rp2040;
 pub mod temperature_stm;
 pub mod test;
 pub mod text_screen;
