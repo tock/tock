@@ -49,6 +49,12 @@ pub(crate) struct Config {
     /// by about 2kB. As of 05/06/2020, disabling this option reduced system call overhead by
     /// about 200 cycles.
     pub(crate) debug_processes: bool,
+
+    /// Whether the kernel should output additional debug information on panics.
+    ///
+    /// If enabled, the kernel will include Process::print_full_process() and
+    /// Process::print_memory_map()
+    pub(crate) debug_panics: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
@@ -66,4 +72,8 @@ pub(crate) const CONFIG: Config = Config {
     debug_processes: false,
     #[cfg(debug_processes)]
     debug_processes: true,
+    #[cfg(not(debug_panics))]
+    debug_panics: false,
+    #[cfg(debug_panics)]
+    debug_panics: true,
 };
