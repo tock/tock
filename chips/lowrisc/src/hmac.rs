@@ -259,7 +259,7 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
         let regs = self.registers;
         let mut key_idx = 0;
 
-        if key.len() != 32 {
+        if key.len() > 32 {
             return Err(ErrorCode::NOSUPPORT);
         }
 
@@ -268,13 +268,13 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
             CFG::HMAC_EN::SET + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::CLEAR + CFG::DIGEST_SWAP::SET,
         );
 
-        for i in 0..8 {
+        for i in 0..(key.len() / 4) {
             let idx = i * 4;
 
-            let mut k = key[idx + 0] as u32;
-            k |= (key[i * 4 + 1] as u32) << 8;
-            k |= (key[i * 4 + 2] as u32) << 16;
-            k |= (key[i * 4 + 3] as u32) << 24;
+            let mut k = key[idx + 3] as u32;
+            k |= (key[i * 4 + 2] as u32) << 8;
+            k |= (key[i * 4 + 1] as u32) << 16;
+            k |= (key[i * 4 + 0] as u32) << 24;
 
             regs.key[i as usize].set(k);
             key_idx = i + 1;
@@ -288,6 +288,11 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
             }
 
             regs.key[key_idx].set(k);
+            key_idx = key_idx + 1;
+        }
+
+        for i in key_idx..8 {
+            regs.key[i as usize].set(0);
         }
 
         Ok(())
