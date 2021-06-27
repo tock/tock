@@ -58,11 +58,11 @@ use kernel::hil::crc::{self, CrcAlg};
 use kernel::ErrorCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
-const BASE_ADDRESS: StaticRef<CrccuRegisters> =
+pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =
     unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
 
 #[repr(C)]
-struct CrccuRegisters {
+pub struct CrccuRegisters {
     // From page 1005 of SAM4L manual
     dscr: ReadWrite<u32, DescriptorBaseAddress::Register>,
     _reserved0: u32,
@@ -239,9 +239,9 @@ pub struct Crccu<'a> {
 const DSCR_RESERVE: usize = 512 + 5 * 4;
 
 impl Crccu<'_> {
-    pub const fn new() -> Self {
+    pub const fn new(base_addr: StaticRef<CrccuRegisters>) -> Self {
         Crccu {
-            registers: BASE_ADDRESS,
+            registers: base_addr,
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
             alg: Cell::new(CrcAlg::Crc32C),
