@@ -67,7 +67,7 @@ impl Sam4lDefaultPeripherals {
             adc: crate::adc::Adc::new(crate::dma::DMAPeripheral::ADCIFE_RX, pm),
             aes: crate::aes::Aes::new(),
             ast: crate::ast::Ast::new(),
-            crccu: crate::crccu::Crccu::new(),
+            crccu: crate::crccu::Crccu::new(crate::crccu::BASE_ADDRESS),
             dac: crate::dac::Dac::new(),
             dma_channels: [
                 DMAChannel::new(DMAChannelNum::DMAChannel00),
