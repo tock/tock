@@ -79,6 +79,15 @@ impl From<Result<(), crate::ErrorCode>> for ReturnCode {
     }
 }
 
+impl From<Result<usize, crate::ErrorCode>> for ReturnCode {
+    fn from(result: Result<usize, crate::ErrorCode>) -> Self {
+        match result {
+            Ok(value) => ReturnCode::SuccessWithValue { value },
+            Err(e) => e.into(),
+        }
+    }
+}
+
 impl From<ReturnCode> for Result<(), crate::ErrorCode> {
     fn from(result: ReturnCode) -> Self {
         use core::convert::TryInto;
