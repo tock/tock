@@ -6,7 +6,29 @@ The Tock core team maintains the following hardware CI instances:
 - Hail (WIP)	UC San Diego; contact: Pat Pannuto <ppannuto@ucsd.edu>, Anthony Quiroga <aquiroga@usd.edu>
 
 <!-- npm i -g markdown-toc; markdown-toc -i CI_Hardware.md -->
+
 <!-- toc -->
+
+- [How To Set Up a New Instance](#how-to-set-up-a-new-instance)
+  * [Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))](#getting-started-sourcehttpsgoodoomoodoogithubiotock-test-harnessguide)
+  * [Troubleshoot](#troubleshoot)
+    + [To run on your local-host (instead of Github)](#to-run-on-your-local-host-instead-of-github)
+    + [WiFi not connected after first boot](#wifi-not-connected-after-first-boot)
+    + [Action runner: **command not found**](#action-runner-command-not-found)
+  * [Creating the Configuration File](#creating-the-configuration-file)
+- [How Instances Work](#how-instances-work)
+  * [Process of Instances](#process-of-instances)
+    + [What are actions/runners?](#what-are-actionsrunners)
+  * [Configuration Files](#configuration-files)
+  * [Looking in the Workflow ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))](#looking-in-the-workflow-tock-hw-ciymlhttpsgithubcomgoodoomoodootockblobmastergithubworkflowstock-hw-ciyml)
+- [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
+  * [Location](#location)
+  * [How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))](#how-tests-work-example---gpio-folderhttpsgithubcomgoodoomoodoolibtock-ctreemasterexamplesci-testsgpio)
+- [How Tests are Chosen](#how-tests-are-chosen)
+- [What to do if Something Goes Wrong](#what-to-do-if-something-goes-wrong)
+  * [If a test fails](#if-a-test-fails)
+  * [If there’s boot up issues of the Raspberry Pi](#if-theres-boot-up-issues-of-the-raspberry-pi)
+
 <!-- tocstop -->
 
 ![Workflow](tock/doc/images/workflow.png)
@@ -218,4 +240,4 @@ Take a look at what type of test failed (in the output on github) and see what i
 ## If there’s boot up issues of the Raspberry Pi
 Go to Troubleshooting section [here.](#troubleshoot)
 
-**Further updates here will be made accordingly to new issues that arise.** 
+**Further updates here will be made accordingly to new issues that arise.**
