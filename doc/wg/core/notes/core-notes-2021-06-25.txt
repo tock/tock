@@ -1,0 +1,74 @@
+# Tock Core Notes 2021-06-27
+
+Attending:
+- Alexandru Radovici
+- Arjun Deopujari
+- Brad Campbell
+- Branden Ghena
+- Hudson Ayers
+- Johnathan Van Why
+- Leon Schuermann
+- Pat Pannuto
+- Phil Levis
+- Vadim Sukhomlinov
+- Anthony Quiroga
+
+## Updates
+
+- Pat: I want to introduce Anthony.  He is going to be working over the summer on the CI stuff that was
+getting going.  You can expect a PR of how it is going to work later today after I read over it.
+- Leon: We have been getting inquiries on releasing a new "Tock-registers" version.  Unfortunately, the latest
+Rust nightly build does break the current released version.  We should look into that.  One PR I released has some discussion
+and we should discuss how to continue from there and we can release a new version accordingly.
+- Johnathan: If they are asking for an updated Tock-registers version, can't we just update Tock to that version?  This might
+solve everyone's problems.
+- Leon: We have but it makes sense to release a new version of Tock-registers.  It refactored some bits but not the general 
+structure which doesn't make a ton of sense now.  There is already a PR out for which we need to have a loose resolution and then
+we can release the new version.  I created a PR which back-ports the essential change which is just renaming a Rust feature.  We can release
+that.
+- Amit: Here is the PR: https://github.com/tock/tock/pull/2618
+- Phil: My update is that I have two undergraduates working with me this summer on code size. 
+We'll give updates on progress as they happen. One possible outcome is a tool that characterizes 
+embedded data and what code is referencing it.
+- Phil: Just to be clear, embedded data does not refer to the ".data" section, it refers to data embedded
+in the ".text" section.
+- Hudson: Working on an out-of-tree Tock code base, I ran into an LLVM bug.  If you replace the panic handler with an empty loop
+on any nightly Rust before this march, it breaks memory safety with Rust.  LLVM assumes panics can never happen and so removes all 
+checks.  So, for example, checks for buffer overflows will disappear.  All the checks in the binary where the code could panic would 
+be dropped.  This seems to be fixed in LLVM 12.
+- Amit:  Is the fix incidental or an explicit one (this is ok to do now)?
+- It is not incidental but intentional I believe.
+
+
+## Tock 2.0
+
+- Leon: Last week, we talked about how we are going to approach the app slice issue after the TRD changes have been merged.  These
+changes allow for apps to allow overlapping buffers into the kernel as part of the `allow` mechanism.  That is, overlapping between the
+same `allow` call (read/write or read only) or between different `allow` calls and different capsules.  This means we have to 
+handle this in the kernel and cannot use regular rust slices anymore or we'll see undefined behavior.  We need to handle this while
+maintaining an API that is easy-to-use and backwards-compatible with previous versions.  
+...
+- Amit: So this issue with rewriting the drivers, are you mostly finished with it.
+- Leon: I finished porting and I can release the PR today.  the CRC driver is a little tough, however.  I'll submit a PR without that
+to elicit feedback.
+- Amit: Ok.  Maybe someone else can handle the CRC driver.
+- Leon: Sure.
+
+
+## Callback-Swapping
+
+- Amit:  Now, let's talk about releasing Tock 2.0 and where we stand with it.
+- Amit: Here is the tracking issue: https://github.com/tock/tock/issues/2429
+- Amit: Here are the outstanding tasks according to the issue
+              - `kernel` crate exports
+              - dealing with `tockloader install`
+- Leon: The callback-swapping issue is unresolved.  We don't need to solve this prior to releasing 2.0.  However, according to the TRD, would
+be great to have prior to the release.
+- Hudson: How critical is the `tockloader install blink` deal?  I think Brad worked on that and was convinced it was a harder issue than we had 
+previously thought.
+- Amit: I don't think it will be a blocking issue for release.
+- Hudson: I suppose we could check if any app that issues a system call which is the old `memop` number fails.
+
+
+
+
