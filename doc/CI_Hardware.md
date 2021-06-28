@@ -31,7 +31,7 @@ The Tock core team maintains the following hardware CI instances:
 
 <!-- tocstop -->
 
-**Note:** This machine should be on a stable, reliable network (i.e. a campus or office setup) to ensure it is always available to run tests. Also of note, runners may run arbitrary code from community-generated Pull Requests (PRs), which may create a security risk. Once initial configuration is complete, the only network access the runner should need is to Github servers, so this box can be firewalled accordingly.
+![Workflow](tock/doc/images/workflow.png)
 
 # How To Set Up a New Instance
 
