@@ -2,10 +2,8 @@
 In addition to software tests, Tock allows platform maintainers to deploy CI runners for hardware platforms, to ensure continuous on-metal performance correctness. The hardware CI is federated, and maintainers for each hardware platform are responsible for ensuring that their hardware CI system is set up, accessible, and runs correctly.
 
 The Tock core team maintains the following hardware CI instances:
-- Nrf52840dk	UC San Diego; contact: Pat Pannuto <ppannuto@ucsd.edu>, Anthony Quiroga <aquiroga@ucsd.edu> 
-- Hail (WIP)	UC San Diego; contact: Pat Pannuto <ppannuto@ucsd.edu>, Anthony Quiroga <aquiroga@usd.edu>
-
-<!-- npm i -g markdown-toc; markdown-toc -i CI_Hardware.md -->
+- [Nrf52840dk](../boards/nordic/nrf52840dk)	UC San Diego; contact: Pat Pannuto <ppannuto@ucsd.edu>, Anthony Quiroga <aquiroga@ucsd.edu> 
+- [Hail (WIP)](https://github.com/tock/tock/tree/master/boards/hail)	UC San Diego; contact: Pat Pannuto <ppannuto@ucsd.edu>, Anthony Quiroga <aquiroga@usd.edu>
 
 <!-- toc -->
 
@@ -28,12 +26,18 @@ The Tock core team maintains the following hardware CI instances:
 - [What to do if Something Goes Wrong](#what-to-do-if-something-goes-wrong)
   * [If a test fails](#if-a-test-fails)
   * [If there’s boot up issues of the Raspberry Pi](#if-theres-boot-up-issues-of-the-raspberry-pi)
-
+  
 <!-- tocstop -->
 
-![Workflow](tock/doc/images/workflow.png)
+![Workflow](/images/ci-hardware/workflow.png)
 
 # How To Set Up a New Instance
+
+You will need a local machine to run the unit tests that is attached to the Tock development board under test.
+
+This section explains the software setup needed for this box. These directions assume you are using a Raspberry Pi (RPi), which will likely be easiest as there are already pins and drivers for GPIO, SPI, and I2C testing available for RPis, but in principle, any Linux-like platform should work.
+
+**Note:** This machine should be on a stable, reliable network (i.e. a campus or office setup) to ensure it is always available to run tests. Also of note, runners may run arbitrary code from community-generated Pull Requests (PRs), which may create a security risk. Once initial configuration is complete, the only network access the runner should need is to Github servers, so this box can be firewalled accordingly.
 
 ## Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))
 
@@ -167,8 +171,6 @@ Instances in this case are workflows with Github actions that set runners to com
 As stated instances work through GitHub actions that set up runners. These are called workflows, and are set to call whenever a specific action occurs.
 
 ### What are actions/runners?
-Before getting into the 
-
 Github actions are automated tasks that the user sets up for software development. These actions are event-driven, meaning that the tasks, or set of commands, are run after a specified event has occurred. In our case, this would be everytime someone pushes changes to the repository to update software to certain Tock supported boards, and this would automatically run tasks that execute tests to verify such updates work as intended. 
 
 Github actions can be used to set up runners, which are [servers that have the GitHub Actions runner application installed.](https://docs.github.com/en/actions/learn-github-actions/introduction-to-github-actions) Runners can be run through the github server, or be hosted by the user locally, which we typically do the latter. A runner listens for jobs, does one job at a time, and reports progress and results back to github, keeping all information at one place for convenience. 
@@ -207,7 +209,7 @@ For example:
 # Where Tests are Located and How They Work
 
 ## Location
-The tests are located in the “libtock-c” repository, and there is a list of tests held in the directory “libtock-c/examples/ci-tests” located [here](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests). Tests are held in each folder, and the labels of each folder are the kind of tests programmed to run. For example, ble folder represents the ble test. To explain how the tests work with the multiple files for each test folder, I’ll use the gpio test as reference.
+The tests are located in the “libtock-c” repository, and there is a list of tests held in the directory [libtock-c/examples/ci-tests](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests). Tests are held in each folder, and the labels of each folder are the kind of tests programmed to run. For example, ble folder represents the ble test. To explain how the tests work with the multiple files for each test folder, I’ll use the gpio test as reference.
 
 ## How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
 There are two files for each test that are used for the actual process of testing, one makefile for the installation of the application onto the board/Raspberry Pi, and readme to explain the test. 
@@ -218,19 +220,20 @@ There are two files for each test that are used for the actual process of testin
     - In sum, the main file will install the application onto the target board, and the test file, the python file, will be used to monitor the target board, reading for any messages, state, or action that is meaningful. The test is the process of running both of these files onto the target board, and compiling any messages from the python file to determine whether it succeeds or fails the test. 
 
 This is the workflow of how instances work through Hardware CI. Ideally, every board will have this workflow to be called whenever updates occur and follow this form processing. 
+![Initialization/Testing](/images/ci-hardware/processdiagram.png)
 
 # How Tests are Chosen
 Tests are chosen when initially running the program through the setup/configuration of the Raspberry Pi, where you build a configuration file that is run through the runners and when creating the file. Essentially, when setting up the Raspberry Pi, you create a configuration file on boot up with the get started guide listed that sets the specified board type, and that board type will have a test configuration file containing the tests for all boards of that type and/or the specific Raspberry Pi through the harness Identity number. Then, tests are chosen for the specified board that is supported by the Tock OS.
 As noted in the previous section we have a test.config.toml file that contains information of the test to run for each board in the Tock/Boards directory , which contains each specific Tock supported board as well. Thus to Add tests, there are two primary steps:
 - **Adding Tests**
-    - **1** To add tests, you’ll need to create two files: a main.c (c) file and a test.py (python) file.
+    1. To add tests, you’ll need to create two files: a main.c (c) file and a test.py (python) file.
         - The c file will be titled “main” which is the application to be used to test on the target board. For more information on this file and what it does, look at the section How instances work - How tests work.
         - The python file will be named “test” which is the file that reads into any information from the application, and outputs any messages that are meaningful. This information can be the state, action, or messages from the application onto the target board.
         - Then, you can create a readme and makefile corresponding to the test to explain what functions are being tested on the board and to compile/build the application (test) for the board.
         - To add the test, you’ll push the files of the test with the title of the function being tested to the directory path libtock-c/examples/ci-tests in github. The full path will then be libtock-c/examples/ci-tests/{app} with “{app}” being the title to the test you made as the folder. This is necessary because the “main.py” file uses the path to build, install, and run the test.
-    - **2** To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/goodoomoodoo/tock/tree/master/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the nrf52840dk board [here](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml) to see the contents and format. Also revisit the previous section discussing the test configuration file [here](#configuration-files).
+    2. To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/goodoomoodoo/tock/tree/master/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the nrf52840dk board [here](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml) to see the contents and format. Also revisit the previous section discussing the test configuration file [here](#configuration-files).
 
-![Diagram for Adding/Choosing Tests](tock/doc/images/testsdiagram.png)
+![Diagram for Adding/Choosing Tests](../images/ci-hardware/testsdiagram.png)
 
 # What to do if Something Goes Wrong
 
@@ -238,6 +241,6 @@ As noted in the previous section we have a test.config.toml file that contains i
 Take a look at what type of test failed (in the output on github) and see what is the issue of the build of the board accordingly. The output in github currently prints what test failed to give the user a better understanding of what’s wrong in the installation.
 
 ## If there’s boot up issues of the Raspberry Pi
-Go to Troubleshooting section [here.](#troubleshoot)
+Go to the [Troubleshooting section](#troubleshoot)
 
-**Further updates here will be made accordingly to new issues that arise.**
+**Further updates here will be made accordingly to new issues that arise.** 
