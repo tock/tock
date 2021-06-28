@@ -32,6 +32,7 @@ pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     data_len: Cell<usize>,
     digest: TakeCell<'static, [u8; L]>,
     mode: Cell<Mode>,
+    ready: Cell<bool>,
     id: u32,
 }
 
@@ -61,6 +62,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
             data_len: Cell::new(0),
             digest: TakeCell::empty(),
             mode: Cell::new(Mode::None),
+            ready: Cell::new(false),
             id: id,
         }
     }
@@ -130,6 +132,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
             // don't already have data queued.
             if self.digest.is_none() {
                 self.digest.replace(digest);
+                self.ready.set(true);
                 Ok(())
             } else {
                 Err((ErrorCode::BUSY, digest))
@@ -334,7 +337,13 @@ impl<
     }
 
     fn do_next_op(&self) {
-        let mnode = self.users.iter().find(|node| node.mode.get() != Mode::None);
+        // Search for a node that has a mode set and is set as ready.
+        // Ready will indicate that `run()` has been called and the operation
+        // can complete
+        let mnode = self
+            .users
+            .iter()
+            .find(|node| node.mode.get() != Mode::None && node.ready.get());
         mnode.map(|node| {
             self.running.set(true);
             self.running_id.set(node.id);
