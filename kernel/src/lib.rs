@@ -24,6 +24,7 @@ pub mod hil;
 pub mod introspection;
 pub mod ipc;
 pub mod syscall;
+pub mod upgrade_support;
 pub mod zerocopy;
 
 mod callback;
