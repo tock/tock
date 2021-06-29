@@ -48,6 +48,7 @@
 //
 // - Support continuous-mode CRC
 
+use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
@@ -55,13 +56,15 @@ use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
     register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil::crc::{self, CrcAlg};
+use kernel::common::{deferred_call::DeferredCall, leasable_buffer::LeasableBuffer, StaticRef};
+use kernel::hil::crc::{Crc, CrcAlgorithm, CrcClient, CrcOutput};
 use kernel::ErrorCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =
     unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
+
+static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::CRCCU) };
 
 #[repr(C)]
 pub struct CrccuRegisters {
@@ -192,23 +195,23 @@ impl TCR {
     }
 }
 
-fn poly_for_alg(alg: CrcAlg) -> FieldValue<u32, Mode::Register> {
+fn poly_for_alg(alg: CrcAlgorithm) -> FieldValue<u32, Mode::Register> {
     match alg {
-        CrcAlg::Crc32 => Mode::PTYPE::Ccit8023,
-        CrcAlg::Crc32C => Mode::PTYPE::Castagnoli,
-        CrcAlg::Sam4L16 => Mode::PTYPE::Ccit16,
-        CrcAlg::Sam4L32 => Mode::PTYPE::Ccit8023,
-        CrcAlg::Sam4L32C => Mode::PTYPE::Castagnoli,
+        CrcAlgorithm::Crc32 => Mode::PTYPE::Ccit8023,
+        CrcAlgorithm::Crc32C => Mode::PTYPE::Castagnoli,
+        CrcAlgorithm::Crc16CCITT => Mode::PTYPE::Ccit16,
+        // CrcAlg::Sam4L32 => Mode::PTYPE::Ccit8023,
+        // CrcAlg::Sam4L32C => Mode::PTYPE::Castagnoli,
     }
 }
 
-fn post_process(result: u32, alg: CrcAlg) -> u32 {
+fn post_process(result: u32, alg: CrcAlgorithm) -> CrcOutput {
     match alg {
-        CrcAlg::Crc32 => reverse_and_invert(result),
-        CrcAlg::Crc32C => reverse_and_invert(result),
-        CrcAlg::Sam4L16 => result,
-        CrcAlg::Sam4L32 => result,
-        CrcAlg::Sam4L32C => result,
+        CrcAlgorithm::Crc32 => CrcOutput::Crc32(reverse_and_invert(result)),
+        CrcAlgorithm::Crc32C => CrcOutput::Crc32C(reverse_and_invert(result)),
+        CrcAlgorithm::Crc16CCITT => CrcOutput::Crc16CCITT(result as u16),
+        // CrcAlg::Sam4L32 => result,
+        // CrcAlg::Sam4L32C => result,
     }
 }
 
@@ -243,9 +246,17 @@ enum State {
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
     registers: StaticRef<CrccuRegisters>,
-    client: OptionalCell<&'a dyn crc::Client>,
+    client: OptionalCell<&'a dyn CrcClient>,
     state: Cell<State>,
-    alg: Cell<CrcAlg>,
+    algorithm: OptionalCell<CrcAlgorithm>,
+
+    // This store the full leasable-buffer boundaries for
+    // reconstruction when a call to [`Crc::input`] finishes
+    current_full_buffer: Cell<(*mut u8, usize)>,
+
+    // Marker whether a "computation" (pending deferred call) is in
+    // progress
+    compute_requested: Cell<bool>,
 
     // CRC DMA descriptor
     //
@@ -260,7 +271,9 @@ impl Crccu<'_> {
             registers: base_addr,
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
-            alg: Cell::new(CrcAlg::Crc32C),
+            algorithm: OptionalCell::empty(),
+            current_full_buffer: Cell::new((0 as *mut u8, 0)),
+            compute_requested: Cell::new(false),
             descriptor: Descriptor::new(),
         }
     }
@@ -304,13 +317,21 @@ impl Crccu<'_> {
             // A DMA transfer has completed
 
             if TCR(self.descriptor.ctrl.get()).interrupt_enabled() {
-                self.client.map(|client| {
-                    let result = post_process(self.registers.sr.read(Status::CRC), self.alg.get());
-                    client.receive_result(result);
-                });
+                // We have the current temporary result ready, but
+                // wait for the client to finish the CRC computation
+                // by calling [`Crc::compute`]
+
+                // self.client.map(|client| {
+                //     let result = post_process(self.registers.sr.read(Status::CRC), self.alg.get());
+                //     client.receive_result(result);
+                // });
 
                 // Disable the unit
                 self.registers.mr.write(Mode::ENABLE::Disabled);
+
+                // Recover the window into the LeasableBuffer
+                let window_addr = self.descriptor.addr.get();
+                let window_len = TCR(self.descriptor.ctrl.get()).get_btsize() as usize;
 
                 // Reset CTRL.IEN (for our own statekeeping)
                 self.descriptor.addr.set(0);
@@ -322,30 +343,122 @@ impl Crccu<'_> {
 
                 // Disable DMA channel
                 self.registers.dmadis.write(DmaDisable::DMADIS::SET);
+
+                // Reconstruct the leasable buffer from stored
+                // information and slice into the proper window
+                let (full_buffer_addr, full_buffer_len) = self.current_full_buffer.get();
+                let mut data = LeasableBuffer::<'static, u8>::new(unsafe {
+                    core::slice::from_raw_parts_mut(full_buffer_addr, full_buffer_len)
+                });
+
+                // Must be strictly positive or zero
+                let start_offset = (window_addr as usize) - (full_buffer_addr as usize);
+                data.slice(start_offset..(start_offset + window_len));
+
+                // Pass the properly sliced and reconstructed buffer
+                // back to the client
+                self.client.map(move |client| {
+                    client.input_done(Ok(()), data);
+                });
             }
         }
+    }
+
+    pub fn handle_deferred_call(&self) {
+        // A deferred call is currently only issued on a call to
+        // compute, in which case we need to provide the CRC to the
+        // client
+        let result = post_process(
+            self.registers.sr.read(Status::CRC),
+            self.algorithm.expect("crccu deferred call: no algorithm"),
+        );
+
+        self.client.map(|client| {
+            client.crc_done(Ok(result));
+        });
+
+        // Reset the internal CRC state such that the next call to
+        // input will start a new CRC
+        self.registers.cr.write(Control::RESET::SET);
+
+        // We have fulfilled the compute request
+        self.compute_requested.set(false);
     }
 }
 
 // Implement the generic CRC interface with the CRCCU
-impl<'a> crc::CRC<'a> for Crccu<'a> {
+impl<'a> Crc<'a> for Crccu<'a> {
     /// Set a client to receive results from the CRCCU
-    fn set_client(&self, client: &'a dyn crc::Client) {
+    fn set_client(&self, client: &'a dyn CrcClient) {
         self.client.set(client);
     }
 
-    fn compute(&self, data: &[u8], alg: CrcAlg) -> Result<(), ErrorCode> {
+    fn algorithm_supported(&self, algorithm: CrcAlgorithm) -> bool {
+        // Deliberately has an exhaustive list here to avoid
+        // advertising support for added variants to CrcAlgorithm
+        match algorithm {
+            CrcAlgorithm::Crc32 => true,
+            CrcAlgorithm::Crc32C => true,
+            CrcAlgorithm::Crc16CCITT => true,
+        }
+    }
+
+    fn set_algorithm(&self, algorithm: CrcAlgorithm) -> Result<(), ErrorCode> {
         self.init();
 
-        if TCR(self.descriptor.ctrl.get()).interrupt_enabled() {
+        // If there currently is a DMA operation in progress, refuse
+        // to set the algorithm.
+        if TCR(self.descriptor.ctrl.get()).interrupt_enabled() || self.compute_requested.get() {
             // A computation is already in progress
             return Err(ErrorCode::BUSY);
         }
 
-        if data.len() > 2usize.pow(16) - 1 {
-            // Buffer too long
-            // TODO: Chain CRCCU computations to handle large buffers
-            return Err(ErrorCode::SIZE);
+        // Set the algorithm
+        self.algorithm.set(algorithm);
+
+        // Clear the descriptor contents
+        self.descriptor.addr.set(0);
+        self.descriptor.ctrl.set(TCR::default().0);
+        self.descriptor.crc.set(0);
+
+        // Reset intermediate CRC value
+        self.registers.cr.write(Control::RESET::SET);
+
+        Ok(())
+    }
+
+    fn input(
+        &self,
+        mut data: LeasableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)> {
+        self.init();
+
+        let algorithm = if let Some(algorithm) = self.algorithm.extract() {
+            algorithm
+        } else {
+            return Err((ErrorCode::RESERVE, data));
+        };
+
+        if TCR(self.descriptor.ctrl.get()).interrupt_enabled() || self.compute_requested.get() {
+            // A computation is already in progress
+            return Err((ErrorCode::BUSY, data));
+        }
+
+        // Make sure we don't try to process more data than the CRC
+        // DMA operation supports.
+        if data.len() > u16::MAX as usize {
+            // Restore the full slice, calculate the current
+            // window's start offset.
+            let window_ptr = data.as_ptr();
+            data.reset();
+            let start_ptr = data.as_ptr();
+            // Must be strictly positive or zero
+            let start_offset = unsafe { window_ptr.offset_from(start_ptr) } as usize;
+
+            // Reslice the buffer such that it start at the same
+            // position as the old window, but fits the size
+            // constraints
+            data.slice(start_offset..=(start_offset + u16::MAX as usize));
         }
 
         self.enable();
@@ -356,37 +469,61 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
         // Enable error interrupt
         self.registers.ier.write(Interrupt::ERR::SET);
 
-        // Reset intermediate CRC value
-        self.registers.cr.write(Control::RESET::SET);
-
-        // Configure the data transfer
-        let addr = data.as_ptr() as u32;
+        // Configure the data transfer descriptor
+        //
+        // The data length is guaranteed to be <= u16::MAX by the
+        // above LeasableBuffer resizing mechanism
         let len = data.len() as u16;
-        /*
-        // It's not clear under what circumstances a transfer width other than Byte will work
-        let tr_width = if addr % 4 == 0 && len % 4 == 0 { TrWidth::Word }
-                       else { if addr % 2 == 0 && len % 2 == 0 { TrWidth::HalfWord }
-                              else { TrWidth::Byte } };
-        */
-        let tr_width = TrWidth::Byte;
-        let ctrl = TCR::new(true, tr_width, len);
-        self.descriptor.addr.set(addr);
+        let ctrl = TCR::new(true, TrWidth::Byte, len);
+        self.descriptor.addr.set(data.as_ptr() as u32);
         self.descriptor.ctrl.set(ctrl.0);
-        self.descriptor.crc.set(0);
+        self.descriptor.crc.set(0); // this is the CRC compare field, not used
+
+        // Prior to starting the DMA operation, drop the
+        // LeasableBuffer slice. Otherwise we violate Rust's mutable
+        // aliasing rules.
+        let full_slice = data.take();
+        let full_slice_ptr_len = (full_slice.as_mut_ptr(), full_slice.len());
+        self.current_full_buffer.set(full_slice_ptr_len);
+
+        // Ensure the &'static mut slice reference goes out of scope
+        core::mem::drop(full_slice);
+
+        // Set the descriptor memory address accordingly
         self.registers
             .dscr
             .set(&self.descriptor as *const Descriptor as u32);
 
-        // Record what algorithm was requested
-        self.alg.set(alg);
-
         // Configure the unit to compute a checksum
         self.registers.mr.write(
-            Mode::DIVIDER.val(0) + poly_for_alg(alg) + Mode::COMPARE::CLEAR + Mode::ENABLE::Enabled,
+            Mode::DIVIDER.val(0)
+                + poly_for_alg(algorithm)
+                + Mode::COMPARE::CLEAR
+                + Mode::ENABLE::Enabled,
         );
 
         // Enable DMA channel
         self.registers.dmaen.write(DmaEnable::DMAEN::SET);
+
+        Ok(len as usize)
+    }
+
+    fn compute(&self) -> Result<(), ErrorCode> {
+        // In this hardware implementation, we compute the CRC in
+        // parallel to the DMA operations. Thus this can simply
+        // request the CR and reset the state in a deferred call.
+
+        if TCR(self.descriptor.ctrl.get()).interrupt_enabled() || self.compute_requested.get() {
+            // A computation is already in progress
+            return Err(ErrorCode::BUSY);
+        }
+
+        // Mark the device as busy
+        self.compute_requested.set(true);
+
+        // Request a deferred call such that we can provide the result
+        // back to the client
+        DEFERRED_CALL.set();
 
         Ok(())
     }
