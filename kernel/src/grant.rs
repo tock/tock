@@ -155,8 +155,8 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
     }
 }
 
-/// This UpcallMemory object provides access to the memory allocated for a grant
-/// for a specific process.
+/// This UpcallMemory object provides a handle to access Upcalls stored on
+/// behalf of a particular grant/driver.
 ///
 /// Capsules gain access to a UpcallMemory object by calling `Grant::enter()`.
 /// From there, they can schedule upcalls. No other access to upcalls is
@@ -167,21 +167,19 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
 pub struct UpcallMemory<'a> {
     /// The mutable reference to the actual object type stored in the grant.
     upcalls: &'a [SavedUpcall],
-    num_upcalls: usize,
+
+    /// We need to keep track of the driver number so we can properly identify
+    /// the Upcall that is called. We need to keep track of its source so we can
+    /// remove it if the Upcall is unsubscribed.
     driver_num: usize,
 }
 
 impl<'a> UpcallMemory<'a> {
-    /// Create a `UpcallMemory` object to provide access to the actual object
-    /// allocated for a process.
-    ///
-    /// Only one can GrantMemory per underlying object can be created at a time.
-    /// Otherwise, there would be multiple mutable references to the same object
-    /// which is undefined behavior.
-    fn new(upcalls: &'a [SavedUpcall], num_upcalls: usize, driver_num: usize) -> UpcallMemory<'a> {
+    /// Create a `UpcallMemory` object to provide a handle for capsules to call
+    /// Upcalls.
+    fn new(upcalls: &'a [SavedUpcall], driver_num: usize) -> UpcallMemory<'a> {
         Self {
             upcalls,
-            num_upcalls,
             driver_num,
         }
     }
@@ -194,21 +192,37 @@ impl<'a> UpcallMemory<'a> {
         r1: usize,
         r2: usize,
     ) -> bool {
-        // TODO: remove num_upcalls?
-        if subscribe_num >= self.num_upcalls {
-            return false;
-        }
-        let saved_upcall = &self.upcalls[subscribe_num];
-        let mut upcall = Upcall::new(
-            processid,
-            UpcallId {
-                subscribe_num,
-                driver_num: self.driver_num,
-            },
-            saved_upcall.appdata,
-            saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
-        );
-        upcall.schedule(r0, r1, r2)
+        // Implement `self.upcalls[subscribe_num]` without a chance of a panic.
+        self.upcalls
+            .get(subscribe_num)
+            .map_or(false, |saved_upcall| {
+                let mut upcall = Upcall::new(
+                    processid,
+                    UpcallId {
+                        subscribe_num,
+                        driver_num: self.driver_num,
+                    },
+                    saved_upcall.appdata,
+                    saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
+                );
+                upcall.schedule(r0, r1, r2)
+            })
+
+        // // TODO: remove num_upcalls?
+        // if subscribe_num >= self.upcalls.len() {
+        //     return false;
+        // }
+        // let saved_upcall = &self.upcalls[subscribe_num];
+        // let mut upcall = Upcall::new(
+        //     processid,
+        //     UpcallId {
+        //         subscribe_num,
+        //         driver_num: self.driver_num,
+        //     },
+        //     saved_upcall.appdata,
+        //     saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
+        // );
+        // upcall.schedule(r0, r1, r2)
     }
 }
 
@@ -669,8 +683,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         let mut grant_memory = GrantMemory::new(grant);
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
-        let mut upcall_memory =
-            UpcallMemory::new(saved_upcalls_slice, self.number_of_upcalls, self.driver_num);
+        let mut upcall_memory = UpcallMemory::new(saved_upcalls_slice, self.driver_num);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_memory, &mut upcall_memory);
@@ -768,8 +781,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
 
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
-        let mut upcall_memory =
-            UpcallMemory::new(saved_upcalls_slice, self.number_of_upcalls, self.driver_num);
+        let mut upcall_memory = UpcallMemory::new(saved_upcalls_slice, self.driver_num);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_memory, &mut upcall_memory, &mut allocator);
