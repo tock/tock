@@ -27,9 +27,7 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice, Upcall,
-};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -37,7 +35,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     buffer: ReadWriteAppSlice,
     remaining: usize,
     idx: usize,
@@ -67,7 +64,7 @@ impl rng::Client for RngDriver<'_> {
     ) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app, upcalls| {
                 // Check if this app needs random values.
                 if app.remaining > 0 {
                     // Provide the current application values to the closure
@@ -132,7 +129,7 @@ impl rng::Client for RngDriver<'_> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback.schedule(0, newidx, 0);
+                        upcalls.schedule_upcall(0, 0, newidx, 0);
                     }
                 }
             });
@@ -179,29 +176,6 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut app.callback, &mut callback);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -234,6 +208,10 @@ impl<'a> Driver for RngDriver<'a> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }
 

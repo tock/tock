@@ -76,13 +76,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            upcalls.schedule_upcall(
-                                0,
-                                process_id,
-                                kernel::into_statuscode(Ok(())),
-                                0,
-                                0,
-                            );
+                            upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), 0, 0);
                             app.awaiting = None;
                         }
                     }

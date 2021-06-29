@@ -422,7 +422,7 @@ impl i2c::I2CClient for TSL2561<'_> {
 
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(*pid, |_, upcalls| {
-                        upcalls.schedule_upcall(0, *pid, 0, lux, 0);
+                        upcalls.schedule_upcall(0, 0, lux, 0);
                     });
                 });
 

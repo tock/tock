@@ -15,7 +15,7 @@ use core::convert::From;
 use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -38,7 +38,6 @@ enum TextScreenCommand {
 }
 
 pub struct App {
-    callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
     write_len: usize,
@@ -50,7 +49,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Upcall::default(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
             write_len: 0,
@@ -197,24 +195,15 @@ impl<'a> TextScreen<'a> {
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
-                app.callback.schedule(data1, data2, data3);
+                upcalls.schedule_upcall(0, data1, data2, data3);
             });
         });
     }
 }
 
 impl<'a> Driver for TextScreen<'a> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -274,6 +263,10 @@ impl<'a> Driver for TextScreen<'a> {
             }
             _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }
 

@@ -27,7 +27,7 @@ use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
     CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, Upcall,
+    ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -36,7 +36,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     tx_buffer: ReadOnlyAppSlice,
     rx_buffer: ReadWriteAppSlice,
 }
@@ -167,38 +166,14 @@ impl Driver for Nrf51822Serialization<'_> {
         }
     }
 
-    /// Register a callback to the Nrf51822Serialization driver.
-    ///
-    /// The callback will be called when a TX finishes and when
-    /// RX data is available.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Set callback.
-    fn subscribe(
-        &self,
-        subscribe_type: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_type {
-            // Add a callback
-            0 => {
-                // Save the callback for the app.
-                let result = self
-                    .apps
-                    .enter(appid, |app, _| {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                match result {
-                    Ok(()) => Ok(callback),
-                    Err(e) => Err((callback, e)),
-                }
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
+    // Register a callback to the Nrf51822Serialization driver.
+    //
+    // The callback will be called when a TX finishes and when
+    // RX data is available.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Set callback.
 
     /// Issue a command to the Nrf51822Serialization driver.
     ///
@@ -255,6 +230,10 @@ impl Driver for Nrf51822Serialization<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 // Callbacks from the underlying UART driver.
@@ -269,9 +248,9 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app, upcalls| {
                 // Call the callback after TX has finished
-                app.callback.schedule(1, 0, 0);
+                upcalls.schedule_upcall(0, 1, 0, 0);
             });
         });
     }
@@ -291,7 +270,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         self.rx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app, upcalls| {
                 let len = app.rx_buffer.mut_map_or(0, |rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());
@@ -311,7 +290,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // Note: This indicates how many bytes were received by
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
-                app.callback.schedule(4, rx_len, len);
+                upcalls.schedule_upcall(0, 4, rx_len, len);
             });
         });
 

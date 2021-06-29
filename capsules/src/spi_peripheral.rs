@@ -295,7 +295,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    upcalls.schedule_upcall(0, *process_id, len, 0, 0);
+                    upcalls.schedule_upcall(0, len, 0, 0);
                 } else {
                     self.do_next_read_write(app);
                 }
@@ -308,7 +308,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(*process_id, move |app, upcalls| {
                 let len = app.len;
-                upcalls.schedule_upcall(1, *process_id, len, 0, 0);
+                upcalls.schedule_upcall(1, len, 0, 0);
             });
         });
     }

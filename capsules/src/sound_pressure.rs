@@ -54,9 +54,8 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
-use core::mem;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -64,7 +63,6 @@ pub const DRIVER_NUM: usize = driver::NUM::SoundPressure as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     subscribed: bool,
     enable: bool,
 }
@@ -126,12 +124,12 @@ impl<'a> SoundPressureSensor<'a> {
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
                     if ret == Ok(()) {
-                        app.callback.schedule(sound_val.into(), 0, 0);
+                        upcalls.schedule_upcall(0, sound_val.into(), 0, 0);
                     }
                 }
             });
@@ -140,15 +138,6 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
 }
 
 impl Driver for SoundPressureSensor<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
-    }
-
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
@@ -192,5 +181,9 @@ impl Driver for SoundPressureSensor<'_> {
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

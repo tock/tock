@@ -51,7 +51,7 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -59,7 +59,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Proximity as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     subscribed: bool,
     enqueued_command_type: ProximityCommand,
     lower_proximity: u8,
@@ -260,7 +259,7 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
         // to notice if this reading will fulfill the app's command.
         // The reading is also delivered to any apps waiting on an immediate reading.
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     if app.enqueued_command_type == ProximityCommand::ReadProximityOnInterrupt {
                         // Case: ReadProximityOnInterrupt
@@ -268,13 +267,13 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         if ((temp_val as u8) > app.upper_proximity)
                             || ((temp_val as u8) < app.lower_proximity)
                         {
-                            app.callback.schedule(temp_val as usize, 0, 0);
+                            upcalls.schedule_upcall(0, temp_val as usize, 0, 0);
                             app.subscribed = false; // dequeue
                         }
                     } else {
                         // Case: ReadProximity
                         // Upcall to all apps waiting on read_proximity.
-                        app.callback.schedule(temp_val as usize, 0, 0);
+                        upcalls.schedule_upcall(0, temp_val as usize, 0, 0);
                         app.subscribed = false; // dequeue
                     }
                 }
@@ -290,26 +289,6 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
 }
 
 impl Driver for ProximitySensor<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -334,5 +313,9 @@ impl Driver for ProximitySensor<'_> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

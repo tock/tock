@@ -47,7 +47,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{CommandReturn, Driver, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -1413,7 +1413,6 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
     read_buffer: ReadWriteAppSlice,
 }
@@ -1447,17 +1446,17 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, _| {
-                app.callback.schedule(0, installed as usize, 0);
+            let _ = self.grants.enter(*process_id, |app, upcalls| {
+                upcalls.schedule_upcall(0, 0, installed as usize, 0);
             });
         });
     }
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, _| {
+            let _ = self.grants.enter(*process_id, |app, upcalls| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
-                app.callback.schedule(1, block_size as usize, size_in_kb);
+                upcalls.schedule_upcall(0, 1, block_size as usize, size_in_kb);
             });
         });
     }
@@ -1466,7 +1465,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, _| {
+            let _ = self.grants.enter(*process_id, |app, upcalls| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
                     app.read_buffer.mut_map_or(0, |read_buffer| {
@@ -1487,7 +1486,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                 // perform callback
                 // Note that we are explicitly performing the callback even if no
                 // data was read or if the app's read_buffer doesn't exist
-                app.callback.schedule(2, read_len, 0);
+                upcalls.schedule_upcall(0, 2, read_len, 0);
             });
         });
     }
@@ -1496,16 +1495,16 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, _| {
-                app.callback.schedule(3, 0, 0);
+            let _ = self.grants.enter(*process_id, |app, upcalls| {
+                upcalls.schedule_upcall(0, 3, 0, 0);
             });
         });
     }
 
     fn error(&self, error: u32) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, _| {
-                app.callback.schedule(4, error as usize, 0);
+            let _ = self.grants.enter(*process_id, |app, upcalls| {
+                upcalls.schedule_upcall(0, 4, error as usize, 0);
             });
         });
     }
@@ -1563,15 +1562,6 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
             Ok(()) => Ok(slice),
             Err(e) => Err((slice, e)),
         }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
     }
 
     fn command(
@@ -1649,5 +1639,9 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
     }
 }
