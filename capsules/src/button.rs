@@ -65,6 +65,14 @@ pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 /// that app has an interrupt registered for that button.
 pub type SubscribeMap = u32;
 
+/// This capsule keeps track for each app of which buttons it has a registered
+/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
+/// that app has an interrupt registered for that button.
+#[derive(Default)]
+pub struct App {
+    subscribe_map: u32,
+}
+
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
 pub struct Button<'a, P: gpio::InterruptPin<'a>> {
@@ -73,7 +81,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<SubscribeMap, 1>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -83,7 +91,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
-        grant: Grant<SubscribeMap, 1>,
+        grant: Grant<App, 1>,
     ) -> Self {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
@@ -146,7 +154,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                 if data < pins.len() {
                     self.apps
                         .enter(appid, |cntr, _| {
-                            cntr |= 1 << data;
+                            cntr.subscribe_map |= 1 << data;
                             let _ = pins[data]
                                 .0
                                 .enable_interrupts(gpio::InterruptEdge::EitherEdge);
@@ -166,7 +174,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                     let res = self
                         .apps
                         .enter(appid, |cntr, _| {
-                            cntr &= !(1 << data);
+                            cntr.subscribe_map &= !(1 << data);
                             CommandReturn::success()
                         })
                         .unwrap_or_else(|err| CommandReturn::failure(err.into()));
@@ -174,7 +182,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
                     self.apps.each(|_, cntr, _| {
-                        if cntr & (1 << data) != 0 {
+                        if cntr.subscribe_map & (1 << data) != 0 {
                             interrupt_count.set(interrupt_count.get() + 1);
                         }
                     });
@@ -212,7 +220,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
 
         // schedule callback with the pin number and value
         self.apps.each(|_, cntr, upcalls| {
-            if cntr & (1 << pin_num) != 0 {
+            if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 upcalls.schedule_upcall(UPCALL_NUM, pin_num as usize, button_state as usize, 0);
             }
