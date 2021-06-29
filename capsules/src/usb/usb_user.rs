@@ -65,7 +65,6 @@ where
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            let process_id = app.processid();
             app.enter(|app, upcalls| {
                 if let Some(request) = app.awaiting {
                     found = true;

@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -13,7 +13,6 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     slice: ReadWriteAppSlice,
 }
 
@@ -126,31 +125,11 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         }
     }
 
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `1`: Write buffer completed callback
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            1 /* write_read_done */ => {
-                self.apps.enter(app_id, |app,_| {
-                    core::mem::swap(&mut app.callback, &mut callback);
-                }).map_err(ErrorCode::from)
-            },
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Write buffer completed callback
 
     /// Initiate transfers
     fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: ProcessId) -> CommandReturn {
@@ -198,12 +177,16 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
             CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
-            self.apps.enter(tx.app_id, |app, _| {
+            self.apps.enter(tx.app_id, |app, upcalls| {
                 if let Some(read_len) = tx.read_len.take() {
                     app.slice.mut_map_or((), |app_buffer| {
                         app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);
@@ -211,7 +194,7 @@ impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, 
                 }
 
                 // signal to driver that tx complete
-                app.callback.schedule(0, 0, 0);
+                upcalls.schedule_upcall(0, 0, 0, 0);
             })
         });
 

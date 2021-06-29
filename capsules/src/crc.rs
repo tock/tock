@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
@@ -81,7 +81,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     buffer: ReadOnlyAppSlice,
 
     // if Some, the application is awaiting the result of a CRC
@@ -129,7 +128,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         let mut found = false;
         for app in self.apps.iter() {
             let appid = app.processid();
-            app.enter(|app, _| {
+            app.enter(|app, upcalls| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
                         .buffer
@@ -141,7 +140,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -193,47 +192,23 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         }
     }
 
-    /// The `subscribe` syscall supports the single `subscribe_number`
-    /// zero, which is used to provide a callback that will receive the
-    /// result of a CRC computation.  The signature of the callback is
-    ///
-    /// ```
-    ///
-    /// fn callback(status: Result<(), i2c::Error>, result: usize) {}
-    /// ```
-    ///
-    /// where
-    ///
-    ///   * `status` is indicates whether the computation
-    ///     succeeded. The status `BUSY` indicates the unit is already
-    ///     busy. The status `SIZE` indicates the provided buffer is
-    ///     too large for the unit to handle.
-    ///
-    ///   * `result` is the result of the CRC computation when `status == BUSY`.
-    ///
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // Set callback for CRC result
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut app.callback, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+    // The `subscribe` syscall supports the single `subscribe_number`
+    // zero, which is used to provide a callback that will receive the
+    // result of a CRC computation.  The signature of the callback is
+    //
+    // ```
+    //
+    // fn callback(status: Result<(), i2c::Error>, result: usize) {}
+    // ```
+    //
+    // where
+    //
+    //   * `status` is indicates whether the computation
+    //     succeeded. The status `BUSY` indicates the unit is already
+    //     busy. The status `SIZE` indicates the provided buffer is
+    //     too large for the unit to handle.
+    //
+    //   * `result` is the result of the CRC computation when `status == BUSY`.
 
     /// The command system call for this driver return meta-data about the driver and kicks off
     /// CRC computations returned through callbacks.
@@ -341,9 +316,8 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
         self.serving_app.take().map(|appid| {
             let _ = self
                 .apps
-                .enter(appid, |app, _| {
-                    app.callback
-                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
+                .enter(appid, |app, upcalls| {
+                    upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), result as usize, 0);
                     app.waiting = None;
                     Ok(())
                 })

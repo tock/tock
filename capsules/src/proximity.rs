@@ -49,7 +49,7 @@
 //! ```
 
 use core::cell::Cell;
-use core::mem;
+
 use kernel::hil;
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 

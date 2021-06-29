@@ -40,7 +40,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -388,9 +388,7 @@ impl i2c::I2CClient for MAX17205<'_> {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
@@ -411,9 +409,8 @@ impl<'a> MAX17205Driver<'a> {
 impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app, _| {
-                app.callback
-                    .schedule(kernel::into_statuscode(error), status as usize, 0);
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, kernel::into_statuscode(error), status as usize, 0);
             });
         });
     }
@@ -426,8 +423,9 @@ impl MAX17205Client for MAX17205Driver<'_> {
         error: Result<(), ErrorCode>,
     ) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app, _| {
-                app.callback.schedule(
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(
+                    0,
                     kernel::into_statuscode(error),
                     percent as usize,
                     (capacity as usize) << 16 | (full_capacity as usize),
@@ -438,8 +436,9 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app, _| {
-                app.callback.schedule(
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(
+                    0,
                     kernel::into_statuscode(error),
                     voltage as usize,
                     current as usize,
@@ -450,17 +449,17 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app, _| {
-                app.callback
-                    .schedule(kernel::into_statuscode(error), coulomb as usize, 0);
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, kernel::into_statuscode(error), coulomb as usize, 0);
             });
         });
     }
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app, _| {
-                app.callback.schedule(
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(
+                    0,
                     kernel::into_statuscode(error),
                     (rid & 0xffffffff) as usize,
                     (rid >> 32) as usize,
@@ -471,36 +470,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
 }
 
 impl Driver for MAX17205Driver<'_> {
-    /// Setup callback.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a callback for when all events complete or data is ready.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app, _| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callback.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a callback for when all events complete or data is ready.
 
     /// Setup and read the MAX17205.
     ///
@@ -557,5 +531,9 @@ impl Driver for MAX17205Driver<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

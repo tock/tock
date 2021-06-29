@@ -145,7 +145,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app, upcalls| {
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
                         upcalls.schedule_upcall(0, (field as usize) + 1, ret as usize, 0);
                     });
                 });
@@ -156,7 +156,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
             }
             State::Done => {
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app, upcalls| {
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
                         upcalls.schedule_upcall(0, 0, 0, 0);
                     });
                 });

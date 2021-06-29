@@ -252,7 +252,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
-        self.app_alarms.each(|processid, alarm, upcalls| {
+        self.app_alarms.each(|_processid, alarm, upcalls| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
@@ -264,7 +264,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                     self.num_armed.set(self.num_armed.get() - 1);
                     upcalls.schedule_upcall(
                         ALARM_CALLBACK_NUM,
-                        processid,
                         now.into_u32() as usize,
                         reference.wrapping_add(dt) as usize,
                         0,

@@ -18,10 +18,9 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
-use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -36,7 +35,6 @@ pub enum NineDofCommand {
 }
 
 pub struct App {
-    callback: Upcall,
     pending_command: bool,
     command: NineDofCommand,
     arg1: usize,
@@ -45,7 +43,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Upcall::default(),
             pending_command: false,
             command: NineDofCommand::Exists,
             arg1: 0,
@@ -141,25 +138,6 @@ impl<'a> NineDof<'a> {
             _ => Err(ErrorCode::NOSUPPORT),
         }
     }
-
-    fn configure_callback(
-        &self,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app, _| {
-                mem::swap(&mut app.callback, &mut callback);
-            })
-            .map_err(ErrorCode::from);
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
 }
 
 impl hil::sensors::NineDofClient for NineDof<'_> {
@@ -170,18 +148,18 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
         let mut finished_command = NineDofCommand::Exists;
         let mut finished_command_arg = 0;
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
-                app.callback.schedule(arg1, arg2, arg3);
+                upcalls.schedule_upcall(0, arg1, arg2, arg3);
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
-            let started_command = cntr.enter(|app, _| {
+            let started_command = cntr.enter(|app, upcalls| {
                 if app.pending_command
                     && app.command == finished_command
                     && app.arg1 == finished_command_arg
@@ -189,7 +167,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                     // Don't bother re-issuing this command, just use
                     // the existing result.
                     app.pending_command = false;
-                    app.callback.schedule(arg1, arg2, arg3);
+                    upcalls.schedule_upcall(0, arg1, arg2, arg3);
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
@@ -207,18 +185,6 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
 }
 
 impl Driver for NineDof<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => self.configure_callback(callback, app_id),
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -239,5 +205,9 @@ impl Driver for NineDof<'_> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

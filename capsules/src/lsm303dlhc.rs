@@ -79,13 +79,12 @@
 #![allow(non_camel_case_types)]
 
 use core::cell::Cell;
-use core::mem;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -150,17 +149,8 @@ pub struct Lsm303dlhcI2C<'a> {
     apps: Grant<App, 1>,
 }
 
-pub struct App {
-    callback: Upcall,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            callback: Upcall::default(),
-        }
-    }
-}
+#[derive(Default)]
+pub struct App {}
 
 impl<'a> Lsm303dlhcI2C<'a> {
     pub fn new(
@@ -343,8 +333,8 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
-                        grant.callback.schedule(if present { 1 } else { 0 }, 0, 0);
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                        upcalls.schedule_upcall(0, if present { 1 } else { 0 }, 0, 0);
                     });
                 });
 
@@ -356,8 +346,8 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_power = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
-                        grant.callback.schedule(if set_power { 1 } else { 0 }, 0, 0);
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                        upcalls.schedule_upcall(0, if set_power { 1 } else { 0 }, 0, 0);
                     });
                 });
 
@@ -375,10 +365,13 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_scale_and_resolution = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
-                        grant
-                            .callback
-                            .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                        upcalls.schedule_upcall(
+                            0,
+                            if set_scale_and_resolution { 1 } else { 0 },
+                            0,
+                            0,
+                        );
                     });
                 });
 
@@ -427,11 +420,11 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
                         if values {
-                            grant.callback.schedule(x, y, z);
+                            upcalls.schedule_upcall(0, x, y, z);
                         } else {
-                            grant.callback.schedule(0, 0, 0);
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         }
                     });
                 });
@@ -444,8 +437,9 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_temperature_and_magneto_data_rate = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
-                        grant.callback.schedule(
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                        upcalls.schedule_upcall(
+                            0,
                             if set_temperature_and_magneto_data_rate {
                                 1
                             } else {
@@ -468,8 +462,8 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_range = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
-                        grant.callback.schedule(if set_range { 1 } else { 0 }, 0, 0);
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                        upcalls.schedule_upcall(0, if set_range { 1 } else { 0 }, 0, 0);
                     });
                 });
 
@@ -496,11 +490,11 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
                         if values {
-                            grant.callback.schedule(temp, 0, 0);
+                            upcalls.schedule_upcall(0, temp, 0, 0);
                         } else {
-                            grant.callback.schedule(0, 0, 0);
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         }
                     });
                 });
@@ -538,11 +532,11 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant, _| {
+                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
                         if values {
-                            grant.callback.schedule(x, y, z);
+                            upcalls.schedule_upcall(0, x, y, z);
                         } else {
-                            grant.callback.schedule(0, 0, 0);
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         }
                     });
                 });
@@ -685,26 +679,8 @@ impl Driver for Lsm303dlhcI2C<'_> {
         }
     }
 
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 /* set the one shot callback */ => {
-                let res = self.apps.enter(process_id, |grant, _| {
-                    mem::swap(&mut callback, &mut grant.callback);
-                }).map_err(ErrorCode::from);
-
-                match res {
-                    Ok(()) => Ok(callback),
-                    Err(e) => Err((callback, e)),
-                }
-            },
-            // default
-            _ => Err ((callback, ErrorCode::NOSUPPORT)),
-        }
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }
 

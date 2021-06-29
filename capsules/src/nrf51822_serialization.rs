@@ -248,7 +248,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, upcalls| {
+            let _ = self.apps.enter(*appid, |_app, upcalls| {
                 // Call the callback after TX has finished
                 upcalls.schedule_upcall(0, 1, 0, 0);
             });

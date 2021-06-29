@@ -27,7 +27,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +35,6 @@ pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     buffer: ReadOnlyAppSlice,
     pending_command: bool,
     flash_address: usize,
@@ -119,8 +118,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
-                app.callback.schedule(0, 0, 0);
+            let _ = self.apps.enter(appid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, 0, 0, 0);
             });
         });
 
@@ -193,33 +192,11 @@ impl Driver for AppFlash<'_> {
         }
     }
 
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Set a write_done callback.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut app.callback, &mut callback);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Set a write_done callback.
 
     /// App flash control.
     ///
@@ -252,5 +229,9 @@ impl Driver for AppFlash<'_> {
 
             _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

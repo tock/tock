@@ -34,7 +34,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
 };
 
 enum ShaOperation {
@@ -167,7 +167,7 @@ impl<
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app, _| {
+                .enter(*id, move |app, upcalls| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -245,8 +245,7 @@ impl<
                         self.hmac.clear_data();
                         self.appid.clear();
 
-                        app.callback
-                            .schedule(kernel::into_statuscode(e.0.into()), 0, 0);
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(e.0.into()), 0, 0);
                     }
                 })
                 .map_err(|err| {
@@ -264,7 +263,7 @@ impl<
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app, upcalls| {
                     self.hmac.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
@@ -274,8 +273,9 @@ impl<
                     });
 
                     match result {
-                        Ok(_) => app.callback.schedule(0, pointer as usize, 0),
-                        Err(e) => app.callback.schedule(
+                        Ok(_) => upcalls.schedule_upcall(0, 0, pointer as usize, 0),
+                        Err(e) => upcalls.schedule_upcall(
+                            0,
                             kernel::into_statuscode(e.into()),
                             pointer as usize,
                             0,
@@ -364,38 +364,12 @@ impl<
         }
     }
 
-    /// Subscribe to HmacDriver events.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Subscribe to interrupts from HMAC events.
-    ///        The callback signature is `fn(result: u32)`
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => {
-                // set callback
-                self.apps
-                    .enter(appid, |app, _| {
-                        mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    })
-                    .unwrap_or(Err(ErrorCode::FAIL))
-            }
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Subscribe to HmacDriver events.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Subscribe to interrupts from HMAC events.
+    //        The callback signature is `fn(result: u32)`
 
     /// Setup and run the HMAC hardware
     ///
@@ -511,11 +485,14 @@ impl<
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
     key: ReadWriteAppSlice,

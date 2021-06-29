@@ -37,11 +37,9 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
-use core::mem;
-
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {
     // Analog Comparator driver
@@ -53,9 +51,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A> {
     pub fn new(
@@ -164,30 +160,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
         }
     }
 
-    /// Provides a callback which can be used to signal the application
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // Subscribe to all interrupts
-            0 => {
-                let res = self
-                    .grants
-                    .enter(app_id, |app, _| {
-                        mem::swap(&mut app.callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                match res {
-                    Err(err) => Err((callback, err)),
-                    _ => Ok(callback),
-                }
-            }
-            // Default
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
     }
 }
 
@@ -197,8 +171,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
     /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
         self.current_process.map(|appid| {
-            let _ = self.grants.enter(*appid, |app, _| {
-                app.callback.schedule(channel, 0, 0);
+            let _ = self.grants.enter(*appid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, channel, 0, 0);
             });
         });
     }

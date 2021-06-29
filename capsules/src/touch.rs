@@ -269,7 +269,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
         // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
-            app.enter(|app, upcalls| {
+            app.enter(|_app, upcalls| {
                 let gesture_id = match event {
                     GestureEvent::SwipeUp => 1,
                     GestureEvent::SwipeDown => 2,

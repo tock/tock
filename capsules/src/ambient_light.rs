@@ -13,10 +13,9 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::TryFrom;
-use core::mem;
+
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -25,7 +24,6 @@ pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     pending: bool,
 }
 
@@ -66,37 +64,12 @@ impl<'a> AmbientLight<'a> {
 }
 
 impl Driver for AmbientLight<'_> {
-    /// Subscribe to light intensity readings
-    ///
-    /// ### `subscribe`
-    ///
-    /// - `0`: Subscribe to light intensity readings. The callback signature is
-    /// `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => {
-                let rcode = self
-                    .apps
-                    .enter(app_id, |app, _| {
-                        mem::swap(&mut callback, &mut app.callback);
-                        Ok(())
-                    })
-                    .unwrap_or_else(|err| err.into());
-
-                let eres = ErrorCode::try_from(rcode);
-                match eres {
-                    Ok(ecode) => Err((callback, ecode)),
-                    _ => Ok(callback),
-                }
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
+    // Subscribe to light intensity readings
+    //
+    // ### `subscribe`
+    //
+    // - `0`: Subscribe to light intensity readings. The callback signature is
+    // `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
 
     /// Initiate light intensity readings
     ///
@@ -119,15 +92,19 @@ impl Driver for AmbientLight<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
-        self.apps.each(|_, app, _| {
+        self.apps.each(|_, app, upcalls| {
             if app.pending {
                 app.pending = false;
-                app.callback.schedule(lux, 0, 0);
+                upcalls.schedule_upcall(0, lux, 0, 0);
             }
         });
     }

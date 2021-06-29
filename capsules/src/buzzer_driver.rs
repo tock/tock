@@ -40,11 +40,10 @@
 
 use core::cmp;
 
-use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +62,6 @@ pub enum BuzzerCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
@@ -173,8 +171,8 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
         let _ = self.pwm_pin.stop();
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
-            let _ = self.apps.enter(app_id, |app, _| {
-                app.callback.schedule(0, 0, 0);
+            let _ = self.apps.enter(app_id, |_app, upcalls| {
+                upcalls.schedule_upcall(0, 0, 0, 0);
             });
         });
 
@@ -185,30 +183,11 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 
 /// Provide an interface for userland.
 impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a buzz done callback.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| mem::swap(&mut app.callback, &mut callback))
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a buzz done callback.
 
     /// Command interface.
     ///

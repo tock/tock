@@ -22,7 +22,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::i2c;
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;
@@ -57,9 +57,7 @@ enum_from_primitive! {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct Mlx90614SMBus<'a> {
     smbus_temp: &'a dyn i2c::SMBusDevice,
@@ -126,8 +124,8 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app, _| {
-                        app.callback.schedule(if present { 1 } else { 0 }, 0, 0);
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        upcalls.schedule_upcall(0, if present { 1 } else { 0 }, 0, 0);
                     });
                 });
                 self.buffer.replace(buffer);
@@ -151,14 +149,14 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 };
                 if values {
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |app, _| {
-                            app.callback.schedule(temp, 0, 0);
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls.schedule_upcall(0, temp, 0, 0);
                         });
                     });
                 } else {
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |app, _| {
-                            app.callback.schedule(0, 0, 0);
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         });
                     });
                 }
@@ -229,30 +227,8 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
         }
     }
 
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app, _| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }
 

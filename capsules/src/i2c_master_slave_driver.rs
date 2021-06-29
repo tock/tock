@@ -15,7 +15,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{CommandReturn, ProcessId, Upcall};
+use kernel::{CommandReturn, ProcessId};
 use kernel::{Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
@@ -28,7 +28,6 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     master_tx_buffer: ReadOnlyAppSlice,
     master_rx_buffer: ReadWriteAppSlice,
     slave_tx_buffer: ReadOnlyAppSlice,
@@ -89,15 +88,15 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.master_buffer.replace(buffer);
 
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app, _| {
-                        app.callback.schedule(0, status, 0);
+                    let _ = self.apps.enter(*app, |_app, upcalls| {
+                        upcalls.schedule_upcall(0, 0, status, 0);
                     });
                 });
             }
 
             MasterAction::Read(read_len) => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app, _| {
+                    let _ = self.apps.enter(*app, |app, upcalls| {
                         // Because this (somewhat incorrectly) doesn't report
                         // back how many bytes were read, the result of mut_map_or
                         // is ignored. Note that this requires userspace to keep
@@ -115,14 +114,14 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                             self.master_buffer.replace(buffer);
                             0
                         });
-                        app.callback.schedule(1, status, 0);
+                        upcalls.schedule_upcall(0, 1, status, 0);
                     });
                 });
             }
 
             MasterAction::WriteRead(read_len) => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app, _| {
+                    let _ = self.apps.enter(*app, |app, upcalls| {
                         // Because this (somewhat incorrectly) doesn't report
                         // back how many bytes were read, the result of mut_map_or
                         // is ignored. Note that this requires userspace to keep
@@ -136,7 +135,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                             self.master_buffer.replace(buffer);
                             0
                         });
-                        app.callback.schedule(7, status, 0);
+                        upcalls.schedule_upcall(0, 7, status, 0);
                     });
                 });
             }
@@ -166,7 +165,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         match transmission_type {
             hil::i2c::SlaveTransmissionType::Write => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app, _| {
+                    let _ = self.apps.enter(*app, |app, upcalls| {
                         app.slave_rx_buffer.mut_map_or(0, move |app_rx| {
                             // Check bounds for write length
                             // Because this (somewhat incorrectly) doesn't report
@@ -187,7 +186,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                             0
                         });
 
-                        app.callback.schedule(3, length as usize, 0);
+                        upcalls.schedule_upcall(0, 3, length as usize, 0);
                     });
                 });
             }
@@ -197,8 +196,8 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 
                 // Notify the app that the read finished
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app, _| {
-                        app.callback.schedule(4, length as usize, 0);
+                    let _ = self.apps.enter(*app, |_app, upcalls| {
+                        upcalls.schedule_upcall(0, 4, length as usize, 0);
                     });
                 });
             }
@@ -209,11 +208,11 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         // Pass this up to the client. Not much we can do until the application
         // has setup a buffer to read from.
         self.app.map(|app| {
-            let _ = self.apps.enter(*app, |app, _| {
+            let _ = self.apps.enter(*app, |_app, upcalls| {
                 // Ask the app to setup a read buffer. The app must call
                 // command 3 after it has setup the shared read buffer with
                 // the correct bytes.
-                app.callback.schedule(2, 0, 0);
+                upcalls.schedule_upcall(0, 2, 0, 0);
             });
         });
     }
@@ -289,32 +288,6 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         match res {
             Ok(()) => Ok(slice),
             Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app, |app, _| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
         }
     }
 
@@ -543,5 +516,9 @@ impl Driver for I2CMasterSlaveDriver<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

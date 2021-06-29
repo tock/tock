@@ -16,7 +16,7 @@ use kernel::common::dynamic_deferred_call::{
 };
 use kernel::{
     CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice, Upcall,
+    ReadWriteAppSlice,
 };
 
 const MAX_NEIGHBORS: usize = 4;
@@ -153,8 +153,6 @@ impl KeyDescriptor {
 
 #[derive(Default)]
 pub struct App {
-    rx_callback: Upcall,
-    tx_callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     app_cfg: ReadWriteAppSlice,
@@ -467,8 +465,9 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
     fn call(&self, _handle: DeferredCallHandle) {
         let _ = self
             .apps
-            .enter(self.saved_appid.expect("missing appid"), |app, _| {
-                app.tx_callback.schedule(
+            .enter(self.saved_appid.expect("missing appid"), |_app, upcalls| {
+                upcalls.schedule_upcall(
+                    1,
                     kernel::into_statuscode(self.saved_result.expect("missing result")),
                     0,
                     0,
@@ -559,32 +558,12 @@ impl Driver for RadioDriver<'_> {
         }
     }
 
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup callback for when frame is received.
-    /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        self.apps
-            .enter(app_id, |app, _| match subscribe_num {
-                0 => {
-                    mem::swap(&mut app.rx_callback, &mut callback);
-                    Ok(callback)
-                }
-                1 => {
-                    mem::swap(&mut app.tx_callback, &mut callback);
-                    Ok(callback)
-                }
-                _ => Err((callback, ErrorCode::NOSUPPORT)),
-            })
-            .unwrap_or_else(|err| Err((callback, err.into())))
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup callback for when frame is received.
+    // - `1`: Setup callback for when frame is transmitted.
 
     /// IEEE 802.15.4 MAC device control.
     ///
@@ -876,15 +855,18 @@ impl Driver for RadioDriver<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl device::TxClient for RadioDriver<'_> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback
-                    .schedule(kernel::into_statuscode(result), acked as usize, 0);
+            let _ = self.apps.enter(appid, |_app, upcalls| {
+                upcalls.schedule_upcall(1, kernel::into_statuscode(result), acked as usize, 0);
             });
         });
         self.do_next_tx_async();
@@ -909,7 +891,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 
 impl device::RxClient for RadioDriver<'_> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.apps.each(|_, app, _| {
+        self.apps.each(|_, app, upcalls| {
             let read_present = app.app_read.mut_map_or(false, |rbuf| {
                 let rbuf = rbuf.as_mut();
                 let len = min(rbuf.len(), data_offset + data_len);
@@ -925,7 +907,7 @@ impl device::RxClient for RadioDriver<'_> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                app.rx_callback.schedule(pans, dst_addr, src_addr);
+                upcalls.schedule_upcall(0, pans, dst_addr, src_addr);
             }
         });
     }

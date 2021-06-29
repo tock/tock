@@ -43,7 +43,7 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{CommandReturn, Driver};
-use kernel::{ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{ErrorCode, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -52,13 +52,11 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(Default)]
 pub struct App {
-    write_callback: Upcall,
     write_buffer: ReadOnlyAppSlice,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
-    read_callback: Upcall,
     read_buffer: ReadWriteAppSlice,
     read_len: usize,
 }
@@ -68,7 +66,7 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
-    apps: Grant<App, 2>,
+    apps: Grant<App, 3>,
     tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: OptionalCell<ProcessId>,
@@ -80,7 +78,7 @@ impl<'a> Console<'a> {
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        grant: Grant<App, 2>,
+        grant: Grant<App, 3>,
     ) -> Console<'a> {
         Console {
             uart: uart,
@@ -229,43 +227,13 @@ impl Driver for Console<'_> {
             Ok(slice)
         }
     }
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `1`: Write buffer completed callback
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            1 => {
-                // putstr/write done
-                self.apps
-                    .enter(app_id, |app, _| {
-                        mem::swap(&mut app.write_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from)
-            }
-            2 => {
-                // getnstr/read done
-                self.apps
-                    .enter(app_id, |app, _| {
-                        mem::swap(&mut app.read_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from)
-            }
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
 
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `1`: Write buffer completed callback
+    // - `2`: Read buffer completed callback
 
     /// Initiate serial transfers
     ///
@@ -313,6 +281,10 @@ impl Driver for Console<'_> {
             Err(e) => CommandReturn::failure(e),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl uart::TransmitClient for Console<'_> {
@@ -326,14 +298,14 @@ impl uart::TransmitClient for Console<'_> {
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, _| {
+            self.apps.enter(appid, |app, upcalls| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
                         if !more_to_send {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            app.write_callback.schedule(written, 0, 0);
+                            upcalls.schedule_upcall(1, written, 0, 0);
                         }
                     }
                     Err(return_code) => {
@@ -341,8 +313,7 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_len = 0;
                         app.write_remaining = 0;
                         app.pending_write = false;
-                        app.write_callback
-                            .schedule(kernel::into_statuscode(return_code), 0, 0);
+                        upcalls.schedule_upcall(1, kernel::into_statuscode(return_code), 0, 0);
                     }
                 }
             })
@@ -353,7 +324,7 @@ impl uart::TransmitClient for Console<'_> {
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
                 let appid = cntr.processid();
-                let started_tx = cntr.enter(|app, _| {
+                let started_tx = cntr.enter(|app, upcalls| {
                     if app.pending_write {
                         app.pending_write = false;
                         match self.send_continue(appid, app) {
@@ -363,7 +334,8 @@ impl uart::TransmitClient for Console<'_> {
                                 app.write_len = 0;
                                 app.write_remaining = 0;
                                 app.pending_write = false;
-                                app.write_callback.schedule(
+                                upcalls.schedule_upcall(
+                                    1,
                                     kernel::into_statuscode(return_code),
                                     0,
                                     0,
@@ -395,7 +367,7 @@ impl uart::ReceiveClient for Console<'_> {
             .take()
             .map(|appid| {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app, upcalls| {
                         // An iterator over the returned buffer yielding only the first `rx_len`
                         // bytes
                         let rx_buffer = buffer.iter().take(rx_len);
@@ -444,7 +416,8 @@ impl uart::ReceiveClient for Console<'_> {
                                     (rcode, rx_len)
                                 };
 
-                                app.read_callback.schedule(
+                                upcalls.schedule_upcall(
+                                    2,
                                     kernel::into_statuscode(ret),
                                     received_length,
                                     0,
@@ -452,7 +425,8 @@ impl uart::ReceiveClient for Console<'_> {
                             }
                             _ => {
                                 // Some UART error occurred
-                                app.read_callback.schedule(
+                                upcalls.schedule_upcall(
+                                    2,
                                     kernel::into_statuscode(Err(ErrorCode::FAIL)),
                                     0,
                                     0,
