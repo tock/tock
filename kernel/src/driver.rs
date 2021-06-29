@@ -194,7 +194,7 @@ pub trait Driver {
     /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
-        app: ProcessId,
+        process_id: ProcessId,
         which: usize,
         slice: ReadWriteProcessBuffer,
     ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
@@ -209,7 +209,7 @@ pub trait Driver {
     /// read-only data (e.g., in flash) to the kernel.
     fn allow_readonly(
         &self,
-        app: ProcessId,
+        process_id: ProcessId,
         which: usize,
         slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
