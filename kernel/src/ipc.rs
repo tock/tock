@@ -116,7 +116,6 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                                         );
                                         my_upcalls.schedule_upcall(
                                             to_schedule,
-                                            schedule_on,
                                             called_from.id() + 1,
                                             crate::mem::Read::len(slice),
                                             crate::mem::Read::ptr(slice) as usize,
@@ -125,7 +124,6 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                                     None => {
                                         my_upcalls.schedule_upcall(
                                             to_schedule,
-                                            schedule_on,
                                             called_from.id() + 1,
                                             0,
                                             0,
