@@ -158,10 +158,12 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
 /// This UpcallMemory object provides access to the memory allocated for a grant
 /// for a specific process.
 ///
-/// Capsules gain access to a UpcallMemory object by calling `Grant::enter()`. From
-/// there, they can schedule upcalls. No other access to upcalls is provided.
-/// It is expected that this type will only exist as a short-lived stack allocation, so
-/// its size is not a significant concern.
+/// Capsules gain access to a UpcallMemory object by calling `Grant::enter()`.
+/// From there, they can schedule upcalls. No other access to upcalls is
+/// provided.
+///
+/// It is expected that this type will only exist as a short-lived stack
+/// allocation, so its size is not a significant concern.
 pub struct UpcallMemory<'a> {
     /// The mutable reference to the actual object type stored in the grant.
     upcalls: &'a [SavedUpcall],
@@ -236,6 +238,9 @@ pub struct ProcessGrant<'a, T: 'a> {
     /// `ProcessGrant` can be stored.
     process: &'a dyn Process,
 
+    /// The syscall driver number this grant is associated with.
+    driver_num: usize,
+
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
 
@@ -285,6 +290,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         // memory is not allocated until the actual grant region is actually
         // used.
 
+        let driver_num = grant.driver_num;
         let grant_num = grant.grant_num;
         let number_of_upcalls = grant.number_of_upcalls;
         let processid = process.processid();
@@ -314,7 +320,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
                     .kernel
                     .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                         process
-                            .allocate_grant(grant_num, 85, alloc_size, align_of::<T>())
+                            .allocate_grant(grant_num, driver_num, alloc_size, align_of::<T>())
                             .map_or(Err(Error::OutOfMemory), |buf| {
                                 let ptr_upcall_count = NonNull::cast::<usize>(buf);
 
@@ -389,6 +395,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             // allocated, so we can create and return the `AppliedGrant` type.
             Ok(ProcessGrant {
                 process: process,
+                driver_num: driver_num,
                 grant_num: grant_num,
                 number_of_upcalls: number_of_upcalls,
                 _phantom: PhantomData,
@@ -408,6 +415,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             if is_allocated {
                 Some(ProcessGrant {
                     process: process,
+                    driver_num: grant.driver_num,
                     grant_num: grant.grant_num,
                     number_of_upcalls: grant.number_of_upcalls,
                     _phantom: PhantomData,
@@ -428,7 +436,8 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     }
 
     /// Run a function with access to the memory in the related process for the
-    /// related Grant.
+    /// related Grant. This also provides access to any associated Upcalls
+    /// stored with the grant.
     ///
     /// This is "entering" the grant region, and the _only_ time when the
     /// contents of a grant region can be accessed.
@@ -450,7 +459,8 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
 
     /// Run a function with access to the memory in the related process for the
     /// related Grant only if that grant region is not already entered. If the
-    /// grant is already entered silently skip it.
+    /// grant is already entered silently skip it. Also provide access to
+    /// associated Upcalls.
     ///
     /// **You almost certainly should use `.enter()` rather than
     /// `.try_enter()`.**
@@ -508,8 +518,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     }
 
     /// Run a function with access to the memory in the related process for the
-    /// related Grant. Also provide this function with an allocator for
-    /// allocating additional memory in the process's grant region.
+    /// related Grant. Also provide this function with access to any associated
+    /// Upcalls and an allocator for allocating additional memory in the
+    /// process's grant region.
     ///
     /// This is "entering" the grant region, and the _only_ time when the
     /// contents of a grant region can be accessed.
@@ -629,6 +640,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
         };
 
+        // # Safety
+        //
+        // TODO
         let saved_upcalls_slice = unsafe {
             slice::from_raw_parts_mut(
                 grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
@@ -653,14 +667,10 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
 
         // Create a wrapped object that is passed to the capsule.
         let mut grant_memory = GrantMemory::new(grant);
-        // Create a wrapped object that gives access to the upcalls for this driver
-        let mut upcall_memory = UpcallMemory::new(
-            saved_upcalls_slice,
-            self.number_of_upcalls,
-            self.process
-                .grant_num_to_driver_num(self.grant_num)
-                .unwrap(), // TODO: Better way to get this?
-        );
+        // Create a wrapped object that gives access to the upcalls for this
+        // driver.
+        let mut upcall_memory =
+            UpcallMemory::new(saved_upcalls_slice, self.number_of_upcalls, self.driver_num);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_memory, &mut upcall_memory);
@@ -722,6 +732,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
         };
 
+        // # Safety
+        //
+        // TODO
         let saved_upcalls_slice = unsafe {
             slice::from_raw_parts_mut(
                 grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
@@ -753,14 +766,10 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             processid: self.process.processid(),
         };
 
-        // Create a wrapped object that gives access to the upcalls for this driver
-        let mut upcall_memory = UpcallMemory::new(
-            saved_upcalls_slice,
-            self.number_of_upcalls,
-            self.process
-                .grant_num_to_driver_num(self.grant_num)
-                .unwrap(), // TODO: Better way to get this?
-        );
+        // Create a wrapped object that gives access to the upcalls for this
+        // driver.
+        let mut upcall_memory =
+            UpcallMemory::new(saved_upcalls_slice, self.number_of_upcalls, self.driver_num);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_memory, &mut upcall_memory, &mut allocator);
@@ -974,6 +983,11 @@ pub struct Grant<T: Default> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
 
+    /// Keep track of the syscall driver number assigned to the capsule that is
+    /// using this grant. This allows us to uniquely identify upcalls stored in
+    /// this grant.
+    driver_num: usize,
+
     /// The identifier for this grant. Having an identifier allows the Process
     /// implementation to lookup the memory for this grant in the specific
     /// process.
@@ -999,6 +1013,7 @@ impl<T: Default> Grant<T> {
     ) -> Grant<T> {
         Grant {
             kernel: kernel,
+            driver_num: 85,
             grant_num: grant_index,
             number_of_upcalls: number_of_upcalls,
             ptr: PhantomData,
