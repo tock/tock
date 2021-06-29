@@ -52,7 +52,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
         rlen: u8,
     ) -> ReturnCode {
         self.apps
-            .enter(app_id, |_, _| {
+            .enter(app_id, |_| {
                 if let Some(app_buffer) = app.slice.take() {
                     self.buf.take().map(|buffer| {
                         for n in 0..wlen as usize {
@@ -117,7 +117,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
         match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.slice = slice;
                     ReturnCode::SUCCESS
                 })
@@ -139,7 +139,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
     ) -> ReturnCode {
         match subscribe_num {
             1 /* write_read_done */ => {
-                self.apps.enter(app_id, |app, _| {
+                self.apps.enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| err.into())
@@ -155,7 +155,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                 Cmd::Ping => ReturnCode::SUCCESS,
                 Cmd::Write => self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
                         self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
@@ -164,7 +164,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
                         self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
@@ -176,7 +176,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             self.operation(
                                 appid,
                                 app,
@@ -199,7 +199,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
 impl<I: i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<I> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         self.tx.take().map(|tx| {
-            self.apps.enter(tx.app_id, |app, _| {
+            self.apps.enter(tx.app_id, |app| {
                 if let Some(read_len) = tx.read_len.take() {
                     if let Some(mut app_buffer) = app.slice.take() {
                         for n in 0..read_len {

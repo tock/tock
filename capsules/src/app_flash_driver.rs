@@ -65,7 +65,7 @@ impl<'a> AppFlash<'a> {
     // completes.
     fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.as_mut().map_or(0, |app_buffer| app_buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
@@ -117,7 +117,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.callback.map(|mut cb| {
                     cb.schedule(0, 0, 0);
                 });
@@ -126,7 +126,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let started_command = cntr.enter(|app, _| {
+            let started_command = cntr.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
@@ -175,7 +175,7 @@ impl Driver for AppFlash<'_> {
         match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
@@ -198,7 +198,7 @@ impl Driver for AppFlash<'_> {
         match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 })

@@ -44,7 +44,7 @@ impl<'a> AmbientLight<'a> {
 
     fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if app.pending {
                     ReturnCode::ENOMEM
                 } else {
@@ -76,7 +76,7 @@ impl Driver for AmbientLight<'_> {
         match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 })

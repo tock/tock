@@ -69,7 +69,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         }
 
         for applied_grant in self.grant.iter() {
-            let (app_num, first_entry) = applied_grant.enter(|owned_app_data, _| {
+            let (app_num, first_entry) = applied_grant.enter(|owned_app_data| {
                 owned_app_data.queue.rotate_left(1);
                 (
                     owned_app_data.appid().id(),
@@ -102,7 +102,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
             return;
         }
 
-        let result = self.grant.enter(appid, |borrow, _| {
+        let result = self.grant.enter(appid, |borrow| {
             for queue_entry in &mut borrow.queue {
                 if queue_entry.is_none() {
                     *queue_entry = Some(entry);

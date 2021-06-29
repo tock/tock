@@ -63,7 +63,7 @@ impl rng::Client for RngDriver<'_> {
     ) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 // Check if this app needs random values.
                 if app.remaining > 0 && app.callback.is_some() && app.buffer.is_some() {
                     app.buffer.take().map(|mut buffer| {
@@ -144,7 +144,7 @@ impl<'a> Driver for RngDriver<'a> {
         match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
@@ -162,7 +162,7 @@ impl<'a> Driver for RngDriver<'a> {
         match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 })
@@ -184,7 +184,7 @@ impl<'a> Driver for RngDriver<'a> {
             // Ask for a given number of random bytes.
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.remaining = data;
                     app.idx = 0;
 

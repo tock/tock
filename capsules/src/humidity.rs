@@ -89,7 +89,7 @@ impl<'a> HumiditySensor<'a> {
 
     fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -110,7 +110,7 @@ impl<'a> HumiditySensor<'a> {
 
     fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         self.apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
             })
@@ -121,7 +121,7 @@ impl<'a> HumiditySensor<'a> {
 impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;

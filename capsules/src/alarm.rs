@@ -56,7 +56,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         let mut next_alarm = u32::max_value();
         let mut next_dist = u32::max_value();
         for alarm in self.app_alarm.iter() {
-            alarm.enter(|alarm, _| match alarm.expiration {
+            alarm.enter(|alarm| match alarm.expiration {
                 Expiration::Abs(exp) => {
                     let t_dist = exp.wrapping_sub(now);
                     if next_dist > t_dist {
@@ -89,7 +89,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         app_id: AppId,
     ) -> ReturnCode {
         self.app_alarm
-            .enter(app_id, |td, _allocator| {
+            .enter(app_id, |td| {
                 td.callback = callback;
                 ReturnCode::SUCCESS
             })
@@ -113,7 +113,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         // currently disabled and we're enabling the first alarm, or on an error
         // (i.e. no change to the alarms).
         self.app_alarm
-            .enter(caller_id, |td, _alloc| {
+            .enter(caller_id, |td| {
                 // helper function to rearm alarm
                 let mut rearm = |time: usize| {
                     if let Expiration::Disabled = td.expiration {

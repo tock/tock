@@ -87,7 +87,7 @@ impl<'a> TemperatureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -101,7 +101,7 @@ impl<'a> TemperatureSensor<'a> {
 
     fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         self.apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
             })
@@ -112,7 +112,7 @@ impl<'a> TemperatureSensor<'a> {
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
+            cntr.enter(|app| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;

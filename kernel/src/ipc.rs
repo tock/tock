@@ -61,7 +61,7 @@ impl IPC {
         cb_type: IPCCallbackType,
     ) {
         self.data
-            .enter(appid, |mydata, _| {
+            .enter(appid, |mydata| {
                 let callback = match cb_type {
                     IPCCallbackType::Service => mydata.callback,
                     IPCCallbackType::Client => match otherapp.index() {
@@ -71,7 +71,7 @@ impl IPC {
                 };
                 callback.map_or((), |mut callback| {
                     self.data
-                        .enter(otherapp, |otherdata, _| {
+                        .enter(otherapp, |otherdata| {
                             // If the other app shared a buffer with us, make
                             // sure we have access to that slice and then call
                             // the callback. If no slice was shared then just
@@ -126,7 +126,7 @@ impl Driver for IPC {
             // process notifies the server process.
             0 => self
                 .data
-                .enter(app_id, |data, _| {
+                .enter(app_id, |data| {
                     data.callback = callback;
                     ReturnCode::SUCCESS
                 })
@@ -148,7 +148,7 @@ impl Driver for IPC {
                 let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
                 self.data
-                    .enter(app_id, |data, _| {
+                    .enter(app_id, |data| {
                         match otherapp.map_or(None, |oa| oa.index()) {
                             Some(i) => {
                                 if i > 8 {
@@ -249,7 +249,7 @@ impl Driver for IPC {
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
         self.data
-            .enter(appid, |data, _| {
+            .enter(appid, |data| {
                 // Lookup the index of the app based on the passed in
                 // identifier. This also let's us check that the other app is
                 // actually valid.

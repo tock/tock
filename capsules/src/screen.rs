@@ -146,7 +146,7 @@ impl<'a> Screen<'a> {
         appid: AppId,
     ) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
@@ -279,7 +279,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::Fill => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if app.shared.is_some() {
                         app.write_position = 0;
                         app.write_len = pixels_in_bytes(
@@ -303,7 +303,7 @@ impl<'a> Screen<'a> {
                 .unwrap_or_else(|err| err.into()),
             ScreenCommand::Write => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     let len = if let Some(ref shared) = app.shared {
                         shared.len()
                     } else {
@@ -329,7 +329,7 @@ impl<'a> Screen<'a> {
                 .unwrap_or_else(|err| err.into()),
             ScreenCommand::SetWriteFrame => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.write_position = 0;
                     app.x = (data1 >> 16) & 0xFFFF;
                     app.y = data1 & 0xFFFF;
@@ -348,7 +348,7 @@ impl<'a> Screen<'a> {
             self.screen_ready.set(true);
         } else {
             self.current_app.take().map(|appid| {
-                let _ = self.apps.enter(appid, |app, _| {
+                let _ = self.apps.enter(appid, |app| {
                     app.pending_command = false;
                     app.callback.map(|mut cb| {
                         cb.schedule(data1, data2, data3);
@@ -359,7 +359,7 @@ impl<'a> Screen<'a> {
 
         // Check if there are any pending events.
         for app in self.apps.iter() {
-            let started_command = app.enter(|app, _| {
+            let started_command = app.enter(|app| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(app.appid());
@@ -383,7 +383,7 @@ impl<'a> Screen<'a> {
             || 0,
             |appid| {
                 self.apps
-                    .enter(*appid, |app, _| {
+                    .enter(*appid, |app| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {
@@ -496,7 +496,7 @@ impl<'a> Driver for Screen<'a> {
         match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 })
@@ -569,7 +569,7 @@ impl<'a> Driver for Screen<'a> {
             // TODO should refuse allow while writing
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     let depth =
                         pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
                     let len = if let Some(ref s) = slice { s.len() } else { 0 };

@@ -710,7 +710,7 @@ impl<'a, A: Alarm<'a>> Driver for HD44780<'a, A> {
         match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if let Some(ref s) = slice {
                         /* check to see how many empty slots are and how much
                          * can be written to the buffer
