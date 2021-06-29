@@ -250,7 +250,8 @@ Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readabl
 The `Aliased` type represents cases where read-only and write-only registers,
 with different meanings, are aliased to the same memory location.
 
-The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
+The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`,
+`u64`, `u128` or `usize`.
 
 ## Example: Using registers and bitfields
 
