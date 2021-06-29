@@ -45,12 +45,12 @@ pub struct App {
 
 pub struct RngDriver<'a> {
     rng: &'a dyn Rng<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     getting_randomness: Cell<bool>,
 }
 
 impl<'a> RngDriver<'a> {
-    pub fn new(rng: &'a dyn Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
+    pub fn new(rng: &'a dyn Rng<'a>, grant: Grant<App, 1>) -> RngDriver<'a> {
         RngDriver {
             rng: rng,
             apps: grant,

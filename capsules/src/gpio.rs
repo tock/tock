@@ -58,13 +58,13 @@ use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-    apps: Grant<Upcall>,
+    apps: Grant<Upcall, 1>,
 }
 
 impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-        grant: Grant<Upcall>,
+        grant: Grant<Upcall, 1>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
             if let Some(pin) = maybe_pin {

@@ -84,7 +84,7 @@ pub struct UDPDriver<'a> {
     sender: &'a dyn UDPSender<'a>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App>,
+    apps: Grant<App, 2>,
     /// ID of app whose transmission request is being processed.
     current_app: Cell<Option<ProcessId>>,
 
@@ -107,7 +107,7 @@ pub struct UDPDriver<'a> {
 impl<'a> UDPDriver<'a> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, 2>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,

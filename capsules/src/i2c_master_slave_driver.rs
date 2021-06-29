@@ -50,7 +50,7 @@ pub struct I2CMasterSlaveDriver<'a> {
     slave_buffer1: TakeCell<'static, [u8]>,
     slave_buffer2: TakeCell<'static, [u8]>,
     app: OptionalCell<ProcessId>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a> I2CMasterSlaveDriver<'a> {
@@ -59,7 +59,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
         master_buffer: &'static mut [u8],
         slave_buffer1: &'static mut [u8],
         slave_buffer2: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> I2CMasterSlaveDriver<'a> {
         I2CMasterSlaveDriver {
             i2c,

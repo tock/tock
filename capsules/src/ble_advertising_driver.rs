@@ -309,7 +309,7 @@ where
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: kernel::Grant<App>,
+    app: kernel::Grant<App, 1>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::ProcessId>,
@@ -323,7 +323,7 @@ where
 {
     pub fn new(
         radio: &'a B,
-        container: kernel::Grant<App>,
+        container: kernel::Grant<App, 1>,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {

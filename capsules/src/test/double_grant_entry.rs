@@ -69,11 +69,11 @@ pub struct App {
 }
 
 pub struct TestGrantDoubleEntry {
-    grant: Grant<App>,
+    grant: Grant<App, 0>,
 }
 
 impl TestGrantDoubleEntry {
-    pub fn new(grant: Grant<App>) -> TestGrantDoubleEntry {
+    pub fn new(grant: Grant<App, 0>) -> TestGrantDoubleEntry {
         TestGrantDoubleEntry { grant }
     }
 }

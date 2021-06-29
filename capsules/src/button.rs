@@ -73,7 +73,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<(Upcall, SubscribeMap)>,
+    apps: Grant<(Upcall, SubscribeMap), 1>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -83,7 +83,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
-        grant: Grant<(Upcall, SubscribeMap)>,
+        grant: Grant<(Upcall, SubscribeMap), 1>,
     ) -> Self {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();

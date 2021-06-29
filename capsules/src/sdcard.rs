@@ -1406,7 +1406,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
     kernel_buf: TakeCell<'static, [u8]>,
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     current_process: OptionalCell<ProcessId>,
 }
 
@@ -1431,7 +1431,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
     pub fn new(
         sdcard: &'a SDCard<'a, A>,
         kernel_buf: &'static mut [u8; 512],
-        grants: Grant<App>,
+        grants: Grant<App, 1>,
     ) -> SDCardDriver<'a, A> {
         // return new SDCardDriver
         SDCardDriver {

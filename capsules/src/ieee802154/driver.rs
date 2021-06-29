@@ -178,7 +178,7 @@ pub struct RadioDriver<'a> {
     num_keys: Cell<usize>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App>,
+    apps: Grant<App, 2>,
     /// ID of app whose transmission request is being processed.
     current_app: OptionalCell<ProcessId>,
 
@@ -201,7 +201,7 @@ pub struct RadioDriver<'a> {
 impl<'a> RadioDriver<'a> {
     pub fn new(
         mac: &'a dyn device::MacDevice<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, 2>,
         kernel_tx: &'static mut [u8],
         deferred_caller: &'a DynamicDeferredCall,
     ) -> RadioDriver<'a> {

@@ -42,12 +42,12 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a S, grants: Grant<App>) -> Spi<'a, S> {
+    pub fn new(spi_master: &'a S, grants: Grant<App, 1>) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),

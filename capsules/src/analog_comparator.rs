@@ -48,7 +48,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> 
     analog_comparator: &'a A,
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
 
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     current_process: OptionalCell<ProcessId>,
 }
 
@@ -61,7 +61,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
     pub fn new(
         analog_comparator: &'a A,
         channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> AnalogComparator<'a, A> {
         AnalogComparator {
             // Analog Comparator driver

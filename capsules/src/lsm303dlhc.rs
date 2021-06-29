@@ -147,7 +147,7 @@ pub struct Lsm303dlhcI2C<'a> {
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     current_process: OptionalCell<ProcessId>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 }
 
 pub struct App {
@@ -167,7 +167,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
         i2c_accelerometer: &'a dyn i2c::I2CDevice,
         i2c_magnetometer: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Lsm303dlhcI2C<'a> {
         // setup and return struct
         Lsm303dlhcI2C {

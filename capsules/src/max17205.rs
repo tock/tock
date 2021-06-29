@@ -395,11 +395,11 @@ pub struct App {
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
     owning_process: OptionalCell<ProcessId>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a> MAX17205Driver<'a> {
-    pub fn new(max: &'a MAX17205, grant: Grant<App>) -> Self {
+    pub fn new(max: &'a MAX17205, grant: Grant<App, 1>) -> Self {
         Self {
             max17205: max,
             owning_process: OptionalCell::empty(),

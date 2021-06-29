@@ -68,7 +68,7 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, 2>,
     tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: OptionalCell<ProcessId>,
@@ -80,7 +80,7 @@ impl<'a> Console<'a> {
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 2>,
     ) -> Console<'a> {
         Console {
             uart: uart,

@@ -48,7 +48,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     active: Cell<bool>,
 
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     appid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -66,7 +66,7 @@ impl<
         hmac: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> HmacDriver<'a, H, L> {
         HmacDriver {
             hmac: hmac,

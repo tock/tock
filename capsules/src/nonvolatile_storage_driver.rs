@@ -115,7 +115,7 @@ pub struct NonvolatileStorage<'a> {
     // The underlying physical storage device.
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
@@ -150,7 +150,7 @@ pub struct NonvolatileStorage<'a> {
 impl<'a> NonvolatileStorage<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
         userspace_start_address: usize,
         userspace_length: usize,
         kernel_start_address: usize,

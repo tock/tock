@@ -110,7 +110,7 @@ impl Default for App {
 pub struct Screen<'a> {
     screen: &'a dyn hil::screen::Screen,
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     screen_ready: Cell<bool>,
     current_app: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
@@ -122,7 +122,7 @@ impl<'a> Screen<'a> {
         screen: &'a dyn hil::screen::Screen,
         screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
         buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Screen<'a> {
         Screen {
             screen: screen,

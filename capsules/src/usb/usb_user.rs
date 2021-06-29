@@ -42,7 +42,7 @@ pub struct App {
 
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     serving_app: OptionalCell<ProcessId>,
 }
 
@@ -50,7 +50,7 @@ impl<'a, C> UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {
-    pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
+    pub fn new(usbc_client: &'a C, apps: Grant<App, 1>) -> Self {
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,

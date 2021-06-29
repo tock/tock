@@ -39,12 +39,12 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<PeripheralApp>,
+    grants: Grant<PeripheralApp, 1>,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
-    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp>) -> SpiPeripheral<'a, S> {
+    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp, 1>) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
             spi_slave: spi_slave,
             busy: Cell::new(false),

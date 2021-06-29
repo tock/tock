@@ -73,7 +73,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // Alarm to stop the buzzer after some time.
     alarm: &'a A,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     // Which app is currently using the buzzer.
     active_app: OptionalCell<ProcessId>,
     // Max buzz time.
@@ -85,7 +85,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         pwm_pin: &'a dyn hil::pwm::PwmPin,
         alarm: &'a A,
         max_duration_ms: usize,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Buzzer<'a, A> {
         Buzzer {
             pwm_pin: pwm_pin,

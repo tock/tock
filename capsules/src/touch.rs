@@ -74,7 +74,7 @@ pub struct Touch<'a> {
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
     screen: Option<&'a dyn hil::screen::Screen>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
 
@@ -83,7 +83,7 @@ impl<'a> Touch<'a> {
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen>,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Touch<'a> {
         Touch {
             touch: touch,

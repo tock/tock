@@ -190,7 +190,7 @@ pub struct L3gd20Spi<'a> {
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
     current_process: OptionalCell<ProcessId>,
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -200,7 +200,7 @@ impl<'a> L3gd20Spi<'a> {
         spi: &'a dyn spi::SpiMasterDevice,
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
         rxbuffer: &'static mut [u8; L3GD20_RX_SIZE],
-        grants: Grant<App>,
+        grants: Grant<App, 1>,
     ) -> L3gd20Spi<'a> {
         // setup and return struct
         L3gd20Spi {

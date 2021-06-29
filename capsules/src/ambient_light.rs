@@ -32,11 +32,14 @@ pub struct App {
 pub struct AmbientLight<'a> {
     sensor: &'a dyn hil::sensors::AmbientLight<'a>,
     command_pending: Cell<bool>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a> AmbientLight<'a> {
-    pub fn new(sensor: &'a dyn hil::sensors::AmbientLight<'a>, grant: Grant<App>) -> AmbientLight {
+    pub fn new(
+        sensor: &'a dyn hil::sensors::AmbientLight<'a>,
+        grant: Grant<App, 1>,
+    ) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
             command_pending: Cell::new(false),

@@ -93,7 +93,7 @@ pub struct App {
 /// processes through the system call interface.
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     serving_app: OptionalCell<ProcessId>,
 }
 
@@ -111,7 +111,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
     /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
+    pub fn new(crc_unit: &'a C, apps: Grant<App, 1>) -> Crc<'a, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,

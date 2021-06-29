@@ -14,7 +14,7 @@ pub const DRIVER_NUM: usize = 0x8;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
-    grant: Grant<AppData>,
+    grant: Grant<AppData, 0>,
     // grant_failed is set to true when LowLevelDebug fails to allocate an app's
     // grant region. When it has a chance, LowLevelDebug will print a message
     // indicating a grant initialization has failed, then set this back to
@@ -29,7 +29,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     pub fn new(
         buffer: &'static mut [u8],
         uart: &'u U,
-        grant: Grant<AppData>,
+        grant: Grant<AppData, 0>,
     ) -> LowLevelDebug<'u, U> {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),

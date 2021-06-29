@@ -421,12 +421,12 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App>) -> LTC294XDriver<'a> {
+    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App, 1>) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
             grants: grants,

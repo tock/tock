@@ -51,7 +51,7 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     active_app: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -60,7 +60,7 @@ pub struct Nrf51822Serialization<'a> {
 impl<'a> Nrf51822Serialization<'a> {
     pub fn new(
         uart: &'a dyn uart::UartAdvanced<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],

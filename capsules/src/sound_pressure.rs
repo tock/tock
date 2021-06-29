@@ -71,14 +71,14 @@ pub struct App {
 
 pub struct SoundPressureSensor<'a> {
     driver: &'a dyn hil::sensors::SoundPressure<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     busy: Cell<bool>,
 }
 
 impl<'a> SoundPressureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::SoundPressure<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> SoundPressureSensor<'a> {
         SoundPressureSensor {
             driver: driver,

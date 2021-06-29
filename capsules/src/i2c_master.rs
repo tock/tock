@@ -31,11 +31,11 @@ pub struct I2CMasterDriver<'a, I: 'a + i2c::I2CMaster> {
     i2c: &'a I,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
-    pub fn new(i2c: &'a I, buf: &'static mut [u8], apps: Grant<App>) -> I2CMasterDriver<'a, I> {
+    pub fn new(i2c: &'a I, buf: &'static mut [u8], apps: Grant<App, 1>) -> I2CMasterDriver<'a, I> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),

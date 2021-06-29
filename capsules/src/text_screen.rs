@@ -63,7 +63,7 @@ impl Default for App {
 
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -72,7 +72,7 @@ impl<'a> TextScreen<'a> {
     pub fn new(
         text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> TextScreen<'a> {
         TextScreen {
             text_screen: text_screen,

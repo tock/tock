@@ -103,7 +103,7 @@ pub struct LPS25HB<'a> {
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -112,7 +112,7 @@ impl<'a> LPS25HB<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-        apps: Grant<App>,
+        apps: Grant<App, 1>,
     ) -> Self {
         // setup and return struct
         Self {

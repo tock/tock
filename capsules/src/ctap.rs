@@ -61,7 +61,7 @@ impl Default for App {
 pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
-    app: Grant<App>,
+    app: Grant<App, 1>,
     appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
@@ -74,7 +74,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
         usb: Option<&'a U>,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> CtapDriver<'a, U> {
         CtapDriver {
             usb: usb,

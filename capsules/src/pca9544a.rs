@@ -64,12 +64,16 @@ pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> PCA9544A<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8], grant: Grant<App>) -> Self {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CDevice,
+        buffer: &'static mut [u8],
+        grant: Grant<App, 1>,
+    ) -> Self {
         Self {
             i2c,
             state: Cell::new(State::Idle),

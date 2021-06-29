@@ -35,7 +35,7 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     /// **Transient** ownership of the partially virtualized peripheral.
     ///
     /// Current GPIO HIL semantics notify *all* processes of interrupts
@@ -61,7 +61,7 @@ pub struct App {
 }
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
-    pub fn new(ports: &'a [&'a Port], grants: Grant<App>) -> GPIOAsync<'a, Port> {
+    pub fn new(ports: &'a [&'a Port], grants: Grant<App, 1>) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
             grants,

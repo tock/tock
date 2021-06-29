@@ -66,7 +66,7 @@ pub struct Mlx90614SMBus<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -74,7 +74,7 @@ impl<'a> Mlx90614SMBus<'_> {
     pub fn new(
         smbus_temp: &'a dyn i2c::SMBusDevice,
         buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Mlx90614SMBus<'a> {
         Mlx90614SMBus {
             smbus_temp,
