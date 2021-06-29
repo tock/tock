@@ -51,6 +51,8 @@ $ tar xvf JLink_Linux_arm64.tgz
 $ sudo cp JLink_Linux_V700a_arm64/99-jlink.rules /etc/udev/rules.d/ # Depends on JLink version
  
 # Add the Jlink directory to the path in .profile or .bashrc
+# Example command below (not exact command)
+$ echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bash_profile
 ```
 4. Install pip3, if not yet installed
 ```bash
@@ -73,11 +75,13 @@ $ sudo apt install arm-none-eabi
 # Install bluetooth library
 $ sudo apt-get install bluez bluez-tools pi-bluetooth 
 # !IMPORTANT! Remember to reboot after installation
+$ sudo reboot
 ```
 8. Install python3 libraries
 ```bash
 $ cd ~/tock-test-harness; pip3 install -r requirements.txt
 ```
+**Note:** this step will have to be done by a member of @tock/core-wg
 9. Hook up Action Runner of the Tock Repo to the Raspberry Pi.
     * Go to \'Settings\' and go to \'Actions\' down the list on the left
     * Under \'Self-hosted runners\' click **Add runner**
@@ -85,8 +89,7 @@ $ cd ~/tock-test-harness; pip3 install -r requirements.txt
 
 10. Add path to JLink to ```.path``` in Action Runner
 ```bash
-$ cd ~/actions-runner; vi .path
-# Add the path
+$ echo "JLINK_PATH_WHATEVER_IT_IS" > ~/actions-runner/.path
 ```
 
 ## Troubleshoot
