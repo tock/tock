@@ -137,6 +137,21 @@ impl<
         })
     }
 
+    fn calculate_digest(&self) -> Result<(), ErrorCode> {
+        self.data_copied.set(0);
+
+        if let Err(e) = self.hmac.run(self.dest_buffer.take().unwrap()) {
+            // Error, clear the appid and data
+            self.hmac.clear_data();
+            self.appid.clear();
+            self.dest_buffer.replace(e.1);
+
+            return Err(e.0);
+        }
+
+        Ok(())
+    }
+
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
             let started_command = appiter.enter(|app, _| {
@@ -240,14 +255,12 @@ impl<
                     }
 
                     // If we get here we are ready to run the digest, reset the copied data
-                    self.data_copied.set(0);
-
-                    if let Err(e) = self.hmac.run(self.dest_buffer.take().unwrap()) {
-                        // Error, clear the appid and data
-                        self.hmac.clear_data();
-                        self.appid.clear();
-
-                        upcalls.schedule_upcall(0, kernel::into_statuscode(e.0.into()), 0, 0);
+                    if app.op.get().unwrap() == UserSpaceOp::Run {
+                        if let Err(e) = self.calculate_digest() {
+                            upcalls.schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0);
+                        }
+                    } else {
+                        upcalls.schedule_upcall(0, 0, 0, 0);
                     }
                 })
                 .map_err(|err| {
@@ -409,6 +422,8 @@ impl<
     ///
     /// - `0`: set_algorithm
     /// - `1`: run
+    /// - `2`: update
+    /// - `3`: finish
     fn command(
         &self,
         command_num: usize,
@@ -417,6 +432,30 @@ impl<
         appid: ProcessId,
     ) -> CommandReturn {
         let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            // We have recorded that an app has ownership of the HMAC.
+
+            // If the HMAC is still active, then we need to wait for the operation
+            // to finish and the app, whether it exists or not (it may have crashed),
+            // still owns this capsule. If the HMAC is not active, then
+            // we need to verify that that application still exists, and remove
+            // it as owner if not.
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                // Check the app still exists.
+                //
+                // If the `.enter()` succeeds, then the app is still valid, and
+                // we can check if the owning app matches the one that called
+                // the command. If the `.enter()` fails, then the owning app no
+                // longer exists and we return `true` to signify the
+                // "or_nonexistant" case.
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+
+        let app_match = self.appid.map_or(false, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
             // If the HMAC is still active, then we need to wait for the operation
@@ -468,9 +507,14 @@ impl<
             }
 
             // run
+            // Use key and data to compute hash
+            // This will trigger a callback once the digest is generated
             1 => {
                 if match_or_empty_or_nonexistant {
                     self.appid.set(appid);
+                    let _ = self.apps.enter(appid, |app, _| {
+                        app.op.set(Some(UserSpaceOp::Run));
+                    });
                     let ret = self.run();
 
                     if let Err(e) = ret {
@@ -493,10 +537,69 @@ impl<
                             } else {
                                 // We can store this, so lets do it.
                                 app.pending_run_app = Some(appid);
+                                app.op.set(Some(UserSpaceOp::Run));
                                 CommandReturn::success()
                             }
                         })
                         .unwrap_or_else(|err| err.into())
+                }
+            }
+
+            // update
+            // Input key and data, don't compute final hash yet
+            // This will trigger a callback once the data has been added.
+            2 => {
+                if match_or_empty_or_nonexistant {
+                    self.appid.set(appid);
+                    let _ = self.apps.enter(appid, |app, _| {
+                        app.op.set(Some(UserSpaceOp::Update));
+                    });
+                    let ret = self.run();
+
+                    if let Err(e) = ret {
+                        self.hmac.clear_data();
+                        self.appid.clear();
+                        self.check_queue();
+                        CommandReturn::failure(e)
+                    } else {
+                        CommandReturn::success()
+                    }
+                } else {
+                    // There is an active app, so queue this request (if possible).
+                    self.apps
+                        .enter(appid, |app, _| {
+                            // Some app is using the storage, we must wait.
+                            if app.pending_run_app.is_some() {
+                                // No more room in the queue, nowhere to store this
+                                // request.
+                                CommandReturn::failure(ErrorCode::NOMEM)
+                            } else {
+                                // We can store this, so lets do it.
+                                app.pending_run_app = Some(appid);
+                                app.op.set(Some(UserSpaceOp::Update));
+                                CommandReturn::success()
+                            }
+                        })
+                        .unwrap_or_else(|err| err.into())
+                }
+            }
+
+            // finish
+            // Compute final hash yet, useful after a update command
+            3 => {
+                if app_match {
+                    self.apps
+                        .enter(appid, |_app, upcalls| {
+                            if let Err(e) = self.calculate_digest() {
+                                upcalls.schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0);
+                            }
+                        })
+                        .unwrap();
+                    CommandReturn::success()
+                } else {
+                    // We don't queue this request, the user has to call
+                    // `update` first.
+                    CommandReturn::failure(ErrorCode::OFF)
                 }
             }
 
@@ -510,10 +613,17 @@ impl<
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
+enum UserSpaceOp {
+    Run,
+    Update,
+}
+
 #[derive(Default)]
 pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
+    op: Cell<Option<UserSpaceOp>>,
     key: ReadOnlyAppSlice,
     data: ReadOnlyAppSlice,
     dest: ReadWriteAppSlice,
