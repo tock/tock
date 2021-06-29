@@ -182,7 +182,7 @@ Github actions can be used to set up runners, which are [servers that have the G
 ## Configuration Files
 Before looking at the workflow, there are two configuration files that are important to the whole process of hardware CI and how it’s currently working through the main executable file that is called to run on runners. The two configuration files are:
 - **Config.toml**
-    - This file is created when runner_init, the script used when setting up the Raspberry Pi, is run, which holds information about the target board and the harness id of the Raspberry Pi. Information that is held in this file was explained in the previous section ([Here](#creating-the-configuration-file)).
+    - This file is created when runner_init, the script used when setting up the Raspberry Pi, is run, which holds information about the target board and the harness id of the Raspberry Pi. Information that is held in this file was explained in the [previous section](#creating-the-configuration-file).
 - **Test.config.toml** (located [here - nrf52840dk board](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml)) Note: Each specific board will have this file when Hardware CI is implemented for said board.
     - This configuration file is made for each board that is supported by the Tock OS that has Hardware CI set. Currently, the only board that has this file is the nrf52840dk board. This toml file contains board-specific test information, such as what tests are run for all Raspberry Pi’s, and what tests are to be performed on specific Raspberry Pi's harness ID. Note that the current setting for run is the default install script which can be changed to other scripts. Each test configuration file for each board will have a file in this format, and it’s necessary to be able to run tests.
     - **The file contains**
@@ -197,7 +197,7 @@ Before looking at the workflow, there are two configuration files that are impor
 
 ## Looking in the Workflow 
 
-File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
+**Note:** File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
 
 These files are the workflow of how instances work, setting up actions that create runners to run certain tasks or files.
 These configuration files call the python executables located at each directory listed, known as “main.py”, through the workflow/runners.
@@ -219,7 +219,7 @@ The tests are located in the “libtock-c” repository, and there is a list of 
 
 ## How Tests Work 
 
-Example test we are working with is in the ([gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
+**Note:** Example test we are working with is in the ([gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
 
 There are two files for each test that are used for the actual process of testing, one makefile for the installation of the application onto the board/Raspberry Pi, and readme to explain the test. 
 - Main.c (located [here](https://github.com/goodoomoodoo/libtock-c/blob/master/examples/ci-tests/gpio/main.c)):
@@ -240,7 +240,7 @@ As noted in the previous section we have a test.config.toml file that contains i
         - The python file will be named “test” which is the file that reads into any information from the application, and outputs any messages that are meaningful. This information can be the state, action, or messages from the application onto the target board.
         - Then, you can create a readme and makefile corresponding to the test to explain what functions are being tested on the board and to compile/build the application (test) for the board.
         - To add the test, you’ll push the files of the test with the title of the function being tested to the directory path libtock-c/examples/ci-tests in github. The full path will then be libtock-c/examples/ci-tests/{app} with “{app}” being the title to the test you made as the folder. This is necessary because the “main.py” file uses the path to build, install, and run the test.
-    2. To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/goodoomoodoo/tock/tree/master/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the nrf52840dk board [here](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml) to see the contents and format. Also revisit the previous section discussing the test configuration file [here](#configuration-files).
+    2. To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/goodoomoodoo/tock/tree/master/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the [nrf52840dk board](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml) to see the contents and format. Also revisit the previous section discussing the test [configuration file](#configuration-files).
 
 ![Diagram for Adding/Choosing Tests](images/ci-hardware/testsdiagram.png)
 
