@@ -40,7 +40,7 @@ This section explains the software setup needed for this box. These directions a
 **Note:** This machine should be on a stable, reliable network (i.e. a campus or office setup) to ensure it is always available to run tests. Also of note, runners may run arbitrary code from community-generated Pull Requests (PRs), which may create a security risk. Once initial configuration is complete, the only network access the runner should need is to Github servers, so this box can be firewalled accordingly.
 
 ## Getting Started 
-[Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE) of the guide
+[Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE) of the **Getting Started** guide
 
 1. Install Ubuntu Server on Raspberry Pi.
     * Follow the guide [here](https://ubuntu.com/tutorials/how-to-install-ubuntu-on-your-raspberry-pi#1-overview) until step 5. We do not need desktop environment.
