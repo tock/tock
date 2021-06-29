@@ -51,10 +51,12 @@ impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     }
 }
 
+const NUM_UPCALLS: usize = 5; // TODO MAKE GENERIC ON NUM_PROCS
+
 /// The IPC mechanism struct.
 pub struct IPC<const NUM_PROCS: usize> {
     /// The grant regions for each process that holds the per-process IPC data.
-    data: Grant<IPCData<NUM_PROCS>>,
+    data: Grant<IPCData<NUM_PROCS>, NUM_UPCALLS>,
 }
 
 impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {

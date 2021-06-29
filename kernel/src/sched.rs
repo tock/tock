@@ -384,10 +384,10 @@ impl Kernel {
     /// Calling this function is restricted to only certain users, and to
     /// enforce this calling this function requires the
     /// `MemoryAllocationCapability` capability.
-    pub fn create_grant<T: Default>(
+    pub fn create_grant<T: Default, const NUM_UPCALLS: usize>(
         &'static self,
         _capability: &dyn capabilities::MemoryAllocationCapability,
-    ) -> Grant<T> {
+    ) -> Grant<T, NUM_UPCALLS> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -395,7 +395,7 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
-        Grant::new(self, grant_index, 2)
+        Grant::new(self, grant_index)
     }
 
     /// Returns the number of grants that have been setup in the system and

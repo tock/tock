@@ -202,12 +202,6 @@ pub trait Driver {
         Ok(())
     }
 
-    /// Return the number of upcalls required by this driver.
-    /// No default impl so drivers cannot forget it. (TODO)
-    fn num_upcalls(&self, appid: ProcessId) -> usize {
-        0
-    }
-
     /// System call for a process to perform a short synchronous operation
     /// or start a long-running split-phase operation (whose completion
     /// is signaled with an upcall). Command 0 is a reserved command to

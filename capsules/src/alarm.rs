@@ -2,9 +2,8 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
-use core::mem;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -22,6 +21,7 @@ pub struct AlarmData {
 }
 
 const ALARM_CALLBACK_NUM: usize = 0;
+const NUM_UPCALLS: usize = 1;
 
 impl Default for AlarmData {
     fn default() -> AlarmData {
@@ -34,12 +34,12 @@ impl Default for AlarmData {
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarms: Grant<AlarmData>,
+    app_alarms: Grant<AlarmData, NUM_UPCALLS>,
     next_alarm: Cell<Expiration>,
 }
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+    pub const fn new(alarm: &'a A, grant: Grant<AlarmData, NUM_UPCALLS>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
@@ -246,10 +246,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
 
     fn allocate_grant(&self, appid: ProcessId) -> Result<(), kernel::procs::Error> {
         self.app_alarms.enter(appid, |_, _| {})
-    }
-
-    fn num_upcalls(&self, appid: ProcessId) -> usize {
-        1
     }
 }
 
