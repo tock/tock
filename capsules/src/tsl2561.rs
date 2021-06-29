@@ -17,7 +17,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -202,9 +202,7 @@ enum State {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct TSL2561<'a> {
     i2c: &'a dyn i2c::I2CDevice,
@@ -423,8 +421,8 @@ impl i2c::I2CClient for TSL2561<'_> {
                 let lux = self.calculate_lux(chan0, chan1);
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app, _| {
-                        app.callback.schedule(0, lux, 0);
+                    let _ = self.apps.enter(*pid, |_, upcalls| {
+                        upcalls.schedule_upcall(0, *pid, 0, lux, 0);
                     });
                 });
 
@@ -461,15 +459,6 @@ impl gpio::Client for TSL2561<'_> {
 }
 
 impl Driver for TSL2561<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -503,5 +492,9 @@ impl Driver for TSL2561<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

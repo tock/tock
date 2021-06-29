@@ -7,7 +7,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -29,7 +29,6 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
@@ -137,15 +136,6 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             Ok(()) => Ok(slice),
             Err(e) => Err((slice, e)),
         }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
     }
 
     // 2: read/write buffers
@@ -288,7 +278,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
         length: usize,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, _| {
+            let _ = self.grants.enter(*process_id, move |app, upcalls| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     app.app_read.mut_map_or((), |dest| {
@@ -327,7 +317,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    app.callback.schedule(len, 0, 0);
+                    upcalls.schedule_upcall(0, *process_id, len, 0, 0);
                 } else {
                     self.do_next_read_write(app);
                 }

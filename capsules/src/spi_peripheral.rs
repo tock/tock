@@ -9,7 +9,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
@@ -25,8 +25,6 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // that includes this new callback field.
 #[derive(Default)]
 pub struct PeripheralApp {
-    callback: Upcall,
-    selected_callback: Upcall,
     app_read: ReadWriteAppSlice,
     app_write: ReadOnlyAppSlice,
     len: usize,
@@ -39,12 +37,12 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<PeripheralApp, 1>,
+    grants: Grant<PeripheralApp, 2>,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
-    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp, 1>) -> SpiPeripheral<'a, S> {
+    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp, 2>) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
             spi_slave: spi_slave,
             busy: Cell::new(false),
@@ -142,25 +140,6 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
             Ok(()) => Ok(slice),
             Err(e) => Err((slice, e)),
         }
-    }
-    /// Set callbacks for SpiPeripheral
-    ///
-    /// - subscribe_num 0: Sets up a callback for when read_write completes. This
-    ///                  is called after completing a transfer/reception with
-    ///                  the Spi master. Note that this occurs after the pending
-    ///                  DMA transfer initiated by read_write_bytes completes.
-    ///
-    /// - subscribe_num 1: Sets up a callback for when the chip select line is
-    ///                  driven low, meaning that the slave was selected by
-    ///                  the Spi master. This occurs immediately before
-    ///                  a data transfer.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Ok(callback)
     }
 
     /// - 0: check if present
@@ -264,6 +243,10 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
+    }
 }
 
 impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
@@ -274,7 +257,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
         length: usize,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, _| {
+            let _ = self.grants.enter(*process_id, move |app, upcalls| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     app.app_read.mut_map_or((), |dest| {
@@ -312,7 +295,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    app.callback.schedule(len, 0, 0);
+                    upcalls.schedule_upcall(0, *process_id, len, 0, 0);
                 } else {
                     self.do_next_read_write(app);
                 }
@@ -323,9 +306,9 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
     // Simple callback for when chip has been selected
     fn chip_selected(&self) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, _| {
+            let _ = self.grants.enter(*process_id, move |app, upcalls| {
                 let len = app.len;
-                app.selected_callback.schedule(len, 0, 0);
+                upcalls.schedule_upcall(1, *process_id, len, 0, 0);
             });
         });
     }
