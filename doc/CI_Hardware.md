@@ -8,7 +8,7 @@ The Tock core team maintains the following hardware CI instances:
 <!-- toc -->
 
 - [How To Set Up a New Instance](#how-to-set-up-a-new-instance)
-  * [Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))](#getting-started-source)
+  * [Getting Started](#getting-started)
   * [Troubleshoot](#troubleshoot)
     + [To run on your local-host (instead of Github)](#to-run-on-your-local-host-instead-of-github)
     + [WiFi not connected after first boot](#wifi-not-connected-after-first-boot)
@@ -18,10 +18,10 @@ The Tock core team maintains the following hardware CI instances:
   * [Process of Instances](#process-of-instances)
     + [What are actions/runners?](#what-are-actionsrunners)
   * [Configuration Files](#configuration-files)
-  * [Looking in the Workflow ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))](#looking-in-the-workflow-tock-hw-ciyml)
+  * [Looking in the Workflow](#looking-in-the-workflow)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
-  * [How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))](#how-tests-work-example---gpio-folder)
+  * [How Tests Work](#how-tests-work)
 - [How Tests are Chosen](#how-tests-are-chosen)
 - [What to do if Something Goes Wrong](#what-to-do-if-something-goes-wrong)
   * [If a test fails](#if-a-test-fails)
@@ -39,7 +39,8 @@ This section explains the software setup needed for this box. These directions a
 
 **Note:** This machine should be on a stable, reliable network (i.e. a campus or office setup) to ensure it is always available to run tests. Also of note, runners may run arbitrary code from community-generated Pull Requests (PRs), which may create a security risk. Once initial configuration is complete, the only network access the runner should need is to Github servers, so this box can be firewalled accordingly.
 
-## Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))
+## Getting Started 
+[Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE) of the guide
 
 1. Install Ubuntu Server on Raspberry Pi.
     * Follow the guide [here](https://ubuntu.com/tutorials/how-to-install-ubuntu-on-your-raspberry-pi#1-overview) until step 5. We do not need desktop environment.
@@ -194,7 +195,9 @@ Before looking at the workflow, there are two configuration files that are impor
             - Test.all specifier:
                 - Tests to be built, installed, and tested on the raspberry pi. The “app” variable holds the list of tests to be conducted. The “all” in the specifier can be changed to a Raspberry Pi ID to conduct specific tests on specific Raspberry Pi’s.
 
-## Looking in the Workflow ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
+## Looking in the Workflow 
+
+File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
 
 These files are the workflow of how instances work, setting up actions that create runners to run certain tasks or files.
 These configuration files call the python executables located at each directory listed, known as “main.py”, through the workflow/runners.
@@ -214,7 +217,10 @@ For example:
 ## Location
 The tests are located in the “libtock-c” repository, and there is a list of tests held in the directory [libtock-c/examples/ci-tests](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests). Tests are held in each folder, and the labels of each folder are the kind of tests programmed to run. For example, ble folder represents the ble test. To explain how the tests work with the multiple files for each test folder, I’ll use the gpio test as reference.
 
-## How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
+## How Tests Work 
+
+Example test we are working with is in the ([gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
+
 There are two files for each test that are used for the actual process of testing, one makefile for the installation of the application onto the board/Raspberry Pi, and readme to explain the test. 
 - Main.c (located [here](https://github.com/goodoomoodoo/libtock-c/blob/master/examples/ci-tests/gpio/main.c)):
     - This file is what’s used to install the test, or application, onto the target board. This goes for all main files for the test folders. What this application does is toggle the gpio state for a certain period of time.
