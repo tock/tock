@@ -10,6 +10,9 @@ pub mod interfaces;
 pub mod macros;
 pub mod registers;
 
+mod local_register;
+pub use local_register::LocalRegisterCopy;
+
 use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
 /// Trait representing the base type of registers.

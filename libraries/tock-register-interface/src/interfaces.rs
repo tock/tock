@@ -148,8 +148,7 @@
 //! ```
 
 use crate::fields::{Field, FieldValue, TryFromValue};
-use crate::registers::LocalRegisterCopy;
-use crate::{IntLike, RegisterLongName};
+use crate::{IntLike, LocalRegisterCopy, RegisterLongName};
 
 /// Readable register
 ///
