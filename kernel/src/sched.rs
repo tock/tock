@@ -386,6 +386,7 @@ impl Kernel {
     /// `MemoryAllocationCapability` capability.
     pub fn create_grant<T: Default, const NUM_UPCALLS: usize>(
         &'static self,
+        driver_num: usize,
         _capability: &dyn capabilities::MemoryAllocationCapability,
     ) -> Grant<T, NUM_UPCALLS> {
         if self.grants_finalized.get() {
@@ -395,7 +396,7 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
-        Grant::new(self, grant_index)
+        Grant::new(self, driver_num, grant_index)
     }
 
     /// Returns the number of grants that have been setup in the system and

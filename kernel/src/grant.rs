@@ -1006,10 +1006,10 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     ///
     /// This must only be called from the main kernel so that it can ensure that
     /// `grant_index` is a valid index.
-    pub(crate) fn new(kernel: &'static Kernel, grant_index: usize) -> Self {
+    pub(crate) fn new(kernel: &'static Kernel, driver_num: usize, grant_index: usize) -> Self {
         Self {
             kernel: kernel,
-            driver_num: 85,
+            driver_num: driver_num,
             grant_num: grant_index,
             ptr: PhantomData,
         }
