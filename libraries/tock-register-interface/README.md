@@ -1,13 +1,14 @@
 # Tock Register Interface
 
-This crate provides an interface for defining and manipulating memory mapped
-registers and bitfields.
+This crate provides an interface and types for defining and
+manipulating registers and bitfields.
 
 ## Defining registers
 
 The crate provides three types for working with memory mapped registers:
 `ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
-write-only functionality, respectively.
+write-only functionality, respectively. These types implement the `Readable`,
+`Writeable` and `ReadWriteable` traits.
 
 Defining the registers is done with the `register_structs` macro, which expects
 for each register an offset, a field name, and a type. Registers must be
@@ -198,10 +199,12 @@ register_bitfields! [
 ## Register Interface Summary
 
 There are four types provided by the register interface: `ReadOnly`,
-`WriteOnly`, `ReadWrite`, and `Aliased`. They provide the following functions:
+`WriteOnly`, `ReadWrite`, and `Aliased`. They expose the following
+methods, through the implementations of the `Readable`, `Writeable`
+and `ReadWriteable` traits respectively:
 
 ```rust
-ReadOnly<T: IntLike, R: RegisterLongName = ()>
+ReadOnly<T: IntLike, R: RegisterLongName = ()>: Readable
 .get() -> T                                    // Get the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
 .read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
@@ -210,11 +213,11 @@ ReadOnly<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-WriteOnly<T: IntLike, R: RegisterLongName = ()>
+WriteOnly<T: IntLike, R: RegisterLongName = ()>: Writeable
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-ReadWrite<T: IntLike, R: RegisterLongName = ()>
+ReadWrite<T: IntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWriteable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -231,7 +234,7 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>
+Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -453,3 +456,14 @@ register_bitfields! [
     ]
 ]
 ```
+
+## Implementing custom register types
+
+The `Readable`, `Writeable` and `ReadWriteable` traits make it
+possible to implement custom register types, even outside of this
+crate. A particularly useful application area for this are CPU
+registers, such as ARM SPSRs or RISC-V CSRs. It is sufficient to
+implement the `Readable::get` and `Writeable::set` methods for the
+rest of the API to be automatically implemented by the crate-provided
+traits. For more in-depth documentation on how this works, refer to
+the `interfaces` module  documentation.
