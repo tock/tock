@@ -52,7 +52,9 @@ use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{
+    register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
+};
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
 use kernel::ErrorCode;
@@ -143,13 +145,27 @@ register_bitfields![u32,
     ]
 ];
 
-// CRCCU Descriptor (from Table 41.2 in Section 41.6):
 #[repr(C)]
+#[repr(align(512))]
 struct Descriptor {
-    addr: u32, // Transfer Address Register (RW): Address of memory block to compute
-    ctrl: TCR, // Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
+    /// Transfer Address Register (RW): Address of memory block to compute
+    addr: InMemoryRegister<u32>,
+    /// Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
+    ctrl: InMemoryRegister<u32>,
     _res: [u32; 2],
-    crc: u32, // Transfer Reference Register (RW): Reference CRC (for compare mode)
+    /// Transfer Reference Register (RW): Reference CRC (for compare mode)
+    crc: InMemoryRegister<u32>,
+}
+
+impl Descriptor {
+    pub fn new() -> Descriptor {
+        Descriptor {
+            addr: InMemoryRegister::new(0),
+            ctrl: InMemoryRegister::new(0),
+            _res: [0; 2],
+            crc: InMemoryRegister::new(0),
+        }
+    }
 }
 
 // Transfer Control Register (see Section 41.6.18)
@@ -231,27 +247,29 @@ pub struct Crccu<'a> {
     state: Cell<State>,
     alg: Cell<CrcAlg>,
 
-    // Guaranteed room for a Descriptor with 512-byte alignment.
-    // (Can we do this statically instead?)
-    descriptor_space: [u8; DSCR_RESERVE],
+    // CRC DMA descriptor
+    //
+    // Must be aligned to a 512-byte boundary, which is guaranteed by
+    // the struct definition.
+    descriptor: Descriptor,
 }
 
-const DSCR_RESERVE: usize = 512 + 5 * 4;
-
 impl Crccu<'_> {
-    pub const fn new(base_addr: StaticRef<CrccuRegisters>) -> Self {
+    pub fn new(base_addr: StaticRef<CrccuRegisters>) -> Self {
         Crccu {
             registers: base_addr,
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
             alg: Cell::new(CrcAlg::Crc32C),
-            descriptor_space: [0; DSCR_RESERVE],
+            descriptor: Descriptor::new(),
         }
     }
 
     fn init(&self) {
         if self.state.get() == State::Invalid {
-            self.set_descriptor(0, TCR::default(), 0);
+            self.descriptor.addr.set(0);
+            self.descriptor.ctrl.set(0);
+            self.descriptor.crc.set(0);
             self.state.set(State::Initialized);
         }
     }
@@ -276,27 +294,6 @@ impl Crccu<'_> {
         }
     }
 
-    fn set_descriptor(&self, addr: u32, ctrl: TCR, crc: u32) {
-        let d = unsafe { &mut *self.descriptor() };
-        d.addr = addr;
-        d.ctrl = ctrl;
-        d.crc = crc;
-    }
-
-    fn get_tcr(&self) -> TCR {
-        let d = unsafe { &*self.descriptor() };
-        d.ctrl
-    }
-
-    // Dynamically calculate the 512-byte-aligned location for Descriptor
-    fn descriptor(&self) -> *mut Descriptor {
-        let s = &self.descriptor_space as *const [u8; DSCR_RESERVE] as u32;
-        let t = s % 512;
-        let u = 512 - t;
-        let d = s + u;
-        d as *mut Descriptor
-    }
-
     /// Handle an interrupt from the CRCCU
     pub fn handle_interrupt(&self) {
         if self.registers.isr.is_set(Interrupt::ERR) {
@@ -306,7 +303,7 @@ impl Crccu<'_> {
         if self.registers.dmaisr.is_set(DmaInterrupt::DMA) {
             // A DMA transfer has completed
 
-            if self.get_tcr().interrupt_enabled() {
+            if TCR(self.descriptor.ctrl.get()).interrupt_enabled() {
                 self.client.map(|client| {
                     let result = post_process(self.registers.sr.read(Status::CRC), self.alg.get());
                     client.receive_result(result);
@@ -316,7 +313,9 @@ impl Crccu<'_> {
                 self.registers.mr.write(Mode::ENABLE::Disabled);
 
                 // Reset CTRL.IEN (for our own statekeeping)
-                self.set_descriptor(0, TCR::default(), 0);
+                self.descriptor.addr.set(0);
+                self.descriptor.ctrl.set(TCR::default().0);
+                self.descriptor.crc.set(0);
 
                 // Disable DMA interrupt
                 self.registers.dmaidr.write(DmaInterrupt::DMA::SET);
@@ -338,7 +337,7 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
     fn compute(&self, data: &[u8], alg: CrcAlg) -> Result<(), ErrorCode> {
         self.init();
 
-        if self.get_tcr().interrupt_enabled() {
+        if TCR(self.descriptor.ctrl.get()).interrupt_enabled() {
             // A computation is already in progress
             return Err(ErrorCode::BUSY);
         }
@@ -371,9 +370,12 @@ impl<'a> crc::CRC<'a> for Crccu<'a> {
         */
         let tr_width = TrWidth::Byte;
         let ctrl = TCR::new(true, tr_width, len);
-        let crc = 0;
-        self.set_descriptor(addr, ctrl, crc);
-        self.registers.dscr.set(self.descriptor() as u32);
+        self.descriptor.addr.set(addr);
+        self.descriptor.ctrl.set(ctrl.0);
+        self.descriptor.crc.set(0);
+        self.registers
+            .dscr
+            .set(&self.descriptor as *const Descriptor as u32);
 
         // Record what algorithm was requested
         self.alg.set(alg);
