@@ -95,13 +95,15 @@ padding are consistent with the actual fields in the struct, and that alignment
 is correct.
 
 Since those tests would break compilation in `custom-test-frameworks`
-environments, it is possible to opt out of the test generation. To do so, add
-the following cargo feature:
+environments, it is possible to opt out of the test generation. To do
+so, disable the default feature set containing the `std_unit_tests`
+feature:
 
 ```toml
 [dependencies.tock-registers]
 version = "0.4.x"
-features = ["no_std_unit_tests"]
+default-features = false
+features = ["register_types"]
 ```
 
 By default, the visibility of the generated structs and fields is private. You

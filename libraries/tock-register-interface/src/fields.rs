@@ -452,7 +452,7 @@ macro_rules! register_bitfields {
     }
 }
 
-#[cfg(not(feature = "no_std_unit_tests"))]
+#[cfg(feature = "std_unit_tests")]
 #[cfg(test)]
 mod tests {
     #[derive(Debug, PartialEq, Eq)]

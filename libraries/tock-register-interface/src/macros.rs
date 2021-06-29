@@ -195,7 +195,7 @@ macro_rules! test_fields {
     };
 }
 
-#[cfg(not(feature = "no_std_unit_tests"))]
+#[cfg(feature = "std_unit_tests")]
 #[macro_export]
 macro_rules! register_structs {
     {
@@ -224,7 +224,7 @@ macro_rules! register_structs {
     };
 }
 
-#[cfg(feature = "no_std_unit_tests")]
+#[cfg(not(feature = "std_unit_tests"))]
 #[macro_export]
 macro_rules! register_structs {
     {
