@@ -8,7 +8,7 @@ The Tock core team maintains the following hardware CI instances:
 <!-- toc -->
 
 - [How To Set Up a New Instance](#how-to-set-up-a-new-instance)
-  * [Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))](#getting-started-sourcehttpsgoodoomoodoogithubiotock-test-harnessguide)
+  * [Getting Started ([Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE))](#getting-started-source)
   * [Troubleshoot](#troubleshoot)
     + [To run on your local-host (instead of Github)](#to-run-on-your-local-host-instead-of-github)
     + [WiFi not connected after first boot](#wifi-not-connected-after-first-boot)
@@ -18,10 +18,10 @@ The Tock core team maintains the following hardware CI instances:
   * [Process of Instances](#process-of-instances)
     + [What are actions/runners?](#what-are-actionsrunners)
   * [Configuration Files](#configuration-files)
-  * [Looking in the Workflow ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))](#looking-in-the-workflow-tock-hw-ciymlhttpsgithubcomgoodoomoodootockblobmastergithubworkflowstock-hw-ciyml)
+  * [Looking in the Workflow ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))](#looking-in-the-workflow-tock-hw-ciyml)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
-  * [How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))](#how-tests-work-example---gpio-folderhttpsgithubcomgoodoomoodoolibtock-ctreemasterexamplesci-testsgpio)
+  * [How Tests Work (Example - [gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))](#how-tests-work-example---gpio-folder)
 - [How Tests are Chosen](#how-tests-are-chosen)
 - [What to do if Something Goes Wrong](#what-to-do-if-something-goes-wrong)
   * [If a test fails](#if-a-test-fails)
