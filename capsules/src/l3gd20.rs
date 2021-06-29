@@ -315,7 +315,7 @@ impl Driver for L3gd20Spi<'_> {
 
         let match_or_empty_or_nonexistent = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
 
@@ -406,7 +406,7 @@ impl Driver for L3gd20Spi<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |app| {
+            .enter(process_id, |app, _| {
                 match subscribe_num {
                     0 /* set the one shot callback */ => {
                         mem::swap(&mut app.upcall, &mut upcall);
@@ -432,7 +432,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         len: usize,
     ) {
         self.current_process.map(|proc_id| {
-            let _result = self.grants.enter(*proc_id, |app| {
+            let _result = self.grants.enter(*proc_id, |app, _| {
                 self.status.set(match self.status.get() {
                     L3gd20Status::IsPresent => {
                         let present = if let Some(ref buf) = read_buffer {

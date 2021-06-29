@@ -139,7 +139,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &appid)
+                .enter(*current_process, |_, _| current_process == &appid)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -176,7 +176,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> Driver for AnalogCompa
             0 => {
                 let res = self
                     .grants
-                    .enter(app_id, |app| {
+                    .enter(app_id, |app, _| {
                         mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -197,7 +197,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
     /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
         self.current_process.map(|appid| {
-            let _ = self.grants.enter(*appid, |app| {
+            let _ = self.grants.enter(*appid, |app, _| {
                 app.callback.schedule(channel, 0, 0);
             });
         });

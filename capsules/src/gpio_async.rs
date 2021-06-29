@@ -95,7 +95,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
         // schedule callback with the pin number and value for all apps
-        self.grants.each(|_, app| {
+        self.grants.each(|_, app, _| {
             app.interrupt_callback.schedule(identifier, pin, 0);
         });
     }
@@ -103,7 +103,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     fn done(&self, value: usize) {
         // alert currently configuring app
         self.configuring_process.map(|pid| {
-            let _ = self.grants.enter(*pid, |app| {
+            let _ = self.grants.enter(*pid, |app, _| {
                 app.callback.schedule(0, value, 0);
             });
         });
@@ -135,7 +135,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .grants
-            .enter(app_id, |app| {
+            .enter(app_id, |app, _| {
                 match subscribe_num {
                     // Set callback for `done()` events
                     0 => {

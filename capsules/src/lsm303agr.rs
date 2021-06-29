@@ -334,7 +334,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         app.upcall.schedule(if present { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -345,7 +345,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetPowerMode => {
                 let set_power = status == Ok(());
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         app.upcall.schedule(if set_power { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -362,7 +362,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetScaleAndResolution => {
                 let set_scale_and_resolution = status == Ok(());
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         app.upcall
                             .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
                     });
@@ -408,7 +408,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         if values {
                             app.upcall.schedule(x, y, z);
                         } else {
@@ -423,7 +423,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetDataRate => {
                 let set_magneto_data_rate = status == Ok(());
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         app.upcall
                             .schedule(if set_magneto_data_rate { 1 } else { 0 }, 0, 0);
                     });
@@ -438,7 +438,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
             State::SetRange => {
                 let set_range = status == Ok(());
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         app.upcall.schedule(if set_range { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -464,7 +464,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         if values {
                             app.upcall.schedule(temp, 0, 0);
                         } else {
@@ -504,7 +504,7 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                     false
                 };
                 self.owning_process.map(|pid| {
-                    let _res = self.apps.enter(*pid, |app| {
+                    let _res = self.apps.enter(*pid, |app, _| {
                         if values {
                             app.upcall.schedule(x, y, z);
                         } else {
@@ -541,7 +541,7 @@ impl Driver for Lsm303agrI2C<'_> {
 
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -652,7 +652,7 @@ impl Driver for Lsm303agrI2C<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(process_id, |app| {
+            .enter(process_id, |app, _| {
                 match subscribe_num {
                     0 /* set the one shot callback */ => {
                         core::mem::swap(&mut app.upcall, &mut callback);

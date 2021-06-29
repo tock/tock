@@ -113,7 +113,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     core::mem::swap(&mut app.slice, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -139,7 +139,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             1 /* write_read_done */ => {
-                self.apps.enter(app_id, |app| {
+                self.apps.enter(app_id, |app,_| {
                     core::mem::swap(&mut app.callback, &mut callback);
                 }).map_err(ErrorCode::from)
             },
@@ -159,7 +159,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                 Cmd::Ping => CommandReturn::success(),
                 Cmd::Write => self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
                         self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0)
@@ -168,7 +168,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
                         self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8)
@@ -180,7 +180,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
-                        .enter(appid, |app| {
+                        .enter(appid, |app, _| {
                             self.operation(
                                 appid,
                                 app,
@@ -203,7 +203,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
 impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
-            self.apps.enter(tx.app_id, |app| {
+            self.apps.enter(tx.app_id, |app, _| {
                 if let Some(read_len) = tx.read_len.take() {
                     app.slice.mut_map_or((), |app_buffer| {
                         app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);

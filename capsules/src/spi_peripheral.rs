@@ -102,7 +102,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |grant| match allow_num {
+            .enter(process_id, |grant, _| match allow_num {
                 0 => {
                     mem::swap(&mut grant.app_read, &mut slice);
                     Ok(())
@@ -129,7 +129,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |grant| match allow_num {
+            .enter(process_id, |grant, _| match allow_num {
                 0 => {
                     mem::swap(&mut grant.app_write, &mut slice);
                     Ok(())
@@ -160,27 +160,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         mut callback: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant| {
-                match subscribe_num {
-                0 /* read_write */ => {
-                    mem::swap(&mut grant.callback, &mut callback);
-                    Ok(())
-                },
-                1 /* chip selected */ => {
-                    mem::swap(&mut grant.selected_callback, &mut callback);
-                    Ok(())
-                },
-                _ => Err(ErrorCode::NOSUPPORT)
-            }
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+        Ok(callback)
     }
 
     /// - 0: check if present
@@ -228,7 +208,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -242,7 +222,7 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
                 if self.busy.get() {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.grants.enter(process_id, |app| {
+                self.grants.enter(process_id, |app, _| {
                     let mut mlen = app.app_write.map_or(0, |w| w.len());
                     let rlen = app.app_read.map_or(mlen, |r| r.len());
                     mlen = cmp::min(mlen, rlen);
@@ -294,7 +274,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
         length: usize,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app| {
+            let _ = self.grants.enter(*process_id, move |app, _| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     app.app_read.mut_map_or((), |dest| {
@@ -343,7 +323,7 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
     // Simple callback for when chip has been selected
     fn chip_selected(&self) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app| {
+            let _ = self.grants.enter(*process_id, move |app, _| {
                 let len = app.len;
                 app.selected_callback.schedule(len, 0, 0);
             });

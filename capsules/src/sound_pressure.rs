@@ -89,7 +89,7 @@ impl<'a> SoundPressureSensor<'a> {
 
     fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -109,7 +109,7 @@ impl<'a> SoundPressureSensor<'a> {
     fn enable(&self) {
         let mut enable = false;
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, _| {
                 if app.enable {
                     enable = true;
                 }
@@ -126,7 +126,7 @@ impl<'a> SoundPressureSensor<'a> {
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app| {
+            cntr.enter(|app, _| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
@@ -146,23 +146,7 @@ impl Driver for SoundPressureSensor<'_> {
         mut callback: Upcall,
         app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // subscribe to sound_pressure reading with callback
-            0 => {
-                let res = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                if let Err(e) = res {
-                    Err((callback, e))
-                } else {
-                    Ok(callback)
-                }
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
+        Ok(callback)
     }
 
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
@@ -177,7 +161,7 @@ impl Driver for SoundPressureSensor<'_> {
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.enable = true;
                         CommandReturn::success()
                     })
@@ -194,7 +178,7 @@ impl Driver for SoundPressureSensor<'_> {
             3 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.enable = false;
                         CommandReturn::success()
                     })

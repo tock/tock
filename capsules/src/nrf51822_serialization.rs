@@ -116,7 +116,7 @@ impl Driver for Nrf51822Serialization<'_> {
             0 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         core::mem::swap(&mut app.rx_buffer, &mut slice);
                     })
                     .map_err(ErrorCode::from)
@@ -151,7 +151,9 @@ impl Driver for Nrf51822Serialization<'_> {
             0 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app| core::mem::swap(&mut app.tx_buffer, &mut slice))
+                    .enter(appid, |app, _| {
+                        core::mem::swap(&mut app.tx_buffer, &mut slice)
+                    })
                     .map_err(ErrorCode::from)
             }
 
@@ -185,7 +187,7 @@ impl Driver for Nrf51822Serialization<'_> {
                 // Save the callback for the app.
                 let result = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         core::mem::swap(&mut app.callback, &mut callback);
                     })
                     .map_err(ErrorCode::from);
@@ -218,7 +220,7 @@ impl Driver for Nrf51822Serialization<'_> {
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                self.apps.enter(appid, |app| {
+                self.apps.enter(appid, |app,_| {
                     app.tx_buffer.map_or(CommandReturn::failure(ErrorCode::FAIL), |slice| {
                         let write_len = slice.len();
                         self.tx_buffer.take().map_or(CommandReturn::failure(ErrorCode::FAIL), |buffer| {
@@ -267,7 +269,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app| {
+            let _ = self.apps.enter(*appid, |app, _| {
                 // Call the callback after TX has finished
                 app.callback.schedule(1, 0, 0);
             });
@@ -289,7 +291,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         self.rx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app| {
+            let _ = self.apps.enter(*appid, |app, _| {
                 let len = app.rx_buffer.mut_map_or(0, |rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());

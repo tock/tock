@@ -126,7 +126,7 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
+                    let _ = self.apps.enter(*pid, |app, _| {
                         app.callback.schedule(if present { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -151,13 +151,13 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 };
                 if values {
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |app| {
+                        let _ = self.apps.enter(*pid, |app, _| {
                             app.callback.schedule(temp, 0, 0);
                         });
                     });
                 } else {
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |app| {
+                        let _ = self.apps.enter(*pid, |app, _| {
                             app.callback.schedule(0, 0, 0);
                         });
                     });
@@ -186,7 +186,7 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -237,7 +237,7 @@ impl<'a> Driver for Mlx90614SMBus<'a> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 match subscribe_num {
                     0 => {
                         core::mem::swap(&mut app.callback, &mut callback);

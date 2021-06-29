@@ -1447,7 +1447,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app| {
+            let _ = self.grants.enter(*process_id, |app, _| {
                 app.callback.schedule(0, installed as usize, 0);
             });
         });
@@ -1455,7 +1455,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app| {
+            let _ = self.grants.enter(*process_id, |app, _| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
                 app.callback.schedule(1, block_size as usize, size_in_kb);
             });
@@ -1466,7 +1466,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app| {
+            let _ = self.grants.enter(*process_id, |app, _| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
                     app.read_buffer.mut_map_or(0, |read_buffer| {
@@ -1496,7 +1496,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app| {
+            let _ = self.grants.enter(*process_id, |app, _| {
                 app.callback.schedule(3, 0, 0);
             });
         });
@@ -1504,7 +1504,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn error(&self, error: u32) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app| {
+            let _ = self.grants.enter(*process_id, |app, _| {
                 app.callback.schedule(4, error as usize, 0);
             });
         });
@@ -1521,7 +1521,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |grant| {
+            .enter(process_id, |grant, _| {
                 match allow_num {
                     // Pass read buffer in from application
                     0 => {
@@ -1547,7 +1547,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |grant| {
+            .enter(process_id, |grant, _| {
                 match allow_num {
                     // Pass write buffer in from application
                     0 => {
@@ -1571,24 +1571,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         mut callback: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant| {
-                match subscribe_num {
-                    // Set callback
-                    0 => {
-                        mem::swap(&mut grant.callback, &mut callback);
-                        Ok(())
-                    }
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+        Ok(callback)
     }
 
     fn command(
@@ -1606,7 +1589,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -1640,7 +1623,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
             4 => {
                 let result: Result<(), ErrorCode> = self
                     .grants
-                    .enter(process_id, |app| {
+                    .enter(process_id, |app, _| {
                         app.write_buffer
                             .map_or(Err(ErrorCode::NOMEM), |write_buffer| {
                                 self.kernel_buf

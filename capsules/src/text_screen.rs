@@ -91,7 +91,7 @@ impl<'a> TextScreen<'a> {
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
@@ -142,7 +142,7 @@ impl<'a> TextScreen<'a> {
             TextScreenCommand::NoCursor => self.text_screen.hide_cursor(),
             TextScreenCommand::Write => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     if data1 > 0 {
                         app.write_len = data1;
                         app.shared.map_or(Err(ErrorCode::NOMEM), |to_write_buffer| {
@@ -176,7 +176,7 @@ impl<'a> TextScreen<'a> {
         // Check for pending events.
         for app in self.apps.iter() {
             let appid = app.processid();
-            let current_command = app.enter(|app| {
+            let current_command = app.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(appid);
@@ -197,7 +197,7 @@ impl<'a> TextScreen<'a> {
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app| {
+            let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
                 app.callback.schedule(data1, data2, data3);
             });
@@ -212,22 +212,7 @@ impl<'a> Driver for TextScreen<'a> {
         mut callback: Upcall,
         app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            0 => {
-                let res = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                if let Err(e) = res {
-                    Err((callback, e))
-                } else {
-                    Ok(callback)
-                }
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
+        Ok(callback)
     }
 
     fn command(
@@ -277,7 +262,7 @@ impl<'a> Driver for TextScreen<'a> {
             0 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         mem::swap(&mut app.shared, &mut slice);
                     })
                     .map_err(ErrorCode::from);

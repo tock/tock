@@ -78,7 +78,7 @@ impl<'a> NineDof<'a> {
         appid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
                     let value = self.call_driver(command, arg1);
@@ -146,7 +146,7 @@ impl<'a> NineDof<'a> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app| {
+            .enter(app_id, |app, _| {
                 mem::swap(&mut app.callback, &mut callback);
             })
             .map_err(ErrorCode::from);
@@ -167,7 +167,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
         let mut finished_command = NineDofCommand::Exists;
         let mut finished_command_arg = 0;
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app| {
+            let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
@@ -178,7 +178,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
-            let started_command = cntr.enter(|app| {
+            let started_command = cntr.enter(|app, _| {
                 if app.pending_command
                     && app.command == finished_command
                     && app.arg1 == finished_command_arg

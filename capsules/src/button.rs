@@ -122,7 +122,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
         let res = match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |cntr| {
+                .enter(app_id, |cntr, _| {
                     core::mem::swap(&mut cntr.0, &mut callback);
                 })
                 .map_err(|err| err.into()),
@@ -169,7 +169,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr| {
+                        .enter(appid, |cntr, _| {
                             cntr.1 |= 1 << data;
                             let _ = pins[data]
                                 .0
@@ -189,7 +189,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr| {
+                        .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
                             CommandReturn::success()
                         })
@@ -197,7 +197,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
-                    self.apps.each(|_, cntr| {
+                    self.apps.each(|_, cntr, _| {
                         if cntr.1 & (1 << data) != 0 {
                             interrupt_count.set(interrupt_count.get() + 1);
                         }
@@ -235,7 +235,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
-        self.apps.each(|_, cntr| {
+        self.apps.each(|_, cntr, _| {
             if cntr.1 & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 cntr.0.schedule(pin_num as usize, button_state as usize, 0);

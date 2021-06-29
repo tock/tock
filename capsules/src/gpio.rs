@@ -137,7 +137,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
             let pin_state = pin.read();
 
             // schedule callback with the pin number and value
-            self.apps.each(|_, callback| {
+            self.apps.each(|_, callback, _| {
                 callback.schedule(pin_num as usize, pin_state as usize, 0);
             });
         }
@@ -162,7 +162,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // individual pins being configured as interrupts)
             0 => self
                 .apps
-                .enter(app_id, |app| {
+                .enter(app_id, |app, _| {
                     mem::swap(&mut **app, &mut callback);
                 })
                 .map_err(ErrorCode::from),

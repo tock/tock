@@ -67,7 +67,7 @@ where
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, _| {
                 if let Some(request) = app.awaiting {
                     found = true;
                     match request {
@@ -109,22 +109,7 @@ where
         mut callback: Upcall,
         app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // Set callback for result
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+        Ok(callback)
     }
 
     fn command(
@@ -142,7 +127,7 @@ where
             1 => {
                 let result = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
                             Err(ErrorCode::BUSY)

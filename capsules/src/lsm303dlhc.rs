@@ -343,7 +343,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         grant.callback.schedule(if present { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -356,7 +356,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_power = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         grant.callback.schedule(if set_power { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -375,7 +375,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_scale_and_resolution = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         grant
                             .callback
                             .schedule(if set_scale_and_resolution { 1 } else { 0 }, 0, 0);
@@ -427,7 +427,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         if values {
                             grant.callback.schedule(x, y, z);
                         } else {
@@ -444,7 +444,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_temperature_and_magneto_data_rate = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         grant.callback.schedule(
                             if set_temperature_and_magneto_data_rate {
                                 1
@@ -468,7 +468,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 let set_range = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         grant.callback.schedule(if set_range { 1 } else { 0 }, 0, 0);
                     });
                 });
@@ -496,7 +496,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         if values {
                             grant.callback.schedule(temp, 0, 0);
                         } else {
@@ -538,7 +538,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |grant| {
+                    let _ = self.apps.enter(*process_id, |grant, _| {
                         if values {
                             grant.callback.schedule(x, y, z);
                         } else {
@@ -578,7 +578,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
 
@@ -693,7 +693,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         match subscribe_num {
             0 /* set the one shot callback */ => {
-                let res = self.apps.enter(process_id, |grant| {
+                let res = self.apps.enter(process_id, |grant, _| {
                     mem::swap(&mut callback, &mut grant.callback);
                 }).map_err(ErrorCode::from);
 

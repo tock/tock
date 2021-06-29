@@ -95,7 +95,7 @@ impl<'a> HumiditySensor<'a> {
         appid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -121,7 +121,7 @@ impl<'a> HumiditySensor<'a> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app_id, |app| {
+            .enter(app_id, |app, _| {
                 mem::swap(&mut app.callback, &mut callback);
             })
             .map_err(ErrorCode::from);
@@ -137,7 +137,7 @@ impl<'a> HumiditySensor<'a> {
 impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app| {
+            cntr.enter(|app, _| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;

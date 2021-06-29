@@ -438,7 +438,7 @@ impl<'a> LTC294XDriver<'a> {
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall.schedule(0, 0, 0);
             });
         });
@@ -458,7 +458,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((charge_alert_high as usize) << 3)
             | ((accumulated_charge_overflow as usize) << 4);
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall
                     .schedule(1, ret, self.ltc294x.model.get() as usize);
             });
@@ -467,7 +467,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
 
     fn charge(&self, charge: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall.schedule(2, charge as usize, 0);
             });
         });
@@ -475,7 +475,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
 
     fn done(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall.schedule(3, 0, 0);
             });
         });
@@ -483,7 +483,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
 
     fn voltage(&self, voltage: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall.schedule(4, voltage as usize, 0);
             });
         });
@@ -491,7 +491,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
 
     fn current(&self, current: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
+            let _res = self.grants.enter(*pid, |app, _| {
                 app.upcall.schedule(5, current as usize, 0);
             });
         });
@@ -520,7 +520,7 @@ impl Driver for LTC294XDriver<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .grants
-            .enter(process_id, |app| {
+            .enter(process_id, |app, _| {
                 match subscribe_num {
                     0 => {
                         core::mem::swap(&mut app.upcall, &mut callback);
@@ -569,7 +569,7 @@ impl Driver for LTC294XDriver<'_> {
 
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

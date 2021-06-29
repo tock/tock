@@ -204,7 +204,7 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 let pressure_ubar = (pressure * 1000) / 4096;
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
+                    let _ = self.apps.enter(*pid, |app, _| {
                         app.callback.schedule(pressure_ubar as usize, 0, 0);
                     });
                 });
@@ -250,7 +250,7 @@ impl Driver for LPS25HB<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 match subscribe_num {
                     0 => {
                         core::mem::swap(&mut app.callback, &mut callback);
@@ -284,7 +284,7 @@ impl Driver for LPS25HB<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

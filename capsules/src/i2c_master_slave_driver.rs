@@ -89,7 +89,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.master_buffer.replace(buffer);
 
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app| {
+                    let _ = self.apps.enter(*app, |app, _| {
                         app.callback.schedule(0, status, 0);
                     });
                 });
@@ -97,7 +97,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
 
             MasterAction::Read(read_len) => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app| {
+                    let _ = self.apps.enter(*app, |app, _| {
                         // Because this (somewhat incorrectly) doesn't report
                         // back how many bytes were read, the result of mut_map_or
                         // is ignored. Note that this requires userspace to keep
@@ -122,7 +122,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
 
             MasterAction::WriteRead(read_len) => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app| {
+                    let _ = self.apps.enter(*app, |app, _| {
                         // Because this (somewhat incorrectly) doesn't report
                         // back how many bytes were read, the result of mut_map_or
                         // is ignored. Note that this requires userspace to keep
@@ -166,7 +166,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         match transmission_type {
             hil::i2c::SlaveTransmissionType::Write => {
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app| {
+                    let _ = self.apps.enter(*app, |app, _| {
                         app.slave_rx_buffer.mut_map_or(0, move |app_rx| {
                             // Check bounds for write length
                             // Because this (somewhat incorrectly) doesn't report
@@ -197,7 +197,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
 
                 // Notify the app that the read finished
                 self.app.map(|app| {
-                    let _ = self.apps.enter(*app, |app| {
+                    let _ = self.apps.enter(*app, |app, _| {
                         app.callback.schedule(4, length as usize, 0);
                     });
                 });
@@ -209,7 +209,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
         // Pass this up to the client. Not much we can do until the application
         // has setup a buffer to read from.
         self.app.map(|app| {
-            let _ = self.apps.enter(*app, |app| {
+            let _ = self.apps.enter(*app, |app, _| {
                 // Ask the app to setup a read buffer. The app must call
                 // command 3 after it has setup the shared read buffer with
                 // the correct bytes.
@@ -239,7 +239,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = self
             .apps
-            .enter(app, |app| {
+            .enter(app, |app, _| {
                 match allow_num {
                     // Pass in a buffer for transmitting a `write` to another
                     // I2C device.
@@ -270,7 +270,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         let res = self
             .apps
-            .enter(app, |app| {
+            .enter(app, |app, _| {
                 match allow_num {
                     // Pass in a buffer for doing a read from another I2C device.
                     1 => {
@@ -300,7 +300,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = self
             .apps
-            .enter(app, |app| {
+            .enter(app, |app, _| {
                 match subscribe_num {
                     0 => {
                         core::mem::swap(&mut app.callback, &mut callback);
@@ -334,7 +334,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.app.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -353,7 +353,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // No need to check error on enter() -- we entered successfully
                 // above, so grant is allocated, and the app can't disappear
                 // while we are in the kernel.
-                let _ = self.apps.enter(app, |app| {
+                let _ = self.apps.enter(app, |app, _| {
                     app.master_tx_buffer.map_or(0, |app_tx| {
                         // Because this (somewhat incorrectly) doesn't report
                         // back how many bytes are being written, the result of mut_map_or
@@ -393,7 +393,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 let address = (data & 0xFFFF) as u8;
                 let len = (data >> 16) & 0xFFFF;
 
-                let _ = self.apps.enter(app, |app| {
+                let _ = self.apps.enter(app, |app, _| {
                     // Because this (somewhat incorrectly) doesn't report
                     // back how many bytes are being read, the result of mut_map_or
                     // is ignored. Note that this does not provide useful feedback
@@ -450,7 +450,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
             // Prepare for a read from another Master by passing what's
             // in the shared slice to the lower level I2C hardware driver.
             4 => {
-                let _ = self.apps.enter(app, |app| {
+                let _ = self.apps.enter(app, |app, _| {
                     // Because this (somewhat incorrectly) doesn't report
                     // back how many bytes are being read, the result of mut_map_or
                     // is ignored. Note that this does not provide useful feedback
@@ -508,7 +508,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 let address = (data & 0xFF) as u8;
                 let read_len = (data >> 8) & 0xFF;
                 let write_len = (data >> 16) & 0xFF;
-                let _ = self.apps.enter(app, |app| {
+                let _ = self.apps.enter(app, |app, _| {
                     // Because this (somewhat incorrectly) doesn't report
                     // back how many bytes are being read/read, the result of mut_map_or
                     // is ignored. Note that this does not provide useful feedback

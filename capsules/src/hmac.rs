@@ -82,7 +82,7 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
-                .enter(*appid, |app| {
+                .enter(*appid, |app, _| {
                     let ret = app.key.map_or(Err(ErrorCode::RESERVE), |k| {
                         if let Some(op) = &app.sha_operation {
                             match op {
@@ -137,7 +137,7 @@ impl<
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app| {
+            let started_command = appiter.enter(|app, _| {
                 // If an app is already running let it complete
                 if self.appid.is_some() {
                     return true;
@@ -167,7 +167,7 @@ impl<
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app| {
+                .enter(*id, move |app, _| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -264,7 +264,7 @@ impl<
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app| {
+                .enter(*id, |app, _| {
                     self.hmac.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
@@ -330,7 +330,7 @@ impl<
             // Pass buffer for the key to be in
             0 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.key);
                     Ok(())
                 })
@@ -339,7 +339,7 @@ impl<
             // Pass buffer for the data to be in
             1 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.data);
                     Ok(())
                 })
@@ -348,7 +348,7 @@ impl<
             // Pass buffer for the digest to be in.
             2 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.dest);
                     Ok(())
                 })
@@ -380,7 +380,7 @@ impl<
             0 => {
                 // set callback
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         mem::swap(&mut app.callback, &mut callback);
                         Ok(())
                     })
@@ -442,7 +442,7 @@ impl<
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_| owning_app == &appid)
+                    .enter(*owning_app, |_, _| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -451,7 +451,7 @@ impl<
             // set_algorithm
             0 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         match data1 {
                             // SHA256
                             0 => {
@@ -491,7 +491,7 @@ impl<
                 } else {
                     // There is an active app, so queue this request (if possible).
                     self.apps
-                        .enter(appid, |app| {
+                        .enter(appid, |app, _| {
                             // Some app is using the storage, we must wait.
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this

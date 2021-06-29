@@ -423,7 +423,7 @@ impl i2c::I2CClient for TSL2561<'_> {
                 let lux = self.calculate_lux(chan0, chan1);
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
+                    let _ = self.apps.enter(*pid, |app, _| {
                         app.callback.schedule(0, lux, 0);
                     });
                 });
@@ -467,24 +467,7 @@ impl Driver for TSL2561<'_> {
         mut callback: Upcall,
         appid: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+        Ok(callback)
     }
 
     fn command(
@@ -503,7 +486,7 @@ impl Driver for TSL2561<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

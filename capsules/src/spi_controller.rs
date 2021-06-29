@@ -103,7 +103,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             // Pass in a read buffer to receive bytes into.
             0 => self
                 .grants
-                .enter(process_id, |grant| {
+                .enter(process_id, |grant, _| {
                     mem::swap(&mut grant.app_read, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -126,7 +126,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             // Pass in a write buffer to transmit bytes from.
             0 => self
                 .grants
-                .enter(process_id, |grant| {
+                .enter(process_id, |grant, _| {
                     mem::swap(&mut grant.app_write, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -145,20 +145,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         mut callback: Upcall,
         process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .grants
-                .enter(process_id, |grant| {
-                    mem::swap(&mut grant.callback, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
+        Ok(callback)
     }
 
     // 2: read/write buffers
@@ -212,7 +199,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -228,7 +215,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 if self.busy.get() {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.grants.enter(process_id, |app| {
+                self.grants.enter(process_id, |app, _| {
                     // When we do a read/write, the read part is optional.
                     // So there are three cases:
                     // 1) Write and read buffers present: len is min of lengths
@@ -301,7 +288,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
         length: usize,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app| {
+            let _ = self.grants.enter(*process_id, move |app, _| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     app.app_read.mut_map_or((), |dest| {
