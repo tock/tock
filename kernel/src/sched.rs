@@ -917,10 +917,9 @@ impl Kernel {
                 // them now.
                 process.remove_pending_upcalls(upcall_id);
 
+                // TODO: Review this logic carefully
                 let ptr = NonNull::new(upcall_ptr);
-                let upcall = ptr.map_or(Upcall::default(), |ptr| {
-                    Upcall::new(process.processid(), upcall_id, appdata, ptr.cast())
-                });
+                let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
                         if d.allocate_grant(process.processid()).is_err() {

@@ -1258,13 +1258,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
         // TODO: scope down unsafe
         unsafe {
-            self.grant_pointers
-                .map_or(Err((upcall, ErrorCode::FAIL)), |grant_pointers| {
+            match self.grant_pointers.take() {
+                Some(grant_pointers) => {
                     // Implement `grant_pointers[grant_num]` without a chance of
-                    // a panic.
-                    grant_pointers.get(grant_num).map_or(
-                        Err((upcall, ErrorCode::NOMEM)),
-                        |(_driver_num_pointer, grant_pointer_pointer)| {
+                    // a panic, and use match to appease borrow checker
+                    match grant_pointers.get(grant_num) {
+                        None => Err((upcall, ErrorCode::NOMEM)),
+                        Some((_driver_num_pointer, grant_pointer_pointer)) => {
                             if grant_pointer_pointer.is_null() {
                                 // Capsule did not allocate grant, refuse subscribe
                                 return Err((upcall, ErrorCode::NOMEM));
@@ -1282,13 +1282,15 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                                     self.processid(),
                                     upcall_id,
                                     (*upcall_ptr).appdata,
-                                    (*upcall_ptr).fn_ptr.unwrap(), // TODO why are these types different
+                                    (*upcall_ptr).fn_ptr,
                                 );
                                 Ok(upcall)
                             }
-                        },
-                    )
-                })
+                        }
+                    }
+                }
+                None => Err((upcall, ErrorCode::FAIL)),
+            }
         }
     }
 

@@ -32,26 +32,28 @@ struct IPCData<const NUM_PROCS: usize> {
     /// applications.
     shared_memory: [ReadWriteAppSlice; NUM_PROCS],
     search_slice: ReadOnlyAppSlice,
-    /// An array of upcalls this process has registered to receive upcalls
-    /// from other services.
-    client_upcalls: [Upcall; NUM_PROCS],
-    /// The upcall setup by a service. Each process can only be one service.
-    upcall: Upcall,
 }
 
 impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     fn default() -> IPCData<NUM_PROCS> {
         const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
-        IPCData {
+        Self {
             shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
             search_slice: ReadOnlyAppSlice::default(),
-            client_upcalls: [Upcall::default(); NUM_PROCS],
-            upcall: Upcall::default(),
         }
     }
 }
 
 const NUM_UPCALLS: usize = 5; // TODO MAKE GENERIC ON NUM_PROCS
+                              // Should be num_procs + 1
+
+/// The upcall setup by a service. Each process can only be one service.
+const SERVICE_UPCALL_NUM: usize = 0;
+
+/// An array of upcalls this process has registered to receive upcalls
+/// from other services. This const specifies the subscribe_num of the first upcall
+/// in the array
+const CLIENT_UPCALL_NUM_BASE: usize = 1;
 
 /// The IPC mechanism struct.
 pub struct IPC<const NUM_PROCS: usize> {
@@ -80,11 +82,11 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     ) -> Result<(), process::Error> {
         self.data
             .enter(schedule_on, |mydata, my_upcalls| {
-                let mut upcall = match cb_type {
-                    IPCUpcallType::Service => mydata.upcall,
+                let mut to_schedule: usize = match cb_type {
+                    IPCUpcallType::Service => SERVICE_UPCALL_NUM,
                     IPCUpcallType::Client => match called_from.index() {
-                        Some(i) => *mydata.client_upcalls.get(i).unwrap_or(&Upcall::default()),
-                        None => Upcall::default(),
+                        Some(i) => i + CLIENT_UPCALL_NUM_BASE,
+                        None => panic!("Invalid app issued IPC request"), //TODO: return Error instead
                     },
                 };
                 self.data
@@ -112,14 +114,22 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                                                 )
                                             },
                                         );
-                                        upcall.schedule(
+                                        my_upcalls.schedule_upcall(
+                                            to_schedule,
+                                            schedule_on,
                                             called_from.id() + 1,
                                             crate::mem::Read::len(slice),
                                             crate::mem::Read::ptr(slice) as usize,
                                         );
                                     }
                                     None => {
-                                        upcall.schedule(called_from.id() + 1, 0, 0);
+                                        my_upcalls.schedule_upcall(
+                                            to_schedule,
+                                            schedule_on,
+                                            called_from.id() + 1,
+                                            0,
+                                            0,
+                                        );
                                     }
                                 }
                             }

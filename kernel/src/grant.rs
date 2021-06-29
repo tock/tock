@@ -203,7 +203,7 @@ impl<'a> UpcallMemory<'a> {
                         driver_num: self.driver_num,
                     },
                     saved_upcall.appdata,
-                    saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
+                    saved_upcall.fn_ptr,
                 );
                 upcall.schedule(r0, r1, r2)
             })
@@ -232,7 +232,7 @@ impl<'a> UpcallMemory<'a> {
 #[repr(C)]
 pub(crate) struct SavedUpcall {
     pub(crate) appdata: usize,
-    pub(crate) fn_ptr: Option<NonNull<*mut ()>>,
+    pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
 /// An instance of a grant allocated for a particular process.
