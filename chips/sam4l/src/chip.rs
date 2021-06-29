@@ -230,6 +230,7 @@ impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
     unsafe fn service_deferred_call(&self, task: Task) -> bool {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
+            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
         }
         true
     }
