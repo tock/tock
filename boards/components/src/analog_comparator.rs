@@ -59,6 +59,7 @@ pub struct AcComponent<AC: 'static + kernel::hil::analog_comparator::AnalogCompa
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
 }
 
 impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> AcComponent<AC> {
@@ -66,11 +67,13 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Ac
         comp: &'static AC,
         ac_channels: &'static [&'static AC::Channel],
         board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
     ) -> Self {
         Self {
             comp,
             ac_channels,
             board_kernel,
+            driver_num,
         }
     }
 }
@@ -83,7 +86,7 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Co
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_ac = self.board_kernel.create_grant(&grant_cap);
+        let grant_ac = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let analog_comparator = static_init_half!(
             static_buffer,

@@ -189,6 +189,7 @@ unsafe fn setup() -> (
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             earlgrey::gpio::GpioPin,
             0 => &peripherals.gpio_port[0],
@@ -227,7 +228,7 @@ unsafe fn setup() -> (
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_cap)
+            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -251,11 +252,21 @@ unsafe fn setup() -> (
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+    let lldb = components::lldb::LowLevelDebugComponent::new(
+        board_kernel,
+        capsules::low_level_debug::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
     let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
@@ -266,6 +277,7 @@ unsafe fn setup() -> (
 
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
+        capsules::hmac::DRIVER_NUM,
         &mux_hmac,
         hmac_data_buffer,
         hmac_dest_buffer,
@@ -277,7 +289,7 @@ unsafe fn setup() -> (
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.i2c0,
             &mut capsules::i2c_master::BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
+            board_kernel.create_grant(capsules::i2c_master::DRIVER_NUM, &memory_allocation_cap)
         )
     );
 

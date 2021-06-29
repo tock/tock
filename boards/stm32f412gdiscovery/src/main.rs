@@ -450,7 +450,12 @@ pub unsafe fn main() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -512,6 +517,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f412g::gpio::Pin,
             // Select
@@ -570,12 +576,17 @@ pub unsafe fn main() {
         components::alarm_mux_component_helper!(stm32f412g::tim2::Tim2),
     );
 
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f412g::tim2::Tim2));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(stm32f412g::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f412g::gpio::Pin,
             // Arduino like RX/TX
@@ -608,7 +619,8 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
+    let rng =
+        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
 
     // FT6206
 
@@ -660,12 +672,22 @@ pub unsafe fn main() {
 
     let _ = tft.init();
 
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(57600));
+    let screen = components::screen::ScreenComponent::new(
+        board_kernel,
+        capsules::screen::DRIVER_NUM,
+        tft,
+        Some(tft),
+    )
+    .finalize(components::screen_buffer_size!(57600));
 
-    let touch =
-        components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
-            .finalize(());
+    let touch = components::touch::TouchComponent::new(
+        board_kernel,
+        capsules::touch::DRIVER_NUM,
+        ft6x06,
+        Some(ft6x06),
+        Some(tft),
+    )
+    .finalize(());
 
     touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
@@ -688,7 +710,8 @@ pub unsafe fn main() {
             adc_mux
         ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_temperature =
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
@@ -720,20 +743,24 @@ pub unsafe fn main() {
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
             .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            adc_channel_0,
-            adc_channel_1,
-            adc_channel_2,
-            adc_channel_3,
-            adc_channel_4,
-            adc_channel_5
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                adc_channel_0,
+                adc_channel_1,
+                adc_channel_2,
+                adc_channel_3,
+                adc_channel_4,
+                adc_channel_5
+            ));
 
     let stm32f412g = STM32F412GDiscovery {
         console: console,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
         led: led,
         button: button,
         alarm: alarm,

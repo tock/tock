@@ -102,11 +102,13 @@ pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    driver_num: usize,
 }
 
 pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave> {
     board_kernel: &'static kernel::Kernel,
     spi_slave: &'static S,
+    driver_num: usize,
 }
 
 pub struct SpiComponent<S: 'static + spi::SpiMaster> {
@@ -143,11 +145,13 @@ impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
+        driver_num: usize,
     ) -> Self {
         SpiSyscallComponent {
             board_kernel: board_kernel,
             spi_mux: mux,
             chip_select: chip_select,
+            driver_num,
         }
     }
 }
@@ -173,7 +177,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
             Spi<'static, VirtualSpiMasterDevice<'static, S>>,
             Spi::new(
                 syscall_spi_device,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
 
@@ -193,10 +197,15 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
 }
 
 impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, slave: &'static S) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        slave: &'static S,
+        driver_num: usize,
+    ) -> Self {
         SpiSyscallPComponent {
             board_kernel,
             spi_slave: slave,
+            driver_num,
         }
     }
 }
@@ -222,7 +231,7 @@ impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
             SpiPeripheral<'static, SpiSlaveDevice<'static, S>>,
             SpiPeripheral::new(
                 syscallp_spi_device,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
 
@@ -268,13 +277,19 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
 pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave> {
     board_kernel: &'static kernel::Kernel,
     device: &'static S,
+    driver_num: usize,
 }
 
 impl<S: 'static + spi::SpiSlave> SpiPeripheralComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, device: &'static S) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        device: &'static S,
+        driver_num: usize,
+    ) -> Self {
         SpiPeripheralComponent {
             board_kernel,
             device,
+            driver_num,
         }
     }
 }
@@ -291,7 +306,10 @@ impl<S: 'static + spi::SpiSlave + kernel::hil::spi::SpiSlaveDevice> Component
         let spi_device = static_init_half!(
             static_buffer,
             SpiPeripheral<'static, S>,
-            SpiPeripheral::new(self.device, self.board_kernel.create_grant(&grant_cap))
+            SpiPeripheral::new(
+                self.device,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         spi_device
