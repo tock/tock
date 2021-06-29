@@ -2,7 +2,7 @@
 
 TARGET=riscv32imac-unknown-none-elf
 PLATFORM=hifive1
-QEMU=../../tools/qemu/build/qemu-system-riscv32
+QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common
 

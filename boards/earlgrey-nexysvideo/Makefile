@@ -5,7 +5,7 @@ TARGET=riscv32imc-unknown-none-elf
 PLATFORM=earlgrey-nexysvideo
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX = riscv64-elf
-QEMU=../../tools/qemu/build/qemu-system-riscv32
+QEMU ?= ../../tools/qemu/build/qemu-system-riscv32
 
 
 include ../Makefile.common
