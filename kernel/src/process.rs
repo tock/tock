@@ -13,7 +13,7 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self};
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
-use crate::upcall::UpcallId;
+use crate::upcall::{Upcall, UpcallId};
 
 /// Userspace process identifier.
 ///
@@ -548,6 +548,15 @@ pub trait Process {
 
     /// Return the lowest recorded address of the process stack, if known.
     fn debug_stack_end(&self) -> Option<*const u8>;
+
+    fn subscribe(&self, upcall_id: UpcallId, upcall: Upcall)
+        -> Result<Upcall, (Upcall, ErrorCode)>;
+
+    /// Get the grant number associated with a given driver number
+    fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode>;
+
+    /// Get the driver number associated with a given grant number
+    fn grant_num_to_driver_num(&self, grant_num: usize) -> Result<usize, ErrorCode>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's

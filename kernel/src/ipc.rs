@@ -73,7 +73,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
         cb_type: IPCUpcallType,
     ) -> Result<(), process::Error> {
         self.data
-            .enter(schedule_on, |mydata| {
+            .enter(schedule_on, |mydata, my_upcalls| {
                 let mut upcall = match cb_type {
                     IPCUpcallType::Service => mydata.upcall,
                     IPCUpcallType::Client => match called_from.index() {
@@ -81,42 +81,45 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                         None => Upcall::default(),
                     },
                 };
-                self.data.enter(called_from, |called_from_data| {
-                    // If the other app shared a buffer with us, make
-                    // sure we have access to that slice and then call
-                    // the upcall. If no slice was shared then just
-                    // call the upcall.
-                    match schedule_on.index() {
-                        Some(i) => {
-                            if i >= called_from_data.shared_memory.len() {
-                                return;
-                            }
+                self.data
+                    .enter(called_from, |called_from_data, called_from_upcalls| {
+                        // If the other app shared a buffer with us, make
+                        // sure we have access to that slice and then call
+                        // the upcall. If no slice was shared then just
+                        // call the upcall.
+                        match schedule_on.index() {
+                            Some(i) => {
+                                if i >= called_from_data.shared_memory.len() {
+                                    return;
+                                }
 
-                            match called_from_data.shared_memory.get(i) {
-                                Some(slice) => {
-                                    self.data
-                                        .kernel
-                                        .process_map_or(None, schedule_on, |process| {
-                                            process.add_mpu_region(
-                                                slice.ptr(),
-                                                slice.len(),
-                                                slice.len(),
-                                            )
-                                        });
-                                    upcall.schedule(
-                                        called_from.id() + 1,
-                                        crate::mem::Read::len(slice),
-                                        crate::mem::Read::ptr(slice) as usize,
-                                    );
-                                }
-                                None => {
-                                    upcall.schedule(called_from.id() + 1, 0, 0);
+                                match called_from_data.shared_memory.get(i) {
+                                    Some(slice) => {
+                                        self.data.kernel.process_map_or(
+                                            None,
+                                            schedule_on,
+                                            |process| {
+                                                process.add_mpu_region(
+                                                    slice.ptr(),
+                                                    slice.len(),
+                                                    slice.len(),
+                                                )
+                                            },
+                                        );
+                                        upcall.schedule(
+                                            called_from.id() + 1,
+                                            crate::mem::Read::len(slice),
+                                            crate::mem::Read::ptr(slice) as usize,
+                                        );
+                                    }
+                                    None => {
+                                        upcall.schedule(called_from.id() + 1, 0, 0);
+                                    }
                                 }
                             }
+                            None => {}
                         }
-                        None => {}
-                    }
-                })
+                    })
             })
             .and_then(|x| x)
     }
@@ -125,6 +128,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
 impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// subscribe enables processes using IPC to register upcalls that fire
     /// when notify() is called.
+    /*
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -142,7 +146,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             // process notifies the server process.
             0 => self
                 .data
-                .enter(app_id, |data| {
+                .enter(app_id, |data, upcalls| {
                     core::mem::swap(&mut data.upcall, &mut upcall);
                     upcall
                 })
@@ -186,6 +190,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             }
         }
     }
+    */
 
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
@@ -221,7 +226,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             /* Discover */
             {
                 self.data
-                    .enter(appid, |data| {
+                    .enter(appid, |data, upcalls| {
                         data.search_slice.map_or(
                             CommandReturn::failure(ErrorCode::INVAL),
                             |slice| {
@@ -306,7 +311,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         if subdriver == 0 {
             // Package name for discovery
-            let res = self.data.enter(appid, |data| {
+            let res = self.data.enter(appid, |data, upcalls| {
                 core::mem::swap(&mut data.search_slice, &mut slice);
             });
             match res {
@@ -336,7 +341,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         if target_id == 0 {
             Err((slice, ErrorCode::NOSUPPORT))
         } else {
-            match self.data.enter(appid, |data| {
+            match self.data.enter(appid, |data, upcalls| {
                 // Lookup the index of the app based on the passed in
                 // identifier. This also let's us check that the other app is
                 // actually valid.

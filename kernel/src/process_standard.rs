@@ -23,7 +23,7 @@ use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
-use crate::upcall::UpcallId;
+use crate::upcall::{Upcall, UpcallId};
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -1247,6 +1247,78 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 ));
             }
         });
+    }
+
+    fn subscribe(
+        &self,
+        upcall_id: UpcallId,
+        upcall: Upcall,
+    ) -> Result<Upcall, (Upcall, ErrorCode)> {
+        let grant_num = self.driver_num_to_grant_num(upcall_id.driver_num).unwrap(); // TODO propogate errs
+
+        // TODO: scope down unsafe
+        unsafe {
+            self.grant_pointers
+                .map_or(Err((upcall, ErrorCode::FAIL)), |grant_pointers| {
+                    // Implement `grant_pointers[grant_num]` without a chance of
+                    // a panic.
+                    grant_pointers.get(grant_num).map_or(
+                        Err((upcall, ErrorCode::NOMEM)),
+                        |(_driver_num_pointer, grant_pointer_pointer)| {
+                            if grant_pointer_pointer.is_null() {
+                                // Capsule did not allocate grant, refuse subscribe
+                                return Err((upcall, ErrorCode::NOMEM));
+                            } else {
+                                let grant_ptr = *grant_pointer_pointer;
+                                // TODO: do we need to check if grant already entered here?
+                                // TODO: Why add the single usize here?
+                                let upcall_ptr = grant_ptr.add(
+                                    mem::size_of::<usize>()
+                                        + upcall_id.subscribe_num
+                                            * mem::size_of::<crate::grant::SavedUpcall>(),
+                                )
+                                    as *mut crate::grant::SavedUpcall;
+                                let upcall = Upcall::new(
+                                    self.processid(),
+                                    upcall_id,
+                                    (*upcall_ptr).appdata,
+                                    (*upcall_ptr).fn_ptr.unwrap(), // TODO why are these types different
+                                );
+                                Ok(upcall)
+                            }
+                        },
+                    )
+                })
+        }
+    }
+
+    fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode> {
+        self.grant_pointers
+            .map_or(Err(ErrorCode::FAIL), |grant_pointers| {
+                // Filter our list of grant pointers into just the non null ones,
+                // and count those. A grant is allocated if its grant pointer is non
+                // null.
+                match grant_pointers.iter().enumerate().find(
+                    |(idx, (driver_num_pointer, _grant_pointer_pointer))| {
+                        *driver_num_pointer == driver_num
+                    },
+                ) {
+                    Some(entry) => Ok(entry.0),
+                    None => Err(ErrorCode::FAIL),
+                }
+            })
+    }
+
+    fn grant_num_to_driver_num(&self, grant_num: usize) -> Result<usize, ErrorCode> {
+        self.grant_pointers
+            .map_or(Err(ErrorCode::FAIL), |grant_pointers| {
+                // Implement `grant_pointers[grant_num]` without a
+                // chance of a panic.
+                grant_pointers.get(grant_num).map_or(
+                    Err(ErrorCode::FAIL),
+                    |(driver_num_pointer, _grant_pointer_pointer)| Ok(*driver_num_pointer),
+                )
+            })
     }
 }
 

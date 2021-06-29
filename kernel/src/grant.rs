@@ -115,7 +115,7 @@ use core::slice;
 
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
-use crate::upcall;
+use crate::upcall::{Upcall, UpcallId};
 
 /// This GrantMemory object provides access to the memory allocated for a grant
 /// for a specific process.
@@ -155,11 +155,68 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
     }
 }
 
-// #[derive(Clone, Copy, Default)]
-struct SavedUpcall {
-    // upcall_id: upcall::UpcallId,
-    appdata: usize,
-    fn_ptr: Option<NonNull<*mut ()>>,
+/// This UpcallMemory object provides access to the memory allocated for a grant
+/// for a specific process.
+///
+/// Capsules gain access to a UpcallMemory object by calling `Grant::enter()`. From
+/// there, they can schedule upcalls. No other access to upcalls is provided.
+/// It is expected that this type will only exist as a short-lived stack allocation, so
+/// its size is not a significant concern.
+pub struct UpcallMemory<'a> {
+    /// The mutable reference to the actual object type stored in the grant.
+    upcalls: &'a [SavedUpcall],
+    num_upcalls: usize,
+    driver_num: usize,
+}
+
+impl<'a> UpcallMemory<'a> {
+    /// Create a `UpcallMemory` object to provide access to the actual object
+    /// allocated for a process.
+    ///
+    /// Only one can GrantMemory per underlying object can be created at a time.
+    /// Otherwise, there would be multiple mutable references to the same object
+    /// which is undefined behavior.
+    fn new(upcalls: &'a [SavedUpcall], num_upcalls: usize, driver_num: usize) -> UpcallMemory<'a> {
+        Self {
+            upcalls,
+            num_upcalls,
+            driver_num,
+        }
+    }
+
+    pub fn schedule_upcall(
+        &self,
+        subscribe_num: usize,
+        processid: ProcessId,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+    ) -> bool {
+        // TODO: remove num_upcalls?
+        if subscribe_num >= self.num_upcalls {
+            return false;
+        }
+        let saved_upcall = &self.upcalls[subscribe_num];
+        let mut upcall = Upcall::new(
+            processid,
+            UpcallId {
+                subscribe_num,
+                driver_num: self.driver_num,
+            },
+            saved_upcall.appdata,
+            saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
+        );
+        upcall.schedule(r0, r1, r2)
+    }
+}
+
+/// A minimal representation of an upcall, used for storing an upcall
+/// in a process' grant table without wasting memory duplicating information
+/// such as process ID.
+#[repr(C)]
+pub(crate) struct SavedUpcall {
+    pub(crate) appdata: usize,
+    pub(crate) fn_ptr: Option<NonNull<*mut ()>>,
 }
 
 /// An instance of a grant allocated for a particular process.
@@ -182,6 +239,7 @@ pub struct ProcessGrant<'a, T: 'a> {
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
 
+    /// The number of upcalls saved in this grant
     number_of_upcalls: usize,
 
     /// Used to keep the Rust type of the grant.
@@ -380,7 +438,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -444,7 +502,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// `Some(fun())`.
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory) -> R,
     {
         self.access_grant(fun, false)
     }
@@ -461,7 +519,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory, &mut GrantRegionAllocator) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -479,7 +537,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -571,6 +629,13 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
         };
 
+        let saved_upcalls_slice = unsafe {
+            slice::from_raw_parts_mut(
+                grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
+                self.number_of_upcalls,
+            )
+        };
+
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
         // grant is restricted by the type system to access this memory safely.
@@ -588,9 +653,17 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
 
         // Create a wrapped object that is passed to the capsule.
         let mut grant_memory = GrantMemory::new(grant);
+        // Create a wrapped object that gives access to the upcalls for this driver
+        let mut upcall_memory = UpcallMemory::new(
+            saved_upcalls_slice,
+            self.number_of_upcalls,
+            self.process
+                .grant_num_to_driver_num(self.grant_num)
+                .unwrap(), // TODO: Better way to get this?
+        );
 
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_memory);
+        let res = fun(&mut grant_memory, &mut upcall_memory);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -608,7 +681,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory, &mut GrantRegionAllocator) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -649,6 +722,13 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             grant_ptr.add(size_of::<usize>() + (self.number_of_upcalls * size_of::<SavedUpcall>()))
         };
 
+        let saved_upcalls_slice = unsafe {
+            slice::from_raw_parts_mut(
+                grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
+                self.number_of_upcalls,
+            )
+        };
+
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
         // grant is restricted by the type system to access this memory safely.
@@ -673,8 +753,17 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
             processid: self.process.processid(),
         };
 
+        // Create a wrapped object that gives access to the upcalls for this driver
+        let mut upcall_memory = UpcallMemory::new(
+            saved_upcalls_slice,
+            self.number_of_upcalls,
+            self.process
+                .grant_num_to_driver_num(self.grant_num)
+                .unwrap(), // TODO: Better way to get this?
+        );
+
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_memory, &mut allocator);
+        let res = fun(&mut grant_memory, &mut upcall_memory, &mut allocator);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -923,7 +1012,7 @@ impl<T: Default> Grant<T> {
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -953,7 +1042,7 @@ impl<T: Default> Grant<T> {
     /// memory in the process's grant region.
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &mut UpcallMemory, &mut GrantRegionAllocator) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -983,14 +1072,14 @@ impl<T: Default> Grant<T> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(ProcessId, &mut GrantMemory<T>),
+        F: Fn(ProcessId, &mut GrantMemory<T>, &mut UpcallMemory),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
             let processid = pg.processid();
             // Since we iterating, there is no return value we need to worry
             // about.
-            pg.enter(|memory| fun(processid, memory));
+            pg.enter(|memory, upcalls| fun(processid, memory, upcalls));
         }
     }
 

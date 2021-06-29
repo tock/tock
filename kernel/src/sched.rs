@@ -922,13 +922,17 @@ impl Kernel {
                 });
                 let rval = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.processid());
-                        match res {
-                            // An Ok() returns the previous upcall, while
-                            // Err() returns the one that was just passed
-                            // (because the call was rejected).
-                            Ok(oldcb) => oldcb.into_subscribe_success(),
-                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                        if d.allocate_grant(process.processid()).is_err() {
+                            upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                        } else {
+                            let res = process.subscribe(upcall_id, upcall);
+                            match res {
+                                // An Ok() returns the previous upcall, while
+                                // Err() returns the one that was just passed
+                                // (because the call was rejected).
+                                Ok(oldcb) => oldcb.into_subscribe_success(),
+                                Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                            }
                         }
                     }
                     None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
