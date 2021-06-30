@@ -17,7 +17,7 @@ following sensors:
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md).
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md).
 
 The Nano 33 comes pre-installed with a
 [version](https://github.com/arduino/ArduinoCore-nRF528x-mbedos/tree/master/bootloaders/nano33ble)
@@ -98,12 +98,12 @@ back.
    will jump to the second, and the second will continue running if no kernel is installed.
    To reduce confusion, we can remove the second bootloader. To do this, we will overwrite
    the start of the bootloader with zeros.
-   
+
    First, double tap the reset button. This will cause the first bootloader to stay
    active. You should see the "ON" LED on.
-   
+
    Then, overwrite the second bootloader:
-   
+
     ```shell
     $ tockloader write 0x10000 512 0
     ```

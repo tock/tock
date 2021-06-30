@@ -15,7 +15,7 @@ following sensors:
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 ## Bootloader
 
@@ -36,12 +36,12 @@ To build the bootloader yourself, please follow the instructions in the Tock Boo
 
 > **NOTE** Uploading the bootloader will not change any ability to upload software to the MicroBit. The microbit board has another bootloader in the debug chip that provides normal software upload capabilites and that will not be overwritten. All other software will work as expected.
 
-Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up. 
+Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up.
 
 Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin) to the `MICROBIT` drive and wait for a few seconds.
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
-### Using openocd 
+### Using openocd
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
