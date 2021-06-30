@@ -146,6 +146,12 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    /// Data structure used for tracking which driver number is associated
+    /// with each grant number. This allows the kernel to verify that
+    /// no user driver creates multiple grants, and that no two drivers
+    /// use the same driver number.
+    grant_num_mapping: [Option<usize>; config::CONFIG.max_drivers],
 }
 
 /// Enum used to inform scheduler why a process stopped executing (aka why
@@ -181,6 +187,7 @@ impl Kernel {
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            grant_num_mapping: [None; config::CONFIG.max_drivers],
         }
     }
 
@@ -396,6 +403,22 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
+
+        // Verify that this new grant will have a unique `driver_num`.
+        // We must ensure that two grants do not have the same `driver_num`
+        // to correctly implement the kernel's promised upcall subscribe semantics.
+        if self.grant_num_mapping[grant_index].is_none() {
+            if self
+                .grant_num_mapping
+                .iter()
+                .find(|&&val| val == Some(driver_num))
+                .is_some()
+            {
+                panic!("One driver cannot have two grants");
+            }
+        } else {
+            panic!("This grant has already been assigned.");
+        }
         Grant::new(self, driver_num, grant_index)
     }
 
