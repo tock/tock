@@ -83,6 +83,7 @@ $ sudo reboot
 $ cd ~/tock-test-harness; pip3 install -r requirements.txt
 ```
 **Note:** this step will have to be done by a member of @tock/core-wg
+
 9. Hook up Action Runner of the Tock Repo to the Raspberry Pi.
     * Go to \'Settings\' and go to \'Actions\' down the list on the left
     * Under \'Self-hosted runners\' click **Add runner**
