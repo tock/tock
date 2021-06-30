@@ -1285,7 +1285,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool {
         let ptr = upcall_fn.as_ptr() as *const u8;
-        self.in_app_owned_memory(ptr, mem::size_of::<*const u8>())
+        let size = mem::size_of::<*const u8>();
+
+        // It is ok if this function is in memory or flash.
+        self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
     }
 }
 
