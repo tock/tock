@@ -297,15 +297,15 @@ impl SyscallReturn {
     /// Returns true if the `SyscallReturn` is any success type.
     pub(crate) fn is_success(&self) -> bool {
         match self {
-            Success => true,
-            SuccessU32 => true,
-            SuccessU32U32 => true,
-            SuccessU32U32U32 => true,
-            SuccessU64 => true,
-            SuccessU64U32 => true,
-            AllowReadWriteSuccess => true,
-            AllowReadOnlySuccess => true,
-            SubscribeSuccess => true,
+            SyscallReturn::Success => true,
+            SyscallReturn::SuccessU32(_) => true,
+            SyscallReturn::SuccessU32U32(_, _) => true,
+            SyscallReturn::SuccessU32U32U32(_, _, _) => true,
+            SyscallReturn::SuccessU64(_) => true,
+            SyscallReturn::SuccessU64U32(_, _) => true,
+            SyscallReturn::AllowReadWriteSuccess(_, _) => true,
+            SyscallReturn::AllowReadOnlySuccess(_, _) => true,
+            SyscallReturn::SubscribeSuccess(_, _) => true,
             _ => false,
         }
     }
