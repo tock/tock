@@ -7,7 +7,7 @@
 //!
 //! Each trait has two associated type parameters, namely:
 //!
-//! - `T`: [`IntLike`](crate::IntLike), indicating the underlying
+//! - `T`: [`UIntLike`](crate::UIntLike), indicating the underlying
 //!   integer type used to represent the register's raw contents.
 //!
 //! - `R`: [`RegisterLongName`](crate::RegisterLongName), functioning
@@ -148,7 +148,7 @@
 //! ```
 
 use crate::fields::{Field, FieldValue, TryFromValue};
-use crate::{IntLike, LocalRegisterCopy, RegisterLongName};
+use crate::{LocalRegisterCopy, RegisterLongName, UIntLike};
 
 /// Readable register
 ///
@@ -161,7 +161,7 @@ use crate::{IntLike, LocalRegisterCopy, RegisterLongName};
 /// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
 /// [`Aliased`](crate::registers::Aliased) registers).
 pub trait Readable {
-    type T: IntLike;
+    type T: UIntLike;
     type R: RegisterLongName;
 
     /// Get the raw register value
@@ -218,7 +218,7 @@ pub trait Readable {
 /// [`Readable`] is the same as that of [`Writeable`] (i.e. not for
 /// [`Aliased`](crate::registers::Aliased) registers).
 pub trait Writeable {
-    type T: IntLike;
+    type T: UIntLike;
     type R: RegisterLongName;
 
     /// Set the raw register value
@@ -252,14 +252,14 @@ pub trait Writeable {
 /// and [`Writeable`], as long as [`Readable::R`] == [`Writeable::R`]
 /// (i.e. not for [`Aliased`](crate::registers::Aliased) registers).
 pub trait ReadWriteable {
-    type T: IntLike;
+    type T: UIntLike;
     type R: RegisterLongName;
 
     /// Write the value of one or more fields, leaving the other fields unchanged
     fn modify(&self, field: FieldValue<Self::T, Self::R>);
 }
 
-impl<T: IntLike, R: RegisterLongName, S> ReadWriteable for S
+impl<T: UIntLike, R: RegisterLongName, S> ReadWriteable for S
 where
     S: Readable<T = T, R = R> + Writeable<T = T, R = R>,
 {

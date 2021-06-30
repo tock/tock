@@ -204,7 +204,7 @@ methods, through the implementations of the `Readable`, `Writeable`
 and `ReadWriteable` traits respectively:
 
 ```rust
-ReadOnly<T: IntLike, R: RegisterLongName = ()>: Readable
+ReadOnly<T: UIntLike, R: RegisterLongName = ()>: Readable
 .get() -> T                                    // Get the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
 .read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
@@ -213,11 +213,11 @@ ReadOnly<T: IntLike, R: RegisterLongName = ()>: Readable
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-WriteOnly<T: IntLike, R: RegisterLongName = ()>: Writeable
+WriteOnly<T: UIntLike, R: RegisterLongName = ()>: Writeable
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-ReadWrite<T: IntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWriteable
+ReadWrite<T: UIntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWriteable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -234,7 +234,7 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWrit
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
+Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -250,7 +250,7 @@ Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readabl
 The `Aliased` type represents cases where read-only and write-only registers,
 with different meanings, are aliased to the same memory location.
 
-The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`,
+The first type parameter (the `UIntLike` type) is `u8`, `u16`, `u32`,
 `u64`, `u128` or `usize`.
 
 ## Example: Using registers and bitfields

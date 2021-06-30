@@ -5,7 +5,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate::fields::{Field, FieldValue, TryFromValue};
-use crate::{IntLike, RegisterLongName};
+use crate::{RegisterLongName, UIntLike};
 
 /// A read-write copy of register contents.
 ///
@@ -28,12 +28,12 @@ use crate::{IntLike, RegisterLongName};
 /// [`Writeable`](crate::interfaces::Writeable) and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable).
 #[derive(Copy, Clone)]
-pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
+pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
-impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
+impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
             value: value,
@@ -103,14 +103,14 @@ impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 }
 
-impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
+impl<T: UIntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.value)
     }
 }
 
-// Helper macro to implement From<LocalRegisterCopy<T: IntLike>, R>>
-// for <T: IntLike>
+// Helper macro to implement From<LocalRegisterCopy<T: UIntLike>, R>>
+// for <T: UIntLike>
 macro_rules! From_impl_for {
     ($type:ty) => {
         impl<R: RegisterLongName> From<LocalRegisterCopy<$type, R>> for $type {
