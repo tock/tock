@@ -270,7 +270,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn resume(&self) {}
 
     fn set_fault_state(&self) {
-        self.try_restart(COMPLETION_FAULT);
+        panic!("Process {} faulted.", self.process_name);
+        self.state.update(State::Faulted);
+        //self.try_restart(COMPLETION_FAULT);
     }
 
     fn try_restart(&self, completion_code: u32) {
@@ -1494,22 +1496,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         });
 
         let flash_protected_size = process.header.get_protected_size() as usize;
-        let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
-
-        let init_fn = app_flash
-            .as_ptr()
-            .offset(process.header.get_init_function_offset() as isize) as usize;
-
-        process.tasks.map(|tasks| {
-            tasks.enqueue(Task::FunctionCall(FunctionCall {
-                source: FunctionCallSource::Kernel,
-                pc: init_fn,
-                argument0: flash_app_start_addr,
-                argument1: process.memory_start as usize,
-                argument2: process.memory_len,
-                argument3: process.app_break.get() as usize,
-            }));
-        });
+        //let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
 
         // Handle any architecture-specific requirements for a new process.
         //
@@ -1553,17 +1540,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// the mechanism of restart.
     fn restart(&self) -> Result<(), ErrorCode> {
         
-        let init_fn = unsafe { self.flash
-                               .as_ptr()
-                               .offset(self.header.get_init_function_offset() as isize) as usize};
-            
-        let kernel_memory_break = unsafe {self.memory_start.offset(self.memory_len as isize)};
+        //let kernel_memory_break = unsafe {self.memory_start.offset(self.memory_len as isize)};
 
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
         let initial_allow_high_water_mark = self.memory_start;
 
- 
+        
         let unique_identifier = self.kernel.create_process_identifier();
 
         // We need a new process identifier for this process since the restarted
