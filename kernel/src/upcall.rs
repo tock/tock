@@ -35,9 +35,10 @@ pub struct Upcall {
 
     /// A pointer to the first instruction of a function in the app
     /// associated with app_id.
+    ///
     /// If this value is `None`, this is a null upcall, which cannot actually be
-    /// scheduled. An `Upcall` can be null when it is first created,
-    /// or after an app unsubscribes from an upcall.
+    /// scheduled. An `Upcall` can be null when it is first created, or after an
+    /// app unsubscribes from an upcall.
     pub(crate) fn_ptr: Option<NonNull<()>>,
 }
 
@@ -56,7 +57,7 @@ impl Upcall {
         }
     }
 
-    /// Schedule the upcall
+    /// Schedule the upcall.
     ///
     /// This will queue the [`Upcall`] for the associated process. It
     /// returns `false` if the queue for the process is full and the
@@ -97,17 +98,34 @@ impl Upcall {
         res
     }
 
+    /// Create a successful syscall return type suitable for returning to
+    /// userspace.
+    ///
+    /// This function is intended to be called on the "old upcall" that is being
+    /// returned to userspace after a successful subscribe call and upcall swap.
+    ///
+    /// We provide this `.into` function because the return type needs to
+    /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
         match self.fn_ptr {
-            None => SyscallReturn::SubscribeSuccess(0 as *mut (), self.appdata),
             Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata),
+            None => SyscallReturn::SubscribeSuccess(0 as *mut (), self.appdata),
         }
     }
 
+    /// Create a failure case syscall return type suitable for returning to
+    /// userspace.
+    ///
+    /// This is intended to be used when a subscribe call cannot be handled and
+    /// the function pointer passed from userspace must be returned back to
+    /// userspace.
+    ///
+    /// We provide this `.into` function because the return type needs to
+    /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
         match self.fn_ptr {
-            None => SyscallReturn::SubscribeFailure(err, 0 as *mut (), self.appdata),
             Some(fp) => SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata),
+            None => SyscallReturn::SubscribeFailure(err, 0 as *mut (), self.appdata),
         }
     }
 }
