@@ -1264,10 +1264,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     // a panic, and use match to appease borrow checker
                     match grant_pointers.get(grant_num) {
                         None => Err((upcall, ErrorCode::NOMEM)),
-                        Some((_driver_num_pointer, grant_pointer_pointer)) => {
+                        Some((driver_num_pointer, grant_pointer_pointer)) => {
                             if grant_pointer_pointer.is_null() {
                                 // Capsule did not allocate grant, refuse subscribe
                                 return Err((upcall, ErrorCode::NOMEM));
+                            } else if *driver_num_pointer != upcall_id.driver_num {
+                                // driver num passed to with_driver does not match the one
+                                // passed to create_grant during board setup
+                                return Err((upcall, ErrorCode::INVAL));
                             } else {
                                 let grant_ptr = *grant_pointer_pointer;
                                 // TODO: do we need to check if grant already entered here?
