@@ -179,16 +179,6 @@ impl From<process::Error> for CommandReturn {
 /// implement.
 #[allow(unused_variables)]
 pub trait Driver {
-    /// Enter the grant for this process, which will allocate the first time it
-    /// is called. No default implementation, to prevent forgetting to implement. (TODO)
-    /// A typical implementation will look like
-    /// ```
-    /// self.apps.enter(appid, |_, _| {})
-    /// ```
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error> {
-        Ok(())
-    }
-
     /// System call for a process to perform a short synchronous operation
     /// or start a long-running split-phase operation (whose completion
     /// is signaled with an upcall). Command 0 is a reserved command to
@@ -225,4 +215,26 @@ pub trait Driver {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
+
+    /// Request to allocate a capsule's grant for a specific process.
+    ///
+    /// The core kernel uses this function to instruct a capsule to ensure its
+    /// grant (if it has one) is allocated for a specific process. The core
+    /// kernel needs the capsule to initiate the allocation because only the
+    /// capsule knows the type T (and therefore the size of T) that will be
+    /// stored in the grant.
+    ///
+    /// The typical implementation will look like:
+    /// ```
+    /// fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    ///    self.apps.enter(processid, |_, _| {})
+    /// }
+    /// ```
+    ///
+    /// No default implementation is provided to help prevent accidentally
+    /// forgetting to implement this function.
+    ///
+    /// If a capsule fails to successfully implement this function, subscribe
+    /// calls from userspace for the Driver may fail.
+    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
 }
