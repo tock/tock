@@ -1350,7 +1350,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Actually allocate a block of the right size from the MPU
         
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
-        
+
+        debug!("Allocating app memory region");
+        debug!("remining mem: {:x}", remaining_memory.as_ptr() as u32);
+        debug!("remining mem len: {:x}", remaining_memory.len());
+        debug!("min process RAM: {:x}", min_process_ram_size);
+        debug!("min userspace RAM: {:x}", min_userspace_ram_size);
+        debug!("min kernel RAM: {:x}", min_kernel_ram_size);
         let (app_ram_start, app_ram_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
@@ -1379,7 +1385,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let app_ram_slice = app_ram_oversize
             .get_mut(memory_start_offset..)
             .ok_or(ProcessLoadError::InternalError)?;
-
+        debug!("App RAM slice: {:x} +{:x}", app_ram_slice.as_ptr() as u32, app_ram_slice.len());
         // If a process requires a fixed RAM block, check that the memory allocated
         // matches this fixed address. This can fail if the fixed address requested
         // is incompatible with MPU alignment.
