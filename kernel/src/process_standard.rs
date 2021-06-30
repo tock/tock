@@ -1356,13 +1356,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         debug!("remining mem: {:x}", remaining_memory.as_ptr() as u32);
         debug!("remining mem len: {:x}", remaining_memory.len());
         debug!("min process RAM: {:x}", min_process_ram_size);
-        debug!("min userspace RAM: {:x}", min_userspace_ram_size);
+        debug!("context switch size: {:x}", context_switch_size);
         debug!("min kernel RAM: {:x}", min_kernel_ram_size);
         let (app_ram_start, app_ram_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_process_ram_size,
-            min_userspace_ram_size,
+            context_switch_size,
             min_kernel_ram_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
