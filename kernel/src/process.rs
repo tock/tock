@@ -13,7 +13,7 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self};
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
-use crate::upcall::{Upcall, UpcallId};
+use crate::upcall::UpcallId;
 
 /// Userspace process identifier.
 ///
