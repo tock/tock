@@ -850,6 +850,32 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         })
     }
 
+    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error> {
+        self.grant_pointers
+            .map_or(Err(Error::KernelError), |grant_pointers| {
+                // Filter our list of grant pointers into just the non null
+                // ones, and count those. A grant is allocated if its grant
+                // pointer is non null.
+                match grant_pointers.iter().position(
+                    |(driver_num_pointer, grant_pointer_pointer)| {
+                        // Only consider allocated grants.
+                        (!(*grant_pointer_pointer).is_null()) && *driver_num_pointer == driver_num
+                    },
+                ) {
+                    Some(idx) => Ok(idx),
+                    None => Err(Error::OutOfMemory),
+                }
+            })
+    }
+
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool {
+        let ptr = upcall_fn.as_ptr() as *const u8;
+        let size = mem::size_of::<*const u8>();
+
+        // It is ok if this function is in memory or flash.
+        self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
+    }
+
     fn get_process_name(&self) -> &'static str {
         self.process_name
     }
@@ -1265,32 +1291,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 ));
             }
         });
-    }
-
-    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error> {
-        self.grant_pointers
-            .map_or(Err(Error::KernelError), |grant_pointers| {
-                // Filter our list of grant pointers into just the non null
-                // ones, and count those. A grant is allocated if its grant
-                // pointer is non null.
-                match grant_pointers.iter().position(
-                    |(driver_num_pointer, grant_pointer_pointer)| {
-                        // Only consider allocated grants.
-                        (!(*grant_pointer_pointer).is_null()) && *driver_num_pointer == driver_num
-                    },
-                ) {
-                    Some(idx) => Ok(idx),
-                    None => Err(Error::OutOfMemory),
-                }
-            })
-    }
-
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool {
-        let ptr = upcall_fn.as_ptr() as *const u8;
-        let size = mem::size_of::<*const u8>();
-
-        // It is ok if this function is in memory or flash.
-        self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
     }
 }
 
