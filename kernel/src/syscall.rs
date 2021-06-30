@@ -294,6 +294,22 @@ impl SyscallReturn {
         res.into_inner()
     }
 
+    /// Returns true if the `SyscallReturn` is any success type.
+    pub(crate) fn is_success(&self) -> bool {
+        match self {
+            Success => true,
+            SuccessU32 => true,
+            SuccessU32U32 => true,
+            SuccessU32U32U32 => true,
+            SuccessU64 => true,
+            SuccessU64U32 => true,
+            AllowReadWriteSuccess => true,
+            AllowReadOnlySuccess => true,
+            SubscribeSuccess => true,
+            _ => false,
+        }
+    }
+
     /// Encode the system call return value into 4 registers, following
     /// the encoding specified in TRD104. Architectures which do not follow
     /// TRD104 are free to define their own encoding.

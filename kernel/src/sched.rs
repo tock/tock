@@ -936,14 +936,6 @@ impl Kernel {
                 // If the upcall is either null or valid, then we continue
                 // handling the upcall.
                 let rval = rval1.unwrap_or_else(|| {
-                    // Only one upcall should exist per tuple. To ensure that
-                    // there are no pending upcalls with the same identifier but
-                    // with the old function pointer, we clear them now.
-                    //
-                    // TODO: I think this should be after the swap, and only on
-                    // success. Is that correct??
-                    process.remove_pending_upcalls(upcall_id);
-
                     // At this point we must save the new upcall and return the
                     // old. The upcalls are stored by the core kernel in the
                     // grant region so we can guarantee a correct upcall swap.
@@ -985,6 +977,17 @@ impl Kernel {
                         })
                     })
                 });
+
+                // Per TRD104, we only clear upcalls if the subscribe will
+                // return success. At this point we know the result and clear if
+                // necessary.
+                if rval.is_success() {
+                    // Only one upcall should exist per tuple. To ensure that
+                    // there are no pending upcalls with the same identifier but
+                    // with the old function pointer, we clear them now.
+                    process.remove_pending_upcalls(upcall_id);
+                }
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
