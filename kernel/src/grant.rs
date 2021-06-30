@@ -82,26 +82,34 @@ impl Allocator {
         }
     }
 
-    // Like `alloc`, but the caller is responsible for free-ing the allocated
-    // memory, as it is not wrapped in a type that implements `Drop`
-    unsafe fn alloc_unowned<T: Default>(&mut self) -> Result<NonNull<T>, Error> {
+    // Move non-generic code into a function with no generic parameters to
+    // prevent monomorphization of this code. Saves ~200 bytes on Ti50.
+    #[inline(never)]
+    unsafe fn alloc_unowned_inner(
+        &mut self,
+        size: usize,
+        align: usize,
+    ) -> Result<NonNull<u8>, Error> {
         self.appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
-                process.alloc(size_of::<T>(), align_of::<T>()).map_or(
-                    Err(Error::OutOfMemory),
-                    |buf| {
-                        // Convert untyped `*mut u8` allocation to allocated type
-                        let ptr = NonNull::cast::<T>(buf);
-
-                        // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
-                        // case `T` implements the `Drop` trait.
-                        write(ptr.as_ptr(), T::default());
-
-                        Ok(ptr)
-                    },
-                )
+                process
+                    .alloc(size, align)
+                    .map_or(Err(Error::OutOfMemory), |buf| Ok(buf))
             })
+    }
+
+    // Like `alloc`, but the caller is responsible for free-ing the allocated
+    // memory, as it is not wrapped in a type that implements `Drop`
+    unsafe fn alloc_unowned<T: Default>(&mut self) -> Result<NonNull<T>, Error> {
+        let buf = self.alloc_unowned_inner(size_of::<T>(), align_of::<T>())?;
+        let ptr = NonNull::cast::<T>(buf);
+
+        // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
+        // case `T` implements the `Drop` trait.
+        write(ptr.as_ptr(), T::default());
+
+        Ok(ptr)
     }
 }
 
@@ -149,62 +157,46 @@ impl<T: Default> Grant<T> {
         }
     }
 
-    pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
+    // Move non-generic code from grant() into non-generic function.
+    // Saves 16 bytes on Ti50 as of 06/30/21
+    #[inline(never)]
+    fn grant_inner(&self, appid: AppId) -> Option<NonNull<u8>> {
         appid.kernel.process_map_or(None, appid, |process| {
             if let Some(grant_ptr) = process.get_grant_ptr(self.grant_num) {
-                NonNull::new(grant_ptr).map(|grant| AppliedGrant {
-                    appid: appid,
-                    grant: grant.cast::<T>(),
-                    _phantom: PhantomData,
-                })
+                NonNull::new(grant_ptr)
             } else {
                 None
             }
         })
     }
 
-    pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
-    where
-        F: FnOnce(&mut Borrowed<T>) -> R,
-        R: Copy,
-    {
+    pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
+        match self.grant_inner(appid) {
+            Some(grant) => Some(AppliedGrant {
+                appid: appid,
+                grant: grant.cast::<T>(),
+                _phantom: PhantomData,
+            }),
+            None => None,
+        }
+    }
+
+    // Moves non-generic code from enter() into non-generic function to reduce code bloat,
+    // as it is common to have over 50 copies of Grant::enter() in a Tock kernel.
+    // This saves over 3kB.
+    // The returned bool indicates if allocation happened -- if allocation happened,
+    // the generic portion of enter() needs to write the default value into the allocated
+    // space.
+    #[inline(never)]
+    fn enter_inner(
+        &self,
+        appid: AppId,
+        size: usize,
+        align: usize,
+    ) -> Result<(*mut u8, bool), Error> {
         appid
             .kernel
             .process_map_or(Err(Error::NoSuchApp), appid, |process| {
-                // Here is an example of how the grants are laid out in a
-                // process's memory:
-                //
-                // Mem. Addr.
-                // 0x0040000  ┌────────────────────
-                //            │   GrantPointer0 [0x003FFC8]
-                //            │   GrantPointer1 [0x003FFC0]
-                //            │   ...
-                //            │   GrantPointerN [0x0000000 (NULL)]
-                //            ├────────────────────
-                //            │   Process Control Block
-                // 0x003FFE0  ├────────────────────
-                //            │   GrantRegion0
-                // 0x003FFC8  ├────────────────────
-                //            │   GrantRegion1
-                // 0x003FFC0  ├────────────────────
-                //            │
-                //            │   --unallocated--
-                //            │
-                //            └────────────────────
-                //
-                // An array of pointers (one per possible grant region)
-                // point to where the actual grant memory is allocated
-                // inside of the process. The grant memory is not allocated
-                // until the actual grant region is actually used.
-                //
-                // This function provides the app access to the specific
-                // grant memory, and allocates the grant region in the
-                // process memory if needed.
-
-                // Get the GrantPointer to start. Since process.rs does not know
-                // anything about the datatype of the grant, and the grant
-                // memory may not yet be allocated, it can only return a `*mut
-                // u8` here. We will eventually convert this to a `*mut T`.
                 if let Some(untyped_grant_ptr) = process.get_grant_ptr(self.grant_num) {
                     // This is the allocator for this process when needed
                     let mut allocator = Allocator { appid: appid };
@@ -213,7 +205,7 @@ impl<T: Default> Grant<T> {
                     // GrantRegion needs to be allocated. Otherwise, we can
                     // convert the pointer to a `*mut T` because we know we
                     // previously allocated enough memory for type T.
-                    let typed_grant_pointer = if untyped_grant_ptr.is_null() {
+                    let ret = if untyped_grant_ptr.is_null() {
                         unsafe {
                             // Allocate space in the process's memory for
                             // something of type `T` for the grant.
@@ -221,7 +213,7 @@ impl<T: Default> Grant<T> {
                             // Note: This allocation is intentionally never
                             // freed.  A grant region is valid once allocated
                             // for the lifetime of the process.
-                            let new_region = allocator.alloc_unowned()?;
+                            let new_region = allocator.alloc_unowned_inner(size, align)?;
 
                             // Update the grant pointer in the process. Again,
                             // since the process struct does not know about the
@@ -230,29 +222,76 @@ impl<T: Default> Grant<T> {
 
                             // The allocator returns a `NonNull`, we just want
                             // the raw pointer.
-                            new_region.as_ptr()
+                            (new_region.as_ptr(), true)
                         }
                     } else {
-                        // Grant region previously allocated, just convert the
-                        // pointer.
-                        untyped_grant_ptr as *mut T
+                        (untyped_grant_ptr, false)
                     };
-
-                    // Dereference the typed GrantPointer to make a GrantRegion
-                    // reference.
-                    let region = unsafe { &mut *typed_grant_pointer };
-
-                    // Wrap the grant reference in something that knows
-                    // what app its a part of.
-                    let mut borrowed_region = Borrowed::new(region, appid);
-
-                    // Call the passed in closure with the borrowed grant region.
-                    let res = fun(&mut borrowed_region);
-                    Ok(res)
+                    Ok(ret)
                 } else {
                     Err(Error::InactiveApp)
                 }
             })
+    }
+
+    pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
+    where
+        F: FnOnce(&mut Borrowed<T>) -> R,
+        R: Copy,
+    {
+        // Here is an example of how the grants are laid out in a
+        // process's memory:
+        //
+        // Mem. Addr.
+        // 0x0040000  ┌────────────────────
+        //            │   GrantPointer0 [0x003FFC8]
+        //            │   GrantPointer1 [0x003FFC0]
+        //            │   ...
+        //            │   GrantPointerN [0x0000000 (NULL)]
+        //            ├────────────────────
+        //            │   Process Control Block
+        // 0x003FFE0  ├────────────────────
+        //            │   GrantRegion0
+        // 0x003FFC8  ├────────────────────
+        //            │   GrantRegion1
+        // 0x003FFC0  ├────────────────────
+        //            │
+        //            │   --unallocated--
+        //            │
+        //            └────────────────────
+        //
+        // An array of pointers (one per possible grant region)
+        // point to where the actual grant memory is allocated
+        // inside of the process. The grant memory is not allocated
+        // until the actual grant region is actually used.
+        //
+        // This function provides the app access to the specific
+        // grant memory, and allocates the grant region in the
+        // process memory if needed.
+
+        // Get the GrantPointer to start. Since process.rs does not know
+        // anything about the datatype of the grant, and the grant
+        // memory may not yet be allocated, it can only return a `*mut
+        // u8` here. We then convert this to a `*mut T`.
+
+        let (still_untyped_grant_pointer, need_to_init) =
+            self.enter_inner(appid, size_of::<T>(), align_of::<T>())?;
+        let typed_grant_pointer = still_untyped_grant_pointer as *mut T;
+        if need_to_init {
+            unsafe { write(typed_grant_pointer, T::default()) }
+        }
+
+        // Dereference the typed GrantPointer to make a GrantRegion
+        // reference.
+        let region = unsafe { &mut *typed_grant_pointer };
+
+        // Wrap the grant reference in something that knows
+        // what app its a part of.
+        let mut borrowed_region = Borrowed::new(region, appid);
+
+        // Call the passed in closure with the borrowed grant region.
+        let res = fun(&mut borrowed_region);
+        Ok(res)
     }
 
     pub fn each<F>(&self, fun: F)
@@ -286,33 +325,40 @@ pub struct Iter<'a, T: 'a + Default> {
         fn(&Option<&'static dyn ProcessType>) -> Option<&'static dyn ProcessType>,
     >,
 }
+impl<T: Default> Iter<'_, T> {
+    #[inline(never)]
+    fn next_internal(&mut self, grant_num: usize) -> Option<AppId> {
+        // Get the next `AppId` from the kernel processes array that is setup to use this grant.
+        // Since the iterator itself is saved calling this function
+        // again will start where we left off.
+        self.subiter
+            .find(|process| {
+                // We have found a candidate process that exists in the
+                // processes array. Now we have to check if this grant is setup
+                // for this process. If not, we have to skip it and keep
+                // looking.
+                if let Some(grant_ptr) = process.get_grant_ptr(grant_num) {
+                    !grant_ptr.is_null()
+                } else {
+                    false
+                }
+            })
+            .map(|process| process.appid())
+    }
+}
 
 impl<T: Default> Iterator for Iter<'_, T> {
     type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Save a local copy of grant_num so we don't have to access `self`
-        // in the closure below.
+        // in the closure in next_internal
         let grant_num = self.grant.grant_num;
 
-        // Get the next `AppId` from the kernel processes array that is setup to use this grant.
-        // Since the iterator itself is saved calling this function
-        // again will start where we left off.
-        let res = self.subiter.find(|process| {
-            // We have found a candidate process that exists in the
-            // processes array. Now we have to check if this grant is setup
-            // for this process. If not, we have to skip it and keep
-            // looking.
-            if let Some(grant_ptr) = process.get_grant_ptr(grant_num) {
-                !grant_ptr.is_null()
-            } else {
-                false
-            }
-        });
-
+        let res = self.next_internal(grant_num);
         // Check if our find above returned another `AppId`, or if we hit the
         // end of the iterator. If we found another app, try to access its grant
         // region.
-        res.map_or(None, |process| self.grant.grant(process.appid()))
+        res.map_or(None, |appid| self.grant.grant(appid))
     }
 }
