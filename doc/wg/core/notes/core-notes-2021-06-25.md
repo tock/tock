@@ -1,4 +1,4 @@
-# Tock Core Notes 2021-06-27
+# Tock Core Notes 2021-06-25
 
 Attending:
 - Alexandru Radovici
@@ -46,10 +46,8 @@ Attending:
   same `allow` call (read/write or read only) or between different `allow` calls and between different capsules.  This means we have to 
   handle this in the kernel and cannot use regular rust slices anymore or we'll see undefined behavior.  We need to handle this while
   maintaining an API that is easy-to-use and backwards-compatible with previous versions.  I've been implementing an API which I discussed with Hudson
-  on my local repository.  Some networking drivers were difficult to port, however, due to encoding and decoding of headers passed from userspace to networking
-  drivers in temporary buffers.  The CRC driver capsule is challenging, however, and I haven't been able to port it to the new API due to a DMA access.
-  This is the only capsule I have left and hopefully a PR will be out tomorrow.
-- Amit: So this issue with rewriting the drivers, are you mostly finished with it.
+  on my local repository.  Some networking drivers were difficult to port, however, due to encoding and decoding of headers passed from userspace to networking drivers in temporary buffers.  The CRC driver capsule is very challenging and I haven't been able to port it to the new API due to a DMA access.  This is the only capsule I have left and hopefully a PR will be out tomorrow.
+- Amit: So this issue with rewriting the drivers, are you mostly finished with it?
 - Leon: I finished porting and I can release the PR today.  The CRC driver is a little tough, however, so I removed it.  The CRC driver is more difficult
   than I expected and involves switching from a one-call, single-buffer interface to a chunked buffer interface.  I'll submit a PR without that to 
   elicit feedback.
@@ -83,25 +81,23 @@ is good.  We should make binaries work for 2.0 and have an exception for 1.0.
   capsules and upcalls.  This would also save code in capsules.  The grant code in the core kernel can store an upcall but needs to dynamically store the 
   number of upcalls and then access them on a path from userspace.  I haven't had time to implement this.
 - Leon: This is a move in the right direction.  This implementation might be tricky to get right.  Several months ago,  we established that there should be 
-  a guarantee that callbacks never get swapped by the kernel or capsules. Would we rather want something which works now and will be replaced later with a better 
-  version because it doesn't change the process-kernel interface at all?  The current status of this PR needs to be rebased and can be removed easily if we were
-  to go with Brad's version.  This PR could be a placeholder while Brad's approach gets implemented.
+  a guarantee that callbacks never get swapped by the kernel or capsules. Would we rather want something which works now and will be replaced later with a better version because it doesn't change the process-kernel interface at all?  The current status of this PR needs to be rebased and can be removed easily if we were to go with Brad's version.  This PR could be a placeholder while Brad's approach gets implemented.
 - Amit: I'm a little confused on where we are.  Is there a concise version of this?
 - Leon: Capsules can currently swap upcalls and can copy upcalls which means applications can never rely on an upcall it has unsubscribed from to never
   be called again.  This violates the syscall semantics which are specified in the TRD.  The pr that is going to be out as well as Brad's approach protect 
   againt this but do so via different mechanisms.
 - Brad: Agreeing on how we view 2.0 will impact its release.  One view is that we have documentation on guarantees and syscall interface and we can
   implement these changes.  Another view is that we should treat this as a huge verion change and make a huge mess in terms of out-of-tree code.  Then, there
-  would be a nice slow-down after releasing 2.0.  You would need to port code to 2.0 once but not a couple months after 2.0, for example.  The problem with a lot 
-  of these changes is they are pretty invasive in-kernel changes and so out-of-tree kernel developers would have to update their code if we do this after 2.0.
+  would be a nice slow-down after releasing 2.0.  You would need to port code to 2.0 once but not a couple months after 2.0, for example.  The problem with a lot of these changes is they are pretty invasive in-kernel changes and so out-of-tree kernel developers would have to update their code if we do this after 2.0.
 - Leon: Out-of-tree capsules and boards would need to change to comply with the changes.
 - Brad & Hudson: Agreed.
 - Amit: Which approach is better? Do we have a consensus?
-- Hudson: Brad's approach is better if it can be implemented as we imagine it but it is easier to say the not-yet-implemented version is better because it hasn't
-  had to make any concessions that often occur during implementation.
-- Phil: We're starting to go down the path of unreasonable expectations of "guarantee".  and argue that the guarantee is based on the premise of the lack of bugs 
-  and using the rest type system is merely one very convenient way to prevent bugs.
-- Amit: A caviat to that is that the kernel does make guarantees in lieu of bugs in capsules.  What guarantees can userland rely on even if capsules are "buggy"?
+- Hudson: Brad's approach is better if it can be implemented as we imagine it but it is easier to say the not-yet-implemented version is better because
+  it hasn't had to make any concessions that often occur during implementation.
+- Phil: We're starting to go down the path of unreasonable expectations of "guarantee".  and argue that the guarantee is based on the premise of the lack
+  of bugs and using the rest type system is merely one very convenient way to prevent bugs.
+- Amit: A caviat to that is that the kernel does make guarantees in lieu of bugs in capsules.  What guarantees can userland rely on even if capsules are
+  "buggy"?
 - Leon: The motivation for these protections is that capsules are untrusted kernel code we cannot rely on code review for capsules if the TRD explicitly
   states that callbacks are not swapped.
 - Amit: I agree with that.  Capsules could guarantee that even if the kernel doesn't.  Userspace would have to rely on these capsules.
@@ -117,8 +113,3 @@ is good.  We should make binaries work for 2.0 and have an exception for 1.0.
 - Brad: Someone like Hudson could do this in 4 hours.  It is fairly simple I think.
 - Amit: We will not block on this implementation for 2.0 so we will have a couple weeks for this implementation.
 - Amit: We should finish with outstanding issues in the tracking issue and then start creating testing versions.
-
-
-
-
-
