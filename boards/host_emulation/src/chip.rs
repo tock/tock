@@ -87,6 +87,7 @@ impl HostChip {
         self.terminate_callbacks.borrow_mut().push(callback);
     }
 
+    #[allow(dead_code)]
     pub fn terminate(&self) -> ! {
         self.terminate.store(true, Ordering::Relaxed);
         for callback in &*self.terminate_callbacks.borrow() {
