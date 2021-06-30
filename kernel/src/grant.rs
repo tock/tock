@@ -197,6 +197,9 @@ impl<'a> UpcallMemory<'a> {
         self.upcalls
             .get(subscribe_num)
             .map_or(false, |saved_upcall| {
+                // We can create an `Upcall` object based on what is stored in
+                // the process grant and use that to add the upcall to the
+                // pending array for the process.
                 let mut upcall = Upcall::new(
                     self.processid,
                     UpcallId {
@@ -208,22 +211,6 @@ impl<'a> UpcallMemory<'a> {
                 );
                 upcall.schedule(r0, r1, r2)
             })
-
-        // // TODO: remove num_upcalls?
-        // if subscribe_num >= self.upcalls.len() {
-        //     return false;
-        // }
-        // let saved_upcall = &self.upcalls[subscribe_num];
-        // let mut upcall = Upcall::new(
-        //     processid,
-        //     UpcallId {
-        //         subscribe_num,
-        //         driver_num: self.driver_num,
-        //     },
-        //     saved_upcall.appdata,
-        //     saved_upcall.fn_ptr.unwrap(), // TODO why are these types different
-        // );
-        // upcall.schedule(r0, r1, r2)
     }
 }
 
@@ -254,7 +241,7 @@ pub(crate) fn subscribe(
             return Err((upcall, ErrorCode::NOMEM));
         }
     } else {
-        // Process no longer exists, this case will never happen.
+        // Process is no longer active, this case will never happen.
         return Err((upcall, ErrorCode::FAIL));
     }
 
