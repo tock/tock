@@ -1314,18 +1314,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 }
             })
     }
-
-    fn grant_num_to_driver_num(&self, grant_num: usize) -> Result<usize, ErrorCode> {
-        self.grant_pointers
-            .map_or(Err(ErrorCode::FAIL), |grant_pointers| {
-                // Implement `grant_pointers[grant_num]` without a
-                // chance of a panic.
-                grant_pointers.get(grant_num).map_or(
-                    Err(ErrorCode::FAIL),
-                    |(driver_num_pointer, _grant_pointer_pointer)| Ok(*driver_num_pointer),
-                )
-            })
-    }
 }
 
 fn exceeded_check(size: usize, allocated: usize) -> &'static str {

@@ -554,9 +554,6 @@ pub trait Process {
 
     /// Get the grant number associated with a given driver number
     fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode>;
-
-    /// Get the driver number associated with a given grant number
-    fn grant_num_to_driver_num(&self, grant_num: usize) -> Result<usize, ErrorCode>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
