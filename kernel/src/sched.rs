@@ -927,7 +927,7 @@ impl Kernel {
                 // > a failure with a error code of `INVALID`.
                 let rval1 = ptr.map_or(None, |upcall_ptr_nonnull| {
                     if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
-                        Some(upcall.into_subscribe_failure(ErrorCode::INVAL))
+                        Some(ErrorCode::INVAL)
                     } else {
                         None
                     }
@@ -935,48 +935,58 @@ impl Kernel {
 
                 // If the upcall is either null or valid, then we continue
                 // handling the upcall.
-                let rval = rval1.unwrap_or_else(|| {
-                    // At this point we must save the new upcall and return the
-                    // old. The upcalls are stored by the core kernel in the
-                    // grant region so we can guarantee a correct upcall swap.
-                    // However, we do need help with initially allocating the
-                    // grant if this driver has never been used before.
-                    //
-                    // To avoid the overhead with checking for process liveness
-                    // and grant allocation, we assume the grant is initially
-                    // allocated. If it turns out it isn't we ask the capsule to
-                    // allocate the grant.
-                    crate::grant::subscribe(process, upcall).unwrap_or_else(|| {
-                        // If we get here the subscribe swap failed. We try
-                        // again after asking the capsule to allocate the grant.
-                        platform.with_driver(driver_number, |driver| match driver {
-                            Some(d) => {
-                                if d.allocate_grant(process.processid()).is_err() {
-                                    // If the capsule errors on allocation we
-                                    // assume it is because the grant could not
-                                    // be created and return an error to
-                                    // userspace.
-                                    upcall.into_subscribe_failure(ErrorCode::NOMEM)
-                                } else {
-                                    // Now we try again. It is possible that the
-                                    // capsule did not actually allocate the
-                                    // grant, at which point this will fail
-                                    // again and we return an error to
-                                    // userspace.
-                                    let res = crate::grant::subscribe(process, upcall);
-                                    match res {
-                                        // An Ok() returns the previous upcall,
-                                        // while Err() returns the one that was
-                                        // just passed.
-                                        Ok(oldcb) => oldcb.into_subscribe_success(),
-                                        Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                let rval = match rval1 {
+                    Some(err) => upcall.into_subscribe_failure(err),
+                    None => {
+                        // At this point we must save the new upcall and return the
+                        // old. The upcalls are stored by the core kernel in the
+                        // grant region so we can guarantee a correct upcall swap.
+                        // However, we do need help with initially allocating the
+                        // grant if this driver has never been used before.
+                        //
+                        // To avoid the overhead with checking for process liveness
+                        // and grant allocation, we assume the grant is initially
+                        // allocated. If it turns out it isn't we ask the capsule to
+                        // allocate the grant.
+                        match crate::grant::subscribe(process, upcall) {
+                            Ok(old_upcall) => old_upcall.into_subscribe_success(),
+                            Err((new_upcall, _err)) => {
+                                // If we get here the subscribe swap failed. We try
+                                // again after asking the capsule to allocate the
+                                // grant.
+                                platform.with_driver(driver_number, |driver| match driver {
+                                    Some(d) => {
+                                        if d.allocate_grant(process.processid()).is_err() {
+                                            // If the capsule errors on allocation
+                                            // we assume it is because the grant
+                                            // could not be created and return an
+                                            // error to userspace.
+                                            new_upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                                        } else {
+                                            // Now we try again. It is possible that
+                                            // the capsule did not actually allocate
+                                            // the grant, at which point this will
+                                            // fail again and we return an error to
+                                            // userspace.
+                                            match crate::grant::subscribe(process, new_upcall) {
+                                                // An Ok() returns the previous upcall,
+                                                // while Err() returns the one that was
+                                                // just passed.
+                                                Ok(old_upcall) => {
+                                                    old_upcall.into_subscribe_success()
+                                                }
+                                                Err((new_upcall, err)) => {
+                                                    new_upcall.into_subscribe_failure(err)
+                                                }
+                                            }
+                                        }
                                     }
-                                }
+                                    None => new_upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                                })
                             }
-                            None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
-                        })
-                    })
-                });
+                        }
+                    }
+                };
 
                 // Per TRD104, we only clear upcalls if the subscribe will
                 // return success. At this point we know the result and clear if

@@ -116,6 +116,7 @@ use core::slice;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
 use crate::upcall::{Upcall, UpcallId};
+use crate::ErrorCode;
 
 /// This GrantMemory object provides access to the memory allocated for a grant
 /// for a specific process.
@@ -233,6 +234,82 @@ impl<'a> UpcallMemory<'a> {
 pub(crate) struct SavedUpcall {
     pub(crate) appdata: usize,
     pub(crate) fn_ptr: Option<NonNull<()>>,
+}
+
+/// Subscribe to an upcall by saving the upcall in the grant region for the
+/// process and returning the existing upcall for the same UpcallId.
+pub(crate) fn subscribe(
+    process: &dyn Process,
+    upcall: Upcall,
+) -> Result<Upcall, (Upcall, ErrorCode)> {
+    let grant_num = match process.lookup_grant_from_driver_num(upcall.upcall_id.driver_num) {
+        Ok(grant_num) => grant_num,
+        Err(e) => return Err((upcall, e.into())),
+    };
+
+    // Check if the grant has been allocated, and if not we cannot handle the
+    // subscribe call.
+    if let Some(is_allocated) = process.grant_is_allocated(grant_num) {
+        if !is_allocated {
+            return Err((upcall, ErrorCode::NOMEM));
+        }
+    } else {
+        // TODO: what is the correct error code
+        return Err((upcall, ErrorCode::NOMEM));
+    }
+
+    // Return early if no grant.
+    let grant_ptr = match process.enter_grant(grant_num) {
+        Ok(grant_ptr) => grant_ptr,
+        Err(_) => return Err((upcall, ErrorCode::NOMEM)),
+    };
+
+    // The number of upcalls is stored first.
+    //
+    // # Safety
+    //
+    // TODO
+    let num_upcalls = unsafe { *(grant_ptr as *const usize) };
+
+    // Create the saved upcalls slice from the grant memory.
+    //
+    // # Safety
+    //
+    // TODO
+    let saved_upcalls_slice = unsafe {
+        slice::from_raw_parts_mut(
+            grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
+            num_upcalls,
+        )
+    };
+
+    // Index into the saved upcall slice to get the old upcall. Use .get in case
+    // userspace passed us a bad subscribe number.
+    let rval = match saved_upcalls_slice.get_mut(upcall.upcall_id.subscribe_num) {
+        Some(saved_upcall) => {
+            // Create an `Upcall` object with the old saved upcall.
+            let old_upcall = Upcall::new(
+                process.processid(),
+                upcall.upcall_id,
+                saved_upcall.appdata,
+                saved_upcall.fn_ptr,
+            );
+
+            // Overwrite the saved upcall with the new upcall.
+            saved_upcall.appdata = upcall.appdata;
+            saved_upcall.fn_ptr = upcall.fn_ptr;
+
+            // Success!
+            Ok(old_upcall)
+        }
+        None => Err((upcall, ErrorCode::INVAL)),
+    };
+
+    // Now that we have finished modifying the grant region we need to "release"
+    // the grant.
+    process.leave_grant(grant_num);
+
+    rval
 }
 
 /// An instance of a grant allocated for a particular process.

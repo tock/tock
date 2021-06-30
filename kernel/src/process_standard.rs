@@ -1266,70 +1266,26 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
-    fn subscribe(
-        &self,
-        upcall_id: UpcallId,
-        upcall: Upcall,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let grant_num = self.driver_num_to_grant_num(upcall_id.driver_num).unwrap(); // TODO propogate errs
-
-        // TODO: scope down unsafe
-        unsafe {
-            match self.grant_pointers.take() {
-                Some(grant_pointers) => {
-                    // Implement `grant_pointers[grant_num]` without a chance of
-                    // a panic, and use match to appease borrow checker
-                    match grant_pointers.get(grant_num) {
-                        None => Err((upcall, ErrorCode::NOMEM)),
-                        Some((driver_num_pointer, grant_pointer_pointer)) => {
-                            if grant_pointer_pointer.is_null() {
-                                // Capsule did not allocate grant, refuse subscribe
-                                return Err((upcall, ErrorCode::NOMEM));
-                            } else if *driver_num_pointer != upcall_id.driver_num {
-                                // driver num passed to with_driver does not match the one
-                                // passed to create_grant during board setup
-                                return Err((upcall, ErrorCode::INVAL));
-                            } else {
-                                let grant_ptr = *grant_pointer_pointer;
-                                // TODO: do we need to check if grant already entered here?
-                                // TODO: Why add the single usize here?
-                                let upcall_ptr = grant_ptr.add(
-                                    mem::size_of::<usize>()
-                                        + upcall_id.subscribe_num
-                                            * mem::size_of::<crate::grant::SavedUpcall>(),
-                                )
-                                    as *mut crate::grant::SavedUpcall;
-                                let upcall = Upcall::new(
-                                    self.processid(),
-                                    upcall_id,
-                                    (*upcall_ptr).appdata,
-                                    (*upcall_ptr).fn_ptr,
-                                );
-                                Ok(upcall)
-                            }
-                        }
-                    }
-                }
-                None => Err((upcall, ErrorCode::FAIL)),
-            }
-        }
-    }
-
-    fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode> {
+    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error> {
         self.grant_pointers
-            .map_or(Err(ErrorCode::FAIL), |grant_pointers| {
-                // Filter our list of grant pointers into just the non null ones,
-                // and count those. A grant is allocated if its grant pointer is non
-                // null.
+            .map_or(Err(Error::KernelError), |grant_pointers| {
+                // Filter our list of grant pointers into just the non null
+                // ones, and count those. A grant is allocated if its grant
+                // pointer is non null.
                 match grant_pointers.iter().enumerate().find(
-                    |(idx, (driver_num_pointer, _grant_pointer_pointer))| {
+                    |(_idx, (driver_num_pointer, _grant_pointer_pointer))| {
                         *driver_num_pointer == driver_num
                     },
                 ) {
                     Some(entry) => Ok(entry.0),
-                    None => Err(ErrorCode::FAIL),
+                    None => Err(Error::OutOfMemory),
                 }
             })
+    }
+
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool {
+        let ptr = upcall_fn.as_ptr() as *const u8;
+        self.in_app_owned_memory(ptr, mem::size_of::<*const u8>())
     }
 }
 

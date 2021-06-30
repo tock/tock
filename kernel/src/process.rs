@@ -481,6 +481,19 @@ pub trait Process {
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;
 
+    /// Get the grant number (grant_num) associated with a given driver number if there is a grant
+    /// associated with that driver_num.
+    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error>;
+
+    // subscribe
+
+    /// Verify that an Upcall function pointer is within process-accessible
+    /// memory.
+    ///
+    /// Returns `true` if the upcall function pointer is valid for this process,
+    /// and `false` otherwise.
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
+
     // functions for processes that are architecture specific
 
     /// Set the return value the process should see when it begins executing
@@ -548,19 +561,6 @@ pub trait Process {
 
     /// Return the lowest recorded address of the process stack, if known.
     fn debug_stack_end(&self) -> Option<*const u8>;
-
-    fn subscribe(&self, upcall_id: UpcallId, upcall: Upcall)
-        -> Result<Upcall, (Upcall, ErrorCode)>;
-
-    /// Get the grant number associated with a given driver number
-    fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode>;
-
-    /// Verify that an Upcall function pointer is within process-accessible
-    /// memory.
-    ///
-    /// Returns `true` if the upcall function pointer is valid for this process,
-    /// and `false` otherwise.
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
