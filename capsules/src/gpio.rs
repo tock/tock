@@ -161,7 +161,7 @@ impl<IP: gpio::InterruptPin> Driver for GPIO<'_, IP> {
             // individual pins being configured as interrupts)
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     **app = callback;
                     ReturnCode::SUCCESS
                 })

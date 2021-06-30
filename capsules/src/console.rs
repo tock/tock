@@ -200,14 +200,14 @@ impl Driver for Console<'_> {
         match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.write_buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
             2 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.read_buffer = slice;
                     ReturnCode::SUCCESS
                 })
@@ -229,13 +229,13 @@ impl Driver for Console<'_> {
     ) -> ReturnCode {
         match subscribe_num {
             1 /* putstr/write_done */ => {
-                self.apps.enter(app_id, |app, _| {
+                self.apps.enter(app_id, |app| {
                     app.write_callback = callback;
                     ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr done */ => {
-                self.apps.enter(app_id, |app, _| {
+                self.apps.enter(app_id, |app| {
                     app.read_callback = callback;
                     ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| err.into())
@@ -260,13 +260,13 @@ impl Driver for Console<'_> {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
+                self.apps.enter(appid, |app| {
                     self.send_new(appid, app, len)
                 }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
+                self.apps.enter(appid, |app| {
                     self.receive_new(appid, app, len)
                 }).unwrap_or_else(|err| err.into())
             },
@@ -285,7 +285,7 @@ impl uart::TransmitClient for Console<'_> {
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, _| {
+            self.apps.enter(appid, |app| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
                         if !more_to_send {
@@ -315,7 +315,7 @@ impl uart::TransmitClient for Console<'_> {
         // see if any other applications have pending messages.
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
-                let started_tx = cntr.enter(|app, _| {
+                let started_tx = cntr.enter(|app| {
                     if app.pending_write {
                         app.pending_write = false;
                         match self.send_continue(app.appid(), app) {
@@ -356,7 +356,7 @@ impl uart::ReceiveClient for Console<'_> {
             .take()
             .map(|appid| {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.read_callback.map(|mut cb| {
                             // An iterator over the returned buffer yielding only the first `rx_len`
                             // bytes

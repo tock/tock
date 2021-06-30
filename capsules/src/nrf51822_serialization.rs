@@ -117,7 +117,7 @@ impl Driver for Nrf51822Serialization<'_> {
             0 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.rx_buffer = slice;
                         app.rx_recv_so_far = 0;
                         app.rx_recv_total = 0;
@@ -130,7 +130,7 @@ impl Driver for Nrf51822Serialization<'_> {
             1 => {
                 self.active_app.set(appid);
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.tx_buffer = slice;
                         ReturnCode::SUCCESS
                     })
@@ -158,7 +158,7 @@ impl Driver for Nrf51822Serialization<'_> {
             // Add a callback
             0 => {
                 // Save the callback for the app.
-                let _ = self.apps.enter(appid, |app, _| {
+                let _ = self.apps.enter(appid, |app| {
                     app.callback = callback;
                 });
 
@@ -188,7 +188,7 @@ impl Driver for Nrf51822Serialization<'_> {
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                self.apps.enter(appid, |app, _| {
+                self.apps.enter(appid, |app| {
                     app.tx_buffer.take().map_or(ReturnCode::FAIL, |slice| {
                         let write_len = slice.len();
                         self.tx_buffer.take().map_or(ReturnCode::FAIL, |buffer| {
@@ -220,7 +220,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.tx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app| {
                 // Call the callback after TX has finished
                 app.callback.as_mut().map(|cb| {
                     cb.schedule(1, 0, 0);
@@ -244,7 +244,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         self.rx_buffer.replace(buffer);
 
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |app, _| {
+            let _ = self.apps.enter(*appid, |app| {
                 app.rx_buffer = app.rx_buffer.take().map(|mut rb| {
                     // Figure out length to copy.
                     let max_len = cmp::min(rx_len, rb.len());

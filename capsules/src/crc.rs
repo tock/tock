@@ -126,7 +126,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if let Some(alg) = app.waiting {
                     if let Some(buffer) = app.buffer.take() {
                         let r = self.crc_unit.compute(buffer.as_ref(), alg);
@@ -181,7 +181,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
@@ -219,7 +219,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // Set callback for CRC result
             0 => self
                 .apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
                 })
@@ -296,7 +296,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             if app.waiting.is_some() {
                                 // Each app may make only one request at a time
                                 ReturnCode::EBUSY
@@ -329,7 +329,7 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
         self.serving_app.take().map(|appid| {
             self.apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     if let Some(mut callback) = app.callback {
                         callback.schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
                     }

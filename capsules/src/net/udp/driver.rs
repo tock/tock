@@ -129,7 +129,7 @@ impl<'a> UDPDriver<'a> {
         F: FnOnce(&mut App) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| closure(app))
+            .enter(appid, |app| closure(app))
             .unwrap_or_else(|err| err.into())
     }
 
@@ -141,7 +141,7 @@ impl<'a> UDPDriver<'a> {
         F: FnOnce(&[u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
                     if cfg.len() != len {
                         return ReturnCode::EINVAL;
@@ -159,7 +159,7 @@ impl<'a> UDPDriver<'a> {
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
                     if cfg.len() != len {
                         return ReturnCode::EINVAL;
@@ -179,7 +179,7 @@ impl<'a> UDPDriver<'a> {
         F: FnOnce(&[u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_rx_cfg
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |cfg| closure(cfg.as_ref()))
@@ -196,7 +196,7 @@ impl<'a> UDPDriver<'a> {
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_rx_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
                     if cfg.len() != len {
                         return ReturnCode::EINVAL;
@@ -216,7 +216,7 @@ impl<'a> UDPDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if app.pending_tx.is_some() {
                     pending_app = Some(app.appid());
                 }
@@ -236,7 +236,7 @@ impl<'a> UDPDriver<'a> {
     fn perform_tx_async(&self, appid: AppId) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
@@ -571,7 +571,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         // This code needs to be replicated in the bound port
                         // table when checking the userspace apps.
                         for app in self.apps.iter() {
-                            app.enter(|other_app, _| {
+                            app.enter(|other_app| {
                                 if other_app.bound_port.is_some() {
                                     let other_addr_opt = other_app.bound_port.clone();
                                     let other_addr =
@@ -621,7 +621,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         dgram.reset();
         self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
@@ -686,7 +686,7 @@ impl<'a> PortQuery for UDPDriver<'a> {
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;
         for app in self.apps.iter() {
-            app.enter(|other_app, _| {
+            app.enter(|other_app| {
                 if other_app.bound_port.is_some() {
                     let other_addr_opt = other_app.bound_port.clone();
                     let other_addr = other_addr_opt.expect("Missing other_addr");

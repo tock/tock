@@ -25,16 +25,16 @@ pub struct AppliedGrant<T> {
 impl<T> AppliedGrant<T> {
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut Owned<T>) -> R,
         R: Copy,
     {
-        let mut allocator = Allocator { appid: self.appid };
         let mut root = Owned::new(self.grant, self.appid);
-        fun(&mut root, &mut allocator)
+        fun(&mut root)
     }
 }
 
-pub struct Allocator {
+#[allow(dead_code)]
+pub(crate) struct Allocator {
     appid: AppId,
 }
 
@@ -80,8 +80,9 @@ impl<T: ?Sized> DerefMut for Owned<T> {
     }
 }
 
+#[allow(dead_code)]
 impl Allocator {
-    pub fn alloc<T: Default>(&mut self) -> Result<Owned<T>, Error> {
+    pub(crate) fn alloc<T: Default>(&mut self) -> Result<Owned<T>, Error> {
         unsafe {
             let ptr = self.alloc_unowned()?;
             Ok(Owned::new(ptr, self.appid))
@@ -167,7 +168,7 @@ impl<T: Default> Grant<T> {
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        F: FnOnce(&mut Borrowed<T>) -> R,
         R: Copy,
     {
         appid
@@ -249,7 +250,7 @@ impl<T: Default> Grant<T> {
                     let mut borrowed_region = Borrowed::new(region, appid);
 
                     // Call the passed in closure with the borrowed grant region.
-                    let res = fun(&mut borrowed_region, &mut allocator);
+                    let res = fun(&mut borrowed_region);
                     Ok(res)
                 } else {
                     Err(Error::InactiveApp)

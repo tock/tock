@@ -75,7 +75,7 @@ where
     fn run(&self) -> ReturnCode {
         self.appid.map_or(ReturnCode::ERESERVE, move |appid| {
             self.apps
-                .enter(*appid, |app, _| {
+                .enter(*appid, |app| {
                     match app.key.as_ref() {
                         Some(k) => {
                             self.hmac
@@ -126,7 +126,7 @@ where
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
+            let started_command = appiter.enter(|app| {
                 // If an app is already running let it complete
                 if self.appid.is_some() {
                     return true;
@@ -153,7 +153,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
     fn add_data_done(&'a self, _result: Result<(), ReturnCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app, _| {
+                .enter(*id, move |app| {
                     let mut data_len = 0;
                     let mut static_buffer_len = 0;
 
@@ -249,7 +249,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> digest::C
     fn hash_done(&'a self, result: Result<(), ReturnCode>, digest: &mut T) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(*id, |app| {
                     self.hmac.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
@@ -310,7 +310,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the key to be in
             0 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.key = slice;
                     ReturnCode::SUCCESS
                 })
@@ -319,7 +319,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the data to be in
             1 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.data = slice;
                     ReturnCode::SUCCESS
                 })
@@ -328,7 +328,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             // Pass buffer for the digest to be in.
             2 => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(appid, |app| {
                     app.dest = slice;
                     ReturnCode::SUCCESS
                 })
@@ -355,7 +355,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
             0 => {
                 // set callback
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app| {
                         app.callback.insert(callback);
                         ReturnCode::SUCCESS
                     })
@@ -406,7 +406,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_| owning_app == &appid)
                     .unwrap_or(true)
             }
         });
@@ -440,7 +440,7 @@ impl<'a, H: digest::Digest<'a, T> + digest::HMACSha256, T: DigestType> Driver
                 } else {
                     // There is an active app, so queue this request (if possible).
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             // Some app is using the storage, we must wait.
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this

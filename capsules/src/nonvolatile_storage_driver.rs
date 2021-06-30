@@ -211,7 +211,7 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 app_id.map_or(ReturnCode::FAIL, |appid| {
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(appid, |app| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
                                 NonvolatileCommand::UserspaceRead => {
@@ -368,7 +368,7 @@ impl<'a> NonvolatileStorage<'a> {
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let started_command = cntr.enter(|app, _| {
+                let started_command = cntr.enter(|app| {
                     if app.pending_command {
                         app.pending_command = false;
                         self.current_user.set(NonvolatileUser::App {
@@ -400,7 +400,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Need to copy in the contents of the buffer
                         app.buffer_read.as_mut().map(|app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
@@ -434,7 +434,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app, _| {
+                    let _ = self.apps.enter(app_id, move |app| {
                         // Replace the buffer we used to do this write.
                         self.buffer.replace(buffer);
 
@@ -481,7 +481,7 @@ impl Driver for NonvolatileStorage<'_> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 match allow_num {
                     0 => app.buffer_read = slice,
                     1 => app.buffer_write = slice,
@@ -505,7 +505,7 @@ impl Driver for NonvolatileStorage<'_> {
         app_id: AppId,
     ) -> ReturnCode {
         self.apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 match subscribe_num {
                     0 => app.callback_read = callback,
                     1 => app.callback_write = callback,

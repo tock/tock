@@ -122,7 +122,7 @@ impl<P: gpio::InterruptPin> Driver for Button<'_, P> {
         match subscribe_num {
             0 => self
                 .apps
-                .enter(app_id, |cntr, _| {
+                .enter(app_id, |cntr| {
                     cntr.0 = callback;
                     ReturnCode::SUCCESS
                 })
@@ -161,7 +161,7 @@ impl<P: gpio::InterruptPin> Driver for Button<'_, P> {
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 |= 1 << data;
                             pins[data]
                                 .0
@@ -181,7 +181,7 @@ impl<P: gpio::InterruptPin> Driver for Button<'_, P> {
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr, _| {
+                        .enter(appid, |cntr| {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
                         })

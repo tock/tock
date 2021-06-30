@@ -106,7 +106,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
-                .enter(app_id, |app, _| {
+                .enter(app_id, |app| {
                     // Some app is using the storage, we must wait.
                     if app.pending_command.is_some() {
                         // No more room in the queue, nowhere to store this
@@ -148,7 +148,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
+            let started_command = appiter.enter(|app| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {
                     // Mark this driver as being in use.
@@ -171,7 +171,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
         self.pwm_pin.stop();
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
-            let _ = self.apps.enter(app_id, |app, _| {
+            let _ = self.apps.enter(app_id, |app| {
                 app.callback.map(|mut cb| cb.schedule(0, 0, 0));
             });
         });
@@ -195,7 +195,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
         app_id: AppId,
     ) -> ReturnCode {
         self.apps
-            .enter(app_id, |app, _| {
+            .enter(app_id, |app| {
                 match subscribe_num {
                     0 => app.callback = callback,
                     _ => return ReturnCode::ENOSUPPORT,

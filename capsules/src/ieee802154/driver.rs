@@ -326,7 +326,7 @@ impl<'a> RadioDriver<'a> {
         F: FnOnce(&mut App) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| closure(app))
+            .enter(appid, |app| closure(app))
             .unwrap_or_else(|err| err.into())
     }
 
@@ -337,7 +337,7 @@ impl<'a> RadioDriver<'a> {
         F: FnOnce(&[u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_cfg
                     .take()
                     .as_ref()
@@ -358,7 +358,7 @@ impl<'a> RadioDriver<'a> {
         F: FnOnce(&mut [u8]) -> ReturnCode,
     {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app| {
                 app.app_cfg
                     .take()
                     .as_mut()
@@ -380,7 +380,7 @@ impl<'a> RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
+            app.enter(|app| {
                 if app.pending_tx.is_some() {
                     pending_app = Some(app.appid());
                 }
@@ -400,7 +400,7 @@ impl<'a> RadioDriver<'a> {
     fn perform_tx_async(&self, appid: AppId) {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
                     .take()
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
@@ -801,7 +801,7 @@ impl device::TxClient for RadioDriver<'_> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, _| {
+            let _ = self.apps.enter(appid, |app| {
                 app.tx_callback
                     .take()
                     .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
