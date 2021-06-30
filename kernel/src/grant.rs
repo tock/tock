@@ -254,8 +254,8 @@ pub(crate) fn subscribe(
             return Err((upcall, ErrorCode::NOMEM));
         }
     } else {
-        // TODO: what is the correct error code
-        return Err((upcall, ErrorCode::NOMEM));
+        // Process no longer exists, this case will never happen.
+        return Err((upcall, ErrorCode::FAIL));
     }
 
     // Return early if no grant.
@@ -268,14 +268,22 @@ pub(crate) fn subscribe(
     //
     // # Safety
     //
-    // TODO
+    // This is safe because of how we created the grant region that starts at
+    // this pointer. The grant structure does not change once it has been
+    // allocated, and if we can enter the grant we know it must be allocated. We
+    // verified the pointer is correctly aligned and that the first value in the
+    // grant is the `usize` sized number of upcalls.
     let num_upcalls = unsafe { *(grant_ptr as *const usize) };
 
     // Create the saved upcalls slice from the grant memory.
     //
     // # Safety
     //
-    // TODO
+    // This is safe because of how the grant was initially allocated and that
+    // because we were able to enter the grant the grant region must be valid
+    // and initialized. We increment past the usize length and the next memory
+    // is a slice of `SavedUpcall`s. We verified pointer alignment at
+    // initialization.
     let saved_upcalls_slice = unsafe {
         slice::from_raw_parts_mut(
             grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
