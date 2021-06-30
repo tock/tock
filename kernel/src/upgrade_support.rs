@@ -55,9 +55,9 @@ pub trait Driver {
     /// invoke when the sensor value is ready.
     fn subscribe(
         &self,
-        subscribe_identifier: usize,
+        subscribe_num: usize,
         upcall: Upcall,
-        app_id: ProcessId,
+        process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         Err((upcall, ErrorCode::NOSUPPORT))
     }
@@ -67,7 +67,13 @@ pub trait Driver {
     /// is signaled with an upcall). Command 0 is a reserved command to
     /// detect if a peripheral system call driver is installed and must
     /// always return a CommandReturn::Success.
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        cmd_num: usize,
+        r2: usize,
+        r3: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
@@ -77,9 +83,9 @@ pub trait Driver {
     /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
-        app: ProcessId,
-        which: usize,
+        allow_num: usize,
         slice: ReadWriteAppSlice,
+        process_id: ProcessId,
     ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
@@ -113,7 +119,7 @@ impl<T: Driver> crate::Driver for T {
         minor_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-        let result = self.allow_readwrite(app, minor_num, ReadWriteAppSlice(slice));
+        let result = self.allow_readwrite(minor_num, ReadWriteAppSlice(slice), app);
         result.map(|_| ()).map_err(|e| e.1).into()
     }
 }
