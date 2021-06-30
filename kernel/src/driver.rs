@@ -74,7 +74,6 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
-use crate::upcall::Upcall;
 use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified
@@ -164,7 +163,7 @@ impl From<process::Error> for CommandReturn {
     }
 }
 
-/// Trait for capsules implemeting peripheral driver system calls
+/// Trait for capsules implementing peripheral driver system calls
 /// specified in TRD104. The kernel translates the values passed from
 /// userspace into Rust types and includes which process is making the
 /// call. All of these system calls perform very little synchronous work;
@@ -174,24 +173,12 @@ impl From<process::Error> for CommandReturn {
 /// The exact instances of each of these methods (which identifiers are valid
 /// and what they represents) are specific to the peripheral system call
 /// driver.
+///
+/// Note about subscribe: upcall subscriptions are handled entirely by the core
+/// kernel, and therefore there is no subscribe function for capsules to
+/// implement.
 #[allow(unused_variables)]
 pub trait Driver {
-    /// System call for a process to provide an upcall function pointer to
-    /// the kernel. Peripheral system call driver capsules invoke
-    /// upcalls to indicate events have occurred. These events are typically triggered
-    /// in response to `command` calls. For example, a command that sets a timer to
-    /// fire in the future will cause an upcall to invoke after the command returns, when
-    /// the timer expires, while a command to sample a sensor will cause an upcall to
-    /// invoke when the sensor value is ready.
-    fn subscribe(
-        &self,
-        subscribe_identifier: usize,
-        upcall: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Err((upcall, ErrorCode::NOSUPPORT))
-    }
-
     /// Enter the grant for this process, which will allocate the first time it
     /// is called. No default implementation, to prevent forgetting to implement. (TODO)
     /// A typical implementation will look like
