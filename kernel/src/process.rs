@@ -554,6 +554,13 @@ pub trait Process {
 
     /// Get the grant number associated with a given driver number
     fn driver_num_to_grant_num(&self, driver_num: usize) -> Result<usize, ErrorCode>;
+
+    /// Verify that an Upcall function pointer is within process-accessible
+    /// memory.
+    ///
+    /// Returns `true` if the upcall function pointer is valid for this process,
+    /// and `false` otherwise.
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's

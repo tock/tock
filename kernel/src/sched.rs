@@ -903,39 +903,87 @@ impl Kernel {
                 upcall_ptr,
                 appdata,
             } => {
-                // A upcall is identified as a tuple of
-                // the driver number and the subdriver
-                // number.
+                // A upcall is identified as a tuple of the driver number and
+                // the subdriver number.
                 let upcall_id = UpcallId {
                     driver_num: driver_number,
                     subscribe_num: subdriver_number,
                 };
-                // Only one upcall should exist per tuple.
-                // To ensure that there are no pending
-                // upcalls with the same identifier but
-                // with the old function pointer, we clear
-                // them now.
-                process.remove_pending_upcalls(upcall_id);
 
-                // TODO: Review this logic carefully
+                // First check if `upcall_ptr` is null. A null upcall pointer
+                // represents the special "unsubscribe" operation.
                 let ptr = NonNull::new(upcall_ptr);
+
+                // For convenience create a `Upcall` type now. This is just a
+                // data structure and doesn't do any checking or conversion.
                 let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
-                let rval = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        if d.allocate_grant(process.processid()).is_err() {
-                            upcall.into_subscribe_failure(ErrorCode::NOMEM)
-                        } else {
-                            let res = process.subscribe(upcall_id, upcall);
-                            match res {
-                                // An Ok() returns the previous upcall, while
-                                // Err() returns the one that was just passed
-                                // (because the call was rejected).
-                                Ok(oldcb) => oldcb.into_subscribe_success(),
-                                Err((newcb, err)) => newcb.into_subscribe_failure(err),
-                            }
-                        }
+
+                // If `ptr` is not null, we must first verify that the upcall
+                // function pointer is within process accessible memory. Per
+                // TRD104:
+                //
+                // > If the passed upcall is not valid (is outside process
+                // > executable memory...), the kernel...MUST immediately return
+                // > a failure with a error code of `INVALID`.
+                let rval1 = ptr.map_or(None, |upcall_ptr_nonnull| {
+                    if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
+                        Some(upcall.into_subscribe_failure(ErrorCode::INVAL))
+                    } else {
+                        None
                     }
-                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                });
+
+                // If the upcall is either null or valid, then we continue
+                // handling the upcall.
+                let rval = rval1.unwrap_or_else(|| {
+                    // Only one upcall should exist per tuple. To ensure that
+                    // there are no pending upcalls with the same identifier but
+                    // with the old function pointer, we clear them now.
+                    //
+                    // TODO: I think this should be after the swap, and only on
+                    // success. Is that correct??
+                    process.remove_pending_upcalls(upcall_id);
+
+                    // At this point we must save the new upcall and return the
+                    // old. The upcalls are stored by the core kernel in the
+                    // grant region so we can guarantee a correct upcall swap.
+                    // However, we do need help with initially allocating the
+                    // grant if this driver has never been used before.
+                    //
+                    // To avoid the overhead with checking for process liveness
+                    // and grant allocation, we assume the grant is initially
+                    // allocated. If it turns out it isn't we ask the capsule to
+                    // allocate the grant.
+                    crate::grant::subscribe(process, upcall).unwrap_or_else(|| {
+                        // If we get here the subscribe swap failed. We try
+                        // again after asking the capsule to allocate the grant.
+                        platform.with_driver(driver_number, |driver| match driver {
+                            Some(d) => {
+                                if d.allocate_grant(process.processid()).is_err() {
+                                    // If the capsule errors on allocation we
+                                    // assume it is because the grant could not
+                                    // be created and return an error to
+                                    // userspace.
+                                    upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                                } else {
+                                    // Now we try again. It is possible that the
+                                    // capsule did not actually allocate the
+                                    // grant, at which point this will fail
+                                    // again and we return an error to
+                                    // userspace.
+                                    let res = crate::grant::subscribe(process, upcall);
+                                    match res {
+                                        // An Ok() returns the previous upcall,
+                                        // while Err() returns the one that was
+                                        // just passed.
+                                        Ok(oldcb) => oldcb.into_subscribe_success(),
+                                        Err((newcb, err)) => newcb.into_subscribe_failure(err),
+                                    }
+                                }
+                            }
+                            None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                        })
+                    })
                 });
                 if config::CONFIG.trace_syscalls {
                     debug!(
