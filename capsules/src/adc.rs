@@ -1335,6 +1335,10 @@ impl Driver for AdcVirtualized<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {

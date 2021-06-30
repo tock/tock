@@ -210,6 +210,10 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {

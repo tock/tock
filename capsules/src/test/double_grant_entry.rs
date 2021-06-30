@@ -183,4 +183,8 @@ impl Driver for TestGrantDoubleEntry {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grant.enter(processid, |_, _| {})
+    }
 }

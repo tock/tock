@@ -227,4 +227,8 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }

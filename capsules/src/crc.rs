@@ -309,6 +309,10 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {

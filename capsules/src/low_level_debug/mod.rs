@@ -57,6 +57,10 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
         }
         CommandReturn::success()
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grant.enter(processid, |_, _| {})
+    }
 }
 
 impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {

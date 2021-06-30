@@ -381,4 +381,8 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             }
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), crate::process::Error> {
+        self.data.enter(processid, |_, _| {})
+    }
 }

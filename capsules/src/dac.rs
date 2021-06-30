@@ -49,4 +49,8 @@ impl Driver for Dac<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        Ok(())
+    }
 }

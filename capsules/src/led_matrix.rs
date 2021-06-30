@@ -294,6 +294,10 @@ impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        Ok(())
+    }
 }
 // one Led from the matrix
 pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {

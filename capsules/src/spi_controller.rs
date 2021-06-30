@@ -268,6 +268,10 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
+    }
 }
 
 impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
