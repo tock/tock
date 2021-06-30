@@ -75,6 +75,15 @@ impl Frequency for Freq1KHz {
     }
 }
 
+/// 1MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq1MHz;
+impl Frequency for Freq1MHz {
+    fn frequency() -> u32 {
+        1000000
+    }
+}
+
 /// The `Alarm` trait models a wrapping counter capable of notifying when the
 /// counter reaches a certain value.
 ///
