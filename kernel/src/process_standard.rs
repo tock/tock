@@ -683,20 +683,21 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             }
         }
 
-        // verify that there is not already a grant allocated with the same driver_num
-        let matches = self.grant_pointers.map_or(0, |grant_pointers| {
-            // Filter our list of grant pointers into just the non null ones,
-            // and count those. A grant is allocated if its grant pointer is non
-            // null.
+        // Verify that there is not already a grant allocated with the same
+        // driver_num.
+        let exists = self.grant_pointers.map_or(false, |grant_pointers| {
+            // Check our list of grant pointers if the driver number is used.
             grant_pointers
                 .iter()
-                .enumerate()
-                .filter(|(_idx, (driver_num_pointer, _grant_pointer_pointer))| {
-                    *driver_num_pointer == driver_num
+                .any(|(driver_num_pointer, grant_pointer_pointer)| {
+                    // Check if the grant is both allocated (its grant pointer
+                    // is non null) and the driver number matches.
+                    (!(*grant_pointer_pointer).is_null()) && *driver_num_pointer == driver_num
                 })
-                .count()
         });
-        if matches != 1 {
+        // If we find a match, then the driver_num must already be used and the
+        // grant allocation fails.
+        if exists {
             return None;
         }
 
@@ -843,7 +844,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             grant_pointers
                 .iter()
                 .filter(|(_driver_num_pointer, grant_pointer_pointer)| {
-                    !grant_pointer_pointer.is_null()
+                    !(*grant_pointer_pointer).is_null()
                 })
                 .count()
         })
@@ -1272,12 +1273,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // Filter our list of grant pointers into just the non null
                 // ones, and count those. A grant is allocated if its grant
                 // pointer is non null.
-                match grant_pointers.iter().enumerate().find(
-                    |(_idx, (driver_num_pointer, _grant_pointer_pointer))| {
-                        *driver_num_pointer == driver_num
+                match grant_pointers.iter().position(
+                    |(driver_num_pointer, grant_pointer_pointer)| {
+                        // Only consider allocated grants.
+                        (!(*grant_pointer_pointer).is_null()) && *driver_num_pointer == driver_num
                     },
                 ) {
-                    Some(entry) => Ok(entry.0),
+                    Some(idx) => Ok(idx),
                     None => Err(Error::OutOfMemory),
                 }
             })
