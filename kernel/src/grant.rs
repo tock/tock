@@ -107,6 +107,7 @@
 //! the closure.               ▼
 //! ```
 
+use core::cmp;
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
@@ -381,8 +382,8 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // memory first. We then create an `ProcessGrant` object for this grant.
         if let Some(is_allocated) = process.grant_is_allocated(grant_num) {
             if !is_allocated {
-                // Allocate space in the process's memory for something of type
-                // `T` for the grant.
+                // Allocate space in the process's memory for enough space for
+                // upcalls and something of type `T` for the grant.
                 //
                 // Note: This allocation is intentionally never freed. A grant
                 // region is valid once allocated for the lifetime of the
@@ -390,23 +391,40 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                 //
                 // If the grant could not be allocated this will cause the
                 // `new()` function to return with an error.
-                //
-                // MATH
-                let alloc_size =
-                    size_of::<T>() + size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
 
-                // todo: ensure alignment
+                // For the upcalls we need one word for the number of upcalls,
+                // and then that many SavedUpcalls.
+                let upcalls_size = size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
+
+                // For the actual grant object we just need space for it.
+                let grant_t_size = size_of::<T>();
+
+                // We must ensure that the object T ends up aligned correctly.
+                let grant_t_align = align_of::<T>();
+                let upcalls_align = 4;
+
+                // Calculate the padding needed between the upcalls data and T
+                // such that T will be properly aligned assuming the grant
+                // starts at the correct alignment for an object of type T.
+                let upcalls_padding = grant_t_align - (upcalls_size % grant_t_align);
+
+                // Calculate the alignment to use for both the upcalls and T.
+                let alloc_align = cmp::max(upcalls_align, grant_t_align);
+
+                // Now we can calculate the entire size of the grant.
+                let alloc_size = upcalls_size + upcalls_padding + grant_t_size;
 
                 let (new_region_upcall_count, new_region_upcalls, new_region_grant) = processid
                     .kernel
                     .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                         process
-                            .allocate_grant(grant_num, driver_num, alloc_size, align_of::<T>())
+                            .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
                             .map_or(Err(Error::OutOfMemory), |buf| {
                                 let ptr_upcall_count = NonNull::cast::<usize>(buf);
 
-                                // let ptr_upcalls = NonNull::cast::<[SavedUpcall; NUM_UPCALLS]>(buf);
-
+                                // # Safety
+                                //
+                                // TODO
                                 let ptr_upcalls = unsafe {
                                     slice::from_raw_parts_mut(
                                         buf.as_ptr().add(size_of::<usize>()) as *mut SavedUpcall,
@@ -414,17 +432,16 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                                     )
                                 };
 
-                                // let ptr_upcalls = unsafe {
-                                //     NonNull::cast::<[SavedUpcall]>(NonNull::new_unchecked(
-                                //         buf.as_ptr().add(size_of::<usize>()),
-                                //     ))
-                                // };
-
                                 // Convert untyped `*mut u8` allocation to
                                 // allocated type
+                                //
+                                // # Safety
+                                //
+                                // TODO
                                 let ptr_grant = unsafe {
                                     NonNull::cast::<T>(NonNull::new_unchecked(buf.as_ptr().add(
                                         size_of::<usize>()
+                                            + upcalls_padding
                                             + (NUM_UPCALLS * size_of::<SavedUpcall>()),
                                     )))
                                 };
@@ -446,16 +463,10 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                 // 2. The pointer is correct aligned. The `allocate_grant()`
                 //    function ensures the pointer is correctly aligned.
                 unsafe {
+                    // Insert length of upcalls.
                     write(new_region_upcall_count.as_ptr(), NUM_UPCALLS);
 
-                    // write(
-                    //     new_region_upcalls.as_mut_ptr(),
-                    //     SavedUpcall {
-                    //         appdata: 0,
-                    //         fn_ptr: None,
-                    //     },
-                    // );
-
+                    // Initialize each saved upcall.
                     for upcall_ptr in new_region_upcalls.iter_mut() {
                         write(
                             upcall_ptr,
@@ -705,18 +716,24 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
             return None;
         };
 
+        // See new() for more explanation on these calculations.
+        let upcalls_size = size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
+        let grant_t_align = align_of::<T>();
+        let upcalls_padding = grant_t_align - (upcalls_size % grant_t_align);
+
         // `grant_ptr` now refers to the special memory we store for each
         // `Grant` which contains the number of upcalls for this grant, an array
-        // of upcall data, and then the object of type T.
+        // of upcall data, some potential padding, and then the object of type
+        // T.
         //
         // To get to the correct pointer where object of type T is store, we
-        // have to increment the pointer past our saved upcall state.
+        // have to increment the pointer past our saved upcall state and
+        // padding.
         //
         // # Safety
         //
         // TODO
-        let grant_type_ptr =
-            unsafe { grant_ptr.add(size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>())) };
+        let grant_type_ptr = unsafe { grant_ptr.add(upcalls_size + upcalls_padding) };
 
         // # Safety
         //
@@ -806,11 +823,15 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
             return None;
         };
 
+        // See new() for more explanation on these calculations.
+        let upcalls_size = size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
+        let grant_t_align = align_of::<T>();
+        let upcalls_padding = grant_t_align - (upcalls_size % grant_t_align);
+
         // # Safety
         //
         // TODO
-        let grant_type_ptr =
-            unsafe { grant_ptr.add(size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>())) };
+        let grant_type_ptr = unsafe { grant_ptr.add(upcalls_size + upcalls_padding) };
 
         // # Safety
         //
