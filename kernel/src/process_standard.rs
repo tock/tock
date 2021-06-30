@@ -1300,7 +1300,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let context_switch_size = chip
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
-        
+
+        debug!("App RAM requested: {:x}, context switch size: {:x}", application_ram_requested_size, context_switch_size);
         let min_userspace_ram_size = cmp::max(application_ram_requested_size, context_switch_size);
         let min_process_ram_size = min_userspace_ram_size + min_kernel_ram_size;
 
