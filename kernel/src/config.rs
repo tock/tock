@@ -40,10 +40,6 @@ pub(crate) struct Config {
     /// into which SRAM addresses. This can be useful to debug whether the kernel could
     /// successfully load processes, and whether the allocated SRAM is as expected.
     pub(crate) debug_load_processes: bool,
-
-    /// Maximum number of userspace drivers exposed by the platform. Reducing this value by 1 saves
-    /// 8 bytes of code space
-    pub(crate) max_drivers: usize,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
@@ -51,5 +47,4 @@ pub(crate) struct Config {
 pub(crate) const CONFIG: Config = Config {
     trace_syscalls: false,
     debug_load_processes: false,
-    max_drivers: 30,
 };

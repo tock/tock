@@ -683,6 +683,23 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             }
         }
 
+        // verify that there is not already a grant allocated with the same driver_num
+        let matches = self.grant_pointers.map_or(0, |grant_pointers| {
+            // Filter our list of grant pointers into just the non null ones,
+            // and count those. A grant is allocated if its grant pointer is non
+            // null.
+            grant_pointers
+                .iter()
+                .enumerate()
+                .filter(|(_idx, (driver_num_pointer, _grant_pointer_pointer))| {
+                    *driver_num_pointer == driver_num
+                })
+                .count()
+        });
+        if matches != 1 {
+            return None;
+        }
+
         // Use the shared grant allocator function to actually allocate memory.
         // Returns `None` if the allocation cannot be created.
         if let Some(grant_ptr) = self.allocate_in_grant_region_internal(size, align) {
