@@ -326,14 +326,14 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
 
 impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'_> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
-    fn set_mode_aes128ctr(&self, _encrypting: bool) {
-        ()
+    fn set_mode_aes128ctr(&self, _encrypting: bool) -> Result<(), ErrorCode> {
+        Ok(())
     }
 }
 
 impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'_> {
-    fn set_mode_aes128cbc(&self, _encrypting: bool) {
-        ()
+    fn set_mode_aes128cbc(&self, _encrypting: bool) -> Result<(), ErrorCode> {
+        Ok(())
     }
 }
 //TODO: replace this placeholder with a proper implementation of the AES system

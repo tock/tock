@@ -426,9 +426,9 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 }
 
 impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
-    fn set_mode_aes128ctr(&self, encrypting: bool) {
+    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if !self.idle() {
-            panic!("AES is not idle");
+            return Err(ErrorCode::BUSY);
         }
 
         self.mode.set(Mode::AES128CTR);
@@ -446,13 +446,15 @@ impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
         // We need to set the control register twice as it's shadowed
         self.registers.ctrl.write(ctrl);
         self.registers.ctrl.write(ctrl);
+
+        Ok(())
     }
 }
 
 impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
-    fn set_mode_aes128ecb(&self, encrypting: bool) {
+    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if !self.idle() {
-            panic!("AES is not idle");
+            return Err(ErrorCode::BUSY);
         }
 
         self.mode.set(Mode::AES128ECB);
@@ -470,13 +472,15 @@ impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
         // We need to set the control register twice as it's shadowed
         self.registers.ctrl.write(ctrl);
         self.registers.ctrl.write(ctrl);
+
+        Ok(())
     }
 }
 
 impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) {
+    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if !self.idle() {
-            panic!("AES is not idle");
+            return Err(ErrorCode::BUSY);
         }
 
         self.mode.set(Mode::AES128CBC);
@@ -494,6 +498,8 @@ impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
         // We need to set the control register twice as it's shadowed
         self.registers.ctrl.write(ctrl);
         self.registers.ctrl.write(ctrl);
+
+        Ok(())
     }
 }
 
