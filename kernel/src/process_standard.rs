@@ -1251,7 +1251,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }
         Ok(())
     }
-    
+#[inline(never)]
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1308,10 +1308,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                                       Self::PROCESS_STRUCT_OFFSET;
         
         let application_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;        
-        let context_switch_size = chip
-            .userspace_kernel_boundary()
-            .initial_process_app_brk_size();
-
+        let context_switch_size = chip.userspace_kernel_boundary().initial_process_app_brk_size();
         let min_userspace_ram_size = cmp::max(application_ram_requested_size, context_switch_size);
         let min_process_ram_size = min_userspace_ram_size + initial_kernel_ram_size;
 
@@ -1354,7 +1351,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 });
             }
         } else {
-            // Case 2.
+            // Case 2: relocatable, so here is just fine.
             remaining_memory
         };
 
@@ -1441,14 +1438,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.process_id.set(ProcessId::new(kernel, 0, index));
         process.kernel = kernel;
         process.chip = chip;
-        //process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
         process.memory_start = app_ram_slice.as_ptr();
         process.memory_len = app_ram_slice.len();
         process.header = tbf_header;
         process.initial_kernel_memory_break = Cell::new(kernel_memory_break);
-        process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.initial_app_break = Cell::new(initial_app_brk);
-        process.app_break = Cell::new(initial_app_brk);
         process.grant_pointers = MapCell::new(grant_pointers);
 
         process.flash = app_flash;
@@ -1481,36 +1475,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             timeslice_expiration_count: 0,
         });
 
-        // Handle any architecture-specific requirements for a new process.
-        //
-        // NOTE! We have to ensure that the start of process-accessible memory
-        // (`app_memory_start`) is word-aligned. Since we currently start
-        // process-accessible memory at the beginning of the allocated memory
-        // region, we trust the MPU to give us a word-aligned starting address.
-        //
-        // TODO: https://github.com/tock/tock/issues/1739
-        let initial_app_brk = process.memory_start.add(min_userspace_ram_size);
-        match process.stored_state.map(|stored_state| {
-            chip.userspace_kernel_boundary().initialize_process(
-                app_ram_start,
-                initial_app_brk,
-                stored_state,
-            )
-        }) {
-            Some(Ok(())) => {}
-            _ => {
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "[!] flash={:#010X}-{:#010X} process={:?} - couldn't initialize process",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1,
-                        process_name
-                    );
-                }
-                return Err(ProcessLoadError::InternalError);
-            }
-        };
-
         let res = process.restart();
         match res {
             Ok(()) => Ok((Some(process), unused_ram)),
@@ -1522,6 +1486,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// it to start running.  Assumes the process is not running but is still in flash
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
+#[inline(never)]
     fn restart(&self) -> Result<(), ProcessLoadError> {        
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
@@ -1617,8 +1582,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Drop the old config and use the clean one
         self.mpu_config.replace(mpu_config);
 
-        // Handle any architecture-specific requirements for a process when it
-        // first starts (as it would when it is new).
+        
+        // Handle any architecture-specific requirements for a new process.
+        //
+        // NOTE! We have to ensure that the start of process-accessible memory
+        // (`app_memory_start`) is word-aligned. Since we currently start
+        // process-accessible memory at the beginning of the allocated memory
+        // region, we trust the MPU to give us a word-aligned starting address.
+        //
+        // TODO: https://github.com/tock/tock/issues/1739
         let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| unsafe {
             self.chip.userspace_kernel_boundary().initialize_process(
                 app_mpu_mem_start,
