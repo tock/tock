@@ -536,7 +536,10 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                     write(ptr_upcall_count.as_ptr(), NUM_UPCALLS);
                 }
 
-                // Only try to allocate upcalls if this grant actually has any.
+                // SavedUpcalls
+                //
+                // Only try to initialize upcalls if this grant actually has
+                // any.
                 optional_ptr_first_upcall.map(|ptr_first_upcall| {
                     // Initialize the SavedUpcalls in an explicit loop. We do
                     // not use a slice because before this runs the SavedUpcalls
@@ -565,6 +568,8 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                     }
                 });
 
+                // Grant type T
+                //
                 // # Safety
                 //
                 // This is safe because:
