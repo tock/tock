@@ -23,8 +23,8 @@ pub struct UpcallId {
 /// This is essentially a wrapper around a function pointer with
 /// associated process data.
 pub struct Upcall {
-    /// The ProcessId of the process that issued this upcall
-    pub(crate) app_id: ProcessId,
+    /// The ProcessId of the process this upcall is for.
+    pub(crate) process_id: ProcessId,
 
     /// A unique identifier of this particular upcall, representing the
     /// driver_num and subdriver_num used to submit it.
@@ -44,13 +44,13 @@ pub struct Upcall {
 
 impl Upcall {
     pub(crate) fn new(
-        app_id: ProcessId,
+        process_id: ProcessId,
         upcall_id: UpcallId,
         appdata: usize,
         fn_ptr: Option<NonNull<()>>,
     ) -> Upcall {
         Upcall {
-            app_id,
+            process_id,
             upcall_id,
             appdata,
             fn_ptr,
@@ -59,32 +59,41 @@ impl Upcall {
 
     /// Schedule the upcall.
     ///
-    /// This will queue the [`Upcall`] for the associated process. It
+    /// This will queue the [`Upcall`] for the given process. It
     /// returns `false` if the queue for the process is full and the
     /// upcall could not be scheduled or this is a null upcall.
     ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
-    pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
+    ///
+    /// This function also takes `process` as a parameter (even though we have
+    /// process_id in our struct) to avoid a search through the processes array
+    /// to schedule the upcall. Currently, it is convenient to pass this
+    /// parameter so we take advantage of it. If in the future that is not the
+    /// case we could have `process` be an Option and just do the search with
+    /// the stored process_id.
+    pub fn schedule(
+        &mut self,
+        process: &dyn process::Process,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+    ) -> bool {
         let res = self.fn_ptr.map_or(false, |fp| {
-            self.app_id
-                .kernel
-                .process_map_or(false, self.app_id, |process| {
-                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                        source: process::FunctionCallSource::Driver(self.upcall_id),
-                        argument0: r0,
-                        argument1: r1,
-                        argument2: r2,
-                        argument3: self.appdata,
-                        pc: fp.as_ptr() as usize,
-                    }))
-                })
+            process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                source: process::FunctionCallSource::Driver(self.upcall_id),
+                argument0: r0,
+                argument1: r1,
+                argument2: r2,
+                argument3: self.appdata,
+                pc: fp.as_ptr() as usize,
+            }))
         });
 
         if config::CONFIG.trace_syscalls {
             debug!(
                 "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {}",
-                self.app_id,
+                self.process_id,
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,
                 self.fn_ptr.map_or(0x0 as *mut (), |fp| fp.as_ptr()) as usize,
