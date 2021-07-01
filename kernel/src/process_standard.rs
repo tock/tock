@@ -1504,10 +1504,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let res = process.restart();
         match res {
             Ok(()) => Ok((Some(process), unused_ram)),
-            Err(ErrorCode::FAIL) => Err(ProcessLoadError::MpuInvalidFlashLength),
-            Err(ErrorCode::NOMEM) => Err(ProcessLoadError::MpuInvalidRamLength),
-            Err(ErrorCode::RESERVE) => Err(ProcessLoadError::ArchitecturalStateFailure),
-            _ => Err(ProcessLoadError::InternalError)
+            Err(e) => Err(e)
         }
     }
 
@@ -1515,7 +1512,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// it to start running.  Assumes the process is not running but is still in flash
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
-    fn restart(&self) -> Result<(), ErrorCode> {        
+    fn restart(&self) -> Result<(), ProcessLoadError> {        
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `ProcessId`s that point to the old version of the
@@ -1557,7 +1554,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             // unexpected since we previously ran this process. However, we
             // return now and leave the process faulted and it will not be
             // scheduled.
-            return Err(ErrorCode::FAIL);
+            return Err(ProcessLoadError::MpuInvalidFlashLength);
         }
 
         // RAM
@@ -1586,7 +1583,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 // happen since we were able to start the process before, but at
                 // this point it is better to leave the app faulted and not
                 // schedule it.
-                return Err(ErrorCode::NOMEM);
+                return Err(ProcessLoadError::InternalError);
             }
         };
 
@@ -1628,7 +1625,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 // point the app is no longer valid. The best thing we
                 // can do now is leave the app as still faulted and not
                 // schedule it.
-                return Err(ErrorCode::RESERVE);
+                return Err(ProcessLoadError::InternalError);
             }
         };
 
