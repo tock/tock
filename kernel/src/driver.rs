@@ -225,7 +225,7 @@ pub trait Driver {
     /// stored in the grant.
     ///
     /// The typical implementation will look like:
-    /// ```
+    /// ```rust, ignore
     /// fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
     ///    self.apps.enter(processid, |_, _| {})
     /// }
