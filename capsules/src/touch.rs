@@ -32,9 +32,6 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    // touch_callback: Upcall,0
-    // gesture_callback: Upcall,1
-    // multi_touch_callback: Upcall,2
     events_buffer: ReadWriteAppSlice,
     ack: bool,
     dropped_events: usize,
