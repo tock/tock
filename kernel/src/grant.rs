@@ -54,6 +54,10 @@ impl<T: ?Sized> Owned<T> {
     pub fn appid(&self) -> AppId {
         self.appid
     }
+
+    pub fn processid(&self) -> AppId {
+        self.appid
+    }
 }
 
 impl<T: ?Sized> Deref for Owned<T> {
@@ -115,6 +119,10 @@ impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
     }
 
     pub fn appid(&self) -> AppId {
+        self.appid
+    }
+
+    pub fn processid(&self) -> AppId {
         self.appid
     }
 }
