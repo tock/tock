@@ -1228,10 +1228,10 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
 impl<C: 'static + Chip> ProcessStandard<'_, C> {
     // Memory offset for upcall ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
-    const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
+    const CALLBACKS_SIZE: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
 
     // Memory offset to make room for this process's metadata.
-    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
+    const PROCESS_STRUCT_SIZE: usize = mem::size_of::<ProcessStandard<C>>();
 
     fn check_fixed_header(tbf_header: &tock_tbf::types::TbfHeader,
                           app_flash: &[u8]) -> Result<(), ProcessLoadError> {
@@ -1251,7 +1251,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }
         Ok(())
     }
-#[inline(never)]
+    
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1304,8 +1304,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let grant_pointers_num = kernel.get_grant_count_and_finalize();
         let grant_pointers_size = grant_pointers_num * mem::size_of::<*const usize>();
         let initial_kernel_ram_size = grant_pointers_size +
-                                      Self::CALLBACKS_OFFSET +
-                                      Self::PROCESS_STRUCT_OFFSET;
+                                      Self::CALLBACKS_SIZE +
+                                      Self::PROCESS_STRUCT_SIZE;
         
         let application_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;        
         let context_switch_size = chip.userspace_kernel_boundary().initial_process_app_brk_size();
@@ -1355,9 +1355,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             remaining_memory
         };
 
-        // Actually allocate a block of the right size from the MPU for RAM
+        // Tock places the process control block in process RAM, in
+        // the region that only the kernel can read/write. Creating a
+        // process structure therefore requires first allocating
+        // process RAM from the MPU; this allocation will be
+        // recomputed when the process starts for the first time, as
+        // part of restart().
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
-
         let (app_ram_start, app_ram_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
@@ -1418,13 +1422,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         #[allow(clippy::cast_ptr_alignment)]
         let grant_pointers = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_pointers_num);
 
-        kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_SIZE as isize));
         #[allow(clippy::cast_ptr_alignment)]
         let upcall_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
         let tasks = RingBuffer::new(upcall_buf);
         
-        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
+        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_SIZE as isize));
         let mut process: &mut ProcessStandard<C> =
             &mut *(kernel_memory_break as *mut ProcessStandard<'static, C>);
         
@@ -1486,17 +1490,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// it to start running.  Assumes the process is not running but is still in flash
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
-#[inline(never)]
     fn restart(&self) -> Result<(), ProcessLoadError> {        
-        // We need a new process identifier for this process since the restarted
-        // version is in effect a new process. This is also necessary to
-        // invalidate any stored `ProcessId`s that point to the old version of the
-        // process. However, the process has not moved locations in the
-        // processes array, so we copy the existing index.
-        let old_index = self.process_id.get().index;
+        // Allocate a new process identifier.
+        let index = self.process_id.get().index;
         let new_identifier = self.kernel.create_process_identifier();
         self.process_id
-            .set(ProcessId::new(self.kernel, new_identifier, old_index));
+            .set(ProcessId::new(self.kernel, new_identifier, index));
 
         // Reset debug information that is per-execution and not per-process.
         self.debug.map(|debug| {
@@ -1506,17 +1505,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             debug.timeslice_expiration_count = 0;
         });
 
-        // FLASH
-
-        // We are going to start this process over again, so need the init_fn
-        // location.
-        let app_flash_address = self.flash_start();
-        let init_fn = unsafe {
-            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
-        };
-
-        // Reset MPU region configuration.
+        // Create a fresh MPU configuration because the process may grow its heap and
+        // grants differently this time.
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+
+        // Setup flash memory.   
         let app_mpu_flash = self.chip.mpu().allocate_region(
             self.flash.as_ptr(),
             self.flash.len(),
@@ -1532,8 +1525,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             return Err(ProcessLoadError::MpuInvalidFlashLength);
         }
 
-        // RAM
-
+        // Setup RAM.
         let context_switch_size = self
             .chip
             .userspace_kernel_boundary()
@@ -1562,27 +1554,24 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        // Reset memory pointers now that we know the layout of the process
-        // memory and know that we can configure the MPU.
+        // Both MPU regions (flash and RAM) are successfully allocated: replace the process
+        // MPU configuration with the new one, and store the memory configuration in the
+        // process struc ture.
+        self.mpu_config.replace(mpu_config);
+        self.app_break.set(self.initial_app_break.get());
+        self.kernel_memory_break.set(self.initial_kernel_memory_break.get());
+        self.allow_high_water_mark.set(app_mpu_mem_start);
+        
+        // Reset per-process kernel-owned memory structures now that
+        // we know the layout of the process memory and that the MPU
+        // is configured.
         self.grant_pointers.map(|pointers| {
             for pointer in pointers.iter_mut() {
                 *pointer = ptr::null_mut()
             }
         });
         self.tasks.map(|tasks| tasks.empty());
-        
-        // app_brk is set based on minimum syscall size above the start of
-        // memory.
-        self.app_break.set(self.initial_app_break.get());
-        self.kernel_memory_break.set(self.initial_kernel_memory_break.get());
-        // High water mark for `allow`ed memory is reset to the start of the
-        // process's memory region.
-        self.allow_high_water_mark.set(app_mpu_mem_start);
 
-        // Drop the old config and use the clean one
-        self.mpu_config.replace(mpu_config);
-
-        
         // Handle any architecture-specific requirements for a new process.
         //
         // NOTE! We have to ensure that the start of process-accessible memory
@@ -1611,17 +1600,14 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        // And queue up this app to be restarted.
+        // Queue the process to run: insert its initial upcall and
+        // tell the kernel it's ready to run.
+        let app_flash_address = self.flash_start();
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = app_flash_address as usize + flash_protected_size;
-
-        // Mark the state as `Unstarted` for the scheduler.
-        self.state.update(State::Unstarted);
-
-        // Mark that we restarted this process.
-        self.restart_count.increment();
-
-        // Enqueue the initial function.
+        let init_fn = unsafe {
+            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
+        };
         self.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
                 source: FunctionCallSource::Kernel,
@@ -1632,8 +1618,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 argument3: self.app_break.get() as usize,
             }));
         });
-
-        // Mark that the process is ready to run.
+        self.state.update(State::Unstarted);
+        self.restart_count.increment();
         self.kernel.increment_work();
 
         Ok(())
