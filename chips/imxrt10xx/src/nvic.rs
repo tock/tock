@@ -1,24 +1,24 @@
 //! Named constants for NVIC ids
-#![allow(non_upper_case_globals)]
 
 // Enabling only the needed constants
 
-// pub const eDMA: u32 = 0;
-// pub const eDMA: u32 = 1;
-// pub const eDMA: u32 = 2;
-// pub const eDMA: u32 = 3;
-// pub const eDMA: u32 = 4;
-// pub const eDMA: u32 = 5;
-// pub const eDMA: u32 = 6;
-// pub const eDMA: u32 = 7;
-// pub const eDMA: u32 = 8;
-// pub const eDMA: u32 = 9;
-// pub const eDMA: u32 = 10;
-// pub const eDMA: u32 = 11;
-// pub const eDMA: u32 = 12;
-// pub const eDMA: u32 = 13;
-// pub const eDMA: u32 = 14;
-// pub const eDMA: u32 = 15;
+pub const DMA0_16: u32 = 0;
+pub const DMA1_17: u32 = 1;
+pub const DMA2_18: u32 = 2;
+pub const DMA3_19: u32 = 3;
+pub const DMA4_20: u32 = 4;
+pub const DMA5_21: u32 = 5;
+pub const DMA6_22: u32 = 6;
+pub const DMA7_23: u32 = 7;
+pub const DMA8_24: u32 = 8;
+pub const DMA9_25: u32 = 9;
+pub const DMA10_26: u32 = 10;
+pub const DMA11_27: u32 = 11;
+pub const DMA12_28: u32 = 12;
+pub const DMA13_29: u32 = 13;
+pub const DMA14_30: u32 = 14;
+pub const DMA15_31: u32 = 15;
+pub const DMA_ERROR: u32 = 16;
 // pub const CM7: u32 = 17;
 // pub const CM7: u32 = 18;
 // pub const CM7: u32 = 19;

@@ -14,6 +14,7 @@ pub mod nvic;
 pub mod ccm;
 pub mod ccm_analog;
 pub mod dcdc;
+pub mod dma;
 pub mod gpio;
 pub mod gpt;
 pub mod iomuxc;
