@@ -9,7 +9,6 @@ use crate::mem::Read;
 use crate::process;
 use crate::process::ProcessId;
 use crate::sched::Kernel;
-use crate::upcall::Upcall;
 use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
 
 /// Syscall number
@@ -81,8 +80,8 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
         cb_type: IPCUpcallType,
     ) -> Result<(), process::Error> {
         self.data
-            .enter(schedule_on, |mydata, my_upcalls| {
-                let mut to_schedule: usize = match cb_type {
+            .enter(schedule_on, |_mydata, my_upcalls| {
+                let to_schedule: usize = match cb_type {
                     IPCUpcallType::Service => SERVICE_UPCALL_NUM,
                     IPCUpcallType::Client => match called_from.index() {
                         Some(i) => i + CLIENT_UPCALL_NUM_BASE,
@@ -90,7 +89,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
                     },
                 };
                 self.data
-                    .enter(called_from, |called_from_data, called_from_upcalls| {
+                    .enter(called_from, |called_from_data, _called_from_upcalls| {
                         // If the other app shared a buffer with us, make
                         // sure we have access to that slice and then call
                         // the upcall. If no slice was shared then just
@@ -240,7 +239,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
             /* Discover */
             {
                 self.data
-                    .enter(appid, |data, upcalls| {
+                    .enter(appid, |data, _upcalls| {
                         data.search_slice.map_or(
                             CommandReturn::failure(ErrorCode::INVAL),
                             |slice| {
@@ -325,7 +324,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         if subdriver == 0 {
             // Package name for discovery
-            let res = self.data.enter(appid, |data, upcalls| {
+            let res = self.data.enter(appid, |data, _upcalls| {
                 core::mem::swap(&mut data.search_slice, &mut slice);
             });
             match res {
@@ -355,7 +354,7 @@ impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
         if target_id == 0 {
             Err((slice, ErrorCode::NOSUPPORT))
         } else {
-            match self.data.enter(appid, |data, upcalls| {
+            match self.data.enter(appid, |data, _upcalls| {
                 // Lookup the index of the app based on the passed in
                 // identifier. This also let's us check that the other app is
                 // actually valid.
