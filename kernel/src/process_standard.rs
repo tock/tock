@@ -18,7 +18,8 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
-use crate::process::{ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -165,6 +166,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// scheduling it.
     state: ProcessStateCell<'static>,
 
+    /// How to respond if this process faults
+    fault_policy: &'a dyn ProcessFaultPolicy,
+
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
 
@@ -278,9 +282,29 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn set_fault_state(&self) {
-        self.state.update(State::Faulted);
-        debug!("Process {} faulted: restarting it.", self.get_process_name());
-        self.try_restart(COMPLETION_FAULT);
+        // Use the per-process fault policy to determine what action the kernel
+        // should take since the process faulted.
+        let action = self.fault_policy.action(self);
+
+        match action {
+            FaultAction::Panic => {
+                // process faulted. Panic and print status
+                self.state.update(State::Faulted);
+                panic!("Process {} had a fault", self.process_name);
+            }
+            FaultAction::Restart => {
+                self.try_restart(COMPLETION_FAULT);
+            }
+            FaultAction::Stop => {
+                // This looks a lot like restart, except we just leave the app
+                // how it faulted and mark it as `Faulted`. By clearing
+                // all of the app's todo work it will not be scheduled, and
+                // clearing all of the grant regions will cause capsules to drop
+                // this app as well.
+                self.terminate(COMPLETION_FAULT);
+                self.state.update(State::Faulted);
+            }
+        }
     }
 
     fn try_restart(&self, completion_code: u32) {
