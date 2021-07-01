@@ -486,11 +486,15 @@ pub unsafe fn main() {
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
         .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
     // Create the SPI system call capsule.
-    let spi_controller =
-        components::spi::SpiSyscallComponent::new(board_kernel, mux_spi, &gpio_port[SPI_CS])
-            .finalize(components::spi_syscall_component_helper!(
-                nrf52840::spi::SPIM
-            ));
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        &gpio_port[SPI_CS],
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        nrf52840::spi::SPIM
+    ));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
@@ -540,7 +544,10 @@ pub unsafe fn main() {
             i2c_master_buffer,
             i2c_slave_buffer1,
             i2c_slave_buffer2,
-            board_kernel.create_grant(&memory_allocation_capability),
+            board_kernel.create_grant(
+                capsules::i2c_master_slave_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            ),
         )
     );
     base_peripherals.twi1.configure(
@@ -619,11 +626,11 @@ pub unsafe fn main() {
         analog_comparator,
         nonvolatile_storage,
         udp_driver,
-        ipc: kernel::ipc::IPC::new(board_kernel,
-
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
             kernel::ipc::DRIVER_NUM,
-
-        &memory_allocation_capability),
+            &memory_allocation_capability,
+        ),
         i2c_master_slave,
         spi_controller,
     };
