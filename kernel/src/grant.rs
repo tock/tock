@@ -806,8 +806,8 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
             })
             .ok();
 
-        // Return early if no grant
-        let grant_ptr = if let Some(ptr) = optional_grant_ptr {
+        // Return early if no grant. Type annotation for unsafe correctness.
+        let grant_ptr: *mut u8 = if let Some(ptr) = optional_grant_ptr {
             ptr
         } else {
             return None;
@@ -829,17 +829,24 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         //
         // # Safety
         //
-        // TODO
+        // This pointer is safe because it is a *u8 and we offset it the same
+        // number of bytes as when the grant memory was originally allocated.
         let grant_type_ptr = unsafe { grant_ptr.add(upcalls_size + upcalls_padding) };
 
         // # Safety
         //
-        // TODO
+        // This pointer is safe because it is a *u8 and we offset it the correct
+        // number of bytes to the start of the `SavedUpcall` array.
+        let saved_upcalls_ptr = unsafe { grant_ptr.add(size_of::<usize>()) };
+        // # Safety
+        //
+        // Creating this slice is safe because the pointer is in the grant
+        // allocation that is guaranteed to still exist, a grant can only be
+        // entered once at a time so this is the only mutable reference to this
+        // slice, and the slice has valid SavedUpcalls which are guaranteed to
+        // be initialized.
         let saved_upcalls_slice = unsafe {
-            slice::from_raw_parts_mut(
-                grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
-                NUM_UPCALLS,
-            )
+            slice::from_raw_parts_mut(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS)
         };
 
         // Process only holds the grant's memory, but does not know the actual
@@ -911,7 +918,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // # `unwrap()` Safety
         //
         // Only `unwrap()` if some, otherwise return early.
-        let grant_ptr = if optional_grant_ptr.is_some() {
+        let grant_ptr: *mut u8 = if optional_grant_ptr.is_some() {
             optional_grant_ptr.unwrap()
         } else {
             return None;
@@ -924,17 +931,24 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
 
         // # Safety
         //
-        // TODO
+        // This pointer is safe because it is a *u8 and we offset it the same
+        // number of bytes as when the grant memory was originally allocated.
         let grant_type_ptr = unsafe { grant_ptr.add(upcalls_size + upcalls_padding) };
 
         // # Safety
         //
-        // TODO
+        // This pointer is safe because it is a *u8 and we offset it the correct
+        // number of bytes to the start of the `SavedUpcall` array.
+        let saved_upcalls_ptr = unsafe { grant_ptr.add(size_of::<usize>()) };
+        // # Safety
+        //
+        // Creating this slice is safe because the pointer is in the grant
+        // allocation that is guaranteed to still exist, a grant can only be
+        // entered once at a time so this is the only mutable reference to this
+        // slice, and the slice has valid SavedUpcalls which are guaranteed to
+        // be initialized.
         let saved_upcalls_slice = unsafe {
-            slice::from_raw_parts_mut(
-                grant_ptr.add(size_of::<usize>()) as *mut SavedUpcall,
-                NUM_UPCALLS,
-            )
+            slice::from_raw_parts_mut(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS)
         };
 
         // Process only holds the grant's memory, but does not know the actual
