@@ -1449,9 +1449,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let mut process: &mut ProcessStandard<C> =
             &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
 
+        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
+
         // Set the initial process-accessible memory to the amount specified by
         // the context switch implementation.
-        let initial_app_brk = app_ram_slice.as_ptr().add(min_process_ram_size);
+        let initial_app_brk = app_ram_slice.as_ptr().add(context_switch_size);
 
         let fixed_address_flash = tbf_header.get_fixed_address_flash();
         let fixed_address_ram = tbf_header.get_fixed_address_ram();
