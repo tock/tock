@@ -63,6 +63,8 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
     pub fn run(&self) {
         self.aes.enable();
 
+        self.aes.set_mode_aes128ecb(self.encrypting.get());
+
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
             for (i, b) in KEY.iter().enumerate() {
@@ -101,7 +103,6 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
             );
         }
 
-        self.aes.set_mode_aes128ecb(self.encrypting.get());
         self.aes.start_message();
 
         let start = DATA_OFFSET;
@@ -153,6 +154,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
     pub fn run(&self) {
         self.aes.enable();
 
+        self.aes.set_mode_aes128ctr(self.encrypting.get());
+
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
             for (i, b) in KEY.iter().enumerate() {
@@ -201,7 +204,6 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
             );
         }
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get());
         self.aes.start_message();
 
         let start = DATA_OFFSET;
@@ -259,7 +261,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (CTR {} {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 "Ctr",
@@ -303,6 +305,8 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
 
     pub fn run(&self) {
         self.aes.enable();
+
+        self.aes.set_mode_aes128cbc(self.encrypting.get());
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
@@ -353,7 +357,6 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
             );
         }
 
-        self.aes.set_mode_aes128cbc(self.encrypting.get());
         self.aes.start_message();
 
         let start = DATA_OFFSET;
@@ -410,7 +413,7 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (CBC {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 if self.use_source.get() {
@@ -465,7 +468,7 @@ impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for Te
                 }
             );
         } else {
-            debug!(
+            panic!(
                 "aes_test failed: (ECB {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 if self.use_source.get() {

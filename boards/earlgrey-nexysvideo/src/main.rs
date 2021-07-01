@@ -143,7 +143,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -282,6 +282,12 @@ unsafe fn setup() -> (
     );
 
     peripherals.i2c0.set_master_client(i2c_master);
+
+    peripherals.aes.initialise(
+        dynamic_deferred_caller
+            .register(&peripherals.aes)
+            .expect("dynamic deferred caller out of slots"),
+    );
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
