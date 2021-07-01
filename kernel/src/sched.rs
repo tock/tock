@@ -669,7 +669,6 @@ impl Kernel {
                     }
                 }
                 process::State::Yielded | process::State::Unstarted => {
-                    debug!("Process {:?} is unstarted/yielded. Try starting it.", process.processid());
                     // If the process is yielded or hasn't been started it is
                     // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
@@ -680,7 +679,6 @@ impl Kernel {
                         },
                         Some(cb) => match cb {
                             Task::FunctionCall(ccb) => {
-                                debug!("Invoking callback.");
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
                                         "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",

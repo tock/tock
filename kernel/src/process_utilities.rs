@@ -71,28 +71,28 @@ impl fmt::Debug for ProcessLoadError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
-                write!(f, "Error parsing TBF header\n")?;
+                write!(f, "TBF header parse error\n")?;
                 write!(f, "{:?}", tbf_parse_error)
             }
 
             ProcessLoadError::NotEnoughFlash => {
-                write!(f, "Not enough flash available for app linked list")
+                write!(f, "Insufficient flash")
             }
 
             ProcessLoadError::NotEnoughMemory => {
-                write!(f, "Not able to meet memory requirements requested by apps")
+                write!(f, "Not enough memory")
             }
 
             ProcessLoadError::MpuInvalidFlashLength => {
-                write!(f, "App flash length not supported by MPU")
+                write!(f, "Flash length unsupported")
             }
 
             ProcessLoadError::MpuInvalidRamLength => {
-                write!(f, "App RAM region not supported by MPU")
+                write!(f, "RAM region unsupported")
             }
 
             ProcessLoadError::ArchitecturalStateFailure => {
-                write!(f, "Architecutre-specific state couldn't be initialized")
+                write!(f, "Architecture state error")
             }
 
             ProcessLoadError::MemoryAddressMismatch {
@@ -100,7 +100,7 @@ impl fmt::Debug for ProcessLoadError {
                 expected_address,
             } => write!(
                 f,
-                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
+                "Incorrect RAM address. Actual:{:#x}, Expected:{:#x}",
                 actual_address, expected_address
             ),
 
@@ -109,7 +109,7 @@ impl fmt::Debug for ProcessLoadError {
                 expected_address,
             } => write!(
                 f,
-                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
+                "Incorrect flash address. Actual:{:#x}, Expected:{:#x}",
                 actual_address, expected_address
             ),
 

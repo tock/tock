@@ -268,6 +268,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn set_fault_state(&self) {
         self.state.update(State::Faulted);
+        debug!("Process {} faulted: restarting it.", self.get_process_name());
         self.try_restart(COMPLETION_FAULT);
     }
 
@@ -1275,31 +1276,34 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // involves:
         //   1. calculating and allocating RAM for the process
         //   2. allocating and initializing the Process structure in RAM
-        //   3. booting the process
-        // Create the Process struct in the app grant region.
-        
-        // The process RAM minimum size is:
+        //   3. restarting the process
+        //
+        // "Process RAM" is the entire RAM block allocated to a process.
+        // "Kernel RAM" is the region of process RAM that is only readable/writeable
+        // by the kernel. "Userspace RAM" is the region of process RAM that userspace
+        // code can read and write. The process RAM minimum size is:
         //    the size needed for the grant pointers (kernel) +
         //    the size of the task (upcall) queue (kernel) +
         //    the size of the process itself (kernel) +
-        //    max(application RAM requested, saved context) (userspace), 
-        // Furthermore, the MPU allocation may need to pad this because it has
-        // alignment/size restrictions.
-        
+        //    max(application RAM requested, saved context) (userspace).
+        //
+        // Because the Process structure is stored in kernel RAM,
+        // creating a process requires allocating MPU regions. The MPU
+        // may cause the size of regions to be padded due to alignment
+        // or size restructions.
         let grant_pointers_num = kernel.get_grant_count_and_finalize();
         let grant_pointers_size = grant_pointers_num * mem::size_of::<*const usize>();
-        let min_kernel_ram_size = grant_pointers_size +
-                                  Self::CALLBACKS_OFFSET +
-                                  Self::PROCESS_STRUCT_OFFSET;
+        let initial_kernel_ram_size = grant_pointers_size +
+                                      Self::CALLBACKS_OFFSET +
+                                      Self::PROCESS_STRUCT_OFFSET;
         
         let application_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;        
         let context_switch_size = chip
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
 
-        debug!("App RAM requested: {:x}, context switch size: {:x}", application_ram_requested_size, context_switch_size);
         let min_userspace_ram_size = cmp::max(application_ram_requested_size, context_switch_size);
-        let min_process_ram_size = min_userspace_ram_size + min_kernel_ram_size;
+        let min_process_ram_size = min_userspace_ram_size + initial_kernel_ram_size;
 
         // Now that we have the minimum size, we need to try to allocate it. There are two cases:
         // a fixed location (marked in the TBF header) for non-relocatable code, and relocatable.
@@ -1344,22 +1348,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             remaining_memory
         };
 
-        // Actually allocate a block of the right size from the MPU
-        
+        // Actually allocate a block of the right size from the MPU for RAM
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
-        debug!("Allocating app memory region");
-        debug!("remining mem: {:x}", remaining_memory.as_ptr() as u32);
-        debug!("remining mem len: {:x}", remaining_memory.len());
-        debug!("min process RAM: {:x}", min_process_ram_size);
-        debug!("context switch size: {:x}", context_switch_size);
-        debug!("min kernel RAM: {:x}", min_kernel_ram_size);
         let (app_ram_start, app_ram_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
             min_process_ram_size,
             context_switch_size,
-            min_kernel_ram_size,
+            initial_kernel_ram_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
         ) {
@@ -1373,16 +1370,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Based on the values returned from the MPU, compute a slice for the
         // process RAM. This can fail if the block returned by the MPU doesn't fit
         // inside `remaining_memory.`
-       
-        // Carve off the memory the MPU allocated for the process, then shrink it down
-        // if needed to the actual size requested.
         let memory_start_offset = app_ram_start as usize - remaining_memory.as_ptr() as usize;
         let (app_ram_oversize, unused_ram) =
             remaining_memory.split_at_mut(memory_start_offset + app_ram_size);
         let app_ram_slice = app_ram_oversize
             .get_mut(memory_start_offset..)
             .ok_or(ProcessLoadError::InternalError)?;
-        debug!("App RAM slice: {:x} +{:x}", app_ram_slice.as_ptr() as u32, app_ram_slice.len());
+
         // If a process requires a fixed RAM block, check that the memory allocated
         // matches this fixed address. This can fail if the fixed address requested
         // is incompatible with MPU alignment.
@@ -1397,57 +1391,37 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
-        // kernel_memory_break marks the end of the free part of the grant region;
-        // allocation is down (like a stack), so allocations lower the break. From high
-        // to low, the regions allocated are:
-        //    Grant pointers
-        //    Upcall queue
-        //    Process structure
-        //    Grant regions 
+        // kernel_memory_break marks the bottom of kernel RAM:
+        // allocation is down (like a stack), so allocations lower the
+        // break. From high to low, the regions allocated are:
+        //    Grant pointers (allocated here, initialized in restart)
+        //    Upcall queue (allocated here, initialized in restart)
+        //    Process structure (allocated and partially initialized here)
+        //    Grant regions (occurs at process runtime)
+        //
+        // The pointer casts below for grant/upcall allocation are
+        // safe today, as MPU constraints ensure that `memory_start`
+        // will always be aligned on at least a word boundary, and
+        // that memory_size will be aligned on at least a word
+        // boundary, and `grant_ptrs_offset` is a multiple of the word
+        // size.  TODO: https://github.com/tock/tock/issues/1739
+
         let mut kernel_memory_break = app_ram_slice.as_mut_ptr().add(app_ram_size);
-
-        // Grant pointers
         kernel_memory_break = kernel_memory_break.offset(-(grant_pointers_size as isize));
-
-        // This is safe today, as MPU constraints ensure that `memory_start`
-        // will always be aligned on at least a word boundary, and that
-        // memory_size will be aligned on at least a word boundary, and
-        // `grant_ptrs_offset` is a multiple of the word size. Thus,
-        // `kernel_memory_break` must be word aligned. While this is unlikely to
-        // change, it should be more proactively enforced.
-        //
-        // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set all grant pointers to null.
         let grant_pointers = slice::from_raw_parts_mut(kernel_memory_break as *mut *mut u8, grant_pointers_num);
-        for pointer in grant_pointers.iter_mut() {
-            *pointer = ptr::null_mut()
-        }
 
-        // Upcall queue
         kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
-
-        // This is safe today, as MPU constraints ensure that `memory_start`
-        // will always be aligned on at least a word boundary, and that
-        // memory_size will be aligned on at least a word boundary, and
-        // `grant_ptrs_offset` is a multiple of the word size. Thus,
-        // `kernel_memory_break` must be word aligned. While this is unlikely to
-        // change, it should be more proactively enforced.
-        //
-        // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set up ring buffer for upcalls to the process.
         let upcall_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
         let tasks = RingBuffer::new(upcall_buf);
         
-        let process_struct_memory_location = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
-        let mut process: &mut ProcessStandard<C> =
-            &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
-
         kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
-
-        // Set the initial process-accessible memory to the amount specified by
+        let mut process: &mut ProcessStandard<C> =
+            &mut *(kernel_memory_break as *mut ProcessStandard<'static, C>);
+        
+        // Set the initial userspace RAM to the amount specified by
         // the context switch implementation.
         let initial_app_brk = app_ram_slice.as_ptr().add(context_switch_size);
 
@@ -1473,8 +1447,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Mark this process as unstarted
         process.state = ProcessStateCell::new(process.kernel);
         process.restart_count = Cell::new(0);
-
-        process.mpu_config = MapCell::new(mpu_config);
 
         process.mpu_regions = [
             Cell::new(None),
@@ -1572,11 +1544,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         };
 
         // Reset MPU region configuration.
-        // TODO: ideally, this would be moved into a helper function used by both
-        // create() and reset(), but process load debugging complicates this.
-        // We just want to create new config with only flash and memory regions.
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
-        // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
             self.flash.as_ptr(),
             self.flash.len(),
@@ -1594,26 +1562,19 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // RAM
 
-        // Re-determine the minimum amount of RAM the kernel must allocate to the process
-        // based on the specific requirements of the syscall implementation.
-        let min_process_memory_size = self
+        let context_switch_size = self
             .chip
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
-
-        // Recalculate initial_kernel_memory_size as was done in create()
-        let grant_ptr_size = mem::size_of::<*const usize>();
-        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
-
-        let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+        
+        let initial_kernel_memory_size = self.memory_start as usize +
+            self.memory_len - self.initial_kernel_memory_break.get() as usize;
 
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
             self.mem_start(),
             self.memory_len,
             self.memory_len, //we want exactly as much as we had before restart
-            min_process_memory_size,
+            context_switch_size,
             initial_kernel_memory_size,
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
@@ -1631,7 +1592,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Reset memory pointers now that we know the layout of the process
         // memory and know that we can configure the MPU.
-
+        self.grant_pointers.map(|pointers| {
+            for pointer in pointers.iter_mut() {
+                *pointer = ptr::null_mut()
+            }
+        });
+        self.tasks.map(|tasks| tasks.empty());
+        
         // app_brk is set based on minimum syscall size above the start of
         // memory.
         self.app_break.set(self.initial_app_break.get());
