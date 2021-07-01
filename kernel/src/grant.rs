@@ -1122,22 +1122,22 @@ impl GrantRegionAllocator {
     /// initialized using the provided function.
     ///
     /// The provided function will be called exactly `n` times, and will be
-    /// passed the index it's initializing, from `0` through `NUM_UPCALLS_ITEMS - 1`.
+    /// passed the index it's initializing, from `0` through `NUM_ITEMS - 1`.
     ///
     /// # Panic Safety
     ///
     /// If `val_func` panics, the freshly allocated memory and any values
     /// already written will be leaked.
-    pub fn alloc_n_with<T, F, const NUM_UPCALLS_ITEMS: usize>(
+    pub fn alloc_n_with<T, F, const NUM_ITEMS: usize>(
         &mut self,
         mut init: F,
-    ) -> Result<CustomGrant<[T; NUM_UPCALLS_ITEMS]>, Error>
+    ) -> Result<CustomGrant<[T; NUM_ITEMS]>, Error>
     where
         F: FnMut(usize) -> T,
     {
-        let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(NUM_UPCALLS_ITEMS)?;
+        let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(NUM_ITEMS)?;
 
-        for i in 0..NUM_UPCALLS_ITEMS {
+        for i in 0..NUM_ITEMS {
             // # Safety
             //
             // The allocate function guarantees that `ptr` points to memory
