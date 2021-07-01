@@ -31,12 +31,13 @@
 //! }`, `BaseWidth` in `{ 32 }`.
 
 use core::marker::PhantomData;
+use tock_registers::fields::{Field, FieldValue, TryFromValue};
+use tock_registers::interfaces::{Readable, Writeable};
 pub use tock_registers::register_bitfields;
 use tock_registers::registers::{
-    Field, FieldValue, IntLike as TRIntLike, LocalRegisterCopy, ReadOnly as TRReadOnly,
-    ReadWrite as TRReadWrite, Readable, RegisterLongName, TryFromValue, WriteOnly as TRWriteOnly,
-    Writeable,
+    ReadOnly as TRReadOnly, ReadWrite as TRReadWrite, WriteOnly as TRWriteOnly,
 };
+use tock_registers::{IntLike as TRIntLike, LocalRegisterCopy, RegisterLongName};
 
 /// Extension of the `tock_registers` `IntLike` trait.
 ///
