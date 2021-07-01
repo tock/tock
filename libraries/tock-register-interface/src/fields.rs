@@ -9,7 +9,7 @@
 //!
 //! A specific section (bitfield) in a register is described by the
 //! [`Field`] type, consisting of an unshifted bitmask over the base
-//! register [`IntLike`](crate::IntLike) type, and a shift
+//! register [`UIntLike`](crate::UIntLike) type, and a shift
 //! parameter. It is further associated with a specific
 //! [`RegisterLongName`], which can prevent its use with incompatible
 //! registers.
@@ -68,18 +68,18 @@
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign};
 
-use crate::{IntLike, RegisterLongName};
+use crate::{RegisterLongName, UIntLike};
 
 /// Specific section of a register.
 ///
 /// For the Field, the mask is unshifted, ie. the LSB should always be set.
-pub struct Field<T: IntLike, R: RegisterLongName> {
+pub struct Field<T: UIntLike, R: RegisterLongName> {
     pub mask: T,
     pub shift: usize,
     associated_register: PhantomData<R>,
 }
 
-impl<T: IntLike, R: RegisterLongName> Field<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     pub const fn new(mask: T, shift: usize) -> Field<T, R> {
         Field {
             mask: mask,
@@ -113,7 +113,7 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
 //
 //    #[automatically_derived]
 //    #[allow(unused_qualifications)]
-//    impl<T: ::core::marker::Copy + IntLike,
+//    impl<T: ::core::marker::Copy + UIntLike,
 //         R: ::core::marker::Copy + RegisterLongName>
 //            ::core::marker::Copy for Field<T, R> {}
 //
@@ -122,7 +122,7 @@ impl<T: IntLike, R: RegisterLongName> Field<T, R> {
 // Manually implementing Clone and Copy works around this issue.
 //
 // Relevant Rust issue: https://github.com/rust-lang/rust/issues/26925
-impl<T: IntLike, R: RegisterLongName> Clone for Field<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Clone for Field<T, R> {
     fn clone(&self) -> Self {
         Field {
             mask: self.mask,
@@ -131,7 +131,7 @@ impl<T: IntLike, R: RegisterLongName> Clone for Field<T, R> {
         }
     }
 }
-impl<T: IntLike, R: RegisterLongName> Copy for Field<T, R> {}
+impl<T: UIntLike, R: RegisterLongName> Copy for Field<T, R> {}
 
 macro_rules! Field_impl_for {
     ($type:ty) => {
@@ -155,7 +155,7 @@ Field_impl_for!(usize);
 /// For the FieldValue, the masks and values are shifted into their actual
 /// location in the register.
 #[derive(Copy, Clone)]
-pub struct FieldValue<T: IntLike, R: RegisterLongName> {
+pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
     mask: T,
     pub value: T,
     associated_register: PhantomData<R>,
@@ -193,7 +193,7 @@ FieldValue_impl_for!(u64);
 FieldValue_impl_for!(u128);
 FieldValue_impl_for!(usize);
 
-impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
+impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
     /// Get the raw bitmask represented by this FieldValue.
     #[inline]
     pub fn mask(&self) -> T {
@@ -225,7 +225,7 @@ impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
 }
 
 // Combine two fields with the addition operator
-impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Add for FieldValue<T, R> {
     type Output = Self;
 
     #[inline]
@@ -239,7 +239,7 @@ impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
 }
 
 // Combine two fields with the += operator
-impl<T: IntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
+impl<T: UIntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
     #[inline]
     fn add_assign(&mut self, rhs: FieldValue<T, R>) {
         self.mask |= rhs.mask;

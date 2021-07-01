@@ -20,7 +20,7 @@ use core::cell::UnsafeCell;
 use core::marker::PhantomData;
 
 use crate::interfaces::{Readable, Writeable};
-use crate::{IntLike, RegisterLongName};
+use crate::{RegisterLongName, UIntLike};
 
 /// Read/Write registers.
 ///
@@ -31,11 +31,11 @@ use crate::{IntLike, RegisterLongName};
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
+pub struct ReadWrite<T: UIntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
-impl<T: IntLike, R: RegisterLongName> Readable for ReadWrite<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Readable for ReadWrite<T, R> {
     type T = T;
     type R = R;
 
@@ -44,7 +44,7 @@ impl<T: IntLike, R: RegisterLongName> Readable for ReadWrite<T, R> {
         unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 }
-impl<T: IntLike, R: RegisterLongName> Writeable for ReadWrite<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Writeable for ReadWrite<T, R> {
     type T = T;
     type R = R;
 
@@ -61,11 +61,11 @@ impl<T: IntLike, R: RegisterLongName> Writeable for ReadWrite<T, R> {
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
+pub struct ReadOnly<T: UIntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
-impl<T: IntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
     type T = T;
     type R = R;
 
@@ -82,11 +82,11 @@ impl<T: IntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
+pub struct WriteOnly<T: UIntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
-impl<T: IntLike, R: RegisterLongName> Writeable for WriteOnly<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Writeable for WriteOnly<T, R> {
     type T = T;
     type R = R;
 
@@ -112,11 +112,11 @@ impl<T: IntLike, R: RegisterLongName> Writeable for WriteOnly<T, R> {
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()> {
+pub struct Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<(R, W)>,
 }
-impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Readable for Aliased<T, R, W> {
+impl<T: UIntLike, R: RegisterLongName, W: RegisterLongName> Readable for Aliased<T, R, W> {
     type T = T;
     type R = R;
 
@@ -125,7 +125,7 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Readable for Aliased<
         unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 }
-impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased<T, R, W> {
+impl<T: UIntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased<T, R, W> {
     type T = T;
     type R = W;
 
@@ -148,12 +148,12 @@ impl<T: IntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliased
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
+pub struct InMemoryRegister<T: UIntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
 
-impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+impl<T: UIntLike, R: RegisterLongName> InMemoryRegister<T, R> {
     pub const fn new(value: T) -> Self {
         InMemoryRegister {
             value: UnsafeCell::new(value),
@@ -161,7 +161,7 @@ impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
         }
     }
 }
-impl<T: IntLike, R: RegisterLongName> Readable for InMemoryRegister<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Readable for InMemoryRegister<T, R> {
     type T = T;
     type R = R;
 
@@ -170,7 +170,7 @@ impl<T: IntLike, R: RegisterLongName> Readable for InMemoryRegister<T, R> {
         unsafe { ::core::ptr::read_volatile(self.value.get()) }
     }
 }
-impl<T: IntLike, R: RegisterLongName> Writeable for InMemoryRegister<T, R> {
+impl<T: UIntLike, R: RegisterLongName> Writeable for InMemoryRegister<T, R> {
     type T = T;
     type R = R;
 
