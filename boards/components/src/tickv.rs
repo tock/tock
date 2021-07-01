@@ -94,7 +94,7 @@ pub struct TicKVComponent<F: 'static + hil::flash::Flash> {
     mux_flash: &'static MuxFlash<'static, F>,
     region_offset: usize,
     flash_size: usize,
-    tickfs_read_buf: &'static mut [u8; 512],
+    tickfs_read_buf: &'static mut [u8; 64],
     flash_read_buffer: &'static mut F::Page,
 }
 
@@ -103,7 +103,7 @@ impl<F: 'static + hil::flash::Flash> TicKVComponent<F> {
         mux_flash: &'static MuxFlash<'static, F>,
         region_offset: usize,
         flash_size: usize,
-        tickfs_read_buf: &'static mut [u8; 512],
+        tickfs_read_buf: &'static mut [u8; 64],
         flash_read_buffer: &'static mut F::Page,
     ) -> Self {
         Self {
