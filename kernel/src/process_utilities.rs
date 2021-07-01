@@ -30,6 +30,12 @@ pub enum ProcessLoadError {
     /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
 
+    /// The process's RAM requirements cannot be configured in the MPU.
+    MpuInvalidRamLength,
+
+    /// The architecture-specific state for the process couldn't be initialized.
+    ArchitecturalStateFailure,
+    
     /// A process specified a fixed memory address that it needs its memory
     /// range to start at, and the kernel did not or could not give the process
     /// a memory region starting at that address.
@@ -44,6 +50,7 @@ pub enum ProcessLoadError {
         actual_address: u32,
         expected_address: u32,
     },
+
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
@@ -78,6 +85,14 @@ impl fmt::Debug for ProcessLoadError {
 
             ProcessLoadError::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
+            }
+
+            ProcessLoadError::MpuInvalidRamLength => {
+                write!(f, "App RAM region not supported by MPU")
+            }
+
+            ProcessLoadError::ArchitecturalStateFailure => {
+                write!(f, "Architecutre-specific state couldn't be initialized")
             }
 
             ProcessLoadError::MemoryAddressMismatch {

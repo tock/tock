@@ -18,7 +18,7 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
-use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
@@ -166,9 +166,6 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// scheduling it.
     state: ProcessStateCell<'static>,
 
-    /// How to respond if this process faults.
-    fault_policy: &'a dyn ProcessFaultPolicy,
-
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
 
@@ -270,9 +267,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn resume(&self) {}
 
     fn set_fault_state(&self) {
-        panic!("Process {} faulted.", self.process_name);
         self.state.update(State::Faulted);
-        //self.try_restart(COMPLETION_FAULT);
+        self.try_restart(COMPLETION_FAULT);
     }
 
     fn try_restart(&self, completion_code: u32) {
@@ -1251,7 +1247,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         header_length: usize,
         app_version: u16,
         remaining_memory: &'a mut [u8],
-        fault_policy: &'static dyn ProcessFaultPolicy,
+        _fault_policy: &'static dyn ProcessFaultPolicy,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
@@ -1476,7 +1472,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.stored_state = MapCell::new(Default::default());
         // Mark this process as unstarted
         process.state = ProcessStateCell::new(process.kernel);
-        process.fault_policy = fault_policy;
         process.restart_count = Cell::new(0);
 
         process.mpu_config = MapCell::new(mpu_config);
@@ -1503,9 +1498,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             dropped_upcall_count: 0,
             timeslice_expiration_count: 0,
         });
-
-        let flash_protected_size = process.header.get_protected_size() as usize;
-        //let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
 
         // Handle any architecture-specific requirements for a new process.
         //
@@ -1537,27 +1529,21 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        process.restart();
-
-        // Return the process object and a remaining memory for processes slice.
-        Ok((Some(process), unused_ram))
+        let res = process.restart();
+        match res {
+            Ok(()) => Ok((Some(process), unused_ram)),
+            Err(ErrorCode::FAIL) => Err(ProcessLoadError::MpuInvalidFlashLength),
+            Err(ErrorCode::NOMEM) => Err(ProcessLoadError::MpuInvalidRamLength),
+            Err(ErrorCode::RESERVE) => Err(ProcessLoadError::ArchitecturalStateFailure),
+            _ => Err(ProcessLoadError::InternalError)
+        }
     }
 
     /// Restart the process, resetting all of its state and re-initializing
     /// it to start running.  Assumes the process is not running but is still in flash
     /// and still has its memory region allocated to it. This implements
     /// the mechanism of restart.
-    fn restart(&self) -> Result<(), ErrorCode> {
-        
-        //let kernel_memory_break = unsafe {self.memory_start.offset(self.memory_len as isize)};
-
-        // Set the initial allow high water mark to the start of process memory
-        // since no `allow` calls have been made yet.
-        let initial_allow_high_water_mark = self.memory_start;
-
-        
-        let unique_identifier = self.kernel.create_process_identifier();
-
+    fn restart(&self) -> Result<(), ErrorCode> {        
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `ProcessId`s that point to the old version of the
@@ -1632,7 +1618,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
         );
-        let (app_mpu_mem_start, app_mpu_mem_len) = match app_mpu_mem {
+        let (app_mpu_mem_start, _app_mpu_mem_len) = match app_mpu_mem {
             Some((start, len)) => (start, len),
             None => {
                 // We couldn't configure the MPU for the process. This shouldn't
