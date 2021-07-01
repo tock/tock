@@ -422,7 +422,13 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
 
                 // We must ensure that the object T ends up aligned correctly.
                 let grant_t_align = align_of::<T>();
-                let upcalls_align = 4;
+                // As the number of upcalls comes first we need to make sure the
+                // num_upcalls usize is properly aligned. Then, we assume
+                // SavedUpcall is also properly aligned to the same alignment,
+                // and can go immediately after the num_upcalls usize. If that
+                // were to ever not be true this alignment and padding
+                // calculation would be wrong.
+                let upcalls_align = align_of::<usize>();
 
                 // Calculate the padding needed between the upcalls data and T
                 // such that T will be properly aligned assuming the grant
