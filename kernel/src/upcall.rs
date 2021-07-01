@@ -15,7 +15,7 @@ use crate::ErrorCode;
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct UpcallId {
     pub driver_num: usize,
-    pub subscribe_num: usize, //TODO: use u32?
+    pub subscribe_num: usize,
 }
 
 /// Type for calling an upcall in a process.
