@@ -116,6 +116,7 @@ const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaul
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
 
@@ -147,7 +148,7 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         nrf52832::acomp::Comparator<'static>,

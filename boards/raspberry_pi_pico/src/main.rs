@@ -51,6 +51,7 @@ const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaul
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
@@ -58,7 +59,7 @@ static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,

@@ -29,6 +29,7 @@ mod multi_alarm_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
@@ -280,7 +281,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         artemis_nano,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         scheduler,
         &main_loop_cap,
     );

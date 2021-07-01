@@ -75,6 +75,7 @@ mod multi_timer_test;
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Constants related to the configuration of the 15.4 network stack
 // TODO: Notably, the radio MAC addresses can be configured from userland at the moment
@@ -126,7 +127,7 @@ struct Imix {
         'static,
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,

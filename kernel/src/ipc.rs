@@ -43,24 +43,35 @@ impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     }
 }
 
-const NUM_UPCALLS: usize = 5; // TODO MAKE GENERIC ON NUM_PROCS
-                              // Should be num_procs + 1
-
 /// The upcall setup by a service. Each process can only be one service.
+/// Subscribe with subscribe_num == 0 is how a process registers
+/// itself as an IPC service. Each process can only register as a
+/// single IPC service. The identifier for the IPC service is the
+/// application name stored in the TBF header of the application.
+/// The upcall that is passed to subscribe is called when another
+/// process notifies the server process.
 const SERVICE_UPCALL_NUM: usize = 0;
 
-/// An array of upcalls this process has registered to receive upcalls
-/// from other services. This const specifies the subscribe_num of the first upcall
-/// in the array
+/// This const specifies the subscribe_num of the first upcall
+/// in the array of client upcalls.
+/// Subscribe with subscribe_num >= 1 is how a client registers
+/// a upcall for a given service. The service number (passed
+/// as subscribe_num) is returned from the allow() call.
+/// Once subscribed, the client will receive upcalls when the
+/// service process calls notify_client().
+
 const CLIENT_UPCALL_NUM_BASE: usize = 1;
 
 /// The IPC mechanism struct.
-pub struct IPC<const NUM_PROCS: usize> {
+/// NUM_UPCALLS should always equal NUM_PROCS + 1. The extra upcall
+/// is so processes can register as a service. Once const_evaluatable_checked
+/// is stable we will not need two separate const generic parameters.
+pub struct IPC<const NUM_PROCS: usize, const NUM_UPCALLS: usize> {
     /// The grant regions for each process that holds the per-process IPC data.
     data: Grant<IPCData<NUM_PROCS>, NUM_UPCALLS>,
 }
 
-impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
+impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALLS> {
     pub fn new(
         kernel: &'static Kernel,
         driver_num: usize,
@@ -138,73 +149,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     }
 }
 
-impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
-    /// subscribe enables processes using IPC to register upcalls that fire
-    /// when notify() is called.
-    /*
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut upcall: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // subscribe(0)
-            //
-            // Subscribe with subscribe_num == 0 is how a process registers
-            // itself as an IPC service. Each process can only register as a
-            // single IPC service. The identifier for the IPC service is the
-            // application name stored in the TBF header of the application.
-            // The upcall that is passed to subscribe is called when another
-            // process notifies the server process.
-            0 => self
-                .data
-                .enter(app_id, |data, upcalls| {
-                    core::mem::swap(&mut data.upcall, &mut upcall);
-                    upcall
-                })
-                .map_err(|e| (upcall, e.into())),
-
-            // subscribe(>=1)
-            //
-            // Subscribe with subscribe_num >= 1 is how a client registers
-            // a upcall for a given service. The service number (passed
-            // here as subscribe_num) is returned from the allow() call.
-            // Once subscribed, the client will receive upcalls when the
-            // service process calls notify_client().
-            svc_id => {
-                // The app passes in a number which is the app identifier of the
-                // other app (shifted by one).
-                let app_identifier = svc_id - 1;
-                // We first have to see if that identifier corresponds to a
-                // valid application by asking the kernel to do a lookup for us.
-                let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
-
-                // This type annotation is here for documentation, it's not actually necessary
-                let result: Result<Result<Upcall, ErrorCode>, process::Error> =
-                    self.data.enter(app_id, |data| {
-                        match otherapp.map_or(None, |oa| oa.index()) {
-                            Some(i) => {
-                                if i >= NUM_PROCS {
-                                    Err(ErrorCode::INVAL)
-                                } else {
-                                    core::mem::swap(&mut data.client_upcalls[i], &mut upcall);
-                                    Ok(upcall)
-                                }
-                            }
-                            None => Err(ErrorCode::INVAL),
-                        }
-                    });
-                // OK, some type sorcery to transform result into what we want
-                result
-                    .map_err(|e| e.into()) // transform the outer Result's process::Error into an ErrorCode
-                    .and_then(|x| x) // Flatten the Result<Result<T,E>, E> into a Result<T,E>
-                    .map_err(|e| (upcall, e)) // Add `upcall` to the Error case
-            }
-        }
-    }
-    */
-
+impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS, NUM_UPCALLS> {
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
     /// and notifying an IPC client is done by setting client_or_svc to 1.

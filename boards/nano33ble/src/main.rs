@@ -84,6 +84,7 @@ const FAULT_RESPONSE: kernel::procs::StopWithDebugFaultPolicy =
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // State for loading and holding applications.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
@@ -131,7 +132,7 @@ pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,

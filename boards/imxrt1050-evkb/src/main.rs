@@ -41,6 +41,7 @@ pub mod boot_header;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 1;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None];
@@ -73,7 +74,7 @@ struct Imxrt1050EVKB {
     button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
 }

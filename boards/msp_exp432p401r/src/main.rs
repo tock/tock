@@ -25,6 +25,7 @@ mod multi_alarm_test;
 
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 /// Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
@@ -55,7 +56,7 @@ struct MspExp432P401R {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
 }
 
