@@ -6,12 +6,12 @@ Attending:
 - Brad Campbell
 - Branden Ghena
 - Hudson Ayers
-- Johnathan Van Why
 - Leon Schuermann
 - Pat Pannuto
 - Phil Levis
 - Vadim Sukhomlinov
 - Anthony Quiroga
+- Amit Levy
 
 ## Updates
 
@@ -20,7 +20,7 @@ Attending:
 - Leon: We have been getting inquiries on releasing a new "Tock-registers" version.  Unfortunately, the latest
   Rust nightly build does break the current released version.  We should look into that.  One PR I released has some discussion
   and we should discuss how to continue from there and we can release a new version accordingly.
-- Johnathan: If they are asking for an updated Tock-registers version, can't we just update Tock to that version?  This might
+- Branden: If they are asking for an updated Tock-registers version, can't we just update Tock to that version?  This might
   solve everyone's problems.
 - Leon: We have but it makes sense to release a new version of Tock-registers.  It refactored some bits but not the general 
   structure which doesn't make a ton of sense now.  There is already a PR out for which we need to have a loose resolution and then
