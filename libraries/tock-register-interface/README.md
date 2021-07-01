@@ -466,5 +466,6 @@ crate. A particularly useful application area for this are CPU
 registers, such as ARM SPSRs or RISC-V CSRs. It is sufficient to
 implement the `Readable::get` and `Writeable::set` methods for the
 rest of the API to be automatically implemented by the crate-provided
-traits. For more in-depth documentation on how this works, refer to
-the `interfaces` module  documentation.
+traits. For more in-depth documentation on how this works, [refer to
+the `interfaces` module
+documentation](https://docs.tockos.org/tock_registers/index.html).
