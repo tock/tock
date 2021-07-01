@@ -132,7 +132,7 @@ pub fn load_processes<C: Chip>(
     app_flash: &'static [u8],
     app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn Process>],
-    fault_policy: &'static dyn ProcessFaultPolicy,
+    _fault_policy: &'static dyn ProcessFaultPolicy,
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -218,7 +218,6 @@ pub fn load_processes<C: Chip>(
                     header_length as usize,
                     version,
                     remaining_memory,
-                    fault_policy,
                     i,
                 )?
             };

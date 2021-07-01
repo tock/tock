@@ -673,10 +673,7 @@ impl Kernel {
                     // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
                     match process.dequeue_task() {
-                        None => {
-                            debug!("No tasks.");
-                            break;
-                        },
+                        None => {},
                         Some(cb) => match cb {
                             Task::FunctionCall(ccb) => {
                                 if config::CONFIG.trace_syscalls {

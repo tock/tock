@@ -19,7 +19,6 @@ use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
-use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -262,9 +261,21 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn stop(&self) {}
+    fn stop(&self) {
+        match self.state.get() {
+            State::Running => self.state.update(State::StoppedRunning),
+            State::Yielded => self.state.update(State::StoppedYielded),
+            _ => {} // Do nothing
+        }
+    }
 
-    fn resume(&self) {}
+    fn resume(&self) {
+        match self.state.get() {
+            State::StoppedRunning => self.state.update(State::Running),
+            State::StoppedYielded => self.state.update(State::Yielded),
+            _ => {} // Do nothing
+        }
+    }
 
     fn set_fault_state(&self) {
         self.state.update(State::Faulted);
@@ -1248,7 +1259,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         header_length: usize,
         app_version: u16,
         remaining_memory: &'a mut [u8],
-        _fault_policy: &'static dyn ProcessFaultPolicy,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
