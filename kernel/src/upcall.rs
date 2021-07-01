@@ -22,7 +22,7 @@ pub struct UpcallId {
 ///
 /// This is essentially a wrapper around a function pointer with
 /// associated process data.
-pub struct Upcall {
+pub(crate) struct Upcall {
     /// The ProcessId of the process this upcall is for.
     pub(crate) process_id: ProcessId,
 
@@ -72,7 +72,7 @@ impl Upcall {
     /// parameter so we take advantage of it. If in the future that is not the
     /// case we could have `process` be an Option and just do the search with
     /// the stored process_id.
-    pub fn schedule(
+    pub(crate) fn schedule(
         &mut self,
         process: &dyn process::Process,
         r0: usize,
