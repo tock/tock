@@ -355,9 +355,12 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         //
         // Mem. Addr.
         // 0x0040000  ┌────────────────────────────────────
+        //            │   DriverNumN    [0x1]
         //            │   GrantPointerN [0x003FFC8]
         //            │   ...
+        //            │   DriverNum1    [0x60000]
         //            │   GrantPointer1 [0x003FFC0]
+        //            │   DriverNum0
         //            │   GrantPointer0 [0x0000000 (NULL)]
         //            ├────────────────────────────────────
         //            │   Process Control Block
@@ -365,7 +368,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         //            │   GrantMemoryN                                    │
         // 0x003FFC8  ├────────────────────────────────────               │
         //            │   GrantMemory1                                    ▼
-        // 0x003FFC0  ├────────────────────────────────────
+        // 0x003FF20  ├────────────────────────────────────
         //            │
         //            │   --unallocated--
         //            │
@@ -386,6 +389,22 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
             if !is_allocated {
                 // Allocate space in the process's memory for enough space for
                 // upcalls and something of type `T` for the grant.
+                //
+                // Here is an example layout of the grant allocation:
+                //
+                // Mem. Addr.
+                // 0x003FFC8  ┌────────────────────────────────────  G
+                //            │   T                                  r
+                // 0x003FFxx  ├  ─────────────────────────           a
+                //            │   Padding    (ensure T alignment)    n
+                // 0x003FFxx  ├  ─────────────────────────           t
+                //            │   SavedUpcallN                       M
+                //            │   ...                                e
+                //            │   SavedUpcall1                       m
+                //            │   SavedUpcall0                       o
+                // 0x003FF24  ├  ─────────────────────────           r
+                //            │   NumUpcalls (usize)                 y
+                // 0x003FF20  └────────────────────────────────────  1
                 //
                 // Note: This allocation is intentionally never freed. A grant
                 // region is valid once allocated for the lifetime of the
@@ -416,43 +435,84 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                 // Now we can calculate the entire size of the grant.
                 let alloc_size = upcalls_size + upcalls_padding + grant_t_size;
 
-                let (new_region_upcall_count, new_region_upcalls, new_region_grant) = processid
+                let (ptr_upcall_count, optional_ptr_first_upcall, new_region_grant) = processid
                     .kernel
                     .process_map_or(Err(Error::NoSuchApp), processid, |process| {
                         process
                             .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
                             .map_or(Err(Error::OutOfMemory), |buf| {
+                                // Number of upcalls.
                                 let ptr_upcall_count = NonNull::cast::<usize>(buf);
 
-                                // # Safety
-                                //
-                                // TODO
-                                let ptr_upcalls = unsafe {
-                                    slice::from_raw_parts_mut(
-                                        buf.as_ptr().add(size_of::<usize>()) as *mut SavedUpcall,
-                                        NUM_UPCALLS,
-                                    )
+                                // Upcall array.
+
+                                // Only create the pointer to the first upcall
+                                // if we actually have memory for the
+                                // SavedUpcall to exist.
+                                let optional_ptr_first_upcall = if NUM_UPCALLS > 0 {
+                                    // # Safety
+                                    //
+                                    // It is safe to construct a *u8 pointer to
+                                    // the start of the upcalls array because we
+                                    // ensured that the memory is both valid and
+                                    // aligned by performing the allocation.
+                                    let raw_ptr_upcalls =
+                                        unsafe { buf.as_ptr().add(size_of::<usize>()) };
+                                    // # Safety
+                                    //
+                                    // We know that `raw_ptr_upcalls` is not
+                                    // null because it exists within a
+                                    // successful grant allocation.
+                                    let raw_ptr_upcalls_nn =
+                                        unsafe { NonNull::new_unchecked(raw_ptr_upcalls) };
+                                    // We only construct a pointer to the first
+                                    // SavedUpcall in the array because the
+                                    // memory is not initialized yet. Also we
+                                    // know that there will be at least one
+                                    // SavedUpcall in the array. We do not
+                                    // create a slice because the memory is not
+                                    // initialized.
+                                    let ptr_first_upcall =
+                                        NonNull::cast::<SavedUpcall>(raw_ptr_upcalls_nn);
+
+                                    Some(ptr_first_upcall)
+                                } else {
+                                    None
                                 };
 
-                                // Convert untyped `*mut u8` allocation to
-                                // allocated type
-                                //
+                                // Convert untyped `*mut u8` grant type T
+                                // allocation to allocated type.
+
                                 // # Safety
                                 //
-                                // TODO
-                                let ptr_grant = unsafe {
-                                    NonNull::cast::<T>(NonNull::new_unchecked(buf.as_ptr().add(
+                                // This is safe because we ensure that this
+                                // pointer remains in valid memory because of
+                                // the allocation we just completed.
+                                let raw_ptr_grant = unsafe {
+                                    buf.as_ptr().add(
                                         size_of::<usize>()
                                             + upcalls_padding
                                             + (NUM_UPCALLS * size_of::<SavedUpcall>()),
-                                    )))
+                                    )
                                 };
+                                // # Safety
+                                //
+                                // We know that `raw_ptr_grant` is not null
+                                // because it exists within a successful grant
+                                // allocation.
+                                let raw_ptr_grant_nn =
+                                    unsafe { NonNull::new_unchecked(raw_ptr_grant) };
+                                let ptr_grant = NonNull::cast::<T>(raw_ptr_grant_nn);
 
-                                Ok((ptr_upcall_count, ptr_upcalls, ptr_grant))
+                                Ok((ptr_upcall_count, optional_ptr_first_upcall, ptr_grant))
                             })
                     })?;
 
-                // ### Safety
+                // Initialize the grant allocation and its various fields.
+
+                // Number of upcalls.
+                //
+                // # Safety
                 //
                 // Writing memory at an arbitrary pointer is unsafe. We are safe
                 // to do this here because the following conditions are met:
@@ -462,23 +522,58 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                 //    as the process does. The grant is only accessible while
                 //    the process is still valid.
                 //
-                // 2. The pointer is correct aligned. The `allocate_grant()`
-                //    function ensures the pointer is correctly aligned.
+                // 2. The pointer is correct aligned because we calculated the
+                //    alignment before calling `allocate_grant()` which ensures
+                //    the pointer is correctly aligned.
                 unsafe {
                     // Insert length of upcalls.
-                    write(new_region_upcall_count.as_ptr(), NUM_UPCALLS);
+                    write(ptr_upcall_count.as_ptr(), NUM_UPCALLS);
+                }
 
-                    // Initialize each saved upcall.
-                    for upcall_ptr in new_region_upcalls.iter_mut() {
-                        write(
-                            upcall_ptr,
-                            SavedUpcall {
-                                appdata: 0,
-                                fn_ptr: None,
-                            },
-                        );
+                // Only try to allocate upcalls if this grant actually has any.
+                optional_ptr_first_upcall.map(|ptr_first_upcall| {
+                    // Initialize the SavedUpcalls in an explicit loop. We do
+                    // not use a slice because before this runs the SavedUpcalls
+                    // are not initialized and creating a slice to uninitialized
+                    // memory is not safe.
+                    for i in 0..NUM_UPCALLS {
+                        // # Safety
+                        //
+                        // This is safe because we have allocated enough space
+                        // for `NUM_UPCALLS` and that each SavedUpcall is at
+                        // least aligned to 4 bytes.
+                        let ptr_upcall = unsafe { ptr_first_upcall.as_ptr().add(i) };
+                        // # Safety
+                        //
+                        // This is safe because the pointer is valid, aligned,
+                        // and will live as long as the process does.
+                        unsafe {
+                            write(
+                                ptr_upcall,
+                                SavedUpcall {
+                                    appdata: 0,
+                                    fn_ptr: None,
+                                },
+                            );
+                        }
                     }
+                });
 
+                // # Safety
+                //
+                // This is safe because:
+                //
+                // 1. The pointer address is valid. The pointer is allocated
+                //    statically in process memory, and will exist for as long
+                //    as the process does. The grant is only accessible while
+                //    the process is still valid.
+                //
+                // 2. The pointer is correctly aligned. The newly allocated
+                //    grant is aligned for type T, and there is padding inserted
+                //    between the upcall array and the T object such that the T
+                //    object starts a multiple of `align_of<T>` from the
+                //    beginning of the allocation.
+                unsafe {
                     // We use `ptr::write` to avoid `Drop`ping the uninitialized
                     // memory in case `T` implements the `Drop` trait.
                     write(new_region_grant.as_ptr(), T::default());
