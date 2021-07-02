@@ -177,7 +177,11 @@ What this **configuration file** contains is:
 - Board Path
     - This is the path of the Tock supported board in the official tock repository. The path must be provided when setting up the configuration. This is essentially the directory relative to the Tock boards directory. 
 - Harness ID
-    - This is the specific Identity Number of the Raspberry Pi. This will be used in the test.config.toml which is kept for each board type to run tests on in the runner. 
+    - This is the specific Identity Number of the Raspberry Pi, which can be found with the command:
+    ```bash
+    $ cat /proc/cpuinfo
+    ```
+    It is denoted by the tag "Serial" when printed on the terminal. This will be used in the test.config.toml which is kept for each board type to run tests on in the runner and can be set to run on specific RPis with this Harness ID.
 - Communication Protocol 
     - Used to run tockloader
     - The list of communication protocols are provided, and one chosen must be in the list. 
@@ -197,7 +201,7 @@ harness_id = "{Pi ID}"
 communication_protocol = "jlink"
 ```
 
-**Note:** {home} and {Pi ID} would depend on your configuration, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID
+**Note:** {home} and {Pi ID} would depend on your configuration and Pi, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID.
 
 # How Instances Work
 Instances in this case are workflows with Github actions that set runners to complete said actions. This is how testing is conducted in Hardware Continuous Integration. The entire process is taken within the workflow through the yml files, which are another type of configuration file. Currently using the tock-hw-ci.yml as the workflow to run tests, in which we will use as an example throughout this document. (This file is located [here](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
