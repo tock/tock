@@ -46,10 +46,11 @@ This section explains the software setup needed for this box. These directions a
 
 1. Install Ubuntu Server on Raspberry Pi.
     * Follow the guide [here](https://ubuntu.com/tutorials/how-to-install-ubuntu-on-your-raspberry-pi#1-overview) until step 5. We do not need desktop environment.
+
 **Note:** At this point, you should be on the Raspberry Pi through terminal or a linux subsystem (Ubuntu is a nice subsystem to use here for Windows Operating Systems).
 For example, when you continue onto step 2, you should be working on a system like this (This is on Ubuntu):
 
-![Ubuntu Example](/images/ci-hardware/ubuntuexample.png)
+![UbuntuExample](/images/ci-hardware/ubuntuexample.png)
 
 2. Install the [Requirements](https://github.com/tock/tock/blob/master/doc/Getting_Started.md#requirements) here.
 3. Download and install JLinkExe
@@ -177,14 +178,15 @@ What this **configuration file** contains is:
 When runner_init script is executed, there will be prompts to fill in this information and the configuration file will be created based on the responses, filling in the file with the information listed above.
 
 Example File:
+
 ```toml
-title:
-- pi_test
-env:
-- board: nrf52dk
-- path: {home}/actions-runner/_work/tock/tock/boards/nordic/nrf52dk/
-- harness_id: {Pi ID}
-- communication_protocol: jlink
+title = "pi_test"
+
+[env]
+board = "nrf52dk"
+path = "{home}/actions-runner/_work/tock/tock/boards/nordic/nrf52dk/"
+harness_id = "Pi ID"
+communication_protocol = "jlink"
 ```
 
 **Note:** home and Pi ID would depend on your configuration, where home will be your home directory to start the path, and Pi ID will be your specific Raspberry Pi ID
