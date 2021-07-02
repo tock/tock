@@ -277,10 +277,10 @@ pub enum SyscallReturn {
 
     /// Subscribe success case, returns the previous upcall function
     /// pointer and application data.
-    SubscribeSuccess(*mut (), usize),
+    SubscribeSuccess(*const (), usize),
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
-    SubscribeFailure(ErrorCode, *mut (), usize),
+    SubscribeFailure(ErrorCode, *const (), usize),
 }
 
 impl SyscallReturn {
