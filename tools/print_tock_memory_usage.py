@@ -61,6 +61,7 @@ Options:
   -dn, --depth=n      Group symbols at depth n or greater. E.g.,
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
+  -p, --padding       Print out padding after functions
   -s, --size          Sort symbols by size (normally lexicographic)
   -v, --verbose       Print verbose output (RAM waste and embedded flash data)
   -w, --show-waste    Show where RAM is wasted (due to padding)
@@ -375,6 +376,8 @@ def print_symbol_information():
     print_groups("Function groups (flash)", function_groups)
     print(gaps)
 
+    print_padding_information()
+
 def print_padding_information():
     """Print out all of the function padding/embedded data."""
     if print_padding:
@@ -418,9 +421,9 @@ def compute_padding(symbols):
 
 def parse_options(opts):
     """Parse command line options."""
-    global symbol_depth, verbose, show_waste, sort_by_size
-    valid = 'd:vsw'
-    long_valid = ['depth=', 'verbose', 'show-waste', 'size']
+    global symbol_depth, verbose, show_waste, sort_by_size, print_padding
+    valid = 'd:pvsw'
+    long_valid = ['depth=', 'padding', 'verbose', 'show-waste', 'size']
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
         if opt == '-d' or opt == '--depth':
@@ -506,4 +509,3 @@ if __name__ == "__main__":
     print_section_information()
     print()
     print_symbol_information()
-    print_padding_information()
