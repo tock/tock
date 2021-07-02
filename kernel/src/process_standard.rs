@@ -1283,6 +1283,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         header_length: usize,
         app_version: u16,
         remaining_memory: &'a mut [u8],
+        fault_policy: &'static dyn ProcessFaultPolicy,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
@@ -1479,7 +1480,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Mark this process as unstarted
         process.state = ProcessStateCell::new(process.kernel);
         process.restart_count = Cell::new(0);
-
+        process.fault_policy = fault_policy;
+        
         process.mpu_regions = [
             Cell::new(None),
             Cell::new(None),
