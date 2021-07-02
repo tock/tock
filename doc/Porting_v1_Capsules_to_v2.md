@@ -275,8 +275,16 @@ which is either the passed slice or the swapped out one.
 
 ### The new subscription mechanism
 
-To use upcalls a capsule now provides the number of upcalls as a templated value
-on `Grant`.
+Tock 2.0 introduces a guarantee for the subscribe syscall that for every unique
+subscribe (i.e. `(driver_num, subscribe_num)` tuple), userspace will be returned
+the previously subscribe upcall (or null if this is the first subscription).
+This guarantee means that once an upcall is returned, the kernel will never
+schedule the upcall again (unless it is re-subscribed in the future), and
+userspace can deallocate the upcall function if it so chooses.
+
+Providing this guarantee necessitates changes to the capsule interface for
+declaring and using upcalls. To declare upcalls, a capsule now provides the
+number of upcalls as a templated value on `Grant`.
 
 ```rust
 struct capsule {
