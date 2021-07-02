@@ -67,6 +67,14 @@ $ echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bash_profile
 ```bash
 sudo apt install python-pip3
 ```
+
+**Note:** if python 3 is not installed, follw these commands and go back to step 4.
+
+```bash
+$ sudo apt-get update
+$ sudo apt-get install python3.6 #python version can change
+```
+
 5. Checkout test harness in home directory 
 ```bash
 cd ~; git clone https://github.com/goodoomoodoo/tock-test-harness.git
@@ -177,7 +185,7 @@ What this **configuration file** contains is:
 
 When runner_init script is executed, there will be prompts to fill in this information and the configuration file will be created based on the responses, filling in the file with the information listed above.
 
-**Example File:**
+**Example Configuration File:**
 
 ```toml
 title = "pi_test"
