@@ -48,6 +48,9 @@ kernel_uninitialized = []
 kernel_initialized = []
 kernel_functions = []
 
+# A map of function name -> padding
+padding = {}
+
 def usage(message):
     """Prints out an error message and usage"""
     if message != "":
@@ -371,9 +374,28 @@ def print_symbol_information():
     print_groups("Function groups (flash)", function_groups)
     print(gaps)
 
+def print_padding_information():
+    """Print out all of the function padding/embedded data."""
+    print("\nFunction padding (flash)");
+    for key in sorted(padding.keys()):
+        print("  ", key, padding[key])
+        
+        
 def get_addr(symbol_entry):
     """Helper function for sorting symbols by start address."""
     return symbol_entry[1]
+
+def remove_redundant_symbols(symbols):
+    symbols.sort(key=get_addr)
+    func_count = len(symbols)
+    i = 0
+    while (i < len(symbols)):
+        (_, laddr, _, _) = symbols[i - 1]
+        (_, haddr, _, _) = symbols[i]
+        if haddr == laddr:
+            symbols.pop(i)
+        else:
+           i = i + 1
 
 def compute_padding(symbols):
     """Calculate how much padding is in a list of symbols by comparing their
@@ -389,7 +411,7 @@ def compute_padding(symbols):
         symbols[i - 1] = (esymbol, eaddr, esize, total_size)
         if total_size != esize:
             diff = diff + (total_size - esize)
-
+            padding[esymbol] = (total_size - esize)
     return diff
 
 def parse_options(opts):
@@ -471,6 +493,8 @@ if __name__ == "__main__":
         elif objdump_output_section == "symbol_table":
             process_symbol_line(oline)
 
+    remove_redundant_symbols(kernel_functions)
+    
     padding_init = compute_padding(kernel_initialized)
     padding_uninit = compute_padding(kernel_uninitialized)
     padding_text = compute_padding(kernel_functions)
@@ -478,3 +502,4 @@ if __name__ == "__main__":
     print_section_information()
     print()
     print_symbol_information()
+    print_padding_information()
