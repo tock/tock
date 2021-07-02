@@ -171,7 +171,7 @@ Be sure to change permission to allow execution of the script:
 $ sudo chmod u+x runner_init.py
 ```
 
-**Note:** runner_init.py is not a self executable script shebang was not added to it. To properly run it, use this form of command:
+**Note:** runner_init.py is not a self executable script as shebang was not added to it. To properly run it, use this form of command:
 ```bash
 $ python3 runner_init.py
 ```
