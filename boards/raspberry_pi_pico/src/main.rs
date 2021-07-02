@@ -33,6 +33,8 @@ use rp2040::resets::Peripheral;
 use rp2040::timer::RPTimer;
 mod io;
 
+use rp2040::sysinfo;
+
 mod flash_bootloader;
 
 /// Allocate memory for the stack
@@ -384,6 +386,17 @@ pub unsafe fn main() {
         temperature: temp,
         // monitor arm semihosting enable
     };
+
+    let platform_type = match peripherals.sysinfo.get_platform() {
+        sysinfo::Platform::Asic => "ASIC",
+        sysinfo::Platform::Fpga => "FPGA",
+    };
+
+    debug!(
+        "RP2040 Revision {} {}",
+        peripherals.sysinfo.get_revision(),
+        platform_type
+    );
     debug!("Initialization complete. Enter main loop");
 
     /// These symbols are defined in the linker script.
