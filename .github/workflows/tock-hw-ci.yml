@@ -1,0 +1,37 @@
+# Just a demo
+name: tock-hw-ci
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: [nrf52dk]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: python3 ~/tock-test-harness/lib/main.py -b
+      
+  install:
+    
+    runs-on: [nrf52dk]
+    needs: build
+    steps:
+    - name: Install
+      run: python3 ~/tock-test-harness/lib/main.py -i
+      
+  test:
+    
+    runs-on: [self-hosted]
+    needs: install
+    steps:
+    - name: HW Test
+      run: python3 ~/tock-test-harness/lib/main.py -t
+      
