@@ -31,6 +31,7 @@ OBJDUMP = "llvm-objdump"
 
 verbose = False
 show_waste = False
+print_padding = False
 symbol_depth = 1
 sort_by_size = False # Otherwise lexicographic order
 
@@ -376,9 +377,10 @@ def print_symbol_information():
 
 def print_padding_information():
     """Print out all of the function padding/embedded data."""
-    print("\nFunction padding (flash)");
-    for key in sorted(padding.keys()):
-        print("  ", key, padding[key])
+    if print_padding:
+        print("\nFunction padding (flash)");
+        for key in sorted(padding.keys()):
+            print("  ", key, padding[key])
         
         
 def get_addr(symbol_entry):
@@ -430,6 +432,8 @@ def parse_options(opts):
         elif opt == '-s' or opt == '--size':
             print("sorting by size")
             sort_by_size = True
+        elif opt == '-p' or opt == '--padding':
+            print_padding = True
         else:
             usage("unrecognized option: " + opt)
             return []
