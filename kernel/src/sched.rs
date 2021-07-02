@@ -230,6 +230,27 @@ impl Kernel {
         self.work.get() == 0
     }
 
+    /// Helper function that moves all non-generic portions of process_map_or
+    /// into a non-generic function to reduce code bloat from monomorphization.
+    pub(crate) fn get_process(&self, processid: ProcessId) -> Option<&dyn process::Process> {
+        // We use the index in the `appid` so we can do a direct lookup.
+        // However, we are not guaranteed that the app still exists at that
+        // index in the processes array. To avoid additional overhead, we do the
+        // lookup and check here, rather than calling `.index()`.
+        match self.processes.get(processid.index) {
+            Some(Some(process)) => {
+                // Check that the process stored here matches the identifier
+                // in the `appid`.
+                if process.processid() == processid {
+                    Some(*process)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Run a closure on a specific process if it exists. If the process with a
     /// matching `ProcessId` does not exist at the index specified within the
     /// `ProcessId`, then `default` will be returned.
@@ -244,30 +265,10 @@ impl Kernel {
     where
         F: FnOnce(&dyn process::Process) -> R,
     {
-        // We use the index in the `appid` so we can do a direct lookup.
-        // However, we are not guaranteed that the app still exists at that
-        // index in the processes array. To avoid additional overhead, we do the
-        // lookup and check here, rather than calling `.index()`.
-        let tentative_index = appid.index;
-
-        // Get the process at that index, and if it matches, run the closure
-        // on it.
-        self.processes
-            .get(tentative_index)
-            .map_or(None, |process_entry| {
-                // Check if there is any process state here, or if the entry is
-                // `None`.
-                process_entry.map_or(None, |process| {
-                    // Check that the process stored here matches the identifier
-                    // in the `appid`.
-                    if process.processid() == appid {
-                        Some(closure(process))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .unwrap_or(default)
+        match self.get_process(appid) {
+            Some(process) => closure(process),
+            None => default,
+        }
     }
 
     /// Run a closure on every valid process. This will iterate the array of
