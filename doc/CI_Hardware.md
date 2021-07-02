@@ -181,7 +181,7 @@ What this **configuration file** contains is:
     ```bash
     $ cat /proc/cpuinfo
     ```
-    It is denoted by the tag "Serial" when printed on the terminal. This will be used in the test.config.toml which is kept for each board type to run tests on in the runner and can be set to run on specific RPis with this Harness ID.
+    - It is denoted by the tag "Serial" when printed on the terminal. This will be used in the test.config.toml which is kept for each board type to run tests on in the runner and can be set to run on specific RPis with this Harness ID.
 - Communication Protocol 
     - Used to run tockloader
     - The list of communication protocols are provided, and one chosen must be in the list. 
