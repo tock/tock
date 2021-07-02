@@ -50,7 +50,7 @@ This section explains the software setup needed for this box. These directions a
 **Note:** At this point, you should be on the Raspberry Pi through terminal or a linux subsystem (Ubuntu is a nice subsystem to use here for Windows Operating Systems).
 For example, when you continue onto step 2, you should be working on a system like this (This is on Ubuntu):
 
-![UbuntuExample](/images/ci-hardware/ubuntuexample.png)
+![UbuntuExample](images/ci-hardware/ubuntuexample.png)
 
 2. Install the [Requirements](https://github.com/tock/tock/blob/master/doc/Getting_Started.md#requirements) here.
 3. Download and install JLinkExe
@@ -177,7 +177,7 @@ What this **configuration file** contains is:
 
 When runner_init script is executed, there will be prompts to fill in this information and the configuration file will be created based on the responses, filling in the file with the information listed above.
 
-Example File:
+**Example File:**
 
 ```toml
 title = "pi_test"
@@ -185,11 +185,11 @@ title = "pi_test"
 [env]
 board = "nrf52dk"
 path = "{home}/actions-runner/_work/tock/tock/boards/nordic/nrf52dk/"
-harness_id = "Pi ID"
+harness_id = "{Pi ID}"
 communication_protocol = "jlink"
 ```
 
-**Note:** home and Pi ID would depend on your configuration, where home will be your home directory to start the path, and Pi ID will be your specific Raspberry Pi ID
+**Note:** {home} and {Pi ID} would depend on your configuration, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID
 
 # How Instances Work
 Instances in this case are workflows with Github actions that set runners to complete said actions. This is how testing is conducted in Hardware Continuous Integration. The entire process is taken within the workflow through the yml files, which are another type of configuration file. Currently using the tock-hw-ci.yml as the workflow to run tests, in which we will use as an example throughout this document. (This file is located [here](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
