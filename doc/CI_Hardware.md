@@ -68,7 +68,7 @@ $ echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bash_profile
 sudo apt install python-pip3
 ```
 
-**Note:** if python 3 is not installed, foll0w these commands and go back to step 4.
+**Note:** if python 3 is not installed, follow these commands and go back to step 4.
 
 ```bash
 $ sudo apt-get update
