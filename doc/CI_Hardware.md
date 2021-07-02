@@ -166,6 +166,16 @@ $ ./config.sh remove
 
 ## Creating the Configuration File
 After all is set up, the first step in creating an instance is to run the [runner_init](https://github.com/goodoomoodoo/tock-test-harness/blob/main/runner_init.py) script to create a configuration file for the raspberry pi you just set up.
+Be sure to change permission to allow execution of the script:
+```bash
+$ sudo chmod u+x runner_init.py
+```
+
+**Note:** runner_init.py is not a self executable script shebang was not added to it. To properly run it, use this form of command:
+```bash
+$ python3 runner_init.py
+```
+
 This configuration file will then be used in the workflow of actions for github whenever an update is pushed to be accessed by the runners, which will be denoted as config.toml for simplicity sake here.
 
 What this **configuration file** contains is:
