@@ -15,7 +15,7 @@ register_structs! {
 
         (0x040 => gitref_rp2040: ReadWrite<u32, GITREF_RP2040::Register>),
 
-        (0x440 => @END),
+        (0x044 => @END),
     }
 }
 register_bitfields![u32,
