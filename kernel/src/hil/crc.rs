@@ -7,7 +7,7 @@ use crate::ErrorCode;
 ///
 /// Implement this trait and use [`CRC::set_client`] in order to
 /// receive callbacks from the CRC implementation.
-pub trait CrcClient {
+pub trait Client {
     /// Called when the current data chunk has been processed by the
     /// CRC engine. Further data may be supplied when this callback is
     /// received.
@@ -64,7 +64,7 @@ impl CrcOutput {
 pub trait Crc<'a> {
     /// Set the client to be used for callbacks of the CRC
     /// implementation.
-    fn set_client(&self, client: &'a dyn CrcClient);
+    fn set_client(&self, client: &'a dyn Client);
     /// Check whether a given CRC algorithm is supported by a CRC
     /// implementation.
     ///
@@ -100,16 +100,16 @@ pub trait Crc<'a> {
     /// or calculating a CRC, [`ErrorCode::BUSY`] must be returned.
     ///
     /// After the chunk of data has been processed,
-    /// [`CrcClient::input_done`] is called.
+    /// [`Client::input_done`] is called.
     ///
     /// The implementation may only read a part of the passed
     /// [`LeasableBuffer`]. It will return the bytes read and will
     /// resize the returned [`LeasableBuffer`] appropriately prior to
-    /// passing it back through [`CrcClient::input_done`].
+    /// passing it back through [`Client::input_done`].
     fn input(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)>;
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
 
     /// Request calculation of the CRC.
     ///
@@ -122,7 +122,7 @@ pub trait Crc<'a> {
     /// If the device is currently processing a chunk of data or
     /// calculating a CRC, [`ErrorCode::BUSY`] must be returned.
     ///
-    /// After the CRC has been calculated, [`CrcClient::crc_done`] is
+    /// After the CRC has been calculated, [`Client::crc_done`] is
     /// called.
     fn compute(&self) -> Result<(), ErrorCode>;
 

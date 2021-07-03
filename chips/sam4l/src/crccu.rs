@@ -57,7 +57,7 @@ use kernel::common::registers::{
     register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::{deferred_call::DeferredCall, leasable_buffer::LeasableBuffer, StaticRef};
-use kernel::hil::crc::{Crc, CrcAlgorithm, CrcClient, CrcOutput};
+use kernel::hil::crc::{Crc, CrcAlgorithm, Client, CrcOutput};
 use kernel::ErrorCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
@@ -246,7 +246,7 @@ enum State {
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
     registers: StaticRef<CrccuRegisters>,
-    client: OptionalCell<&'a dyn CrcClient>,
+    client: OptionalCell<&'a dyn Client>,
     state: Cell<State>,
     algorithm: OptionalCell<CrcAlgorithm>,
 
@@ -389,7 +389,7 @@ impl Crccu<'_> {
 // Implement the generic CRC interface with the CRCCU
 impl<'a> Crc<'a> for Crccu<'a> {
     /// Set a client to receive results from the CRCCU
-    fn set_client(&self, client: &'a dyn CrcClient) {
+    fn set_client(&self, client: &'a dyn Client) {
         self.client.set(client);
     }
 
@@ -430,7 +430,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
     fn input(
         &self,
         mut data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)> {
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
         self.init();
 
         let algorithm = if let Some(algorithm) = self.algorithm.extract() {
@@ -505,7 +505,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
         // Enable DMA channel
         self.registers.dmaen.write(DmaEnable::DMAEN::SET);
 
-        Ok(len as usize)
+        Ok(())
     }
 
     fn compute(&self) -> Result<(), ErrorCode> {

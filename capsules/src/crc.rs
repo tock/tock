@@ -10,10 +10,17 @@
 //! ```rust
 //! # use kernel::static_init;
 //!
+//! let crc_buffer = static_init!([u8; 64], [0; 64]);
+//!
 //! let crc = static_init!(
-//!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CrcCU, board_kernel.create_grant(&grant_cap)));
-//! sam4l::crccu::CrcCU.set_client(crc);
+//!     capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
+//!     capsules::crc::CrcDriver::new(
+//!         &mut sam4l::crccu::CRCCU,
+//!         crc_buffer,
+//!         board_kernel.create_grant(&grant_cap)
+//!      )
+//! );
+//! sam4l::crccu::CRCCU.set_client(crc);
 //!
 //! ```
 //!
@@ -67,39 +74,41 @@
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
+use core::cell::Cell;
 use core::mem;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::hil;
-use kernel::hil::crc::{CrcAlgorithm, CrcOutput};
+use kernel::hil::crc::{Crc, CrcAlgorithm, Client, CrcOutput};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
 use kernel::{ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
+pub const DEFAULT_CRC_BUF_LENGTH: usize = 256;
 
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
     callback: Upcall,
     buffer: ReadOnlyAppSlice,
-
     // if Some, the application is awaiting the result of a Crc
     //   using the given algorithm
-    waiting: Option<hil::crc::CrcAlgorithm>,
+    waiting: Option<CrcAlgorithm>,
 }
 
 /// Struct that holds the state of the Crc driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::Crc<'a>> {
-    crc_unit: &'a C,
-    apps: Grant<App>,
-    serving_app: OptionalCell<ProcessId>,
-    input_buffer: &'static LeasableBuffer<'static, u8>,
+pub struct CrcDriver<'a, C: Crc<'a>> {
+    crc: &'a C,
+    crc_buffer: TakeCell<'static, [u8]>,
+    grant: Grant<App>,
+    current_process: OptionalCell<ProcessId>,
+    // We need to save (<how much we've already processed>, <how much we've copied into the LeasableBuffer>)
+    app_buffer_progress: Cell<(usize, usize)>,
 }
 
-impl<'a, C: hil::crc::Crc<'a>> Crc<'a, C> {
+impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
     /// Create a `Crc` driver
     ///
     /// The argument `crc_unit` must implement the abstract `Crc`
@@ -113,55 +122,23 @@ impl<'a, C: hil::crc::Crc<'a>> Crc<'a, C> {
     /// capsules::crc::Crc::new(&sam4l::crccu::CrcCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Grant<App>, input_buffer: &'static LeasableBuffer<'static, u8>) -> Crc<'a, C> {
-        Crc {
-            crc_unit: crc_unit,
-            apps: apps,
-            serving_app: OptionalCell::empty(),
-            input_buffer: input_buffer
+    pub fn new(
+        crc: &'a C,
+        crc_buffer: &'static mut [u8],
+        grant: Grant<App>,
+    ) -> CrcDriver<'a, C> {
+        CrcDriver {
+            crc,
+            crc_buffer: TakeCell::new(crc_buffer),
+            grant,
+            current_process: OptionalCell::empty(),
+            app_buffer_progress: Cell::new((0, 0)),
         }
     }
 
-    fn serve_waiting_apps(&self) -> Result<(), ErrorCode> {
-        if self.serving_app.is_some() {
-            // A computation is in progress: return OK because
-            // we are already serving.
-            return Ok(());
-        }
-
-        // Find a waiting app and start its requested computation
-        let mut found = false;
-        for app in self.apps.iter() {
-            let appid = app.processid();
-            app.enter(|app| {
-                if let Some(alg) = app.waiting {
-                    let result = self.crc_unit.set_algorithm(alg);
-
-//                    let rcode = app
-//                        .buffer
-//                        .map_or(Err(ErrorCode::NOMEM), |buf| self.crc_unit.compute(buf, alg));
-
-                    if result == Ok(()) {
-                        // The unit is now computing a Crc for this app
-                        self.serving_app.set(appid);
-                        found = true;
-                    } else {
-                        // The app's request failed
-                        app.callback.schedule(kernel::into_statuscode(result), 0, 0);
-                        app.waiting = None;
-                    }
-                }
-            });
-            if found {
-                break;
-            }
-        }
-
-        if !found {
-            // Power down the Crc unit until next needed
-            self.crc_unit.disable();
-        }
-        Ok(())
+    fn serve_current_process(&self) -> Result<(), ErrorCode> {
+        let _res = self.crc.compute();
+        unimplemented!()
     }
 }
 
@@ -172,23 +149,23 @@ impl<'a, C: hil::crc::Crc<'a>> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a Crc computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
+impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a Crc computation.
     ///
     fn allow_readonly(
         &self,
-        appid: ProcessId,
+        process_id: ProcessId,
         allow_num: usize,
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
             // Provide user buffer to compute Crc over
             0 => self
-                .apps
-                .enter(appid, |app| {
-                    mem::swap(&mut app.buffer, &mut slice);
+                .grant
+                .enter(process_id, |grant| {
+                    mem::swap(&mut grant.buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
@@ -222,14 +199,14 @@ impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
         &self,
         subscribe_num: usize,
         mut callback: Upcall,
-        app_id: ProcessId,
+        process_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
             // Set callback for Crc result
             0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
+                .grant
+                .enter(process_id, |grant| {
+                    mem::swap(&mut grant.callback, &mut callback);
                 })
                 .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
@@ -304,9 +281,9 @@ impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
     fn command(
         &self,
         command_num: usize,
-        algorithm: usize,
+        algorithm_id: usize,
         _: usize,
-        appid: ProcessId,
+        process_id: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver is present
@@ -314,27 +291,34 @@ impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
 
             // Request a Crc computation
             2 => {
-                let result = if let Some(alg) = alg_from_user_int(algorithm) {
-                    self.apps
-                        .enter(appid, |app| {
-                            if app.waiting.is_some() {
-                                // Each app may make only one request at a time
-                                Err(ErrorCode::BUSY)
-                            } else {
-                                app.waiting = Some(alg);
-                                Ok(())
-                            }
-                        })
-                        .map_err(ErrorCode::from)
+                // Parse the user provided algorithm number
+                let algorithm = if let Some(alg) = alg_from_user_int(algorithm_id) {
+                    alg
                 } else {
-                    Err(ErrorCode::INVAL)
+                    return CommandReturn::failure(ErrorCode::INVAL);
                 };
 
-                if let Err(e) = result {
-                    CommandReturn::failure(e)
+                // Check if there already is an operation in progress
+                if self.current_process.is_some() {
+                    // In that case, mark this process as waiting
+                    self.grant
+                        .enter(process_id, |grant| {
+                            if grant.waiting.is_some() {
+                                // Each app may make only one request at a time
+                                CommandReturn::failure(ErrorCode::BUSY)
+                            } else {
+                                grant.waiting = Some(algorithm);
+                                CommandReturn::success()
+                            }
+                        })
+                        .unwrap_or_else(|e| CommandReturn::failure(ErrorCode::from(e)))
                 } else {
-                    self.serve_waiting_apps();
-                    CommandReturn::success()
+                    // We can start the operation immediately
+                    self.current_process.set(process_id);
+                    self.serve_current_process().map_or_else(
+                        |e| CommandReturn::failure(ErrorCode::into(e)),
+                        |_| CommandReturn::success(),
+                    )
                 }
             }
 
@@ -343,33 +327,74 @@ impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
     }
 }
 
-impl<'a, C: hil::crc::Crc<'a>> hil::crc::Client for Crc<'a, C> {
+impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
+    fn input_done(&self, _result: Result<(), ErrorCode>, mut _buffer: LeasableBuffer<'static, u8>) {
+        // A call to `input` has finished. This can mean that either
+        // we have processed the entire buffer passed in, or it was
+        // truncated by the CRC unit as it was too large. In the first
+        // case, we can see whether there is more outstanding data
+        // from the app, whereas in the latter we need to advance the
+        // LeasableBuffer window and pass it in again.
 
-    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableBuffer<'static, u8>) {
-        self.serving_app.take().map(|appid| {
-            let _ = self
-                .apps
-                .enter(appid, |app| {
-                    app.callback
-                        .schedule(kernel::into_statuscode(result), 0, 0);
-                    app.waiting = None;
-                    Ok(())
-                })
-                .unwrap_or_else(|err| err.into());
-            self.serve_waiting_apps();
-        });
+        unimplemented!()
     }
 
     fn crc_done(&self, result: Result<CrcOutput, ErrorCode>) {
+        // First of all, inform the app about the finished operation /
+        // the result
+        self.current_process.take().map(|process_id| {
+            let _ = self.grant.enter(process_id, |grant| {
+                if let Ok(output) = result {
+                    let (val, user_int) = encode_upcall_crc_output(output);
+                    grant.callback.schedule(
+                        kernel::into_statuscode(Ok(())),
+                        val as usize,
+                        user_int as usize,
+                    );
+                } else {
+                    // TODO: Error handling
+                }
+            });
+        });
 
+        // Now that the CRC is finished, iterate through other apps
+        // which are queued.
+        //
+        // TODO: implement fair queueing
+        for process in self.grant.iter() {
+            let process_id = process.processid();
+            let started = process.enter(|grant| {
+                if grant.waiting.is_some() {
+                    self.current_process.set(process_id);
+                    true
+                } else {
+                    false
+                }
+            });
+            // As soon as we have started an operation for an
+            // additional process, break out of the loop
+            if started {
+                let _res = self.serve_current_process();
+                break;
+            }
+        }
     }
+
 }
 
-fn alg_from_user_int(i: usize) -> Option<hil::crc::CrcAlgorithm> {
+fn alg_from_user_int(i: usize) -> Option<CrcAlgorithm> {
     match i {
         0 => Some(CrcAlgorithm::Crc32),
         1 => Some(CrcAlgorithm::Crc32C),
         2 => Some(CrcAlgorithm::Crc16CCITT),
         _ => None,
+    }
+}
+
+fn encode_upcall_crc_output(output: CrcOutput) -> (u32, u32) {
+    match output {
+        CrcOutput::Crc32(val) => (val, 0),
+        CrcOutput::Crc32C(val) => (val, 1),
+        CrcOutput::Crc16CCITT(val) => ((val as u32) | 0xFFFF0000, 2),
     }
 }
