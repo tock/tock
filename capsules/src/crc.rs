@@ -1,10 +1,10 @@
-//! Provides userspace access to a CRC unit.
+//! Provides userspace access to a Crc unit.
 //!
 //! ## Instantiation
 //!
 //! Instantiate the capsule for use as a system call driver with a hardware
 //! implementation and a `Grant` for the `App` type, and set the result as a
-//! client of the hardware implementation. For example, using the SAM4L's `CRCU`
+//! client of the hardware implementation. For example, using the SAM4L's `CrcU`
 //! driver:
 //!
 //! ```rust
@@ -12,14 +12,14 @@
 //!
 //! let crc = static_init!(
 //!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap)));
-//! sam4l::crccu::CRCCU.set_client(crc);
+//!     capsules::crc::Crc::new(&mut sam4l::crccu::CrcCU, board_kernel.create_grant(&grant_cap)));
+//! sam4l::crccu::CrcCU.set_client(crc);
 //!
 //! ```
 //!
-//! ## CRC Algorithms
+//! ## Crc Algorithms
 //!
-//! The capsule supports two general purpose CRC algorithms, as well as a few
+//! The capsule supports two general purpose Crc algorithms, as well as a few
 //! hardware specific algorithms implemented on the Atmel SAM4L.
 //!
 //! In the values used to identify polynomials below, more-significant bits
@@ -27,26 +27,26 @@
 //! because it always equals one.  All algorithms listed here consume each input
 //! byte from most-significant bit to least-significant.
 //!
-//! ### CRC-32
+//! ### Crc-32
 //!
 //! __Polynomial__: `0x04C11DB7`
 //!
 //! This algorithm is used in Ethernet and many other applications. It bit-
 //! reverses and then bit-inverts the output.
 //!
-//! ### CRC-32C
+//! ### Crc-32C
 //!
 //! __Polynomial__: `0x1EDC6F41`
 //!
 //! Bit-reverses and then bit-inverts the output. It *may* be equivalent to
-//! various CRC functions using the same name.
+//! various Crc functions using the same name.
 //!
 //! ### SAM4L-16
 //!
 //! __Polynomial__: `0x1021`
 //!
 //! This algorithm does no post-processing on the output value. The sixteen-bit
-//! CRC result is placed in the low-order bits of the returned result value, and
+//! Crc result is placed in the low-order bits of the returned result value, and
 //! the high-order bits will all be set.  That is, result values will always be
 //! of the form `0xFFFFxxxx` for this algorithm.  It can be performed purely in
 //! hardware on the SAM4L.
@@ -55,7 +55,7 @@
 //!
 //! __Polynomial__: `0x04C11DB7`
 //!
-//! This algorithm uses the same polynomial as `CRC-32`, but does no post-
+//! This algorithm uses the same polynomial as `Crc-32`, but does no post-
 //! processing on the output value.  It can be perfomed purely in hardware on
 //! the SAM4L.
 //!
@@ -63,16 +63,17 @@
 //!
 //! __Polynomial__: `0x1EDC6F41`
 //!
-//! This algorithm uses the same polynomial as `CRC-32C`, but does no post-
+//! This algorithm uses the same polynomial as `Crc-32C`, but does no post-
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
 use core::mem;
 use kernel::common::cells::OptionalCell;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil;
-use kernel::hil::crc::CrcAlg;
+use kernel::hil::crc::{CrcAlgorithm, CrcOutput};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
-use kernel::{Read, ReadOnlyAppSlice};
+use kernel::{ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -84,23 +85,24 @@ pub struct App {
     callback: Upcall,
     buffer: ReadOnlyAppSlice,
 
-    // if Some, the application is awaiting the result of a CRC
+    // if Some, the application is awaiting the result of a Crc
     //   using the given algorithm
-    waiting: Option<hil::crc::CrcAlg>,
+    waiting: Option<hil::crc::CrcAlgorithm>,
 }
 
-/// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by
+/// Struct that holds the state of the Crc driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::CRC<'a>> {
+pub struct Crc<'a, C: hil::crc::Crc<'a>> {
     crc_unit: &'a C,
     apps: Grant<App>,
     serving_app: OptionalCell<ProcessId>,
+    input_buffer: &'static LeasableBuffer<'static, u8>,
 }
 
-impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
+impl<'a, C: hil::crc::Crc<'a>> Crc<'a, C> {
     /// Create a `Crc` driver
     ///
-    /// The argument `crc_unit` must implement the abstract `CRC`
+    /// The argument `crc_unit` must implement the abstract `Crc`
     /// hardware interface.  The argument `apps` should be an empty
     /// kernel `Grant`, and will be used to track application
     /// requests.
@@ -108,21 +110,23 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
     /// ## Example
     ///
     /// ```rust
-    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap));
+    /// capsules::crc::Crc::new(&sam4l::crccu::CrcCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
+    pub fn new(crc_unit: &'a C, apps: Grant<App>, input_buffer: &'static LeasableBuffer<'static, u8>) -> Crc<'a, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,
             serving_app: OptionalCell::empty(),
+            input_buffer: input_buffer
         }
     }
 
-    fn serve_waiting_apps(&self) {
+    fn serve_waiting_apps(&self) -> Result<(), ErrorCode> {
         if self.serving_app.is_some() {
-            // A computation is in progress
-            return;
+            // A computation is in progress: return OK because
+            // we are already serving.
+            return Ok(());
         }
 
         // Find a waiting app and start its requested computation
@@ -131,17 +135,19 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
             let appid = app.processid();
             app.enter(|app| {
                 if let Some(alg) = app.waiting {
-                    let rcode = app
-                        .buffer
-                        .map_or(Err(ErrorCode::NOMEM), |buf| self.crc_unit.compute(buf, alg));
+                    let result = self.crc_unit.set_algorithm(alg);
 
-                    if rcode == Ok(()) {
-                        // The unit is now computing a CRC for this app
+//                    let rcode = app
+//                        .buffer
+//                        .map_or(Err(ErrorCode::NOMEM), |buf| self.crc_unit.compute(buf, alg));
+
+                    if result == Ok(()) {
+                        // The unit is now computing a Crc for this app
                         self.serving_app.set(appid);
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
+                        app.callback.schedule(kernel::into_statuscode(result), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -152,23 +158,24 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         }
 
         if !found {
-            // Power down the CRC unit until next needed
+            // Power down the Crc unit until next needed
             self.crc_unit.disable();
         }
+        Ok(())
     }
 }
 
-/// Processes can use the CRC system call driver to compute CRC redundancy checks over process
+/// Processes can use the Crc system call driver to compute Crc redundancy checks over process
 /// memory.
 ///
 /// At a high level, the client first provides a callback for the result of computations through
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
-/// Then, it initiates a CRC computation using the `command` system call. See function-specific
+/// Then, it initiates a Crc computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
+impl<'a, C: hil::crc::Crc<'a>> Driver for Crc<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
-    /// to compute a CRC computation.
+    /// to compute a Crc computation.
     ///
     fn allow_readonly(
         &self,
@@ -177,7 +184,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
-            // Provide user buffer to compute CRC over
+            // Provide user buffer to compute Crc over
             0 => self
                 .apps
                 .enter(appid, |app| {
@@ -195,7 +202,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
 
     /// The `subscribe` syscall supports the single `subscribe_number`
     /// zero, which is used to provide a callback that will receive the
-    /// result of a CRC computation.  The signature of the callback is
+    /// result of a Crc computation.  The signature of the callback is
     ///
     /// ```
     ///
@@ -209,7 +216,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///     busy. The status `SIZE` indicates the provided buffer is
     ///     too large for the unit to handle.
     ///
-    ///   * `result` is the result of the CRC computation when `status == BUSY`.
+    ///   * `result` is the result of the Crc computation when `status == BUSY`.
     ///
     fn subscribe(
         &self,
@@ -218,7 +225,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         app_id: ProcessId,
     ) -> Result<Upcall, (Upcall, ErrorCode)> {
         let res = match subscribe_num {
-            // Set callback for CRC result
+            // Set callback for Crc result
             0 => self
                 .apps
                 .enter(app_id, |app| {
@@ -236,17 +243,17 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     }
 
     /// The command system call for this driver return meta-data about the driver and kicks off
-    /// CRC computations returned through callbacks.
+    /// Crc computations returned through callbacks.
     ///
     /// ### Command Numbers
     ///
     ///   *   `0`: Returns non-zero to indicate the driver is present.
     ///
-    ///   *   `2`: Requests that a CRC be computed over the buffer
+    ///   *   `2`: Requests that a Crc be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
     ///       this command will return `INVAL`.
     ///
-    ///       This command's driver-specific argument indicates what CRC
+    ///       This command's driver-specific argument indicates what Crc
     ///       algorithm to perform, as listed below.  If an invalid
     ///       algorithm specifier is provided, this command will return
     ///       `INVAL`.
@@ -259,40 +266,40 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     ///       receive the result, this command will return `BUSY`.
     ///
     ///       When `Ok(())` is returned, this means the request has been
-    ///       queued and the callback will be invoked when the CRC
+    ///       queued and the callback will be invoked when the Crc
     ///       computation is complete.
     ///
     /// ### Algorithm
     ///
-    /// The CRC algorithms supported by this driver are listed below.  In
+    /// The Crc algorithms supported by this driver are listed below.  In
     /// the values used to identify polynomials, more-significant bits
     /// correspond to higher-order terms, and the most significant bit is
     /// omitted because it always equals one.  All algorithms listed here
     /// consume each input byte from most-significant bit to
     /// least-significant.
     ///
-    ///   * `0: CRC-32`  This algorithm is used in Ethernet and many other
+    ///   * `0: Crc-32`  This algorithm is used in Ethernet and many other
     ///   applications.  It uses polynomial 0x04C11DB7 and it bit-reverses
     ///   and then bit-inverts the output.
     ///
-    ///   * `1: CRC-32C`  This algorithm uses polynomial 0x1EDC6F41 (due
+    ///   * `1: Crc-32C`  This algorithm uses polynomial 0x1EDC6F41 (due
     ///   to Castagnoli) and it bit-reverses and then bit-inverts the
-    ///   output.  It *may* be equivalent to various CRC functions using
+    ///   output.  It *may* be equivalent to various Crc functions using
     ///   the same name.
     ///
     ///   * `2: SAM4L-16`  This algorithm uses polynomial 0x1021 and does
-    ///   no post-processing on the output value. The sixteen-bit CRC
+    ///   no post-processing on the output value. The sixteen-bit Crc
     ///   result is placed in the low-order bits of the returned result
     ///   value, and the high-order bits will all be set.  That is, result
     ///   values will always be of the form `0xFFFFxxxx` for this
     ///   algorithm.  It can be performed purely in hardware on the SAM4L.
     ///
     ///   * `3: SAM4L-32`  This algorithm uses the same polynomial as
-    ///   `CRC-32`, but does no post-processing on the output value.  It
+    ///   `Crc-32`, but does no post-processing on the output value.  It
     ///   can be perfomed purely in hardware on the SAM4L.
     ///
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
-    ///   `CRC-32C`, but does no post-processing on the output value.  It
+    ///   `Crc-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
     fn command(
         &self,
@@ -305,7 +312,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // This driver is present
             0 => CommandReturn::success(),
 
-            // Request a CRC computation
+            // Request a Crc computation
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
                     self.apps
@@ -336,14 +343,15 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
     }
 }
 
-impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
-    fn receive_result(&self, result: u32) {
+impl<'a, C: hil::crc::Crc<'a>> hil::crc::Client for Crc<'a, C> {
+
+    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableBuffer<'static, u8>) {
         self.serving_app.take().map(|appid| {
             let _ = self
                 .apps
                 .enter(appid, |app| {
                     app.callback
-                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
+                        .schedule(kernel::into_statuscode(result), 0, 0);
                     app.waiting = None;
                     Ok(())
                 })
@@ -351,15 +359,17 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
             self.serve_waiting_apps();
         });
     }
+
+    fn crc_done(&self, result: Result<CrcOutput, ErrorCode>) {
+
+    }
 }
 
-fn alg_from_user_int(i: usize) -> Option<hil::crc::CrcAlg> {
+fn alg_from_user_int(i: usize) -> Option<hil::crc::CrcAlgorithm> {
     match i {
-        0 => Some(CrcAlg::Crc32),
-        1 => Some(CrcAlg::Crc32C),
-        2 => Some(CrcAlg::Sam4L16),
-        3 => Some(CrcAlg::Sam4L32),
-        4 => Some(CrcAlg::Sam4L32C),
+        0 => Some(CrcAlgorithm::Crc32),
+        1 => Some(CrcAlgorithm::Crc32C),
+        2 => Some(CrcAlgorithm::Crc16CCITT),
         _ => None,
     }
 }
