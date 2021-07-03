@@ -98,12 +98,12 @@
 //! the underlying memory      │ .enter(fn)              │
 //! where the T is stored.     ▼                         │
 //!                         ┌──────────────────────────┐ │
-//! GrantMemory wraps the   │ struct GrantMemory<T> {  │◄┘
+//! GrantData wraps the     │ struct GrantData<T>   {  │◄┘
 //! type and provides       │   data: &mut T           │
 //! mutable access.         │ }                        │
 //!                         └──┬───────────────────────┘
 //! The actual object T can    │
-//! only be accessed inside    │ fn(mem: &GrantMemory)
+//! only be accessed inside    │ fn(mem: &GrantData)
 //! the closure.               ▼
 //! ```
 
@@ -115,39 +115,39 @@ use core::ptr::{write, NonNull};
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
 
-/// This GrantMemory object provides access to the memory allocated for a grant
+/// This GrantData object provides access to the memory allocated for a grant
 /// for a specific process.
 ///
-/// The GrantMemory type is templated on T, the actual type of the object in the
-/// grant. GrantMemory holds a mutable reference to the type, allowing users
+/// The GrantData type is templated on T, the actual type of the object in the
+/// grant. GrantData holds a mutable reference to the type, allowing users
 /// access to the object in process memory.
 ///
-/// Capsules gain access to a GrantMemory object by calling `Grant::enter()`.
-pub struct GrantMemory<'a, T: 'a + ?Sized> {
+/// Capsules gain access to a GrantData object by calling `Grant::enter()`.
+pub struct GrantData<'a, T: 'a + ?Sized> {
     /// The mutable reference to the actual object type stored in the grant.
     data: &'a mut T,
 }
 
-impl<'a, T: 'a + ?Sized> GrantMemory<'a, T> {
-    /// Create a `GrantMemory` object to provide access to the actual object
+impl<'a, T: 'a + ?Sized> GrantData<'a, T> {
+    /// Create a `GrantData` object to provide access to the actual object
     /// allocated for a process.
     ///
-    /// Only one can GrantMemory per underlying object can be created at a time.
+    /// Only one can GrantData per underlying object can be created at a time.
     /// Otherwise, there would be multiple mutable references to the same object
     /// which is undefined behavior.
-    fn new(data: &'a mut T) -> GrantMemory<'a, T> {
-        GrantMemory { data: data }
+    fn new(data: &'a mut T) -> GrantData<'a, T> {
+        GrantData { data: data }
     }
 }
 
-impl<'a, T: 'a + ?Sized> Deref for GrantMemory<'a, T> {
+impl<'a, T: 'a + ?Sized> Deref for GrantData<'a, T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.data
     }
 }
 
-impl<'a, T: 'a + ?Sized> DerefMut for GrantMemory<'a, T> {
+impl<'a, T: 'a + ?Sized> DerefMut for GrantData<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data
     }
@@ -202,9 +202,9 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         //            ├────────────────────────────────────
         //            │   Process Control Block
         // 0x003FFE0  ├────────────────────────────────────  Grant Region ┐
-        //            │   GrantMemoryN                                    │
+        //            │   GrantDataN                                      │
         // 0x003FFC8  ├────────────────────────────────────               │
-        //            │   GrantMemory1                                    ▼
+        //            │   GrantData1                                      ▼
         // 0x003FFC0  ├────────────────────────────────────
         //            │
         //            │   --unallocated--
@@ -318,7 +318,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantData<T>) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -382,7 +382,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// `Some(fun())`.
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantData<T>) -> R,
     {
         self.access_grant(fun, false)
     }
@@ -399,7 +399,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &mut GrantRegionAllocator) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -417,7 +417,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantData<T>) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -511,10 +511,10 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         let grant = unsafe { &mut *(grant_ptr as *mut T) };
 
         // Create a wrapped object that is passed to the capsule.
-        let mut grant_memory = GrantMemory::new(grant);
+        let mut grant_data = GrantData::new(grant);
 
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_memory);
+        let res = fun(&mut grant_data);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -532,7 +532,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &mut GrantRegionAllocator) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -582,7 +582,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         let grant = unsafe { &mut *(grant_ptr as *mut T) };
 
         // Create a wrapped object that is passed to the capsule.
-        let mut grant_memory = GrantMemory::new(grant);
+        let mut grant_data = GrantData::new(grant);
 
         // Setup an allocator in case the capsule needs additional memory in the
         // grant space.
@@ -591,7 +591,7 @@ impl<'a, T: Default> ProcessGrant<'a, T> {
         };
 
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_memory, &mut allocator);
+        let res = fun(&mut grant_data, &mut allocator);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -648,7 +648,7 @@ impl<T> CustomGrant<T> {
     /// reentrance detection we use for non-custom grants is not needed here.
     pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(GrantMemory<'_, T>) -> R,
+        F: FnOnce(GrantData<'_, T>) -> R,
     {
         // Verify that the process this CustomGrant was allocated within still
         // exists.
@@ -670,7 +670,7 @@ impl<T> CustomGrant<T> {
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
                 let custom_grant = unsafe { &mut *(grant_ptr as *mut T) };
-                let borrowed = GrantMemory::new(custom_grant);
+                let borrowed = GrantData::new(custom_grant);
                 Ok(fun(borrowed))
             })
     }
@@ -832,7 +832,7 @@ impl<T: Default> Grant<T> {
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>) -> R,
+        F: FnOnce(&mut GrantData<T>) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -862,7 +862,7 @@ impl<T: Default> Grant<T> {
     /// memory in the process's grant region.
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &mut GrantRegionAllocator) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -892,7 +892,7 @@ impl<T: Default> Grant<T> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(ProcessId, &mut GrantMemory<T>),
+        F: Fn(ProcessId, &mut GrantData<T>),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
