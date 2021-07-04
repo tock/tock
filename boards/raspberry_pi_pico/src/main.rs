@@ -382,7 +382,6 @@ pub unsafe fn main() {
         console: console,
         adc: adc_syscall,
         temperature: temp,
-        // monitor arm semihosting enable
     };
     debug!("Initialization complete. Enter main loop");
 
