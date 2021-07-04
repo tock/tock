@@ -384,7 +384,6 @@ pub unsafe fn main() {
         console: console,
         adc: adc_syscall,
         temperature: temp,
-        // monitor arm semihosting enable
     };
 
     let platform_type = match peripherals.sysinfo.get_platform() {
