@@ -975,6 +975,19 @@ impl Kernel {
                                 // grant.
                                 platform.with_driver(driver_number, |driver| match driver {
                                     Some(d) => {
+                                        // We just want the number of grants
+                                        // if the process is not active, 0 is just a placeholder
+                                        // as we will have nothing to compare it to
+                                        //
+                                        // If `tracy_syscalls` is set to `false`, 
+                                        // hopefuly the compiler will optimize it out
+                                        let allocated_grants_count = if config::CONFIG.trace_syscalls {
+                                            process.grant_allocated_count().unwrap_or(0)
+                                        }
+                                        else
+                                        {
+                                            0
+                                        };
                                         if d.allocate_grant(process.processid()).is_err() {
                                             // If the capsule errors on allocation
                                             // we assume it is because the grant
@@ -995,6 +1008,17 @@ impl Kernel {
                                                     old_upcall.into_subscribe_success()
                                                 }
                                                 Err((new_upcall, err)) => {
+                                                    if config::CONFIG.trace_syscalls {
+                                                        if let Some(currently_allocated_grants_count) = process.grant_allocated_count() {
+                                                            if currently_allocated_grants_count > allocated_grants_count {
+                                                                debug! ("[{:?}] error driver {} allocated wrong grant for upcalls", process.processid(), driver_number);
+                                                            }
+                                                            else
+                                                            {
+                                                                debug! ("[{:?}] warn driver {} did not allocate grant for upcalls", process.processid(), driver_number);
+                                                            }
+                                                        }
+                                                    }
                                                     new_upcall.into_subscribe_failure(err)
                                                 }
                                             }
