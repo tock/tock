@@ -306,7 +306,13 @@ impl SyscallReturn {
             SyscallReturn::AllowReadWriteSuccess(_, _) => true,
             SyscallReturn::AllowReadOnlySuccess(_, _) => true,
             SyscallReturn::SubscribeSuccess(_, _) => true,
-            _ => false,
+            SyscallReturn::Failure(_) => false,
+            SyscallReturn::FailureU32(_, _) => false,
+            SyscallReturn::FailureU32U32(_, _, _) => false,
+            SyscallReturn::FailureU64(_, _) => false,
+            SyscallReturn::AllowReadWriteFailure(_, _, _) => false,
+            SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
+            SyscallReturn::SubscribeFailure(_, _, _) => false,
         }
     }
 
