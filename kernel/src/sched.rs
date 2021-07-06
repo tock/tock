@@ -1009,7 +1009,12 @@ impl Kernel {
                                                 Ok(old_upcall) => {
                                                     old_upcall.into_subscribe_success()
                                                 }
-                                                Err((new_upcall, err)) => {
+                                                Err((new_upcall, ErrorCode::NOMEM)) => {
+                                                    // Special case the handling of ErrorCode::NOMEM,
+                                                    // as it indicates a missing Grant allocation.
+                                                    // Depending on the kernel configuration, we
+                                                    // inform the user about the root cause of this
+                                                    // issue.
                                                     if config::CONFIG.trace_syscalls {
                                                         // It appears the Grant is still not allocated.
                                                         // Based on whether the number of allocated
@@ -1032,6 +1037,13 @@ impl Kernel {
                                                                 }
                                                             }
                                                     }
+                                                    new_upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                                                }
+                                                Err((new_upcall, err)) => {
+                                                    // Handler for all errors other than
+                                                    // ErrorCode::NOMEM, for example when
+                                                    // the subscribe number exceeds the
+                                                    // number of Upcalls in the Grant region.
                                                     new_upcall.into_subscribe_failure(err)
                                                 }
                                             }
