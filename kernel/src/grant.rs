@@ -664,7 +664,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -729,7 +729,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// `Some(fun())`.
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable) -> R,
     {
         self.access_grant(fun, false)
     }
@@ -747,7 +747,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -765,7 +765,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -920,7 +920,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -1258,7 +1258,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -1288,7 +1288,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// memory in the process's grant region.
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantMemory<T>, &mut GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantMemory<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
     {
         // Verify that this process actually exists.
         processid
@@ -1318,7 +1318,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(ProcessId, &mut GrantMemory<T>, &mut GrantUpcallTable),
+        F: Fn(ProcessId, &mut GrantMemory<T>, &GrantUpcallTable),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
