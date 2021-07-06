@@ -876,9 +876,8 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // entered once at a time so this is the only mutable reference to this
         // slice, and the slice has valid SavedUpcalls which are guaranteed to
         // be initialized.
-        let saved_upcalls_slice = unsafe {
-            slice::from_raw_parts_mut(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS)
-        };
+        let saved_upcalls_slice =
+            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS) };
 
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
@@ -978,9 +977,8 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // entered once at a time so this is the only mutable reference to this
         // slice, and the slice has valid SavedUpcalls which are guaranteed to
         // be initialized.
-        let saved_upcalls_slice = unsafe {
-            slice::from_raw_parts_mut(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS)
-        };
+        let saved_upcalls_slice =
+            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS) };
 
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
