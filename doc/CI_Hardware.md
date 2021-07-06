@@ -60,8 +60,9 @@ $ tar xvf JLink_Linux_arm64.tgz
 $ sudo cp JLink_Linux_V700a_arm64/99-jlink.rules /etc/udev/rules.d/ # Depends on JLink version
  
 # Add the Jlink directory to the path in .profile or .bashrc
-# Example command below (not exact command)
-$ echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bash_profile
+# Example command below (XXX = version number)
+# For example, with our commands above, XXX = 700a
+$ echo 'export PATH=$HOME/JLink_Linux_VXXX_arm64:$PATH' >> ~/.profile
 ```
 4. Install pip3, if not yet installed
 ```bash
@@ -109,6 +110,22 @@ $ cd ~/tock-test-harness; pip3 install -r requirements.txt
 ```bash
 $ echo "JLINK_PATH_WHATEVER_IT_IS" > ~/actions-runner/.path
 ```
+
+11. Configure the harness
+    * Go to tock test harness directory
+    ```bash
+    $ cd ~/tock-test-harness
+    ```
+    * Run configuration wizard, which will create config.toml in this directory. For more information, go to [Creating the configuration File](#creating-the-configuration-file)
+    * If script doesn't properly create "_work" directory in your "actions-runner" directory, create the directory.
+    ```bash
+    $ mkdir ~/actions-runner/_work
+    ```
+    * Then copy official Tock directory onto your Raspberry Pi in this directory or your forked version of the Tock Repository. 
+    ```bash
+    $ cd ~/actions-runner/_work
+    $ git clone  https://github.com/tock/tock.git # Depends on user needs
+    ```
 
 ## Troubleshoot
 ### To run on your local-host (instead of Github)
@@ -183,9 +200,9 @@ What this **configuration file** contains is:
     - Name of the configuration. 
     - This can be anything you want but make sure to title it appropriately.
 - Board name
-    - This will be provided when the executable is called on what boards are supported. Choose which board you are using that is supported. You can NOT use a board that is not supported by the Tock OS. 
+    - This will be provided when the executable is called on what boards are supported. Choose which board you are using that is supported. You can NOT use a board that is not supported by the Tock OS, or else testing scripts will **NOT** work. For example, to use the specific nrf52480dk board, make sure the path is to this board, but the board name should be listed as "nrf52dk".
 - Board Path
-    - This is the path of the Tock supported board in the official tock repository. The path must be provided when setting up the configuration. This is essentially the directory relative to the Tock boards directory. 
+    - This is the path of the Tock supported board in the official tock repository. The path must be provided when setting up the configuration. This is essentially the directory relative to the Tock boards directory, and should be the speicifc board you are intending to test/use. 
 - Harness ID
     - This is the specific Identity Number of the Raspberry Pi, which can be found with the command:
     ```bash
