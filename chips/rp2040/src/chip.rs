@@ -10,6 +10,7 @@ use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
 use crate::resets::Resets;
+use crate::sysinfo;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::watchdog::Watchdog;
@@ -131,6 +132,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub pins: RPPins<'a>,
     pub uart0: Uart<'a>,
     pub adc: adc::Adc,
+    pub sysinfo: sysinfo::SysInfo,
 }
 
 impl Rp2040DefaultPeripherals<'_> {
@@ -145,6 +147,7 @@ impl Rp2040DefaultPeripherals<'_> {
             pins: RPPins::new(),
             uart0: Uart::new_uart0(),
             adc: adc::Adc::new(),
+            sysinfo: sysinfo::SysInfo::new(),
         }
     }
 }

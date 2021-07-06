@@ -1,6 +1,6 @@
 [package]
 name = "tock-registers"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 description = "Memory-Mapped I/O and register interface developed for Tock."
 homepage = "https://www.tockos.org/"
@@ -15,4 +15,14 @@ edition = "2018"
 travis-ci = { repository = "tock/tock", branch = "master" }
 
 [features]
-no_std_unit_tests = []
+default = [ "register_types", "std_unit_tests" ]
+
+# Include actual register types (except LocalRegisterCopy). Disabling
+# the feature makes this an interface-only library and removes all
+# usage of unsafe code
+register_types = []
+
+# Feature flag to enable generation of unit tests for the
+# registers. Enabling this may break compilation in
+# `custom-test-frameworks` environments.
+std_unit_tests = []

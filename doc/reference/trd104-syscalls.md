@@ -109,7 +109,7 @@ registers to userspace as arguments and has no return value.
 | Upcall Return Values   | None    | None   |
 
 How registers are mapped to arguments can affect performance and code size.
-For system calls implemented by capsules and drivers (`command`, `subcribe`,
+For system calls implemented by capsules and drivers (`command`, `subscribe`,
 and `allow`), arguments that are passed to these calls should be placed
 in the same registers that will be used to invoke those calls. This allows
 the system call handlers in the kernel to pass them unchanged, rather than
@@ -179,7 +179,7 @@ variant also fits well with Rust's `Result` type.
 If userspace tries to invoke a system call that the kernel does not
 support, the system call will return a Failure result with an error 
 code of `NODEVICE` or `NOSUPPORT` (Section 4). As the Allow and
-Subsribe system call classes have defined Failure types, the kernel can
+Subscribe system call classes have defined Failure types, the kernel can
 produce the expected type with known failure variants. Command, however,
 can return any variant. This means that Commands can appear to have
 two failure variants: the one expected (e.g., Failure with u32) as well 
@@ -338,7 +338,7 @@ The yield identifier specifies which call is invoked.
 
 
 All other yield identifier values are reserved. If an invalid
-yield indentifier is passed the kernel MUST return immediately.
+yield identifier is passed the kernel MUST return immediately.
 
 The no wait field is only used by `yield-no-wait`. It contains the
 memory address of an 8-bit byte that `yield-no-wait` writes to
@@ -356,7 +356,7 @@ return value of the upcall. This is why the no wait field exists,
 so that `yield-no-wait` can return a result to the caller. Allowing
 the kernel to pass a return value in register back to userspace
 would require either re-entering the kernel or expensive
-execution architectures (e.g., additonal stacks or additional
+execution architectures (e.g., additional stacks or additional
 stack frames) for upcalls.
 
 4.2 Subscribe (Class ID: 1)
@@ -421,7 +421,7 @@ Invoking the new upcall on the previous events will be
 incorrect.
 
 If userspace requires that it not lose any upcalls, it should
-not re-subcribe and instead use some form of userspace dispatch.
+not re-subscribe and instead use some form of userspace dispatch.
 
 The return variants for Subscribe system calls are `Failure with 2 u32`
 and `Success with 2 u32`. For success, the first `u32` is the upcall
@@ -549,7 +549,7 @@ support multiple allowed buffers.
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's writeable address space. Every byte of a passed
 buffer must be readable and writeable by the process. Zero-length
-buffers may therefore have abitrary addresses. If the passed buffer is
+buffers may therefore have arbitrary addresses. If the passed buffer is
 not complete within the calling process's writeable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
 
@@ -687,7 +687,7 @@ RAM so it can be passed with a Read-Write Allow.
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's readable address space. Every byte of the passed
 buffer must be readable by the process. Zero-length buffers may
-therefore have abitrary addresses. If the passed buffer is not
+therefore have arbitrary addresses. If the passed buffer is not
 complete within the calling process's readable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
 
@@ -720,7 +720,7 @@ are 12:
 | 6               | Get lowest address (end) of the grant region            | Success with u32 |
 | 7               | Get number of writeable flash regions in process header | Success with u32 |
 | 8               | Get start address of a writeable flash region           | Success with u32 |
-| 9               | Get end adddress of a writeable flash region            | Success with u32 |
+| 9               | Get end address of a writeable flash region             | Success with u32 |
 | 10              | Set the start of the process stack                      | Success          |
 | 11              | Set the start of the process heap                       | Success          |
 

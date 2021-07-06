@@ -15,4 +15,4 @@ edition = "2018"
 travis-ci = { repository = "tock/tock", branch = "master" }
 
 [dependencies]
-tock-registers = { path = "../tock-register-interface" }
+tock-registers = { path = "../tock-register-interface", default-features = false }

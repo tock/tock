@@ -7,7 +7,7 @@ The [Adafruit CLUE - nRF52840 Express with Bluetooth LE](https://www.adafruit.co
 board based on the Nordic nRF52840 SoC. It includes the
 following sensors:
 
-- 9 axis inertial LSM6DS33 + LIS3MDL sensor 
+- 9 axis inertial LSM6DS33 + LIS3MDL sensor
 - humidity and temperature sensor
 - barometric sensor
 - microphone
@@ -17,7 +17,7 @@ It has the same form factor with BBC:Microbit
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 You will need Adafruit's nrfutil bootloader tool:
 

@@ -8,7 +8,7 @@ board developed by the Raspberry Pi Foundation and is based on the RP2040 chip.
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
@@ -75,4 +75,3 @@ $ make program
 ```
 
 This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](#flash-the-tock-kernel).
-
