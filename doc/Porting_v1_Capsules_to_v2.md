@@ -107,7 +107,7 @@ Scheduling an upcall is now done with a provided object from entering a grant.
 The fourth thing to note is the new `allocate_grant()` method. This allows the
 kernel to request that a capsule enters its grant region so that it is allocated
 for the specific process. This should be implemented with a roughly boilerplate
-implementation.
+implementation [described below](#the-new-subscription-mechanism).
 
 Porting Capsules and Example Code
 -------------------
@@ -306,8 +306,8 @@ fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Erro
 }
 ```
 
-Finally to schedule an upcall any calls to `app.upcall.schedule()` with code
-like:
+Finally to schedule an upcall any calls to `app.upcall.schedule()` should be
+replaced with code like:
 
 ```rust
 self.apps.enter(appid, |app, upcalls| {

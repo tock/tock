@@ -928,11 +928,12 @@ impl Kernel {
                     subscribe_num: subdriver_number,
                 };
 
-                // First check if `upcall_ptr` is null. A null upcall pointer
-                // represents the special "unsubscribe" operation.
+                // First check if `upcall_ptr` is null. A null `upcall_ptr` will
+                // result in `None` here and represents the special
+                // "unsubscribe" operation.
                 let ptr = NonNull::new(upcall_ptr);
 
-                // For convenience create a `Upcall` type now. This is just a
+                // For convenience create an `Upcall` type now. This is just a
                 // data structure and doesn't do any checking or conversion.
                 let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
 

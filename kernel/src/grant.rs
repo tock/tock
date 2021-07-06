@@ -91,7 +91,8 @@
 //! ```text,ignore
 //!                         ┌──────────────────────────┐
 //!                         │ struct Grant<T, NUM_UP> {│
-//!                         │   number: usize          │
+//!                         │   driver_num: usize      │
+//!                         │   grant_num: usize       │
 //!                         │ }                        ├─┐
 //! Entering a Grant for a  └──┬───────────────────────┘ │
 //! process causes the         │                         │
@@ -547,7 +548,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                 //    as the process does. The grant is only accessible while
                 //    the process is still valid.
                 //
-                // 2. The pointer is correct aligned because we calculated the
+                // 2. The pointer is correctly aligned because we calculated the
                 //    alignment before calling `allocate_grant()` which ensures
                 //    the pointer is correctly aligned.
                 unsafe {
@@ -569,7 +570,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                         //
                         // This is safe because we have allocated enough space
                         // for `NUM_UPCALLS` and that each SavedUpcall is at
-                        // least aligned to 4 bytes.
+                        // least aligned to `usize` bytes.
                         let ptr_upcall = unsafe { ptr_first_upcall.as_ptr().add(i) };
                         // # Safety
                         //
