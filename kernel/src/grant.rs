@@ -898,11 +898,11 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         let mut grant_data = GrantData::new(grant);
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
-        let mut upcall_memory =
+        let upcall_memory =
             GrantUpcallTable::new(saved_upcalls_slice, self.driver_num, self.process);
 
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_data, &mut upcall_memory);
+        let res = fun(&mut grant_data, &upcall_memory);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
@@ -1006,11 +1006,11 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
 
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
-        let mut upcall_memory =
+        let upcall_memory =
             GrantUpcallTable::new(saved_upcalls_slice, self.driver_num, self.process);
 
         // Allow the capsule to access the grant.
-        let res = fun(&mut grant_data, &mut upcall_memory, &mut allocator);
+        let res = fun(&mut grant_data, &upcall_memory, &mut allocator);
 
         // Now that the capsule has finished we need to "release" the grant.
         // This will mark it as no longer entered and allow the grant to be used
