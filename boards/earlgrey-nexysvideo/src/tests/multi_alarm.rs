@@ -11,6 +11,8 @@
 //! that alarms whose expiration was in the past due to the
 //! latency of software work correctly.
 
+use crate::tests::run_kernel_op;
+use crate::ALARM;
 use capsules::test::random_alarm::TestRandomAlarm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use earlgrey::timer::RvTimer;
@@ -18,13 +20,30 @@ use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
-pub unsafe fn run_multi_alarm(mux: &'static MuxAlarm<'static, RvTimer<'static>>) {
-    debug!("Starting multi alarm test.");
-    let tests: [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>; 3] =
-        static_init_multi_alarm_test(mux);
-    tests[0].run();
-    tests[1].run();
-    tests[2].run();
+static mut TESTS: Option<
+    [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>; 3],
+> = None;
+
+#[test_case]
+pub fn run_multi_alarm() {
+    debug!("start multi alarm test...");
+    unsafe {
+        TESTS = Some(static_init_multi_alarm_test(ALARM.unwrap()));
+        TESTS.unwrap()[0].run();
+        TESTS.unwrap()[1].run();
+        TESTS.unwrap()[2].run();
+    }
+
+    run_kernel_op(10000);
+
+    unsafe {
+        assert!(TESTS.unwrap()[0].counter.get() > 15);
+        assert!(TESTS.unwrap()[1].counter.get() > 40);
+        assert!(TESTS.unwrap()[2].counter.get() > 80);
+    }
+
+    debug!("    [ok]");
+    run_kernel_op(100);
 }
 
 unsafe fn static_init_multi_alarm_test(

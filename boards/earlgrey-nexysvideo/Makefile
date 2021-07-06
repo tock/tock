@@ -39,6 +39,19 @@ flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash $(FLASHID) --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 
 test:
+ifneq ($(OPENTITAN_TREE),)
+	$(error "Running on QEMU, use test-hardware to run on hardware")
+endif
+	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release
+
+test-hardware:
+ifeq ($(OPENTITAN_TREE),)
+	$(error "Please ensure that OPENTITAN_TREE is set")
+endif
+	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
+	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
+	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release --features=hardware_tests

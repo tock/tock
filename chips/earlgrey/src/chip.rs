@@ -279,10 +279,12 @@ fn handle_exception(exception: mcause::Exception) {
     match exception {
         mcause::Exception::UserEnvCall | mcause::Exception::SupervisorEnvCall => (),
 
+        // Breakpoints occur from the tests running on hardware
+        mcause::Exception::Breakpoint => loop {},
+
         mcause::Exception::InstructionMisaligned
         | mcause::Exception::InstructionFault
         | mcause::Exception::IllegalInstruction
-        | mcause::Exception::Breakpoint
         | mcause::Exception::LoadMisaligned
         | mcause::Exception::LoadFault
         | mcause::Exception::StoreMisaligned
