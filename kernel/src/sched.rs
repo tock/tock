@@ -975,22 +975,21 @@ impl Kernel {
                                 // grant.
                                 platform.with_driver(driver_number, |driver| match driver {
                                     Some(d) => {
-                                        // For debugging purposes, query the number of allocated
-                                        // grants of the process. This can be used to determine
-                                        // whether the driver has allocated its Grant region
-                                        // correctly as requested. If the process is not active,
-                                        // we use 0 as a default value. This should never happen
-                                        // on a subscribe system call.
-                                        //
-                                        // If `trace_syscalls` is set to `false`,
-                                        // hopefuly the compiler will optimize it out
+                                        // For debugging purposes, query the
+                                        // number of allocated grants of the
+                                        // process. This can be used to
+                                        // determine whether the driver has
+                                        // allocated its Grant region correctly
+                                        // as requested. If the process is not
+                                        // active, we use 0 as a default value.
+                                        // This should never happen on a
+                                        // subscribe system call.
                                         let allocated_grants_count = if config::CONFIG.trace_syscalls {
                                             process.grant_allocated_count().unwrap_or(0)
-                                        }
-                                        else
-                                        {
+                                        } else {
                                             0
                                         };
+
                                         if d.allocate_grant(process.processid()).is_err() {
                                             // If the capsule errors on allocation
                                             // we assume it is because the grant
@@ -1030,9 +1029,7 @@ impl Kernel {
                                                                 {
                                                                     debug!("[{:?}] ERROR driver {} allocated wrong grant for upcalls",
                                                                            process.processid(), driver_number);
-                                                                }
-                                                                else
-                                                                {
+                                                                } else {
                                                                     debug!("[{:?}] WARN driver {} did not allocate grant for upcalls",
                                                                            process.processid(), driver_number);
                                                                 }
