@@ -474,81 +474,75 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
                     // Now we can calculate the entire size of the grant.
                     let alloc_size = upcalls_size + upcalls_padding + grant_t_size;
 
-                    let (ptr_upcall_count, optional_ptr_first_upcall, raw_ptr_grant_nn) = processid
-                        .kernel
-                        .process_map_or(Err(Error::NoSuchApp), processid, |process| {
-                            process
-                                .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
-                                .map_or(Err(Error::OutOfMemory), |buf| {
-                                    // Number of upcalls.
-                                    let ptr_upcall_count = NonNull::cast::<usize>(buf);
+                    let (ptr_upcall_count, optional_ptr_first_upcall, raw_ptr_grant_nn) = process
+                        .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
+                        .map_or(Err(Error::OutOfMemory), |buf| {
+                            // Number of upcalls.
+                            let ptr_upcall_count = NonNull::cast::<usize>(buf);
 
-                                    // Upcall array.
+                            // Upcall array.
 
-                                    // Only create the pointer to the first upcall
-                                    // if we actually have memory for the
-                                    // SavedUpcall to exist.
-                                    let optional_ptr_first_upcall = if num_upcalls > 0 {
-                                        // # Safety
-                                        //
-                                        // It is safe to construct a *u8 pointer to
-                                        // the start of the upcalls array because we
-                                        // ensured that the memory is both valid and
-                                        // aligned by performing the allocation.
-                                        let raw_ptr_upcalls =
-                                            unsafe { buf.as_ptr().add(size_of::<usize>()) };
-                                        // # Safety
-                                        //
-                                        // We know that `raw_ptr_upcalls` is not
-                                        // null because it exists within a
-                                        // successful grant allocation.
-                                        let raw_ptr_upcalls_nn =
-                                            unsafe { NonNull::new_unchecked(raw_ptr_upcalls) };
-                                        // We only construct a pointer to the first
-                                        // SavedUpcall in the array because the
-                                        // memory is not initialized yet. Also we
-                                        // know that there will be at least one
-                                        // SavedUpcall in the array. We do not
-                                        // create a slice because the memory is not
-                                        // initialized.
-                                        let ptr_first_upcall =
-                                            NonNull::cast::<SavedUpcall>(raw_ptr_upcalls_nn);
+                            // Only create the pointer to the first upcall if we
+                            // actually have memory for the SavedUpcall to
+                            // exist.
+                            let optional_ptr_first_upcall = if num_upcalls > 0 {
+                                // # Safety
+                                //
+                                // It is safe to construct a *u8 pointer to the
+                                // start of the upcalls array because we ensured
+                                // that the memory is both valid and aligned by
+                                // performing the allocation.
+                                let raw_ptr_upcalls =
+                                    unsafe { buf.as_ptr().add(size_of::<usize>()) };
+                                // # Safety
+                                //
+                                // We know that `raw_ptr_upcalls` is not null
+                                // because it exists within a successful grant
+                                // allocation.
+                                let raw_ptr_upcalls_nn =
+                                    unsafe { NonNull::new_unchecked(raw_ptr_upcalls) };
+                                // We only construct a pointer to the first
+                                // SavedUpcall in the array because the memory
+                                // is not initialized yet. Also we know that
+                                // there will be at least one SavedUpcall in the
+                                // array. We do not create a slice because the
+                                // memory is not initialized.
+                                let ptr_first_upcall =
+                                    NonNull::cast::<SavedUpcall>(raw_ptr_upcalls_nn);
 
-                                        Some(ptr_first_upcall)
-                                    } else {
-                                        None
-                                    };
+                                Some(ptr_first_upcall)
+                            } else {
+                                None
+                            };
 
-                                    // Get raw pointer to grant type T so that only remaining
-                                    // step in outer (generic) function it to cast the pointer
-                                    // to a pointer to T and initialize it if needed.
+                            // Get raw pointer to grant type T so that only
+                            // remaining step in outer (generic) function it to
+                            // cast the pointer to a pointer to T and initialize
+                            // it if needed.
 
-                                    // # Safety
-                                    //
-                                    // This is safe because we ensure that this
-                                    // pointer remains in valid memory because of
-                                    // the allocation we just completed.
-                                    let raw_ptr_grant = unsafe {
-                                        buf.as_ptr().add(
-                                            size_of::<usize>()
-                                                + upcalls_padding
-                                                + (num_upcalls * size_of::<SavedUpcall>()),
-                                        )
-                                    };
-                                    // # Safety
-                                    //
-                                    // We know that `raw_ptr_grant` is not null
-                                    // because it exists within a successful grant
-                                    // allocation.
-                                    let raw_ptr_grant_nn =
-                                        unsafe { NonNull::new_unchecked(raw_ptr_grant) };
+                            // # Safety
+                            //
+                            // This is safe because we ensure that this pointer
+                            // remains in valid memory because of the allocation
+                            // we just completed.
+                            let raw_ptr_grant = unsafe {
+                                buf.as_ptr().add(
+                                    size_of::<usize>()
+                                        + upcalls_padding
+                                        + (num_upcalls * size_of::<SavedUpcall>()),
+                                )
+                            };
+                            // # Safety
+                            //
+                            // We know that `raw_ptr_grant` is not null because
+                            // it exists within a successful grant allocation.
+                            let raw_ptr_grant_nn = unsafe { NonNull::new_unchecked(raw_ptr_grant) };
 
-                                    Ok((
-                                        ptr_upcall_count,
-                                        optional_ptr_first_upcall,
-                                        raw_ptr_grant_nn,
-                                    ))
-                                })
+                            Ok((
+                                ptr_upcall_count,
+                                optional_ptr_first_upcall,
+                                raw_ptr_grant_nn,
+                            ))
                         })?;
 
                     // Initialize the grant allocation and its various fields.
