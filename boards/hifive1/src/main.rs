@@ -29,6 +29,7 @@ pub mod io;
 mod multi_alarm_test;
 
 pub const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -175,7 +176,7 @@ pub unsafe fn main() {
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_cap)
+            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -197,11 +198,21 @@ pub unsafe fn main() {
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+    let lldb = components::lldb::LowLevelDebugComponent::new(
+        board_kernel,
+        capsules::low_level_debug::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     // Need two debug!() calls to actually test with QEMU. QEMU seems to have
     // a much larger UART TX buffer (or it transmits faster).
@@ -252,7 +263,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &hifive1,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         scheduler,
         &main_loop_cap,
     );

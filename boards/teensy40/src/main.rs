@@ -22,6 +22,7 @@ use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 /// Actual process memory
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
@@ -34,7 +35,7 @@ struct Teensy40 {
     led:
         &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
@@ -224,7 +225,12 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Setup the console
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
@@ -239,8 +245,12 @@ pub unsafe fn main() {
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -250,7 +260,11 @@ pub unsafe fn main() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
-    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+    let ipc = kernel::ipc::IPC::new(
+        board_kernel,
+        kernel::ipc::DRIVER_NUM,
+        &memory_allocation_capability,
+    );
 
     //
     // Platform

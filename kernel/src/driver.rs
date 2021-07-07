@@ -74,7 +74,6 @@ use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
-use crate::upcall::Upcall;
 use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified
@@ -164,7 +163,7 @@ impl From<process::Error> for CommandReturn {
     }
 }
 
-/// Trait for capsules implemeting peripheral driver system calls
+/// Trait for capsules implementing peripheral driver system calls
 /// specified in TRD104. The kernel translates the values passed from
 /// userspace into Rust types and includes which process is making the
 /// call. All of these system calls perform very little synchronous work;
@@ -174,24 +173,12 @@ impl From<process::Error> for CommandReturn {
 /// The exact instances of each of these methods (which identifiers are valid
 /// and what they represents) are specific to the peripheral system call
 /// driver.
+///
+/// Note about subscribe: upcall subscriptions are handled entirely by the core
+/// kernel, and therefore there is no subscribe function for capsules to
+/// implement.
 #[allow(unused_variables)]
 pub trait Driver {
-    /// System call for a process to provide an upcall function pointer to
-    /// the kernel. Peripheral system call driver capsules invoke
-    /// upcalls to indicate events have occurred. These events are typically triggered
-    /// in response to `command` calls. For example, a command that sets a timer to
-    /// fire in the future will cause an upcall to invoke after the command returns, when
-    /// the timer expires, while a command to sample a sensor will cause an upcall to
-    /// invoke when the sensor value is ready.
-    fn subscribe(
-        &self,
-        subscribe_identifier: usize,
-        upcall: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        Err((upcall, ErrorCode::NOSUPPORT))
-    }
-
     /// System call for a process to perform a short synchronous operation
     /// or start a long-running split-phase operation (whose completion
     /// is signaled with an upcall). Command 0 is a reserved command to
@@ -228,4 +215,95 @@ pub trait Driver {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
+
+    /// Request to allocate a capsule's grant for a specific process.
+    ///
+    /// The core kernel uses this function to instruct a capsule to ensure its
+    /// grant (if it has one) is allocated for a specific process. The core
+    /// kernel needs the capsule to initiate the allocation because only the
+    /// capsule knows the type T (and therefore the size of T) that will be
+    /// stored in the grant.
+    ///
+    /// The typical implementation will look like:
+    /// ```rust, ignore
+    /// fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    ///    self.apps.enter(processid, |_, _| {})
+    /// }
+    /// ```
+    ///
+    /// No default implementation is provided to help prevent accidentally
+    /// forgetting to implement this function.
+    ///
+    /// If a capsule fails to successfully implement this function, subscribe
+    /// calls from userspace for the Driver may fail.
+    //
+    // The inclusion of this function originates from the method for ensuring
+    // correct upcall swapping semantics in the kernel starting with Tock 2.0.
+    // To ensure upcalls are always swapped correctly all upcall handling is
+    // done in the core kernel. Capsules only have access to a handle which
+    // permits them to schedule upcalls, but capsules no longer manage upcalls.
+    //
+    // The core kernel stores upcalls in the process's grant region along with
+    // the capsule's grant object. A simultaneous Tock 2.0 change requires that
+    // capsules wishing to use upcalls must also use grants. Storing upcalls in
+    // the grant requires that the grant be allocated for that capsule in that
+    // process. This presents a challenge as grants are dynamically allocated
+    // only when actually used by a process. If a subscribe syscall happens
+    // first, before the capsule has allocated the grant, the kernel has no way
+    // to store the upcall. The kernel cannot allocate the grant itself because
+    // it does not know the type T the capsule will use for the grant (or more
+    // specifically the kernel does not know the size of T to use for the memory
+    // allocation).
+    //
+    // There are a few ideas on how to handle this case where the kernel must
+    // store an upcall before the capsule has allocated the grant.
+    //
+    // 1. The kernel could allocate space for the grant type T, but not actually
+    //    initialize it, based only on the size of T. However, this would
+    //    require the kernel to keep track of the size of T for each grant, and
+    //    there is no convenient place to store that information.
+    //
+    // 2. The kernel could store upcalls and grant types separately in the grant
+    //    region.
+    //
+    //    a. One approach is to store upcalls completely dynamically. That is,
+    //       whenever a new subscribe_num is used for a particular driver the
+    //       core kernel allocates new memory from the grant region to store it.
+    //       This would work, but would have high memory and runtime overhead to
+    //       manage all of the dynamic upcall stores.
+    //    b. To reduce the tracking overhead, all upcalls for a particular
+    //       driver could be stored together as one allocation. This would only
+    //       cost one additional pointer per grant to point to the upcall array.
+    //       However, the kernel does not know how many upcalls a particular
+    //       driver needs, and there is no convenient place for it to store that
+    //       information.
+    //
+    // 3. The kernel could allocate a fixed region for all upcalls across all
+    //    drivers in the grant region. When each grant is created it could tell
+    //    the kernel how many upcalls it will use and the kernel could easily
+    //    keep track of the total. Then, when a process's memory is allocated
+    //    the kernel would reserve rooom for that many upcalls. There are two
+    //    issues, however. The kernel would not know how many upcalls each
+    //    driver individually requires, so it would not be able to index into
+    //    this array properly to store each upcall. Second, the upcall array
+    //    memory would be statically allocated, and would be wasted for drivers
+    //    the process never uses.
+    //
+    //    A version of this approach would assume a maximum limit of a certain
+    //    number of upcalls per driver. This would address the indexing
+    //    challenge, but would still have the memory overhead problem. It would
+    //    also limit capsule flexibility by capping the number of upcalls any
+    //    capsule could ever use.
+    //
+    // 4. The kernel could have some mechanism to ask a capsule to allocate its
+    //    grant, and since the capsule knows the size of T and the number of
+    //    upcalls it uses the grant type and upcall storage could be allocated
+    //    together.
+    //
+    // Based on the available options, the Tock developers decided go with
+    // option 4 and add the `allocate_grant` method to the `Driver` trait. This
+    // mechanism may find more uses in the future if the kernel needs to store
+    // additional state on a per-driver basis and therefore needs a mechanism to
+    // force a grant allocation.
+    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
 }

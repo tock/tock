@@ -14,7 +14,7 @@ pub const DRIVER_NUM: usize = 0x8;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
-    grant: Grant<AppData>,
+    grant: Grant<AppData, 0>,
     // grant_failed is set to true when LowLevelDebug fails to allocate an app's
     // grant region. When it has a chance, LowLevelDebug will print a message
     // indicating a grant initialization has failed, then set this back to
@@ -29,7 +29,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     pub fn new(
         buffer: &'static mut [u8],
         uart: &'u U,
-        grant: Grant<AppData>,
+        grant: Grant<AppData, 0>,
     ) -> LowLevelDebug<'u, U> {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),
@@ -56,6 +56,10 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
             _ => return CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
         CommandReturn::success()
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grant.enter(processid, |_, _| {})
     }
 }
 
@@ -84,7 +88,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 
         for process_grant in self.grant.iter() {
             let appid = process_grant.processid();
-            let (app_num, first_entry) = process_grant.enter(|owned_app_data| {
+            let (app_num, first_entry) = process_grant.enter(|owned_app_data, _| {
                 owned_app_data.queue.rotate_left(1);
                 (appid.id(), owned_app_data.queue[QUEUE_SIZE - 1].take())
             });
@@ -114,7 +118,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
             return;
         }
 
-        let result = self.grant.enter(appid, |borrow| {
+        let result = self.grant.enter(appid, |borrow, _| {
             for queue_entry in &mut borrow.queue {
                 if queue_entry.is_none() {
                     *queue_entry = Some(entry);

@@ -19,12 +19,21 @@ use kernel::static_init;
 
 pub struct UsbComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
     usb: &'static Usb<'static>,
 }
 
 impl UsbComponent {
-    pub fn new(usb: &'static Usb, board_kernel: &'static kernel::Kernel) -> Self {
-        Self { usb, board_kernel }
+    pub fn new(
+        usb: &'static Usb,
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> Self {
+        Self {
+            usb,
+            board_kernel,
+            driver_num,
+        }
     }
 }
 
@@ -55,7 +64,7 @@ impl Component for UsbComponent {
             >,
             capsules::usb::usb_user::UsbSyscallDriver::new(
                 usb_client,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
 

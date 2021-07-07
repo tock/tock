@@ -54,9 +54,8 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
-use core::mem;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -64,21 +63,20 @@ pub const DRIVER_NUM: usize = driver::NUM::SoundPressure as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     subscribed: bool,
     enable: bool,
 }
 
 pub struct SoundPressureSensor<'a> {
     driver: &'a dyn hil::sensors::SoundPressure<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     busy: Cell<bool>,
 }
 
 impl<'a> SoundPressureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::SoundPressure<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> SoundPressureSensor<'a> {
         SoundPressureSensor {
             driver: driver,
@@ -89,7 +87,7 @@ impl<'a> SoundPressureSensor<'a> {
 
     fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -109,7 +107,7 @@ impl<'a> SoundPressureSensor<'a> {
     fn enable(&self) {
         let mut enable = false;
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, _| {
                 if app.enable {
                     enable = true;
                 }
@@ -126,12 +124,12 @@ impl<'a> SoundPressureSensor<'a> {
 impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     fn callback(&self, ret: Result<(), ErrorCode>, sound_val: u8) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app| {
+            cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
                     if ret == Ok(()) {
-                        app.callback.schedule(sound_val.into(), 0, 0);
+                        upcalls.schedule_upcall(0, sound_val.into(), 0, 0);
                     }
                 }
             });
@@ -140,31 +138,6 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
 }
 
 impl Driver for SoundPressureSensor<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // subscribe to sound_pressure reading with callback
-            0 => {
-                let res = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                if let Err(e) = res {
-                    Err((callback, e))
-                } else {
-                    Ok(callback)
-                }
-            }
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
-
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
@@ -177,7 +150,7 @@ impl Driver for SoundPressureSensor<'_> {
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.enable = true;
                         CommandReturn::success()
                     })
@@ -194,7 +167,7 @@ impl Driver for SoundPressureSensor<'_> {
             3 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.enable = false;
                         CommandReturn::success()
                     })
@@ -208,5 +181,9 @@ impl Driver for SoundPressureSensor<'_> {
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

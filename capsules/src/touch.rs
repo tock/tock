@@ -16,9 +16,7 @@ use core::mem;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice, Upcall,
-};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -34,9 +32,6 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    touch_callback: Upcall,
-    gesture_callback: Upcall,
-    multi_touch_callback: Upcall,
     events_buffer: ReadWriteAppSlice,
     ack: bool,
     dropped_events: usize,
@@ -50,9 +45,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            touch_callback: Upcall::default(),
-            gesture_callback: Upcall::default(),
-            multi_touch_callback: Upcall::default(),
             events_buffer: ReadWriteAppSlice::default(),
             ack: true,
             dropped_events: 0,
@@ -74,7 +66,7 @@ pub struct Touch<'a> {
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
     screen: Option<&'a dyn hil::screen::Screen>,
-    apps: Grant<App>,
+    apps: Grant<App, 3>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
 
@@ -83,7 +75,7 @@ impl<'a> Touch<'a> {
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen>,
-        grant: Grant<App>,
+        grant: Grant<App, 3>,
     ) -> Touch<'a> {
         Touch {
             touch: touch,
@@ -101,7 +93,7 @@ impl<'a> Touch<'a> {
     fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app| if app.touch_enable { true } else { false }) {
+            if app.enter(|app, _| if app.touch_enable { true } else { false }) {
                 enabled = true;
                 break;
             }
@@ -118,7 +110,7 @@ impl<'a> Touch<'a> {
     fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app| if app.multi_touch_enable { true } else { false }) {
+            if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {
                 enabled = true;
                 break;
             }
@@ -170,7 +162,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
         //     event.status, event.x, event.y, event.size, event.pressure
         // );
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, upcalls| {
                 let event_status = touch_status_to_number(&event.status);
                 if app.x != event.x || app.y != event.y || app.status != event_status {
                     app.x = event.x;
@@ -184,7 +176,8 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                         Some(size) => size as usize,
                         None => 0,
                     };
-                    app.touch_callback.schedule(
+                    upcalls.schedule_upcall(
+                        0,
                         event_status,
                         (event.x as usize) << 16 | event.y as usize,
                         pressure_size,
@@ -204,7 +197,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
         };
         // debug!("{} touch(es)", len);
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, upcalls| {
                 if app.ack {
                     app.dropped_events = 0;
 
@@ -252,7 +245,8 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                     let dropped_events = app.dropped_events;
                     if num > 0 {
                         app.ack = false;
-                        app.multi_touch_callback.schedule(
+                        upcalls.schedule_upcall(
+                            2,
                             num,
                             dropped_events,
                             if num < len { len - num } else { 0 },
@@ -272,7 +266,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
         // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|_app, upcalls| {
                 let gesture_id = match event {
                     GestureEvent::SwipeUp => 1,
                     GestureEvent::SwipeDown => 2,
@@ -281,7 +275,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
                     GestureEvent::ZoomIn => 5,
                     GestureEvent::ZoomOut => 6,
                 };
-                app.gesture_callback.schedule(gesture_id, 0, 0);
+                upcalls.schedule_upcall(1, gesture_id, 0, 0);
             });
         }
     }
@@ -306,7 +300,7 @@ impl<'a> Driver for Touch<'a> {
                 if self.multi_touch.is_some() {
                     let res = self
                         .apps
-                        .enter(appid, |app| {
+                        .enter(appid, |app, _| {
                             mem::swap(&mut app.events_buffer, &mut slice);
                         })
                         .map_err(ErrorCode::from);
@@ -319,62 +313,6 @@ impl<'a> Driver for Touch<'a> {
                 }
             }
             _ => Err((slice, ErrorCode::NOSUPPORT)),
-        }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // subscribe to touch
-            0 => {
-                let r = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.touch_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                let _ = self.touch_enable();
-                r
-            }
-
-            // subscribe to gestures
-            1 => {
-                let r = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.gesture_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                let _ = self.touch_enable();
-                r
-            }
-
-            // subscribe to multi touch
-            2 => {
-                if self.multi_touch.is_some() {
-                    let r = self
-                        .apps
-                        .enter(app_id, |app| {
-                            mem::swap(&mut app.multi_touch_callback, &mut callback);
-                        })
-                        .map_err(ErrorCode::from);
-                    let _ = self.multi_touch_enable();
-                    r
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
         }
     }
 
@@ -395,7 +333,7 @@ impl<'a> Driver for Touch<'a> {
             // touch enable
             1 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.touch_enable = true;
                     })
                     .unwrap_or(());
@@ -406,7 +344,7 @@ impl<'a> Driver for Touch<'a> {
             // touch disable
             2 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.touch_enable = false;
                     })
                     .unwrap_or(());
@@ -417,7 +355,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch ack
             10 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.ack = true;
                     })
                     .unwrap_or(());
@@ -427,7 +365,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch enable
             11 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.multi_touch_enable = true;
                     })
                     .unwrap_or(());
@@ -438,7 +376,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch disable
             12 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.multi_touch_enable = false;
                     })
                     .unwrap_or(());
@@ -462,5 +400,9 @@ impl<'a> Driver for Touch<'a> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

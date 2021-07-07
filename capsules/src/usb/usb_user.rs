@@ -26,23 +26,21 @@
 //!         usb_client, board_kernel.create_grant(&grant_cap)));
 //! ```
 
-use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     awaiting: Option<Request>,
 }
 
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client<'a>> {
     usbc_client: &'a C,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     serving_app: OptionalCell<ProcessId>,
 }
 
@@ -50,7 +48,7 @@ impl<'a, C> UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {
-    pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
+    pub fn new(usbc_client: &'a C, apps: Grant<App, 1>) -> Self {
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,
@@ -67,7 +65,7 @@ where
         // Find a waiting app and start its requested computation
         let mut found = false;
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, upcalls| {
                 if let Some(request) = app.awaiting {
                     found = true;
                     match request {
@@ -77,7 +75,7 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            app.callback.schedule(kernel::into_statuscode(Ok(())), 0, 0);
+                            upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), 0, 0);
                             app.awaiting = None;
                         }
                     }
@@ -103,30 +101,6 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // Set callback for result
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -142,7 +116,7 @@ where
             1 => {
                 let result = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
                             Err(ErrorCode::BUSY)
@@ -164,5 +138,9 @@ where
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

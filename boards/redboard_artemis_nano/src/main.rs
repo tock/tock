@@ -29,6 +29,7 @@ mod multi_alarm_test;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
@@ -143,7 +144,12 @@ pub unsafe fn main() {
     .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -160,6 +166,7 @@ pub unsafe fn main() {
     // These are also ADC channels, but let's expose them as GPIOs
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
             0 => &&peripherals.gpio_port[13],  // A0
@@ -177,8 +184,12 @@ pub unsafe fn main() {
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
         components::alarm_mux_component_helper!(apollo3::stimer::STimer),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
 
     // Init the I2C device attached via Qwiic
     let i2c_master = static_init!(
@@ -186,7 +197,7 @@ pub unsafe fn main() {
         capsules::i2c_master::I2CMasterDriver::new(
             &peripherals.iom2,
             &mut capsules::i2c_master::BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
+            board_kernel.create_grant(capsules::i2c_master::DRIVER_NUM, &memory_allocation_cap)
         )
     );
 
@@ -202,7 +213,13 @@ pub unsafe fn main() {
     &peripherals.ble.power_up();
     &peripherals.ble.ble_initialise();
 
-    let ble_radio = ble::BLEComponent::new(board_kernel, &peripherals.ble, mux_alarm).finalize(());
+    let ble_radio = ble::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM,
+        &peripherals.ble,
+        mux_alarm,
+    )
+    .finalize(());
 
     mcu_ctrl.print_chip_revision();
 
@@ -264,7 +281,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         artemis_nano,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         scheduler,
         &main_loop_cap,
     );

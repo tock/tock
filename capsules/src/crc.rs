@@ -71,7 +71,7 @@ use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
@@ -81,7 +81,6 @@ pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     buffer: ReadOnlyAppSlice,
 
     // if Some, the application is awaiting the result of a CRC
@@ -93,7 +92,7 @@ pub struct App {
 /// processes through the system call interface.
 pub struct Crc<'a, C: hil::crc::CRC<'a>> {
     crc_unit: &'a C,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     serving_app: OptionalCell<ProcessId>,
 }
 
@@ -111,7 +110,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
     /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
+    pub fn new(crc_unit: &'a C, apps: Grant<App, 1>) -> Crc<'a, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,
@@ -129,7 +128,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
         let mut found = false;
         for app in self.apps.iter() {
             let appid = app.processid();
-            app.enter(|app| {
+            app.enter(|app, upcalls| {
                 if let Some(alg) = app.waiting {
                     let rcode = app
                         .buffer
@@ -141,7 +140,7 @@ impl<'a, C: hil::crc::CRC<'a>> Crc<'a, C> {
                         found = true;
                     } else {
                         // The app's request failed
-                        app.callback.schedule(kernel::into_statuscode(rcode), 0, 0);
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(rcode), 0, 0);
                         app.waiting = None;
                     }
                 }
@@ -180,7 +179,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             // Provide user buffer to compute CRC over
             0 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut app.buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -193,47 +192,23 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
         }
     }
 
-    /// The `subscribe` syscall supports the single `subscribe_number`
-    /// zero, which is used to provide a callback that will receive the
-    /// result of a CRC computation.  The signature of the callback is
-    ///
-    /// ```
-    ///
-    /// fn callback(status: Result<(), i2c::Error>, result: usize) {}
-    /// ```
-    ///
-    /// where
-    ///
-    ///   * `status` is indicates whether the computation
-    ///     succeeded. The status `BUSY` indicates the unit is already
-    ///     busy. The status `SIZE` indicates the provided buffer is
-    ///     too large for the unit to handle.
-    ///
-    ///   * `result` is the result of the CRC computation when `status == BUSY`.
-    ///
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // Set callback for CRC result
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+    // The `subscribe` syscall supports the single `subscribe_number`
+    // zero, which is used to provide a callback that will receive the
+    // result of a CRC computation.  The signature of the callback is
+    //
+    // ```
+    //
+    // fn callback(status: Result<(), i2c::Error>, result: usize) {}
+    // ```
+    //
+    // where
+    //
+    //   * `status` is indicates whether the computation
+    //     succeeded. The status `BUSY` indicates the unit is already
+    //     busy. The status `SIZE` indicates the provided buffer is
+    //     too large for the unit to handle.
+    //
+    //   * `result` is the result of the CRC computation when `status == BUSY`.
 
     /// The command system call for this driver return meta-data about the driver and kicks off
     /// CRC computations returned through callbacks.
@@ -309,7 +284,7 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
                     self.apps
-                        .enter(appid, |app| {
+                        .enter(appid, |app, _| {
                             if app.waiting.is_some() {
                                 // Each app may make only one request at a time
                                 Err(ErrorCode::BUSY)
@@ -334,6 +309,10 @@ impl<'a, C: hil::crc::CRC<'a>> Driver for Crc<'a, C> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
@@ -341,9 +320,8 @@ impl<'a, C: hil::crc::CRC<'a>> hil::crc::Client for Crc<'a, C> {
         self.serving_app.take().map(|appid| {
             let _ = self
                 .apps
-                .enter(appid, |app| {
-                    app.callback
-                        .schedule(kernel::into_statuscode(Ok(())), result as usize, 0);
+                .enter(appid, |app, upcalls| {
+                    upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), result as usize, 0);
                     app.waiting = None;
                     Ok(())
                 })

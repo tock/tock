@@ -16,7 +16,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -74,7 +74,6 @@ fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
 }
 
 pub struct App {
-    callback: Upcall,
     pending_command: bool,
     shared: ReadOnlyAppSlice,
     write_position: usize,
@@ -91,7 +90,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Upcall::default(),
             pending_command: false,
             shared: ReadOnlyAppSlice::default(),
             command: ScreenCommand::Nop,
@@ -110,7 +108,7 @@ impl Default for App {
 pub struct Screen<'a> {
     screen: &'a dyn hil::screen::Screen,
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     screen_ready: Cell<bool>,
     current_app: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
@@ -122,7 +120,7 @@ impl<'a> Screen<'a> {
         screen: &'a dyn hil::screen::Screen,
         screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
         buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> Screen<'a> {
         Screen {
             screen: screen,
@@ -147,7 +145,7 @@ impl<'a> Screen<'a> {
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if self.screen_ready.get() && self.current_app.is_none() {
                     self.current_app.set(appid);
                     app.command = command;
@@ -285,7 +283,7 @@ impl<'a> Screen<'a> {
             ScreenCommand::Fill => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         // if it is larger than 0, we know it fits
                         // the size has been verified by subscribe
                         if app.shared.len() > 0 {
@@ -319,7 +317,7 @@ impl<'a> Screen<'a> {
             }
             ScreenCommand::Write => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     let len = if app.shared.len() < data1 {
                         app.shared.len()
                     } else {
@@ -345,7 +343,7 @@ impl<'a> Screen<'a> {
                 .unwrap_or_else(|err| err.into()),
             ScreenCommand::SetWriteFrame => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     app.write_position = 0;
                     app.x = (data1 >> 16) & 0xFFFF;
                     app.y = data1 & 0xFFFF;
@@ -364,9 +362,9 @@ impl<'a> Screen<'a> {
             self.screen_ready.set(true);
         } else {
             self.current_app.take().map(|appid| {
-                let _ = self.apps.enter(appid, |app| {
+                let _ = self.apps.enter(appid, |app, upcalls| {
                     app.pending_command = false;
-                    app.callback.schedule(data1, data2, data3);
+                    upcalls.schedule_upcall(0, data1, data2, data3);
                 });
             });
         }
@@ -374,7 +372,7 @@ impl<'a> Screen<'a> {
         // Check if there are any pending events.
         for app in self.apps.iter() {
             let appid = app.processid();
-            let started_command = app.enter(|app| {
+            let started_command = app.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(appid);
@@ -398,7 +396,7 @@ impl<'a> Screen<'a> {
             || 0,
             |appid| {
                 self.apps
-                    .enter(*appid, |app| {
+                    .enter(*appid, |app, _| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {
@@ -500,28 +498,6 @@ impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
 }
 
 impl<'a> Driver for Screen<'a> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -591,7 +567,7 @@ impl<'a> Driver for Screen<'a> {
             0 => {
                 let res = self
                     .apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         let depth =
                             pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
                         let len = slice.len();
@@ -612,5 +588,9 @@ impl<'a> Driver for Screen<'a> {
             }
             _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

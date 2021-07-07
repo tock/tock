@@ -103,11 +103,10 @@
 //!
 
 use core::cell::Cell;
-use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -176,9 +175,7 @@ enum L3gd20Status {
 // }
 
 #[derive(Default)]
-pub struct App {
-    upcall: Upcall,
-}
+pub struct App {}
 
 pub struct L3gd20Spi<'a> {
     spi: &'a dyn spi::SpiMasterDevice,
@@ -190,7 +187,7 @@ pub struct L3gd20Spi<'a> {
     hpf_divider: Cell<u8>,
     scale: Cell<u8>,
     current_process: OptionalCell<ProcessId>,
-    grants: Grant<App>,
+    grants: Grant<App, 1>,
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
 }
@@ -200,7 +197,7 @@ impl<'a> L3gd20Spi<'a> {
         spi: &'a dyn spi::SpiMasterDevice,
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
         rxbuffer: &'static mut [u8; L3GD20_RX_SIZE],
-        grants: Grant<App>,
+        grants: Grant<App, 1>,
     ) -> L3gd20Spi<'a> {
         // setup and return struct
         L3gd20Spi {
@@ -315,7 +312,7 @@ impl Driver for L3gd20Spi<'_> {
 
         let match_or_empty_or_nonexistent = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
 
@@ -398,29 +395,8 @@ impl Driver for L3gd20Spi<'_> {
         }
     }
 
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut upcall: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |app| {
-                match subscribe_num {
-                    0 /* set the one shot callback */ => {
-                        mem::swap(&mut app.upcall, &mut upcall);
-                        Ok(())
-                    }
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(upcall),
-            Err(e) => Err((upcall, e)),
-        }
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
     }
 }
 
@@ -432,7 +408,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         len: usize,
     ) {
         self.current_process.map(|proc_id| {
-            let _result = self.grants.enter(*proc_id, |app| {
+            let _result = self.grants.enter(*proc_id, |_app, upcalls| {
                 self.status.set(match self.status.get() {
                     L3gd20Status::IsPresent => {
                         let present = if let Some(ref buf) = read_buffer {
@@ -444,7 +420,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                         } else {
                             false
                         };
-                        app.upcall.schedule(1, if present { 1 } else { 0 }, 0);
+                        upcalls.schedule_upcall(0, 1, if present { 1 } else { 0 }, 0);
                         L3gd20Status::Idle
                     }
 
@@ -491,9 +467,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         if values {
-                            app.upcall.schedule(x, y, z);
+                            upcalls.schedule_upcall(0, x, y, z);
                         } else {
-                            app.upcall.schedule(0, 0, 0);
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         }
                         L3gd20Status::Idle
                     }
@@ -517,15 +493,15 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         if value {
-                            app.upcall.schedule(temperature, 0, 0);
+                            upcalls.schedule_upcall(0, temperature, 0, 0);
                         } else {
-                            app.upcall.schedule(0, 0, 0);
+                            upcalls.schedule_upcall(0, 0, 0, 0);
                         }
                         L3gd20Status::Idle
                     }
 
                     _ => {
-                        app.upcall.schedule(0, 0, 0);
+                        upcalls.schedule_upcall(0, 0, 0, 0);
                         L3gd20Status::Idle
                     }
                 });

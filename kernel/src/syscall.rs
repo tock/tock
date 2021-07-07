@@ -223,7 +223,7 @@ pub enum SyscallReturnVariant {
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types
 /// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
-/// [`Upcall`](crate::Upcall)) or wrappers around this struct
+/// `UpcallMemory`) or wrappers around this struct
 /// ([`CommandReturn`](crate::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
@@ -277,10 +277,10 @@ pub enum SyscallReturn {
 
     /// Subscribe success case, returns the previous upcall function
     /// pointer and application data.
-    SubscribeSuccess(*const u8, usize),
+    SubscribeSuccess(*const (), usize),
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
-    SubscribeFailure(ErrorCode, *const u8, usize),
+    SubscribeFailure(ErrorCode, *const (), usize),
 }
 
 impl SyscallReturn {
@@ -292,6 +292,28 @@ impl SyscallReturn {
     /// handle it as a SyscallReturn for more generic code paths.
     pub(crate) fn from_command_return(res: CommandReturn) -> Self {
         res.into_inner()
+    }
+
+    /// Returns true if the `SyscallReturn` is any success type.
+    pub(crate) fn is_success(&self) -> bool {
+        match self {
+            SyscallReturn::Success => true,
+            SyscallReturn::SuccessU32(_) => true,
+            SyscallReturn::SuccessU32U32(_, _) => true,
+            SyscallReturn::SuccessU32U32U32(_, _, _) => true,
+            SyscallReturn::SuccessU64(_) => true,
+            SyscallReturn::SuccessU64U32(_, _) => true,
+            SyscallReturn::AllowReadWriteSuccess(_, _) => true,
+            SyscallReturn::AllowReadOnlySuccess(_, _) => true,
+            SyscallReturn::SubscribeSuccess(_, _) => true,
+            SyscallReturn::Failure(_) => false,
+            SyscallReturn::FailureU32(_, _) => false,
+            SyscallReturn::FailureU32U32(_, _, _) => false,
+            SyscallReturn::FailureU64(_, _) => false,
+            SyscallReturn::AllowReadWriteFailure(_, _, _) => false,
+            SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
+            SyscallReturn::SubscribeFailure(_, _, _) => false,
+        }
     }
 
     /// Encode the system call return value into 4 registers, following
