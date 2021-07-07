@@ -5,8 +5,7 @@ use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::register_bitfields;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time;
-use kernel::hil::time::{Alarm, Counter, Ticks64};
+use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
 use kernel::ErrorCode;
 
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
@@ -188,45 +187,43 @@ impl<'a> Alarm<'a> for TimG<'a> {
         self.alarm_client.set(client);
     }
 
-    fn set_alarm(&self, _reference: Self::Ticks, _dt: Self::Ticks) {
-        panic!("Unimplemented");
+    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
+
+        let val = expire.into_u64();
+        let high = (val >> 32) as u32;
+        let low = (val & 0xffffffff) as u32;
+
+        self.registers.t0alarmlo.set(0xFFFF_FFFF);
+        self.registers.t0alarmhi.set(high);
+        self.registers.t0alarmlo.set(low);
+
+        self.registers.int_ena.modify(INT::T0::SET);
+
+        self.registers.t0config.modify(CONFIG::ALARM_EN::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        panic!("Unimplemented");
+        Self::Ticks::from(
+            self.registers.t0alarmlo.get() as u64 + ((self.registers.t0alarmhi.get() as u64) << 32),
+        )
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        panic!("Unimplemented");
+        self.registers.t0config.modify(CONFIG::ALARM_EN::CLEAR);
+
+        Ok(())
     }
 
     fn is_armed(&self) -> bool {
-        panic!("Unimplemented");
+        self.registers.t0config.is_set(CONFIG::ALARM_EN)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
         Self::Ticks::from(1 as u64)
-    }
-}
-
-impl kernel::SchedulerTimer for TimG<'_> {
-    fn start(&self, _us: u32) {
-        panic!("Unimplemented");
-    }
-
-    fn reset(&self) {
-        panic!("Unimplemented");
-    }
-
-    fn arm(&self) {
-        panic!("Unimplemented");
-    }
-
-    fn disarm(&self) {
-        panic!("Unimplemented");
-    }
-
-    fn get_remaining_us(&self) -> Option<u32> {
-        panic!("Unimplemented");
     }
 }

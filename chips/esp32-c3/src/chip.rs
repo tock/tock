@@ -5,7 +5,7 @@ use core::fmt::Write;
 use kernel;
 use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::StaticRef;
-use kernel::{Chip, InterruptService};
+use kernel::{static_init, Chip, InterruptService};
 use rv32i::csr::{self, mcause, CSR};
 use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
@@ -19,7 +19,7 @@ pub struct Esp32C3<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     intc: &'a Intc,
-    scheduler_timer: esp32::timg::TimG<'a>,
+    scheduler_timer: kernel::VirtualSchedulerTimer<esp32::timg::TimG<'static>>,
     pic_interrupt_service: &'a I,
 }
 
@@ -57,11 +57,15 @@ impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
 
 impl<'a, I: InterruptService<()> + 'a> Esp32C3<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
+        let timer1 = static_init!(
+            esp32::timg::TimG,
+            esp32::timg::TimG::new(esp32::timg::TIMG1_BASE)
+        );
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
             intc: &INTC,
-            scheduler_timer: esp32::timg::TimG::new(esp32::timg::TIMG1_BASE),
+            scheduler_timer: kernel::VirtualSchedulerTimer::new(timer1),
             pic_interrupt_service,
         }
     }
@@ -86,7 +90,7 @@ impl<'a, I: InterruptService<()> + 'a> Esp32C3<'a, I> {
 impl<'a, I: InterruptService<()> + 'a> kernel::Chip for Esp32C3<'a, I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
-    type SchedulerTimer = esp32::timg::TimG<'a>;
+    type SchedulerTimer = kernel::VirtualSchedulerTimer<esp32::timg::TimG<'static>>;
     type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
