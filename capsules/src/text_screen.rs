@@ -24,7 +24,7 @@ use kernel::{
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::TextScreen as usize;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 enum TextScreenCommand {
     Idle,
     GetResolution,
