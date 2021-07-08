@@ -138,11 +138,11 @@ impl<'a> TextScreen<'a> {
         let mut run_next = false;
         let res = self.current_app.map_or(Err(ErrorCode::FAIL), |app| {
             self.apps
-                .enter(*app, |app, _| match app.command {
+                .enter(*app, |app, upcalls| match app.command {
                     TextScreenCommand::GetResolution => {
                         let (x, y) = self.text_screen.get_size();
                         app.pending_command = false;
-                        app.callback.schedule(kernel::into_statuscode(Ok(())), x, y);
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), x, y);
                         run_next = true;
                         Ok(())
                     }
