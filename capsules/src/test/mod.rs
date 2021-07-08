@@ -2,6 +2,7 @@ pub mod aes;
 pub mod aes_ccm;
 pub mod alarm;
 pub mod alarm_edge_cases;
+pub mod crc;
 pub mod double_grant_entry;
 pub mod kv_system;
 pub mod random_alarm;

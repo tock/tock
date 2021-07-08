@@ -525,9 +525,8 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                 }
             });
         });
-
+        let _ = self.next_request();
     }
-
 }
 
 fn alg_from_user_int(i: usize) -> Option<CrcAlgorithm> {
