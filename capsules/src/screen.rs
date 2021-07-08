@@ -349,8 +349,8 @@ impl<'a> Screen<'a> {
         if !self.screen_ready.get() {
             self.screen_ready.set(true);
         } else {
-            self.current_process.take().map(|process_id, upcalls| {
-                let _ = self.apps.enter(process_id, |app| {
+            self.current_process.take().map(|process_id| {
+                let _ = self.apps.enter(process_id, |app, upcalls| {
                     app.pending_command = false;
                     upcalls.schedule_upcall(0, data1, data2, data3);
                 });
