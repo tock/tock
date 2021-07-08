@@ -213,23 +213,35 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
-    fn enqueue_task(&self, task: Task) -> bool {
+    fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
         if !self.is_active() {
-            return false;
+            return Err(ErrorCode::NODEVICE);
         }
 
-        let ret = self.tasks.map_or(false, |tasks| tasks.enqueue(task));
+        let ret = self.tasks.map_or(Err(ErrorCode::FAIL), |tasks| {
+            match tasks.enqueue(task) {
+                true => {
+                    // The task has been successfully enqueued.
+                    Ok(())
+                }
+                false => {
+                    // The task could not be enqueued as there is
+                    // insufficient space in the ring buffer.
+                    Err(ErrorCode::NOMEM)
+                }
+            }
+        });
 
-        // Make a note that we lost this upcall if the enqueue function
-        // fails.
-        if ret == false {
+        if ret.is_ok() {
+            self.kernel.increment_work();
+        } else {
+            // On any error we were unable to enqueue the task. Record the
+            // error, but importantly do _not_ increment kernel work.
             self.debug.map(|debug| {
                 debug.dropped_upcall_count += 1;
             });
-        } else {
-            self.kernel.increment_work();
         }
 
         ret

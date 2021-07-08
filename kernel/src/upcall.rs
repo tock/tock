@@ -80,14 +80,16 @@ impl Upcall {
         r2: usize,
     ) -> bool {
         let res = self.fn_ptr.map_or(false, |fp| {
-            process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                source: process::FunctionCallSource::Driver(self.upcall_id),
-                argument0: r0,
-                argument1: r1,
-                argument2: r2,
-                argument3: self.appdata,
-                pc: fp.as_ptr() as usize,
-            }))
+            process
+                .enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                    source: process::FunctionCallSource::Driver(self.upcall_id),
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                    argument3: self.appdata,
+                    pc: fp.as_ptr() as usize,
+                }))
+                .is_ok()
         });
 
         if config::CONFIG.trace_syscalls {
