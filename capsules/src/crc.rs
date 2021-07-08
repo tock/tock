@@ -415,24 +415,29 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
         // from the app, whereas in the latter we need to advance the
         // LeasableBuffer window and pass it in again.
         let mut computing = false;
+        // There are three outcomes to this match:
+        //   - crc_buffer is not put back: input is ongoing
+        //   - crc_buffer is put back and computing is true: compute is ongoing
+        //   - crc_buffer is put back and computing is false: something failed, start a new request
         match result {
             Ok(()) => {
                 // Completed leasable buffer, either refill it or compute
                 if buffer.len() == 0 {
+                    // Put the kernel buffer back
                     self.crc_buffer.replace(buffer.take());
                     self.current_process.map(|pid| {
                         let _res = self.grant.enter(*pid, |grant| {
-                            // Put the kernel buffer back 
-
+                            // This shouldn't happen unless there's a way to clear out a request
+                            // through a system call: regardless, the request is gone, so cancel
+                            // the CRC.
                             if grant.request.is_none() {
                                 grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::FAIL)), 0, 0);
                                 return;
                             }
 
-                            // Compute the remaining bytes
+                            // Compute how many remaining bytes to compute over
                             let (alg, size) = grant.request.unwrap();
                             grant.request = Some((alg, size));
-
                             let size = cmp::min(size, grant.buffer.len());
                             // If the buffer has shrunk, size might be less than
                             // app_buffer_written: don't allow wraparound
@@ -462,7 +467,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                             }
                         });
                     });
-                } else {
+                } else { // There's more in the leasable buffer: pass it to input again
                     let res = self.crc.input(buffer);
                     match res {
                         Ok(()) => {}
@@ -478,7 +483,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                     }
                 }
             },
-            Err(e) => {
+            Err(e) => { // The callback returned an error, pass it back to userspace
                 self.crc_buffer.replace(buffer.take()); 
                 self.current_process.map(|pid| {
                     let _res = self.grant.enter(*pid, |grant| {
@@ -488,6 +493,8 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                 });
             }
         }
+        // The buffer was put back (there is no input ongoing) but computing is false,
+        // so no compute is ongoing. Start a new request if there is one.
         if self.crc_buffer.is_some() && !computing {
             let _ = self.next_request();
         }
@@ -498,15 +505,23 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
         // the result
         self.current_process.take().map(|process_id| {
             let _ = self.grant.enter(process_id, |grant| {
-                if let Ok(output) = result {
-                    let (val, user_int) = encode_upcall_crc_output(output);
-                    grant.callback.schedule(
-                        kernel::into_statuscode(Ok(())),
-                        val as usize,
-                        user_int as usize,
-                    );
-                } else {
-                    // TODO: Error handling
+                grant.request = None;
+                match result {
+                    Ok(output) => {
+                        let (val, user_int) = encode_upcall_crc_output(output);
+                        grant.callback.schedule(
+                            kernel::into_statuscode(Ok(())),
+                            val as usize,
+                            user_int as usize,
+                        );
+                    },
+                    Err(e) => {
+                        grant.callback.schedule(
+                            kernel::into_statuscode(Err(e)),
+                            0,
+                            0,
+                        );
+                    }
                 }
             });
         });
