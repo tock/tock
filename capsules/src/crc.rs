@@ -74,13 +74,16 @@
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
+
 use core::cell::Cell;
-use core::mem;
+use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::NumericCellExt;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::crc::{Crc, CrcAlgorithm, Client, CrcOutput};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
-use kernel::{ReadOnlyAppSlice};
+use kernel::{Read, ReadOnlyAppSlice};
+use kernel;
 
 /// Syscall driver number.
 use crate::driver;
@@ -92,9 +95,9 @@ pub const DEFAULT_CRC_BUF_LENGTH: usize = 256;
 pub struct App {
     callback: Upcall,
     buffer: ReadOnlyAppSlice,
-    // if Some, the application is awaiting the result of a Crc
-    //   using the given algorithm
-    waiting: Option<CrcAlgorithm>,
+    // if Some, the process is waiting for the result of CRC
+    // of len bytes using the given algorithm
+    request: Option<(CrcAlgorithm, usize)>,
 }
 
 /// Struct that holds the state of the Crc driver and implements the `Driver` trait for use by
@@ -104,8 +107,8 @@ pub struct CrcDriver<'a, C: Crc<'a>> {
     crc_buffer: TakeCell<'static, [u8]>,
     grant: Grant<App>,
     current_process: OptionalCell<ProcessId>,
-    // We need to save (<how much we've already processed>, <how much we've copied into the LeasableBuffer>)
-    app_buffer_progress: Cell<(usize, usize)>,
+    // We need to save our current
+    app_buffer_written: Cell<usize>,
 }
 
 impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
@@ -132,13 +135,87 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
             crc_buffer: TakeCell::new(crc_buffer),
             grant,
             current_process: OptionalCell::empty(),
-            app_buffer_progress: Cell::new((0, 0)),
+            app_buffer_written: Cell::new(0),
         }
     }
 
-    fn serve_current_process(&self) -> Result<(), ErrorCode> {
-        let _res = self.crc.compute();
-        unimplemented!()
+    fn do_next_input(&self, data: &[u8], len: usize) -> usize {
+        let count = self.crc_buffer.take().map_or(0, |kbuffer| {
+            let copy_len = cmp::min(len, kbuffer.len());
+            for i in 0..copy_len {
+                kbuffer[i] = data[i];
+            }
+            if copy_len > 0 {
+                let mut leasable = LeasableBuffer::new(kbuffer);
+                leasable.slice(0..copy_len);
+                let res = self.crc.input(leasable);
+                match res {
+                    Ok(()) => copy_len,
+                    Err((_err, leasable)) => {
+                        self.crc_buffer.put(Some(leasable.take()));
+                        0
+                    }
+                }
+            } else {
+                0
+            }
+        });
+        count
+    }
+
+    // Start a new request. Return Ok(()) if one started, Err(FAIL) if not.
+    // Issue callbacks for any requests that are invalid, either because
+    // they are zero-length or requested an invalid algoritm.
+    fn next_request(&self) -> Result<(), ErrorCode> {
+        self.app_buffer_written.set(0);
+        for process in self.grant.iter() {
+            let process_id = process.processid();
+            let started = process.enter(|grant| {
+                // If there's no buffer this means the process is dead, so
+                // no need to issue a callback on this error case.
+                let res: Result<(), ErrorCode> = grant.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
+                    if let Some((algorithm, len)) = grant.request {
+                        let copy_len = cmp::min(len, buffer.len());
+                        if copy_len == 0 { // 0-length or 0-size buffer
+                            Err(ErrorCode::SIZE)
+                        } else {
+                            let res = self.crc.set_algorithm(algorithm);
+                            match res {
+                                Ok(()) =>  {
+                                    let copy_len = self.do_next_input(buffer, copy_len);
+                                    if copy_len > 0 {
+                                        self.app_buffer_written.set(copy_len);
+                                        self.current_process.set(process_id);
+                                        Ok(())
+                                    } else { // Next input failed
+                                        Err(ErrorCode::FAIL)
+                                    } 
+                                },
+                                Err(_) => { // Setting the algorithm failed
+                                    Err(ErrorCode::INVAL)
+                                }
+                            }
+                        }
+                    } else { // no request
+                        Err(ErrorCode::FAIL)
+                    }
+                });
+                match res {
+                    Ok (()) => {
+                        Ok(())
+                    },
+                    Err(e) => {
+                        grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                        grant.request = None;
+                        Err(e)
+                    }
+                }
+            });
+            if started.is_ok() {
+                return started;
+            }
+        }
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -282,7 +359,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
         &self,
         command_num: usize,
         algorithm_id: usize,
-        _: usize,
+        length: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
         match command_num {
@@ -297,46 +374,123 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
                 } else {
                     return CommandReturn::failure(ErrorCode::INVAL);
                 };
+                let res = self.grant.enter(process_id, |grant| {
+                    if grant.request.is_some() {
+                        Err(ErrorCode::BUSY)
+                    } else if length > grant.buffer.len() {
+                        Err(ErrorCode::SIZE)
+                    } else {
+                        grant.request = Some((algorithm, length));
+                        Ok(())
+                    }
+                }).unwrap_or_else(|e| Err(ErrorCode::from(e)));
 
-                // Check if there already is an operation in progress
-                if self.current_process.is_some() {
-                    // In that case, mark this process as waiting
-                    self.grant
-                        .enter(process_id, |grant| {
-                            if grant.waiting.is_some() {
-                                // Each app may make only one request at a time
-                                CommandReturn::failure(ErrorCode::BUSY)
-                            } else {
-                                grant.waiting = Some(algorithm);
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|e| CommandReturn::failure(ErrorCode::from(e)))
-                } else {
-                    // We can start the operation immediately
-                    self.current_process.set(process_id);
-                    self.serve_current_process().map_or_else(
-                        |e| CommandReturn::failure(ErrorCode::into(e)),
-                        |_| CommandReturn::success(),
-                    )
+                match res {
+                    Ok(()) => {
+                        if self.current_process.is_none() {
+                            self.next_request().map_or_else(
+                                |e| CommandReturn::failure(ErrorCode::into(e)),
+                                |_| CommandReturn::success(),
+                            )
+                        } else {
+                            // Another request is ongoing. We've enqueued this one,
+                            // wait for it to be started when it's its turn.
+                            CommandReturn::success()
+                        }
+                    },
+                    Err(e) => CommandReturn::failure(e)
                 }
             }
-
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 }
 
 impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
-    fn input_done(&self, _result: Result<(), ErrorCode>, mut _buffer: LeasableBuffer<'static, u8>) {
+    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableBuffer<'static, u8>) {
         // A call to `input` has finished. This can mean that either
         // we have processed the entire buffer passed in, or it was
         // truncated by the CRC unit as it was too large. In the first
         // case, we can see whether there is more outstanding data
         // from the app, whereas in the latter we need to advance the
         // LeasableBuffer window and pass it in again.
+        let mut computing = false;
+        match result {
+            Ok(()) => {
+                // Completed leasable buffer, either refill it or compute
+                if buffer.len() == 0 {
+                    self.crc_buffer.replace(buffer.take());
+                    self.current_process.map(|pid| {
+                        let _res = self.grant.enter(*pid, |grant| {
+                            // Put the kernel buffer back 
 
-        unimplemented!()
+                            if grant.request.is_none() {
+                                grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::FAIL)), 0, 0);
+                                return;
+                            }
+
+                            // Compute the remaining bytes
+                            let (alg, size) = grant.request.unwrap();
+                            grant.request = Some((alg, size));
+
+                            let size = cmp::min(size, grant.buffer.len());
+                            // If the buffer has shrunk, size might be less than
+                            // app_buffer_written: don't allow wraparound
+                            let remaining = size - cmp::min(self.app_buffer_written.get(), size);
+
+                            if remaining == 0 { // No more bytes to input: compute
+                                let res = self.crc.compute();
+                                match res {
+                                    Ok(()) => {
+                                        computing = true;
+                                    },
+                                    Err(_) => {
+                                        grant.request = None;
+                                        grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::FAIL)), 0, 0);
+                                    }
+                                }
+                            } else { // More bytes: do the next input
+                                let amount = grant.buffer.map_or(0, |app_slice| {
+                                    self.do_next_input(&app_slice[self.app_buffer_written.get()..], remaining)
+                                });
+                                if amount == 0 {
+                                    grant.request = None;
+                                    grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::NOMEM)), 0, 0);
+                                } else {
+                                    self.app_buffer_written.add(amount);
+                                }
+                            }
+                        });
+                    });
+                } else {
+                    let res = self.crc.input(buffer);
+                    match res {
+                        Ok(()) => {}
+                        Err((e, returned_buffer)) => {
+                            self.crc_buffer.replace(returned_buffer.take());
+                            self.current_process.map(|pid| {
+                                let _res = self.grant.enter(*pid, |grant| {
+                                    grant.request = None;
+                                    grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                                });
+                            });
+                        }
+                    }
+                }
+            },
+            Err(e) => {
+                self.crc_buffer.replace(buffer.take()); 
+                self.current_process.map(|pid| {
+                    let _res = self.grant.enter(*pid, |grant| {
+                        grant.request = None;
+                        grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                    });
+                });
+            }
+        }
+        if self.crc_buffer.is_some() && !computing {
+            let _ = self.next_request();
+        }
     }
 
     fn crc_done(&self, result: Result<CrcOutput, ErrorCode>) {
@@ -357,27 +511,6 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
             });
         });
 
-        // Now that the CRC is finished, iterate through other apps
-        // which are queued.
-        //
-        // TODO: implement fair queueing
-        for process in self.grant.iter() {
-            let process_id = process.processid();
-            let started = process.enter(|grant| {
-                if grant.waiting.is_some() {
-                    self.current_process.set(process_id);
-                    true
-                } else {
-                    false
-                }
-            });
-            // As soon as we have started an operation for an
-            // additional process, break out of the loop
-            if started {
-                let _res = self.serve_current_process();
-                break;
-            }
-        }
     }
 
 }
