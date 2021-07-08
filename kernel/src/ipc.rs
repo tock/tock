@@ -226,12 +226,14 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                             CommandReturn::failure(ErrorCode::INVAL),
                             otherapp,
                             |target| {
-                                let ret = target
-                                    .enqueue_task(process::Task::IPC((appid, cb_type)))
-                                    .is_ok();
+                                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandReturn::success(),
-                                    false => CommandReturn::failure(ErrorCode::FAIL),
+                                    Ok(()) => CommandReturn::success(),
+                                    Err(e) => match e {
+                                        // The other side has a null upcall, choosing to ignore
+                                        ErrorCode::OFF => CommandReturn::success(),
+                                        _ => CommandReturn::failure(e),
+                                    },
                                 }
                             },
                         )
@@ -251,12 +253,14 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                             CommandReturn::failure(ErrorCode::INVAL),
                             otherapp,
                             |target| {
-                                let ret = target
-                                    .enqueue_task(process::Task::IPC((appid, cb_type)))
-                                    .is_ok();
+                                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandReturn::success(),
-                                    false => CommandReturn::failure(ErrorCode::FAIL),
+                                    Ok(()) => CommandReturn::success(),
+                                    Err(e) => match e {
+                                        // The other side has a null upcall, choosing to ignore
+                                        ErrorCode::OFF => CommandReturn::success(),
+                                        _ => CommandReturn::failure(e),
+                                    },
                                 }
                             },
                         )
