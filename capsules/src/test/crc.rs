@@ -19,8 +19,8 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
         }
     }
 
-    pub fn run(&self) {
-        let res = self.crc.set_algorithm(CrcAlgorithm::Crc32);
+    pub fn run_test(&self, algorithm: CrcAlgorithm) {
+        let res = self.crc.set_algorithm(algorithm);
         if res.is_err() {
             debug!("CrcTest ERROR: failed to set algorithm to Crc32: {:?}", res);
             return;
@@ -32,6 +32,10 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
             debug!("CrcTest ERROR: failed to start input processing: {:?}", error);
             return;
         }
+    }
+
+    pub fn run(&self) {
+        self.run_test(CrcAlgorithm::Crc32);
     }
 }
 
@@ -66,9 +70,17 @@ impl<'a, C: Crc<'a>>  Client for TestCrc<'a, C> {
         } else {
             if let Ok(output) = result {
                 match output {
-                    CrcOutput::Crc32(x) => {debug!("CRC32: {}", x);},
-                    CrcOutput::Crc32C(x) => {debug!("CRC32C: {}", x);},
-                    CrcOutput::Crc16CCITT(x) => {debug!("CRC17CCITT: {}", x);},
+                    CrcOutput::Crc32(x) => {
+                        debug!("CRC32: {:#x}", x);
+                        self.run_test(CrcAlgorithm::Crc32C);
+                    },
+                    CrcOutput::Crc32C(x) => {
+                        debug!("CRC32C: {:#x}", x);
+                        self.run_test(CrcAlgorithm::Crc16CCITT);
+                    },
+                    CrcOutput::Crc16CCITT(x) => {
+                        debug!("CRC16CCITT: {:#x}", x);
+                    },
                 }
             }
         }

@@ -48,6 +48,8 @@
 //
 // - Support continuous-mode CRC
 
+use kernel::debug;
+
 use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
@@ -164,7 +166,7 @@ impl Descriptor {
     pub fn new() -> Descriptor {
         Descriptor {
             addr: InMemoryRegister::new(0),
-            ctrl: InMemoryRegister::new(0),
+            ctrl: InMemoryRegister::new(TCR::default().0),
             _res: [0; 2],
             crc: InMemoryRegister::new(0),
         }
@@ -281,7 +283,7 @@ impl Crccu<'_> {
     fn init(&self) {
         if self.state.get() == State::Invalid {
             self.descriptor.addr.set(0);
-            self.descriptor.ctrl.set(0);
+            self.descriptor.ctrl.set(TCR::default().0);
             self.descriptor.crc.set(0);
             self.state.set(State::Initialized);
         }
@@ -290,7 +292,6 @@ impl Crccu<'_> {
     /// Enable the CRCCU's clocks and interrupt
     fn enable(&self) {
         if self.state.get() != State::Enabled {
-            self.init();
             // see "10.7.4 Clock Mask"
             enable_clock(Clock::HSB(HSBClock::CRCCU));
             enable_clock(Clock::PBB(PBBClock::CRCCU));
@@ -373,16 +374,15 @@ impl Crccu<'_> {
             self.algorithm.expect("crccu deferred call: no algorithm"),
         );
 
-        self.client.map(|client| {
-            client.crc_done(Ok(result));
-        });
-
         // Reset the internal CRC state such that the next call to
         // input will start a new CRC
         self.registers.cr.write(Control::RESET::SET);
-
-        // We have fulfilled the compute request
+        self.descriptor.ctrl.set(TCR::default().0);
         self.compute_requested.set(false);
+    
+        self.client.map(|client| {
+            client.crc_done(Ok(result));
+        });
     }
 }
 
@@ -404,22 +404,20 @@ impl<'a> Crc<'a> for Crccu<'a> {
     }
 
     fn set_algorithm(&self, algorithm: CrcAlgorithm) -> Result<(), ErrorCode> {
-        self.init();
-
         // If there currently is a DMA operation in progress, refuse
         // to set the algorithm.
         if TCR(self.descriptor.ctrl.get()).interrupt_enabled() || self.compute_requested.get() {
+            debug!("Algorithm fail: busy due to Interrupt: {}, compute: {}", TCR(self.descriptor.ctrl.get()).interrupt_enabled(), self.compute_requested.get());
             // A computation is already in progress
             return Err(ErrorCode::BUSY);
         }
 
-        // Set the algorithm
-        self.algorithm.set(algorithm);
-
+        self.init();
         // Clear the descriptor contents
         self.descriptor.addr.set(0);
         self.descriptor.ctrl.set(TCR::default().0);
         self.descriptor.crc.set(0);
+        self.algorithm.set(algorithm);
 
         // Reset intermediate CRC value
         self.registers.cr.write(Control::RESET::SET);
@@ -431,8 +429,6 @@ impl<'a> Crc<'a> for Crccu<'a> {
         &self,
         mut data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
-        self.init();
-
         let algorithm = if let Some(algorithm) = self.algorithm.extract() {
             algorithm
         } else {
@@ -443,6 +439,14 @@ impl<'a> Crc<'a> for Crccu<'a> {
             // A computation is already in progress
             return Err((ErrorCode::BUSY, data));
         }
+
+        // Need to initialize after checking business, because init will 
+        // clear out interrupt state.
+        self.init();
+
+        // Initialize the descriptor, since it is used to track business
+        let len = data.len() as u16;
+        let ctrl = TCR::new(true, TrWidth::Byte, len);
 
         // Make sure we don't try to process more data than the CRC
         // DMA operation supports.
@@ -473,8 +477,6 @@ impl<'a> Crc<'a> for Crccu<'a> {
         //
         // The data length is guaranteed to be <= u16::MAX by the
         // above LeasableBuffer resizing mechanism
-        let len = data.len() as u16;
-        let ctrl = TCR::new(true, TrWidth::Byte, len);
         self.descriptor.addr.set(data.as_ptr() as u32);
         self.descriptor.ctrl.set(ctrl.0);
         self.descriptor.crc.set(0); // this is the CRC compare field, not used

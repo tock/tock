@@ -6,9 +6,9 @@
 //! ```
 //! You should see the following output:
 //! ```
-//!     crc_test passed (Crc32)
-//!     crc_test passed (Crc32C)
-//!     crc_test passed (Crc16CITT)
+//!     CRC32: 0xcbf43926
+//!     CRC32C: 0xe3069283
+//!     CRC16CITT: 0x89f6 
 //!
 //! ```
 //!
@@ -25,8 +25,11 @@ pub unsafe fn run_crc(crc: &'static Crccu) {
 }
 
 unsafe fn static_init_crc(crc: &'static Crccu) -> &'static TestCrc<'static, Crccu<'static>> {
-    let data = static_init!([u8; 387], [0; 387]);
+    let data = static_init!([u8; 9], [0; 9]);
 
+    for i in 0..9 {
+        data[i] = i as u8 + ('1' as u8);
+    }
     static_init!(
         TestCrc<'static, Crccu>,
         TestCrc::new(&crc, data)
