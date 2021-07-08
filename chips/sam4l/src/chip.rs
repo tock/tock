@@ -67,7 +67,7 @@ impl Sam4lDefaultPeripherals {
             adc: crate::adc::Adc::new(crate::dma::DMAPeripheral::ADCIFE_RX, pm),
             aes: crate::aes::Aes::new(),
             ast: crate::ast::Ast::new(),
-            crccu: crate::crccu::Crccu::new(),
+            crccu: crate::crccu::Crccu::new(crate::crccu::BASE_ADDRESS),
             dac: crate::dac::Dac::new(),
             dma_channels: [
                 DMAChannel::new(DMAChannelNum::DMAChannel00),
@@ -230,6 +230,7 @@ impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
     unsafe fn service_deferred_call(&self, task: Task) -> bool {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
+            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
         }
         true
     }

@@ -130,7 +130,7 @@ struct Imix {
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
         'static,
         capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
