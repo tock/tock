@@ -36,6 +36,12 @@ usage:
 	@echo "and usually 'make program' or 'make flash' to load Tock onto hardware."
 	@echo "Check out the README in your board's folder for more information."
 	@echo
+	@echo "There are a few helpful targets that can be run for all individual boards."
+	@echo "To run these, run 'make {target}' from the board directory for any of the"
+	@echo "following targets:"
+	@echo "        cargobloat: Runs the cargo-bloat tool for attributing binary size"
+	@echo "        stack-analysis: Prints the 5 largest stack frames for the board"
+	@echo
 	@echo "This root Makefile has a few useful targets as well:"
 	@echo "        allaudit: Audit Cargo dependencies for all kernel sources"
 	@echo "       allboards: Compiles Tock for all supported boards"
