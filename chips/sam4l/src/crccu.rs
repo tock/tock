@@ -48,7 +48,6 @@
 //
 // - Support continuous-mode CRC
 
-use kernel::debug;
 
 use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
@@ -379,7 +378,7 @@ impl Crccu<'_> {
         self.registers.cr.write(Control::RESET::SET);
         self.descriptor.ctrl.set(TCR::default().0);
         self.compute_requested.set(false);
-    
+
         self.client.map(|client| {
             client.crc_done(Ok(result));
         });
@@ -407,7 +406,6 @@ impl<'a> Crc<'a> for Crccu<'a> {
         // If there currently is a DMA operation in progress, refuse
         // to set the algorithm.
         if TCR(self.descriptor.ctrl.get()).interrupt_enabled() || self.compute_requested.get() {
-            debug!("Algorithm fail: busy due to Interrupt: {}, compute: {}", TCR(self.descriptor.ctrl.get()).interrupt_enabled(), self.compute_requested.get());
             // A computation is already in progress
             return Err(ErrorCode::BUSY);
         }
