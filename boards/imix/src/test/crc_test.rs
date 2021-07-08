@@ -11,7 +11,10 @@
 //!     CRC16CITT: 0x89f6 
 //!
 //! ```
-//!
+//! These results are for computing the CRC over the string
+//! "123456789" (not including the quotes). The result values
+//! were taken from https://reveng.sourceforge.io/crc-catalogue/17plus.htm
+
 use capsules::test::crc::TestCrc;
 use kernel::hil::crc::Crc;
 use kernel::static_init;
