@@ -1,6 +1,6 @@
 //! Interface to USB controller hardware
 
-use crate::common::cells::VolatileCell;
+use crate::utilities::cells::VolatileCell;
 
 /// USB controller interface
 pub trait UsbController<'a> {

@@ -1,6 +1,6 @@
 //! Interface for Digest
 
-use crate::common::leasable_buffer::LeasableBuffer;
+use crate::utilities::leasable_buffer::LeasableBuffer;
 use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.

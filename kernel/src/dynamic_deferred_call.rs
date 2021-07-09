@@ -65,8 +65,9 @@
 //! );
 //! ```
 
-use crate::common::cells::OptionalCell;
 use core::cell::Cell;
+
+use crate::utilities::cells::OptionalCell;
 
 /// Kernel-global dynamic deferred call instance
 ///
