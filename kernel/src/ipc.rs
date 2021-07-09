@@ -126,20 +126,25 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                                 )
                                             },
                                         );
-                                        my_upcalls.schedule_upcall(
-                                            to_schedule,
-                                            called_from.id() + 1,
-                                            crate::mem::ReadableProcessBuffer::len(slice),
-                                            crate::mem::ReadableProcessBuffer::ptr(slice) as usize,
-                                        );
+                                        my_upcalls
+                                            .schedule_upcall(
+                                                to_schedule,
+                                                called_from.id() + 1,
+                                                crate::mem::ReadableProcessBuffer::len(slice),
+                                                crate::mem::ReadableProcessBuffer::ptr(slice)
+                                                    as usize,
+                                            )
+                                            .ok();
                                     }
                                     None => {
-                                        my_upcalls.schedule_upcall(
-                                            to_schedule,
-                                            called_from.id() + 1,
-                                            0,
-                                            0,
-                                        );
+                                        my_upcalls
+                                            .schedule_upcall(
+                                                to_schedule,
+                                                called_from.id() + 1,
+                                                0,
+                                                0,
+                                            )
+                                            .ok();
                                     }
                                 }
                             }
