@@ -523,9 +523,6 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> uart::Uart<'a> for LiteXUart<'a, R> {}
-impl<'a, R: LiteXSoCRegisterConfiguration> uart::UartData<'a> for LiteXUart<'a, R> {}
-
 impl<'a, R: LiteXSoCRegisterConfiguration> DynamicDeferredCallClient for LiteXUart<'a, R> {
     fn call(&self, _handle: DeferredCallHandle) {
         // Are we currently in a TX or RX transaction?

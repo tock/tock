@@ -938,9 +938,6 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
     }
 }
 
-impl<'a> uart::UartAdvanced<'a> for USART<'a> {}
-impl<'a> uart::Uart<'a> for USART<'a> {}
-
 impl uart::Configure for USART<'_> {
     fn configure(&self, parameters: uart::Parameters) -> Result<(), ErrorCode> {
         if self.usart_mode.get() != UsartMode::Uart {

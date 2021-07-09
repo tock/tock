@@ -624,9 +624,6 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Usart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Usart<'a> {}
-
 struct UsartClock<'a>(rcc::PeripheralClock<'a>);
 
 impl ClockInterface for UsartClock<'_> {

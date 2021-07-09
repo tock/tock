@@ -504,9 +504,6 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Usart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Usart<'a> {}
-
 impl dma1::StreamClient for Usart<'_> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         if pid == self.tx_dma_pid {

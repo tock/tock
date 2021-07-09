@@ -896,8 +896,6 @@ impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Lpuart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Lpuart<'a> {}
 struct LpuartClock<'a>(ccm::PeripheralClock<'a>);
 
 impl ClockInterface for LpuartClock<'_> {

@@ -63,6 +63,12 @@ pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
 pub trait Client: ReceiveClient + TransmitClient {}
 
+// Provide blanket implementations for all trait groups
+impl<'a, T: Configure + Transmit<'a> + Receive<'a>> Uart<'a> for T {}
+impl<'a, T: Transmit<'a> + Receive<'a>> UartData<'a> for T {}
+impl<'a, T: Configure + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
+impl<T: ReceiveClient + TransmitClient> Client for T {}
+
 /// Trait for configuring a UART.
 pub trait Configure {
     /// Returns Ok(()), or

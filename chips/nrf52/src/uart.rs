@@ -436,9 +436,6 @@ impl<'a> Uarte<'a> {
     }
 }
 
-impl<'a> uart::UartData<'a> for Uarte<'a> {}
-impl<'a> uart::Uart<'a> for Uarte<'a> {}
-
 impl<'a> uart::Transmit<'a> for Uarte<'a> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
