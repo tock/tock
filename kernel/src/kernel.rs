@@ -19,7 +19,8 @@ use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
-use crate::platform::platform::Platform;
+use crate::platform::platform::KernelResources;
+use crate::platform::platform::{ProcessFault, SyscallDispatch, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
@@ -386,21 +387,21 @@ impl Kernel {
     /// argument is set to true, the kernel will never attempt to put the
     /// chip to sleep, and this function can be called again immediately.
     pub fn kernel_loop_operation<
-        P: Platform,
+        KR: KernelResources<C>,
         C: Chip,
-        SC: Scheduler<C>,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
         &self,
-        platform: &P,
+        resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler: &SC,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
-        chip.watchdog().tickle();
+        let scheduler = resources.scheduler();
+
+        resources.watchdog().tickle();
         unsafe {
             // Ask the scheduler if we should do tasks inside of the kernel,
             // such as handle interrupts. A scheduler may want to prioritize
@@ -417,14 +418,8 @@ impl Kernel {
                     match scheduler.next(self) {
                         SchedulingDecision::RunProcess((appid, timeslice_us)) => {
                             self.process_map_or((), appid, |process| {
-                                let (reason, time_executed) = self.do_process(
-                                    platform,
-                                    chip,
-                                    scheduler,
-                                    process,
-                                    ipc,
-                                    timeslice_us,
-                                );
+                                let (reason, time_executed) =
+                                    self.do_process(resources, chip, process, ipc, timeslice_us);
                                 scheduler.result(reason, time_executed);
                             });
                         }
@@ -448,9 +443,9 @@ impl Kernel {
                                         && !DynamicDeferredCall::global_instance_calls_pending()
                                             .unwrap_or(false)
                                     {
-                                        chip.watchdog().suspend();
+                                        resources.watchdog().suspend();
                                         chip.sleep();
-                                        chip.watchdog().resume();
+                                        resources.watchdog().resume();
                                     }
                                 });
                             }
@@ -466,22 +461,20 @@ impl Kernel {
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
     pub fn kernel_loop<
-        P: Platform,
+        KR: KernelResources<C>,
         C: Chip,
-        SC: Scheduler<C>,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
         &self,
-        platform: &P,
+        resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler: &SC,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
-        chip.watchdog().setup();
+        resources.watchdog().setup();
         loop {
-            self.kernel_loop_operation(platform, chip, ipc, scheduler, false, capability);
+            self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
     }
 
@@ -517,16 +510,14 @@ impl Kernel {
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
     fn do_process<
-        P: Platform,
+        KR: KernelResources<C>,
         C: Chip,
-        S: Scheduler<C>,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
         &self,
-        platform: &P,
+        resources: &KR,
         chip: &C,
-        scheduler: &S,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         timeslice_us: Option<u32>,
@@ -537,7 +528,7 @@ impl Kernel {
         let scheduler_timer: &dyn SchedulerTimer = if timeslice_us.is_none() {
             &() // dummy timer, no preemption
         } else {
-            chip.scheduler_timer()
+            resources.scheduler_timer()
         };
 
         // Clear the scheduler timer and then start the counter. This starts the
@@ -570,7 +561,11 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe { scheduler.continue_process(process.processid(), chip) };
+            let continue_process = unsafe {
+                resources
+                    .scheduler()
+                    .continue_process(process.processid(), chip)
+            };
             if !continue_process {
                 return_reason = StoppedExecutingReason::KernelPreemption;
                 break;
@@ -605,13 +600,17 @@ impl Kernel {
                         Some(ContextSwitchReason::Fault) => {
                             // The app faulted, check if the chip wants to
                             // handle the fault.
-                            if platform.process_fault_hook(process).is_err() {
+                            if resources
+                                .process_fault()
+                                .process_fault_hook(process)
+                                .is_err()
+                            {
                                 // Let process deal with it as appropriate.
                                 process.set_fault_state();
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
-                            self.handle_syscall(platform, process, syscall);
+                            self.handle_syscall(resources, process, syscall);
                         }
                         Some(ContextSwitchReason::Interrupted) => {
                             if scheduler_timer.get_remaining_us().is_none() {
@@ -725,9 +724,9 @@ impl Kernel {
     /// and dispatches peripheral driver system calls to peripheral
     /// driver capsules through the platforms `with_driver` method.
     #[inline]
-    fn handle_syscall<P: Platform>(
+    fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
-        platform: &P,
+        resources: &KR,
         process: &dyn process::Process,
         syscall: Syscall,
     ) {
@@ -763,7 +762,8 @@ impl Kernel {
             } => {} // Memop is not filterable
             _ => {
                 // Check all other syscalls for filtering
-                if let Err(response) = platform.filter_syscall(process, &syscall) {
+                if let Err(response) = resources.syscall_filter().filter_syscall(process, &syscall)
+                {
                     process.set_syscall_return_value(SyscallReturn::Failure(response));
 
                     return;
@@ -886,7 +886,9 @@ impl Kernel {
                                 // If we get here the subscribe swap failed. We try
                                 // again after asking the capsule to allocate the
                                 // grant.
-                                platform.with_driver(driver_number, |driver| match driver {
+                                resources
+                                .syscall_dispatch()
+                                .with_driver(driver_number, |driver| match driver {
                                     Some(d) => {
                                         // For debugging purposes, query the
                                         // number of allocated grants of the
@@ -997,10 +999,12 @@ impl Kernel {
                 arg0,
                 arg1,
             } => {
-                let cres = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
-                    None => CommandReturn::failure(ErrorCode::NODEVICE),
-                });
+                let cres = resources
+                    .syscall_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
+                        None => CommandReturn::failure(ErrorCode::NODEVICE),
+                    });
 
                 let res = SyscallReturn::from_command_return(cres);
 
@@ -1023,53 +1027,57 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        // Try to create an appropriate [`ReadWriteProcessBuffer`].
-                        // This method will ensure that the memory in question
-                        // is located in the process-accessible memory space.
-                        match process.build_readwrite_process_buffer(allow_address, allow_size) {
-                            Ok(rw_pbuf) => {
-                                // Creating the [`ReadWriteProcessBuffer`] worked,
-                                // provide it to the capsule.
-                                match d.allow_readwrite(
-                                    process.processid(),
-                                    subdriver_number,
-                                    rw_pbuf,
-                                ) {
-                                    Ok(returned_pbuf) => {
-                                        // The capsule has accepted the allow
-                                        // operation. Pass the previous buffer
-                                        // information back to the process.
-                                        let (ptr, len) = returned_pbuf.consume();
-                                        SyscallReturn::AllowReadWriteSuccess(ptr, len)
-                                    }
-                                    Err((rejected_pbuf, err)) => {
-                                        // The capsule has rejected the allow
-                                        // operation. Pass the new buffer information
-                                        // back to the process.
-                                        let (ptr, len) = rejected_pbuf.consume();
-                                        SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                let res = resources
+                    .syscall_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            // Try to create an appropriate [`ReadWriteProcessBuffer`].
+                            // This method will ensure that the memory in question
+                            // is located in the process-accessible memory space.
+                            match process.build_readwrite_process_buffer(allow_address, allow_size)
+                            {
+                                Ok(rw_pbuf) => {
+                                    // Creating the [`ReadWriteProcessBuffer`] worked,
+                                    // provide it to the capsule.
+                                    match d.allow_readwrite(
+                                        process.processid(),
+                                        subdriver_number,
+                                        rw_pbuf,
+                                    ) {
+                                        Ok(returned_pbuf) => {
+                                            // The capsule has accepted the allow
+                                            // operation. Pass the previous buffer
+                                            // information back to the process.
+                                            let (ptr, len) = returned_pbuf.consume();
+                                            SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                        }
+                                        Err((rejected_pbuf, err)) => {
+                                            // The capsule has rejected the allow
+                                            // operation. Pass the new buffer information
+                                            // back to the process.
+                                            let (ptr, len) = rejected_pbuf.consume();
+                                            SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                        }
                                     }
                                 }
-                            }
-                            Err(allow_error) => {
-                                // There was an error creating the [`ReadWriteProcessBuffer`].
-                                // Report back to the process.
-                                SyscallReturn::AllowReadWriteFailure(
-                                    allow_error,
-                                    allow_address,
-                                    allow_size,
-                                )
+                                Err(allow_error) => {
+                                    // There was an error creating the [`ReadWriteProcessBuffer`].
+                                    // Report back to the process.
+                                    SyscallReturn::AllowReadWriteFailure(
+                                        allow_error,
+                                        allow_address,
+                                        allow_size,
+                                    )
+                                }
                             }
                         }
-                    }
-                    None => SyscallReturn::AllowReadWriteFailure(
-                        ErrorCode::NODEVICE,
-                        allow_address,
-                        allow_size,
-                    ),
-                });
+
+                        None => SyscallReturn::AllowReadWriteFailure(
+                            ErrorCode::NODEVICE,
+                            allow_address,
+                            allow_size,
+                        ),
+                    });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -1090,54 +1098,56 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        // Try to create an appropriate [`ReadOnlyProcessBuffer`].
-                        // This method will ensure that the memory in question
-                        // is located in the process-accessible memory space.
-                        match process.build_readonly_process_buffer(allow_address, allow_size) {
-                            Ok(ro_pbuf) => {
-                                // Creating the [`ReadOnlyProcessBuffer`] worked,
-                                // provide it to the capsule.
-                                match d.allow_readonly(
-                                    process.processid(),
-                                    subdriver_number,
-                                    ro_pbuf,
-                                ) {
-                                    Ok(returned_pbuf) => {
-                                        // The capsule has accepted the allow
-                                        // operation. Pass the previous buffer
-                                        // information back to the process.
-                                        let (ptr, len) = returned_pbuf.consume();
-                                        SyscallReturn::AllowReadOnlySuccess(ptr, len)
-                                    }
-                                    Err((rejected_pbuf, err)) => {
-                                        // The capsule has rejected the allow
-                                        // operation. Pass the new buffer information
-                                        // back to the process.
-                                        let (ptr, len) = rejected_pbuf.consume();
-                                        SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                let res = resources
+                    .syscall_dispatch()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            // Try to create an appropriate [`ReadOnlyProcessBuffer`].
+                            // This method will ensure that the memory in question
+                            // is located in the process-accessible memory space.
+                            match process.build_readonly_process_buffer(allow_address, allow_size) {
+                                Ok(ro_pbuf) => {
+                                    // Creating the [`ReadOnlyProcessBuffer`] worked,
+                                    // provide it to the capsule.
+                                    match d.allow_readonly(
+                                        process.processid(),
+                                        subdriver_number,
+                                        ro_pbuf,
+                                    ) {
+                                        Ok(returned_pbuf) => {
+                                            // The capsule has accepted the allow
+                                            // operation. Pass the previous buffer
+                                            // information back to the process.
+                                            let (ptr, len) = returned_pbuf.consume();
+                                            SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                        }
+                                        Err((rejected_pbuf, err)) => {
+                                            // The capsule has rejected the allow
+                                            // operation. Pass the new buffer information
+                                            // back to the process.
+                                            let (ptr, len) = rejected_pbuf.consume();
+                                            SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                        }
                                     }
                                 }
-                            }
-                            Err(allow_error) => {
-                                // There was an error creating the
-                                // [`ReadOnlyProcessBuffer`]. Report
-                                // back to the process.
-                                SyscallReturn::AllowReadOnlyFailure(
-                                    allow_error,
-                                    allow_address,
-                                    allow_size,
-                                )
+                                Err(allow_error) => {
+                                    // There was an error creating the
+                                    // [`ReadOnlyProcessBuffer`]. Report
+                                    // back to the process.
+                                    SyscallReturn::AllowReadOnlyFailure(
+                                        allow_error,
+                                        allow_address,
+                                        allow_size,
+                                    )
+                                }
                             }
                         }
-                    }
-                    None => SyscallReturn::AllowReadOnlyFailure(
-                        ErrorCode::NODEVICE,
-                        allow_address,
-                        allow_size,
-                    ),
-                });
+                        None => SyscallReturn::AllowReadOnlyFailure(
+                            ErrorCode::NODEVICE,
+                            allow_address,
+                            allow_size,
+                        ),
+                    });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
