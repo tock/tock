@@ -1162,8 +1162,6 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> radio::Radio for RF233<'_, S> {}
-
 impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
     fn initialize(
         &self,

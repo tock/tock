@@ -63,6 +63,8 @@ pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
 pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 
 pub trait Radio: RadioConfig + RadioData {}
+// Provide blanket implementations for trait group
+impl<T: RadioConfig + RadioData> Radio for T {}
 
 /// Configure the 802.15.4 radio.
 pub trait RadioConfig {
