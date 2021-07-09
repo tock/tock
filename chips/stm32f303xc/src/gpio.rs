@@ -1011,9 +1011,6 @@ impl<'a> Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'_> {}
-impl<'a> hil::gpio::InterruptPin<'a> for Pin<'a> {}
-
 impl hil::gpio::Configure for Pin<'_> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {

@@ -680,9 +680,6 @@ impl<'a> Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'_> {}
-impl<'a> hil::gpio::InterruptPin<'a> for Pin<'a> {}
-
 impl hil::gpio::Configure for Pin<'_> {
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Output);
