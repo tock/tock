@@ -94,7 +94,6 @@ pub mod collections;
 pub mod component;
 pub mod debug;
 pub mod deferred_call;
-pub mod driver;
 pub mod dynamic_deferred_call;
 pub mod errorcode;
 pub mod grant;
@@ -106,6 +105,7 @@ pub mod platform;
 pub mod process;
 pub mod scheduler;
 pub mod syscall;
+pub mod syscall_driver;
 pub mod upcall;
 pub mod utilities;
 
@@ -117,8 +117,8 @@ mod process_standard;
 mod process_utilities;
 
 // Core resources exposed as `kernel::Type`.
-pub use crate::driver::Driver;
 pub use crate::errorcode::ErrorCode;
 pub use crate::kernel::Kernel;
 pub use crate::process::ProcessId;
 pub use crate::scheduler::Scheduler;
+pub use crate::syscall_driver::SyscallDriver;
