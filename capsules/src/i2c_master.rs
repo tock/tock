@@ -4,7 +4,8 @@ use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
+    ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -13,7 +14,7 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(Default)]
 pub struct App {
-    slice: ReadWriteAppSlice,
+    slice: ReadWriteProcessBuffer,
 }
 
 pub static mut BUF: [u8; 64] = [0; 64];
@@ -52,36 +53,38 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         wlen: u8,
         rlen: u8,
     ) -> Result<(), ErrorCode> {
-        app.slice.map_or(Err(ErrorCode::INVAL), |app_buffer| {
-            self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-                buffer[..(wlen as usize)].copy_from_slice(&app_buffer[..(wlen as usize)]);
+        app.slice
+            .enter(|app_buffer| {
+                self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                    app_buffer[..(wlen as usize)].copy_to_slice(&mut buffer[..(wlen as usize)]);
 
-                let read_len: OptionalCell<usize>;
-                if rlen == 0 {
-                    read_len = OptionalCell::empty();
-                } else {
-                    read_len = OptionalCell::new(rlen as usize);
-                }
-                self.tx.put(Transaction { app_id, read_len });
+                    let read_len: OptionalCell<usize>;
+                    if rlen == 0 {
+                        read_len = OptionalCell::empty();
+                    } else {
+                        read_len = OptionalCell::new(rlen as usize);
+                    }
+                    self.tx.put(Transaction { app_id, read_len });
 
-                let res = match command {
-                    Cmd::Ping => {
-                        self.buf.put(Some(buffer));
-                        return Err(ErrorCode::INVAL);
+                    let res = match command {
+                        Cmd::Ping => {
+                            self.buf.put(Some(buffer));
+                            return Err(ErrorCode::INVAL);
+                        }
+                        Cmd::Write => self.i2c.write(addr, buffer, wlen),
+                        Cmd::Read => self.i2c.read(addr, buffer, rlen),
+                        Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
+                    };
+                    match res {
+                        Ok(_) => Ok(()),
+                        Err((error, data)) => {
+                            self.buf.put(Some(data));
+                            Err(error.into())
+                        }
                     }
-                    Cmd::Write => self.i2c.write(addr, buffer, wlen),
-                    Cmd::Read => self.i2c.read(addr, buffer, rlen),
-                    Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
-                };
-                match res {
-                    Ok(_) => Ok(()),
-                    Err((error, data)) => {
-                        self.buf.put(Some(data));
-                        Err(error.into())
-                    }
-                }
+                })
             })
-        })
+            .unwrap_or(Err(ErrorCode::INVAL))
     }
 }
 
@@ -107,8 +110,8 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
@@ -188,7 +191,7 @@ impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, 
         self.tx.take().map(|tx| {
             self.apps.enter(tx.app_id, |app, upcalls| {
                 if let Some(read_len) = tx.read_len.take() {
-                    app.slice.mut_map_or((), |app_buffer| {
+                    let _ = app.slice.mut_enter(|app_buffer| {
                         app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);
                     });
                 }

@@ -33,8 +33,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
+    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 enum ShaOperation {
@@ -96,33 +96,35 @@ impl<
                         return ret;
                     }
 
-                    app.data.map_or(Err(ErrorCode::RESERVE), |d| {
-                        let mut static_buffer_len = 0;
-                        self.data_buffer.map(|buf| {
-                            let data = d.as_ref();
+                    app.data
+                        .enter(|data| {
+                            let mut static_buffer_len = 0;
+                            self.data_buffer.map(|buf| {
+                                // Determine the size of the static buffer we have
+                                static_buffer_len = buf.len();
 
-                            // Determine the size of the static buffer we have
-                            static_buffer_len = buf.len();
+                                if static_buffer_len > data.len() {
+                                    static_buffer_len = data.len()
+                                }
 
-                            if static_buffer_len > data.len() {
-                                static_buffer_len = data.len()
+                                self.data_copied.set(static_buffer_len);
+
+                                // Copy the data into the static buffer
+                                data[..static_buffer_len]
+                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                            });
+
+                            // Add the data from the static buffer to the HMAC
+                            let mut lease_buf =
+                                LeasableBuffer::new(self.data_buffer.take().unwrap());
+                            lease_buf.slice(0..static_buffer_len);
+                            if let Err(e) = self.sha.add_data(lease_buf) {
+                                self.data_buffer.replace(e.1);
+                                return Err(e.0);
                             }
-
-                            self.data_copied.set(static_buffer_len);
-
-                            // Copy the data into the static buffer
-                            buf[..static_buffer_len].copy_from_slice(&data[..static_buffer_len]);
-                        });
-
-                        // Add the data from the static buffer to the HMAC
-                        let mut lease_buf = LeasableBuffer::new(self.data_buffer.take().unwrap());
-                        lease_buf.slice(0..static_buffer_len);
-                        if let Err(e) = self.sha.add_data(lease_buf) {
-                            self.data_buffer.replace(e.1);
-                            return Err(e.0);
-                        }
-                        Ok(())
-                    })
+                            Ok(())
+                        })
+                        .unwrap_or(Err(ErrorCode::RESERVE))
                 })
                 .unwrap_or_else(|err| Err(err.into()))
         })
@@ -183,28 +185,30 @@ impl<
                     self.data_buffer.replace(data);
 
                     self.data_buffer.map(|buf| {
-                        let ret = app.data.map_or(Err(ErrorCode::RESERVE), |d| {
-                            let data = d.as_ref();
+                        let ret = app
+                            .data
+                            .enter(|data| {
+                                // Determine the size of the static buffer we have
+                                static_buffer_len = buf.len();
 
-                            // Determine the size of the static buffer we have
-                            static_buffer_len = buf.len();
-                            // Determine how much data we have already copied
-                            let copied_data = self.data_copied.get();
+                                // Determine how much data we have already copied
+                                let copied_data = self.data_copied.get();
 
-                            data_len = data.len();
+                                data_len = data.len();
 
-                            if data_len > copied_data {
-                                let remaining_data = &d.as_ref()[copied_data..];
-                                let remaining_len = data_len - copied_data;
+                                if data_len > copied_data {
+                                    let remaining_data = &data[copied_data..];
+                                    let remaining_len = data_len - copied_data;
 
-                                if remaining_len < static_buffer_len {
-                                    buf[..remaining_len].copy_from_slice(remaining_data);
-                                } else {
-                                    buf.copy_from_slice(&remaining_data[..static_buffer_len]);
+                                    if remaining_len < static_buffer_len {
+                                        remaining_data.copy_to_slice(&mut buf[..remaining_len]);
+                                    } else {
+                                        remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                    }
                                 }
-                            }
-                            Ok(())
-                        });
+                                Ok(())
+                            })
+                            .unwrap_or(Err(ErrorCode::RESERVE));
 
                         if ret == Err(ErrorCode::RESERVE) {
                             // No data buffer, clear the appid and data
@@ -274,8 +278,8 @@ impl<
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
-                    app.dest.mut_map_or((), |dest| {
-                        dest.as_mut().copy_from_slice(digest.as_ref());
+                    let _ = app.dest.mut_enter(|dest| {
+                        dest.copy_from_slice(digest);
                     });
 
                     match result {
@@ -315,8 +319,8 @@ impl<
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Pass buffer for the digest to be in.
             2 => self
@@ -341,8 +345,8 @@ impl<
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Pass buffer for the data to be in
             1 => self
@@ -584,6 +588,6 @@ pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
-    data: ReadOnlyAppSlice,
-    dest: ReadWriteAppSlice,
+    data: ReadOnlyProcessBuffer,
+    dest: ReadWriteProcessBuffer,
 }

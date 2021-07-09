@@ -15,7 +15,10 @@ use core::convert::From;
 use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
+    ReadableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -39,7 +42,7 @@ enum TextScreenCommand {
 
 pub struct App {
     pending_command: bool,
-    shared: ReadOnlyAppSlice,
+    shared: ReadOnlyProcessBuffer,
     write_len: usize,
     command: TextScreenCommand,
     data1: usize,
@@ -50,7 +53,7 @@ impl Default for App {
     fn default() -> App {
         App {
             pending_command: false,
-            shared: ReadOnlyAppSlice::default(),
+            shared: ReadOnlyProcessBuffer::default(),
             write_len: 0,
             command: TextScreenCommand::Idle,
             data1: 1,
@@ -143,21 +146,23 @@ impl<'a> TextScreen<'a> {
                 .enter(appid, |app, _| {
                     if data1 > 0 {
                         app.write_len = data1;
-                        app.shared.map_or(Err(ErrorCode::NOMEM), |to_write_buffer| {
-                            self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
-                                let len = cmp::min(app.write_len, buffer.len());
-                                for n in 0..len {
-                                    buffer[n] = to_write_buffer[n];
-                                }
-                                match self.text_screen.print(buffer, len) {
-                                    Ok(()) => Ok(()),
-                                    Err((ecode, buffer)) => {
-                                        self.buffer.replace(buffer);
-                                        Err(ecode)
+                        app.shared
+                            .enter(|to_write_buffer| {
+                                self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
+                                    let len = cmp::min(app.write_len, buffer.len());
+                                    for n in 0..len {
+                                        buffer[n] = to_write_buffer[n].get();
                                     }
-                                }
+                                    match self.text_screen.print(buffer, len) {
+                                        Ok(()) => Ok(()),
+                                        Err((ecode, buffer)) => {
+                                            self.buffer.replace(buffer);
+                                            Err(ecode)
+                                        }
+                                    }
+                                })
                             })
-                        })
+                            .unwrap_or(Err(ErrorCode::NOMEM))
                     } else {
                         Err(ErrorCode::NOMEM)
                     }
@@ -245,8 +250,8 @@ impl<'a> Driver for TextScreen<'a> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         match allow_num {
             0 => {
                 let res = self

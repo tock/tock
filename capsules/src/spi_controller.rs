@@ -8,7 +8,9 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -29,8 +31,8 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 
 #[derive(Default)]
 pub struct App {
-    app_read: ReadWriteAppSlice,
-    app_write: ReadOnlyAppSlice,
+    app_read: ReadWriteProcessBuffer,
+    app_write: ReadOnlyProcessBuffer,
     len: usize,
     index: usize,
 }
@@ -70,16 +72,19 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     fn do_next_read_write(&self, app: &mut App) {
         let write_len = self.kernel_write.map_or(0, |kwbuf| {
             let mut start = app.index;
-            let tmp_len = app.app_write.map_or(0, |src| {
-                let len = cmp::min(app.len - start, self.kernel_len.get());
-                let end = cmp::min(start + len, src.len());
-                start = cmp::min(start, end);
+            let tmp_len = app
+                .app_write
+                .enter(|src| {
+                    let len = cmp::min(app.len - start, self.kernel_len.get());
+                    let end = cmp::min(start + len, src.len());
+                    start = cmp::min(start, end);
 
-                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
-                    kwbuf[i] = *c;
-                }
-                end - start
-            });
+                    for (i, c) in src[start..end].iter().enumerate() {
+                        kwbuf[i] = c.get();
+                    }
+                    end - start
+                })
+                .unwrap_or(0);
             app.index = start + tmp_len;
             tmp_len
         });
@@ -96,8 +101,8 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Pass in a read buffer to receive bytes into.
             0 => self
@@ -119,8 +124,8 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Pass in a write buffer to transmit bytes from.
             0 => self
@@ -211,8 +216,8 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     // 1) Write and read buffers present: len is min of lengths
                     // 2) Only write buffer present: len is len of write
                     // 3) No write buffer present: no operation
-                    let mut mlen = app.app_write.map_or(0, |w| w.len());
-                    let rlen = app.app_read.map_or(mlen, |r| r.len());
+                    let mut mlen = app.app_write.enter(|w| w.len()).unwrap_or(0);
+                    let rlen = app.app_read.enter(|r| r.len()).unwrap_or(mlen);
                     mlen = cmp::min(mlen, rlen);
 
                     if mlen >= arg1 && arg1 > 0 {
@@ -285,7 +290,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
             let _ = self.grants.enter(*process_id, move |app, upcalls| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
-                    app.app_read.mut_map_or((), |dest| {
+                    let _ = app.app_read.mut_enter(|dest| {
                         // Need to be careful that app_read hasn't changed
                         // under us, so check all values against actual
                         // slice lengths.
@@ -305,9 +310,9 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                         // The amount to copy can't be longer than the size of the
                         // read buffer. -pal 6/8/21
                         let real_len = cmp::min(end - start, src.len());
-                        let dest_area = &mut dest[start..end];
+                        let dest_area = &dest[start..end];
                         for (i, c) in src[0..real_len].iter().enumerate() {
-                            dest_area[i] = *c;
+                            dest_area[i].set(*c);
                         }
                     });
                     src

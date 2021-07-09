@@ -5,11 +5,13 @@
 
 use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
-use crate::mem::Read;
 use crate::process;
 use crate::process::ProcessId;
 use crate::sched::Kernel;
-use crate::{CommandReturn, Driver, ErrorCode, ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::{
+    CommandReturn, Driver, ErrorCode, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
+    ReadableProcessBuffer,
+};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
@@ -27,18 +29,18 @@ pub enum IPCUpcallType {
 
 /// State that is stored in each process's grant region to support IPC.
 struct IPCData<const NUM_PROCS: usize> {
-    /// An array of app slices that this application has shared with other
-    /// applications.
-    shared_memory: [ReadWriteAppSlice; NUM_PROCS],
-    search_slice: ReadOnlyAppSlice,
+    /// An array of process buffers that this application has shared
+    /// with other applications.
+    shared_memory: [ReadWriteProcessBuffer; NUM_PROCS],
+    search_buf: ReadOnlyProcessBuffer,
 }
 
 impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
     fn default() -> IPCData<NUM_PROCS> {
-        const DEFAULT_RW_APP_SLICE: ReadWriteAppSlice = ReadWriteAppSlice::const_default();
-        Self {
-            shared_memory: [DEFAULT_RW_APP_SLICE; NUM_PROCS],
-            search_slice: ReadOnlyAppSlice::default(),
+        const DEFAULT_RW_PROC_BUF: ReadWriteProcessBuffer = ReadWriteProcessBuffer::const_default();
+        IPCData {
+            shared_memory: [DEFAULT_RW_PROC_BUF; NUM_PROCS],
+            search_buf: ReadOnlyProcessBuffer::default(),
         }
     }
 }
@@ -127,8 +129,8 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                         my_upcalls.schedule_upcall(
                                             to_schedule,
                                             called_from.id() + 1,
-                                            crate::mem::Read::len(slice),
-                                            crate::mem::Read::ptr(slice) as usize,
+                                            crate::mem::ReadableProcessBuffer::len(slice),
+                                            crate::mem::ReadableProcessBuffer::ptr(slice) as usize,
                                         );
                                     }
                                     None => {
@@ -185,16 +187,17 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
             {
                 self.data
                     .enter(appid, |data, _upcalls| {
-                        data.search_slice.map_or(
-                            CommandReturn::failure(ErrorCode::INVAL),
-                            |slice| {
+                        data.search_buf
+                            .enter(|slice| {
                                 self.data
                                     .kernel
                                     .process_until(|p| {
                                         let s = p.get_process_name().as_bytes();
                                         // are slices equal?
                                         if s.len() == slice.len()
-                                            && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
+                                            && s.iter()
+                                                .zip(slice.iter())
+                                                .all(|(c1, c2)| *c1 == c2.get())
                                         {
                                             Some(CommandReturn::success_u32(
                                                 p.processid().id() as u32 + 1,
@@ -204,8 +207,8 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                                         }
                                     })
                                     .unwrap_or(CommandReturn::failure(ErrorCode::NODEVICE))
-                            },
-                        )
+                            })
+                            .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                     })
                     .unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))
             }
@@ -265,19 +268,19 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
         &self,
         appid: ProcessId,
         subdriver: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut buffer: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         if subdriver == 0 {
             // Package name for discovery
             let res = self.data.enter(appid, |data, _upcalls| {
-                core::mem::swap(&mut data.search_slice, &mut slice);
+                core::mem::swap(&mut data.search_buf, &mut buffer);
             });
             match res {
-                Ok(_) => Ok(slice),
-                Err(e) => Err((slice, e.into())),
+                Ok(_) => Ok(buffer),
+                Err(e) => Err((buffer, e.into())),
             }
         } else {
-            Err((slice, ErrorCode::NOSUPPORT))
+            Err((buffer, ErrorCode::NOSUPPORT))
         }
     }
 
@@ -294,10 +297,10 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
         &self,
         appid: ProcessId,
         target_id: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut buffer: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         if target_id == 0 {
-            Err((slice, ErrorCode::NOSUPPORT))
+            Err((buffer, ErrorCode::NOSUPPORT))
         } else {
             match self.data.enter(appid, |data, _upcalls| {
                 // Lookup the index of the app based on the passed in
@@ -308,7 +311,7 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                 if let Some(oa) = otherapp {
                     if let Some(i) = oa.index() {
                         if let Some(smem) = data.shared_memory.get_mut(i) {
-                            core::mem::swap(smem, &mut slice);
+                            core::mem::swap(smem, &mut buffer);
                             Ok(())
                         } else {
                             Err(ErrorCode::INVAL)
@@ -320,8 +323,8 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                     Err(ErrorCode::BUSY)
                 }
             }) {
-                Ok(_) => Ok(slice),
-                Err(e) => Err((slice, e.into())),
+                Ok(_) => Ok(buffer),
+                Err(e) => Err((buffer, e.into())),
             }
         }
     }

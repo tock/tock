@@ -15,8 +15,8 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
+    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 const MAX_NEIGHBORS: usize = 4;
@@ -153,9 +153,9 @@ impl KeyDescriptor {
 
 #[derive(Default)]
 pub struct App {
-    app_read: ReadWriteAppSlice,
-    app_write: ReadOnlyAppSlice,
-    app_cfg: ReadWriteAppSlice,
+    app_read: ReadWriteProcessBuffer,
+    app_write: ReadOnlyProcessBuffer,
+    app_cfg: ReadWriteProcessBuffer,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
@@ -412,9 +412,10 @@ impl<'a> RadioDriver<'a> {
                 };
 
                 // Append the payload: there must be one
-                let result = app.app_write.map_or(Err(ErrorCode::INVAL), |payload| {
-                    frame.append_payload(payload.as_ref())
-                });
+                let result = app
+                    .app_write
+                    .enter(|payload| frame.append_payload_process(payload))
+                    .unwrap_or(Err(ErrorCode::INVAL));
                 if result != Ok(()) {
                     return result;
                 }
@@ -519,8 +520,8 @@ impl Driver for RadioDriver<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         match allow_num {
             0 | 1 => {
                 let res = self.apps.enter(appid, |app, _| match allow_num {
@@ -542,8 +543,8 @@ impl Driver for RadioDriver<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         match allow_num {
             0 => {
                 let res = self.apps.enter(appid, |app, _| {
@@ -638,15 +639,16 @@ impl Driver for RadioDriver<'_> {
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .enter(|cfg| {
                             if cfg.len() != 8 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             let mut addr_long = [0u8; 8];
-                            addr_long.copy_from_slice(cfg);
+                            cfg.copy_to_slice(&mut addr_long);
                             self.mac.set_address_long(addr_long);
                             CommandReturn::success()
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             4 => {
@@ -670,13 +672,14 @@ impl Driver for RadioDriver<'_> {
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_enter(|cfg| {
                             if cfg.len() != 8 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             cfg.copy_from_slice(&self.mac.get_address_long());
                             CommandReturn::success()
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             10 => {
@@ -705,7 +708,7 @@ impl Driver for RadioDriver<'_> {
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_enter(|cfg| {
                             if cfg.len() != 8 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
@@ -717,24 +720,26 @@ impl Driver for RadioDriver<'_> {
                                 },
                             )
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             17 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .enter(|cfg| {
                             if cfg.len() != 8 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
                             let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
                             new_neighbor.short_addr = arg1 as u16;
-                            new_neighbor.long_addr.copy_from_slice(cfg);
+                            cfg.copy_to_slice(&mut new_neighbor.long_addr);
                             self.add_neighbor(new_neighbor)
                                 .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
                                     CommandReturn::success_u32(index as u32 + 1)
                                 })
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
@@ -759,23 +764,30 @@ impl Driver for RadioDriver<'_> {
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_enter(|cfg| {
                             if cfg.len() != 10 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
-                            self.get_key(arg1)
-                                .and_then(|key| encode_key_id(&key.key_id, cfg).done())
+
+                            let mut tmp_cfg: [u8; 10] = [0; 10];
+                            let res = self
+                                .get_key(arg1)
+                                .and_then(|key| encode_key_id(&key.key_id, &mut tmp_cfg).done())
                                 .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
                                     CommandReturn::success()
-                                })
+                                });
+                            cfg.copy_from_slice(&tmp_cfg);
+
+                            res
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             23 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_enter(|cfg| {
                             if cfg.len() != 16 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
@@ -787,23 +799,32 @@ impl Driver for RadioDriver<'_> {
                                 },
                             )
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             24 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.app_cfg
-                        .mut_map_or(CommandReturn::failure(ErrorCode::INVAL), |cfg| {
+                        .mut_enter(|cfg| {
                             if cfg.len() != 27 {
                                 return CommandReturn::failure(ErrorCode::SIZE);
                             }
-                            KeyDescriptor::decode(cfg)
+
+                            // The cfg userspace buffer is exactly 27
+                            // bytes long, copy it into a proper slice
+                            // for decoding
+                            let mut tmp_cfg: [u8; 27] = [0; 27];
+                            cfg.copy_to_slice(&mut tmp_cfg);
+
+                            KeyDescriptor::decode(&tmp_cfg)
                                 .done()
                                 .and_then(|(_, new_key)| self.add_key(new_key))
                                 .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
                                     CommandReturn::success_u32(index as u32 + 1)
                                 })
                         })
+                        .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
@@ -815,29 +836,34 @@ impl Driver for RadioDriver<'_> {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
                         }
-                        let next_tx = app.app_cfg.map_or(None, |cfg| {
-                            if cfg.len() != 11 {
-                                return None;
-                            }
-                            let dst_addr = arg1 as u16;
-                            let level = match SecurityLevel::from_scf(cfg.as_ref()[0]) {
-                                Some(level) => level,
-                                None => {
+                        let next_tx = app
+                            .app_cfg
+                            .enter(|cfg| {
+                                if cfg.len() != 11 {
                                     return None;
                                 }
-                            };
-                            if level == SecurityLevel::None {
-                                Some((dst_addr, None))
-                            } else {
-                                let key_id = match decode_key_id(&cfg.as_ref()[1..]).done() {
-                                    Some((_, key_id)) => key_id,
+                                let dst_addr = arg1 as u16;
+                                let level = match SecurityLevel::from_scf(cfg[0].get()) {
+                                    Some(level) => level,
                                     None => {
                                         return None;
                                     }
                                 };
-                                Some((dst_addr, Some((level, key_id))))
-                            }
-                        });
+                                if level == SecurityLevel::None {
+                                    Some((dst_addr, None))
+                                } else {
+                                    let mut tmp_key_id_buffer: [u8; 10] = [0; 10];
+                                    cfg[1..].copy_to_slice(&mut tmp_key_id_buffer);
+                                    let key_id = match decode_key_id(&tmp_key_id_buffer).done() {
+                                        Some((_, key_id)) => key_id,
+                                        None => {
+                                            return None;
+                                        }
+                                    };
+                                    Some((dst_addr, Some((level, key_id))))
+                                }
+                            })
+                            .unwrap_or(None);
                         if next_tx.is_none() {
                             return Err(ErrorCode::INVAL);
                         }
@@ -892,16 +918,18 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 impl device::RxClient for RadioDriver<'_> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|_, app, upcalls| {
-            let read_present = app.app_read.mut_map_or(false, |rbuf| {
-                let rbuf = rbuf.as_mut();
-                let len = min(rbuf.len(), data_offset + data_len);
-                // Copy the entire frame over to userland, preceded by two
-                // bytes: the data offset and the data length.
-                rbuf[..len].copy_from_slice(&buf[..len]);
-                rbuf[0] = data_offset as u8;
-                rbuf[1] = data_len as u8;
-                true
-            });
+            let read_present = app
+                .app_read
+                .mut_enter(|rbuf| {
+                    let len = min(rbuf.len(), data_offset + data_len);
+                    // Copy the entire frame over to userland, preceded by two
+                    // bytes: the data offset and the data length.
+                    rbuf[..len].copy_from_slice(&buf[..len]);
+                    rbuf[0].set(data_offset as u8);
+                    rbuf[1].set(data_len as u8);
+                    true
+                })
+                .unwrap_or(false);
             if read_present {
                 // Encode useful parts of the header in 3 usizes
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);

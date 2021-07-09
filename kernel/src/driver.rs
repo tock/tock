@@ -70,7 +70,7 @@
 //! encoding these types into the Tock system call ABI specification.
 
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
@@ -188,7 +188,7 @@ pub trait Driver {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
-    /// System call for a process to pass a buffer (a ReadWriteAppSlice) to
+    /// System call for a process to pass a buffer (a ReadWriteProcessBuffer) to
     /// the kernel that the kernel can either read or write. The kernel calls
     /// this method only after it checks that the entire buffer is
     /// within memory the process can both read and write.
@@ -196,13 +196,13 @@ pub trait Driver {
         &self,
         app: ProcessId,
         which: usize,
-        slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 
     /// System call for a process to pass a read-only buffer (a
-    /// ReadOnlyAppSlice) to the kernel that the kernel can read.
+    /// ReadOnlyProcessBuffer) to the kernel that the kernel can read.
     /// The kernel calls this method only after it
     /// checks that that the entire buffer is within memory the
     /// process can read. This system call allows a process to pass
@@ -211,8 +211,8 @@ pub trait Driver {
         &self,
         app: ProcessId,
         which: usize,
-        slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 

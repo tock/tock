@@ -54,7 +54,8 @@ use core::{cmp, mem};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
+    ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -115,8 +116,8 @@ pub struct AppSys {
 
 /// Holds buffers that the application has passed us
 pub struct App {
-    app_buf1: ReadWriteAppSlice,
-    app_buf2: ReadWriteAppSlice,
+    app_buf1: ReadWriteProcessBuffer,
+    app_buf2: ReadWriteProcessBuffer,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -127,8 +128,8 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            app_buf1: ReadWriteAppSlice::default(),
-            app_buf2: ReadWriteAppSlice::default(),
+            app_buf1: ReadWriteProcessBuffer::default(),
+            app_buf2: ReadWriteProcessBuffer::default(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -823,7 +824,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                     // for the next app_buffer that was placed last
                                     // time, so we need to account for that
                                     let samples_needed =
-                                        next_app_buf.map_or(0, |buf| buf.len() / 2);
+                                        next_app_buf.enter(|buf| buf.len() / 2).unwrap_or(0);
                                     app.samples_remaining
                                         .set(samples_needed - app.next_samples_outstanding.get());
                                     app.samples_outstanding
@@ -852,8 +853,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                         // We'll just make a request and handle the
                                         // state updating on next callback
                                         self.take_and_map_buffer(|adc_buf| {
-                                            let samples_needed =
-                                                next_next_app_buf.map_or(0, |buf| buf.len() / 2);
+                                            let samples_needed = next_next_app_buf
+                                                .enter(|buf| buf.len() / 2)
+                                                .unwrap_or(0);
                                             let request_len =
                                                 cmp::min(samples_needed, adc_buf.len());
                                             app.next_samples_outstanding.set(request_len);
@@ -904,7 +906,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                     // on next callback
                                     self.take_and_map_buffer(|adc_buf| {
                                         let samples_needed =
-                                            next_app_buf.map_or(0, |buf| buf.len() / 2);
+                                            next_app_buf.enter(|buf| buf.len() / 2).unwrap_or(0);
                                         let request_len = cmp::min(samples_needed, adc_buf.len());
                                         app.next_samples_outstanding.set(request_len);
                                         let _ = self
@@ -947,7 +949,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             }
 
                             // next we should copy bytes to the app buffer
-                            app_buf.mut_map_or((), |app_buf| {
+                            let _ = app_buf.mut_enter(|app_buf| {
                                 // Copy bytes to app buffer by iterating over the
                                 // data.
                                 buffer_with_samples.map(|adc_buf| {
@@ -964,14 +966,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                     // We then split each sample into its two bytes and copy
                                     // them to the app buffer
                                     for (chunk, &sample) in app_buf
-                                        .chunks_mut(2)
+                                        .chunks(2)
                                         .skip(skip_amt)
                                         .zip(adc_buf.iter())
                                         .take(length)
                                     {
                                         let mut val = sample;
-                                        for byte in chunk.iter_mut() {
-                                            *byte = (val & 0xFF) as u8;
+                                        for byte in chunk.iter() {
+                                            byte.set((val & 0xFF) as u8);
                                             val = val >> 8;
                                         }
                                     }
@@ -1087,8 +1089,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for AdcDedicated<'_, A> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.

@@ -48,7 +48,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{CommandReturn, Driver, Grant, ProcessId};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -1413,8 +1415,8 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
 pub struct App {
-    write_buffer: ReadOnlyAppSlice,
-    read_buffer: ReadWriteAppSlice,
+    write_buffer: ReadOnlyProcessBuffer,
+    read_buffer: ReadWriteProcessBuffer,
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
@@ -1468,19 +1470,21 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
             let _ = self.grants.enter(*process_id, |app, upcalls| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
-                    app.read_buffer.mut_map_or(0, |read_buffer| {
-                        let read_buffer = read_buffer;
-                        // copy bytes to user buffer
-                        // Limit to minimum length between read_buffer, data, and
-                        // len field
-                        for (read_byte, &data_byte) in
-                            read_buffer.iter_mut().zip(data.iter()).take(len)
-                        {
-                            *read_byte = data_byte;
-                        }
-                        read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
-                        read_len
-                    });
+                    app.read_buffer
+                        .mut_enter(|read_buffer| {
+                            let read_buffer = read_buffer;
+                            // copy bytes to user buffer
+                            // Limit to minimum length between read_buffer, data, and
+                            // len field
+                            for (read_byte, &data_byte) in
+                                read_buffer.iter().zip(data.iter()).take(len)
+                            {
+                                read_byte.set(data_byte);
+                            }
+                            read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
+                            read_len
+                        })
+                        .unwrap_or(0);
                 });
 
                 // perform callback
@@ -1516,8 +1520,8 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = self
             .grants
             .enter(process_id, |grant, _| {
@@ -1542,8 +1546,8 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = self
             .grants
             .enter(process_id, |grant, _| {
@@ -1615,23 +1619,24 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
                     .grants
                     .enter(process_id, |app, _| {
                         app.write_buffer
-                            .map_or(Err(ErrorCode::NOMEM), |write_buffer| {
+                            .enter(|write_buffer| {
                                 self.kernel_buf
                                     .take()
                                     .map_or(Err(ErrorCode::BUSY), |kernel_buf| {
                                         // copy over write data from application
                                         // Limit to minimum length between kernel_buf,
                                         // write_buffer, and 512 (block size)
-                                        for (kernel_byte, &write_byte) in
+                                        for (kernel_byte, ref write_byte) in
                                             kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
                                         {
-                                            *kernel_byte = write_byte;
+                                            *kernel_byte = write_byte.get();
                                         }
 
                                         // begin writing
                                         self.sdcard.write_blocks(kernel_buf, data as u32, 1)
                                     })
                             })
+                            .unwrap_or(Err(ErrorCode::NOMEM))
                     })
                     .unwrap_or(Err(ErrorCode::NOMEM));
                 CommandReturn::from(result)

@@ -41,7 +41,7 @@
 //!    OS need to use them. However, generally only a very small interface is
 //!    exposed, and using that interface cannot compromise the overall system or
 //!    the core kernel. These functions are also marked `pub`. For example, the
-//!    `AppSlice` abstraction must be exposed to capsules to use shared memory
+//!    `ProcessBuffer` abstraction must be exposed to capsules to use shared memory
 //!    between a process and the kernel. However, the constructor is not public,
 //!    and the API exposed to capsules is very limited and confined by the Rust
 //!    type system. The constructor and other sensitive interfaces are
@@ -116,7 +116,10 @@ pub use crate::driver::{CommandReturn, Driver};
 pub use crate::errorcode::into_statuscode;
 pub use crate::errorcode::ErrorCode;
 pub use crate::grant::{Grant, ProcessGrant};
-pub use crate::mem::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+pub use crate::mem::{
+    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, ReadableProcessByte,
+    ReadableProcessSlice, WriteableProcessBuffer, WriteableProcessSlice,
+};
 pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
 pub use crate::platform::watchdog;
 pub use crate::platform::{mpu, Chip, InterruptService, Platform};

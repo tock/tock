@@ -33,7 +33,8 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
+    ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -41,16 +42,16 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
-    recv_buf: ReadWriteAppSlice,
-    send_buf: ReadWriteAppSlice,
+    recv_buf: ReadWriteProcessBuffer,
+    send_buf: ReadWriteProcessBuffer,
     can_receive: Cell<bool>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            recv_buf: ReadWriteAppSlice::default(),
-            send_buf: ReadWriteAppSlice::default(),
+            recv_buf: ReadWriteProcessBuffer::default(),
+            send_buf: ReadWriteProcessBuffer::default(),
             can_receive: Cell::new(false),
         }
     }
@@ -135,8 +136,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         self.appid.map(|id| {
             self.app
                 .enter(*id, |app, upcalls| {
-                    app.recv_buf.mut_map_or((), |dest| {
-                        dest.as_mut().copy_from_slice(buffer.as_ref());
+                    let _ = app.recv_buf.mut_enter(|dest| {
+                        dest.copy_from_slice(buffer);
                     });
 
                     upcalls.schedule_upcall(0, 0, 0, 0);
@@ -190,8 +191,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Pass buffer for the recvieved data to be stored in
             0 => self
@@ -258,20 +259,19 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         app.send_buf
-                            .map_or(CommandReturn::failure(ErrorCode::RESERVE), |d| {
+                            .enter(|data| {
                                 self.send_buffer.take().map_or(
                                     CommandReturn::failure(ErrorCode::RESERVE),
                                     |buf| {
-                                        let data = d.as_ref();
-
                                         // Copy the data into the static buffer
-                                        buf.copy_from_slice(&data[0..]);
+                                        data.copy_to_slice(buf);
 
                                         let _ = usb.send_buffer(buf);
                                         CommandReturn::success()
                                     },
                                 )
                             })
+                            .unwrap_or(CommandReturn::failure(ErrorCode::RESERVE))
                     } else {
                         CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
@@ -375,23 +375,20 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
                                 // The call to receive_buffer() collected a pending packet.
                                 CommandReturn::failure(ErrorCode::BUSY)
                             } else {
-                                app.send_buf.map_or(
-                                    CommandReturn::failure(ErrorCode::RESERVE),
-                                    |d| {
+                                app.send_buf
+                                    .enter(|data| {
                                         self.send_buffer.take().map_or(
                                             CommandReturn::failure(ErrorCode::RESERVE),
                                             |buf| {
-                                                let data = d.as_ref();
-
                                                 // Copy the data into the static buffer
-                                                buf.copy_from_slice(&data[0..]);
+                                                data.copy_to_slice(buf);
 
                                                 let _ = usb.send_buffer(buf);
                                                 CommandReturn::success()
                                             },
                                         )
-                                    },
-                                )
+                                    })
+                                    .unwrap_or(CommandReturn::failure(ErrorCode::RESERVE))
                             }
                         }
                     } else {

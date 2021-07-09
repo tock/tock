@@ -27,7 +27,9 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
-use kernel::{CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice};
+use kernel::{
+    CommandReturn, Driver, Grant, ProcessId, ReadOnlyProcessBuffer, ReadableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +37,7 @@ pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
 #[derive(Default)]
 pub struct App {
-    buffer: ReadOnlyAppSlice,
+    buffer: ReadOnlyProcessBuffer,
     pending_command: bool,
     flash_address: usize,
 }
@@ -80,20 +82,23 @@ impl<'a> AppFlash<'a> {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
 
-                    app.buffer.map_or(Err(ErrorCode::RESERVE), |app_buffer| {
-                        // Copy contents to internal buffer and write it.
-                        self.buffer
-                            .take()
-                            .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &app_buffer[0..length];
-                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                    *c = d[i];
-                                }
+                    app.buffer
+                        .enter(|app_buffer| {
+                            // Copy contents to internal buffer and write it.
+                            self.buffer
+                                .take()
+                                .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                                    let length = cmp::min(buffer.len(), app_buffer.len());
+                                    let d = &app_buffer[0..length];
+                                    for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate()
+                                    {
+                                        *c = d[i].get();
+                                    }
 
-                                self.driver.write(buffer, flash_address, length)
-                            })
-                    })
+                                    self.driver.write(buffer, flash_address, length)
+                                })
+                        })
+                        .unwrap_or(Err(ErrorCode::RESERVE))
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
@@ -132,26 +137,30 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
                     self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
-                    app.buffer.map_or(false, |app_buffer| {
-                        self.buffer.take().map_or(false, |buffer| {
-                            if app_buffer.len() != 512 {
-                                false
-                            } else {
-                                // Copy contents to internal buffer and write it.
-                                let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &app_buffer[0..length];
-                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                    *c = d[i];
-                                }
-
-                                if let Ok(()) = self.driver.write(buffer, flash_address, length) {
-                                    true
-                                } else {
+                    app.buffer
+                        .enter(|app_buffer| {
+                            self.buffer.take().map_or(false, |buffer| {
+                                if app_buffer.len() != 512 {
                                     false
+                                } else {
+                                    // Copy contents to internal buffer and write it.
+                                    let length = cmp::min(buffer.len(), app_buffer.len());
+                                    let d = &app_buffer[0..length];
+                                    for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate()
+                                    {
+                                        *c = d[i].get();
+                                    }
+
+                                    if let Ok(()) = self.driver.write(buffer, flash_address, length)
+                                    {
+                                        true
+                                    } else {
+                                        false
+                                    }
                                 }
-                            }
+                            })
                         })
-                    })
+                        .unwrap_or(false)
                 } else {
                     false
                 }
@@ -173,8 +182,8 @@ impl Driver for AppFlash<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps

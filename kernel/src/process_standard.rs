@@ -14,7 +14,7 @@ use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
@@ -136,8 +136,8 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     ///
     /// The start of process memory. We store this as a pointer and length and
     /// not a slice due to Rust aliasing rules. If we were to store a slice,
-    /// then any time another slice to the same memory or an AppSlice is used in
-    /// the kernel would be undefined behavior.
+    /// then any time another slice to the same memory or an ProcessBuffer is
+    /// used in the kernel would be undefined behavior.
     memory_start: *const u8,
     /// Number of bytes of memory allocated to this process.
     memory_len: usize,
@@ -508,17 +508,17 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn build_readwrite_appslice(
+    fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-    ) -> Result<ReadWriteAppSlice, ErrorCode> {
+    ) -> Result<ReadWriteProcessBuffer, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
             return Err(ErrorCode::FAIL);
         }
 
-        // A process is allowed to pass any pointer if the slice
+        // A process is allowed to pass any pointer if the buffer
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
         if size == 0 {
@@ -531,20 +531,20 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // Relevant discussion:
             // https://github.com/rust-lang/rust-clippy/issues/3045
             //
-            // It should be fine to ignore the lint here, as a slice
+            // It should be fine to ignore the lint here, as a buffer
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
             //
             // ### Safety
             //
             // We specific a zero-length buffer, so the implementation of
-            // `ReadWriteAppSlice` will handle any safety issues. Therefore, we
+            // `ReadWriteProcessBuffer` will handle any safety issues. Therefore, we
             // can encapsulate the unsafe.
-            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, 0, self.processid()) })
+            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
 
-            // Valid slice, we need to adjust the app's watermark
+            // Valid buffer, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
@@ -563,31 +563,31 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // we make sure that we're pointing towards userspace
             // memory (verified using `in_app_owned_memory`) and
             // respect alignment and other constraints of the Rust
-            // references created by ReadWriteAppSlice.
+            // references created by ReadWriteProcessBuffer.
             //
             // ### Safety
             //
             // We encapsulate the unsafe here on the condition in the TODO
-            // above, as we must ensure that this `ReadWriteAppSlice` will be
+            // above, as we must ensure that this `ReadWriteProcessBuffer` will be
             // the only reference to this memory.
-            Ok(unsafe { ReadWriteAppSlice::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
         }
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    fn build_readonly_appslice(
+    fn build_readonly_process_buffer(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<ReadOnlyAppSlice, ErrorCode> {
+    ) -> Result<ReadOnlyProcessBuffer, ErrorCode> {
         if !self.is_active() {
             // Do not operate on an inactive process
             return Err(ErrorCode::FAIL);
         }
 
-        // A process is allowed to pass any pointer if the slice
+        // A process is allowed to pass any pointer if the buffer
         // length is 0, as to revoke kernel access to a memory region
         // without granting access to another one
         if size == 0 {
@@ -600,22 +600,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // Relevant discussion:
             // https://github.com/rust-lang/rust-clippy/issues/3045
             //
-            // It should be fine to ignore the lint here, as a slice
+            // It should be fine to ignore the lint here, as a buffer
             // of length 0 will never allow dereferencing any memory
             // in a safe manner.
             //
             // ### Safety
             //
             // We specific a zero-length buffer, so the implementation of
-            // `ReadOnlyAppSlice` will handle any safety issues. Therefore, we
+            // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore, we
             // can encapsulate the unsafe.
-            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, 0, self.processid()) })
+            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
         {
             // TODO: Check for buffer aliasing here
 
-            // Valid slice, we need to adjust the app's watermark
+            // Valid buffer, we need to adjust the app's watermark
             // note: in_app_owned_memory ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
@@ -635,14 +635,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // memory (verified using `in_app_owned_memory` or
             // `in_app_flash_memory`) and respect alignment and other
             // constraints of the Rust references created by
-            // ReadWriteAppSlice.
+            // ReadWriteProcessBuffer.
             //
             // ### Safety
             //
             // We encapsulate the unsafe here on the condition in the TODO
-            // above, as we must ensure that this `ReadOnlyAppSlice` will be
+            // above, as we must ensure that this `ReadOnlyProcessBuffer` will be
             // the only reference to this memory.
-            Ok(unsafe { ReadOnlyAppSlice::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
         }

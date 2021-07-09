@@ -26,8 +26,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite,
-    ReadWriteAppSlice,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
+    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -36,8 +36,8 @@ pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
 #[derive(Default)]
 pub struct App {
-    tx_buffer: ReadOnlyAppSlice,
-    rx_buffer: ReadWriteAppSlice,
+    tx_buffer: ReadOnlyProcessBuffer,
+    rx_buffer: ReadWriteProcessBuffer,
 }
 
 // Local buffer for passing data between applications and the underlying
@@ -108,8 +108,8 @@ impl Driver for Nrf51822Serialization<'_> {
         &self,
         appid: ProcessId,
         allow_type: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_type {
             // Provide an RX buffer.
             0 => {
@@ -143,8 +143,8 @@ impl Driver for Nrf51822Serialization<'_> {
         &self,
         appid: ProcessId,
         allow_type: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_type {
             // Provide a TX buffer.
             0 => {
@@ -195,17 +195,17 @@ impl Driver for Nrf51822Serialization<'_> {
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                self.apps.enter(appid, |app,_| {
-                    app.tx_buffer.map_or(CommandReturn::failure(ErrorCode::FAIL), |slice| {
+                self.apps.enter(appid, |app, _| {
+                    app.tx_buffer.enter(|slice| {
                         let write_len = slice.len();
                         self.tx_buffer.take().map_or(CommandReturn::failure(ErrorCode::FAIL), |buffer| {
-                            for (i, c) in slice.as_ref().iter().enumerate() {
-                                buffer[i] = *c;
+                            for (i, c) in slice.iter().enumerate() {
+                                buffer[i] = c.get();
                             }
                             let _ = self.uart.transmit_buffer(buffer, write_len);
                             CommandReturn::success()
                         })
-                    })
+                    }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
                 }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
             // Receive from the nRF51822
@@ -271,18 +271,21 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
 
         self.active_app.map(|appid| {
             let _ = self.apps.enter(*appid, |app, upcalls| {
-                let len = app.rx_buffer.mut_map_or(0, |rb| {
-                    // Figure out length to copy.
-                    let max_len = cmp::min(rx_len, rb.len());
+                let len = app
+                    .rx_buffer
+                    .mut_enter(|rb| {
+                        // Figure out length to copy.
+                        let max_len = cmp::min(rx_len, rb.len());
 
-                    // Copy over data to app buffer.
-                    self.rx_buffer.map_or(0, |buffer| {
-                        for idx in 0..max_len {
-                            rb.as_mut()[idx] = buffer[idx];
-                        }
-                        max_len
+                        // Copy over data to app buffer.
+                        self.rx_buffer.map_or(0, |buffer| {
+                            for idx in 0..max_len {
+                                rb[idx].set(buffer[idx]);
+                            }
+                            max_len
+                        })
                     })
-                });
+                    .unwrap_or(0);
 
                 // Notify the serialization library in userspace about the
                 // received buffer.

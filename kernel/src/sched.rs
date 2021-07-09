@@ -1113,39 +1113,36 @@ impl Kernel {
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        // Try to create an appropriate [`ReadWriteAppSlice`].
+                        // Try to create an appropriate [`ReadWriteProcessBuffer`].
                         // This method will ensure that the memory in question
                         // is located in the process-accessible memory space.
-                        //
-                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
-                        // undefined behavior in Rust.
-                        match process.build_readwrite_appslice(allow_address, allow_size) {
-                            Ok(appslice) => {
-                                // Creating the [`ReadWriteAppSlice`] worked,
+                        match process.build_readwrite_process_buffer(allow_address, allow_size) {
+                            Ok(rw_pbuf) => {
+                                // Creating the [`ReadWriteProcessBuffer`] worked,
                                 // provide it to the capsule.
                                 match d.allow_readwrite(
                                     process.processid(),
                                     subdriver_number,
-                                    appslice,
+                                    rw_pbuf,
                                 ) {
-                                    Ok(returned_appslice) => {
+                                    Ok(returned_pbuf) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
                                         // information back to the process.
-                                        //
-                                        // TODO: Prevent swapping of AppSlices by
-                                        // the capsule
-                                        let (ptr, len) = returned_appslice.consume();
+                                        let (ptr, len) = returned_pbuf.consume();
                                         SyscallReturn::AllowReadWriteSuccess(ptr, len)
                                     }
-                                    Err((rejected_appslice, err)) => {
-                                        let (ptr, len) = rejected_appslice.consume();
+                                    Err((rejected_pbuf, err)) => {
+                                        // The capsule has rejected the allow
+                                        // operation. Pass the new buffer information
+                                        // back to the process.
+                                        let (ptr, len) = rejected_pbuf.consume();
                                         SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                                     }
                                 }
                             }
                             Err(allow_error) => {
-                                // There was an error creating the [`ReadWriteAppSlice`].
+                                // There was an error creating the [`ReadWriteProcessBuffer`].
                                 // Report back to the process.
                                 SyscallReturn::AllowReadWriteFailure(
                                     allow_error,
@@ -1183,46 +1180,38 @@ impl Kernel {
             } => {
                 let res = platform.with_driver(driver_number, |driver| match driver {
                     Some(d) => {
-                        // Try to create an appropriate [`ReadOnlyAppSlice`].
+                        // Try to create an appropriate [`ReadOnlyProcessBuffer`].
                         // This method will ensure that the memory in question
                         // is located in the process-accessible memory space.
-                        //
-                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
-                        // undefined behavior in Rust.
-                        match process.build_readonly_appslice(allow_address, allow_size) {
-                            Ok(appslice) => {
-                                // Creating the [`ReadOnlyAppSlice`] worked,
+                        match process.build_readonly_process_buffer(allow_address, allow_size) {
+                            Ok(ro_pbuf) => {
+                                // Creating the [`ReadOnlyProcessBuffer`] worked,
                                 // provide it to the capsule.
                                 match d.allow_readonly(
                                     process.processid(),
                                     subdriver_number,
-                                    appslice,
+                                    ro_pbuf,
                                 ) {
-                                    Ok(returned_appslice) => {
+                                    Ok(returned_pbuf) => {
                                         // The capsule has accepted the allow
                                         // operation. Pass the previous buffer
                                         // information back to the process.
-                                        //
-                                        // TODO: Prevent swapping of AppSlices by
-                                        // the capsule
-                                        let (ptr, len) = returned_appslice.consume();
+                                        let (ptr, len) = returned_pbuf.consume();
                                         SyscallReturn::AllowReadOnlySuccess(ptr, len)
                                     }
-                                    Err((rejected_appslice, err)) => {
+                                    Err((rejected_pbuf, err)) => {
                                         // The capsule has rejected the allow
                                         // operation. Pass the new buffer information
                                         // back to the process.
-                                        //
-                                        // TODO: Ensure that the capsule has passed
-                                        // the newly constructed AppSlice back
-                                        let (ptr, len) = rejected_appslice.consume();
+                                        let (ptr, len) = rejected_pbuf.consume();
                                         SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
                                     }
                                 }
                             }
                             Err(allow_error) => {
-                                // There was an error creating the [`ReadOnlyAppSlice`].
-                                // Report back to the process.
+                                // There was an error creating the
+                                // [`ReadOnlyProcessBuffer`]. Report
+                                // back to the process.
                                 SyscallReturn::AllowReadOnlyFailure(
                                     allow_error,
                                     allow_address,
