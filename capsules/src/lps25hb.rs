@@ -203,7 +203,9 @@ impl i2c::I2CClient for LPS25HB<'_> {
 
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(*pid, |_app, upcalls| {
-                        upcalls.schedule_upcall(0, pressure_ubar as usize, 0, 0);
+                        upcalls
+                            .schedule_upcall(0, pressure_ubar as usize, 0, 0)
+                            .ok();
                     });
                 });
 

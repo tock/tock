@@ -410,7 +410,9 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, kernel::into_statuscode(error), status as usize, 0);
+                upcalls
+                    .schedule_upcall(0, kernel::into_statuscode(error), status as usize, 0)
+                    .ok();
             });
         });
     }
@@ -424,12 +426,14 @@ impl MAX17205Client for MAX17205Driver<'_> {
     ) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(
-                    0,
-                    kernel::into_statuscode(error),
-                    percent as usize,
-                    (capacity as usize) << 16 | (full_capacity as usize),
-                );
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        kernel::into_statuscode(error),
+                        percent as usize,
+                        (capacity as usize) << 16 | (full_capacity as usize),
+                    )
+                    .ok();
             });
         });
     }
@@ -437,12 +441,14 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(
-                    0,
-                    kernel::into_statuscode(error),
-                    voltage as usize,
-                    current as usize,
-                );
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        kernel::into_statuscode(error),
+                        voltage as usize,
+                        current as usize,
+                    )
+                    .ok();
             });
         });
     }
@@ -450,7 +456,9 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, kernel::into_statuscode(error), coulomb as usize, 0);
+                upcalls
+                    .schedule_upcall(0, kernel::into_statuscode(error), coulomb as usize, 0)
+                    .ok();
             });
         });
     }
@@ -458,12 +466,14 @@ impl MAX17205Client for MAX17205Driver<'_> {
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(
-                    0,
-                    kernel::into_statuscode(error),
-                    (rid & 0xffffffff) as usize,
-                    (rid >> 32) as usize,
-                );
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        kernel::into_statuscode(error),
+                        (rid & 0xffffffff) as usize,
+                        (rid >> 32) as usize,
+                    )
+                    .ok();
             });
         });
     }

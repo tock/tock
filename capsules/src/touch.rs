@@ -179,12 +179,14 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                         Some(size) => size as usize,
                         None => 0,
                     };
-                    upcalls.schedule_upcall(
-                        0,
-                        event_status,
-                        (event.x as usize) << 16 | event.y as usize,
-                        pressure_size,
-                    );
+                    upcalls
+                        .schedule_upcall(
+                            0,
+                            event_status,
+                            (event.x as usize) << 16 | event.y as usize,
+                            pressure_size,
+                        )
+                        .ok();
                 }
             });
         }
@@ -252,12 +254,14 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                     let dropped_events = app.dropped_events;
                     if num > 0 {
                         app.ack = false;
-                        upcalls.schedule_upcall(
-                            2,
-                            num,
-                            dropped_events,
-                            if num < len { len - num } else { 0 },
-                        );
+                        upcalls
+                            .schedule_upcall(
+                                2,
+                                num,
+                                dropped_events,
+                                if num < len { len - num } else { 0 },
+                            )
+                            .ok();
                     }
 
                 // app.ack == false;
@@ -282,7 +286,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
                     GestureEvent::ZoomIn => 5,
                     GestureEvent::ZoomOut => 6,
                 };
-                upcalls.schedule_upcall(1, gesture_id, 0, 0);
+                upcalls.schedule_upcall(1, gesture_id, 0, 0).ok();
             });
         }
     }

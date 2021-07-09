@@ -267,13 +267,13 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         if ((temp_val as u8) > app.upper_proximity)
                             || ((temp_val as u8) < app.lower_proximity)
                         {
-                            upcalls.schedule_upcall(0, temp_val as usize, 0, 0);
+                            upcalls.schedule_upcall(0, temp_val as usize, 0, 0).ok();
                             app.subscribed = false; // dequeue
                         }
                     } else {
                         // Case: ReadProximity
                         // Upcall to all apps waiting on read_proximity.
-                        upcalls.schedule_upcall(0, temp_val as usize, 0, 0);
+                        upcalls.schedule_upcall(0, temp_val as usize, 0, 0).ok();
                         app.subscribed = false; // dequeue
                     }
                 }

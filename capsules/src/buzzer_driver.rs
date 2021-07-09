@@ -172,7 +172,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
             let _ = self.apps.enter(app_id, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 0, 0, 0);
+                upcalls.schedule_upcall(0, 0, 0, 0).ok();
             });
         });
 

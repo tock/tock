@@ -272,10 +272,12 @@ impl<
                     // If we get here we are ready to run the digest, reset the copied data
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
-                            upcalls.schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0);
+                            upcalls
+                                .schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0)
+                                .ok();
                         }
                     } else {
-                        upcalls.schedule_upcall(0, 0, 0, 0);
+                        upcalls.schedule_upcall(0, 0, 0, 0).ok();
                     }
                 })
                 .map_err(|err| {
@@ -312,7 +314,8 @@ impl<
                             pointer as usize,
                             0,
                         ),
-                    };
+                    }
+                    .ok();
 
                     // Clear the current appid as it has finished running
                     self.appid.clear();
@@ -608,7 +611,9 @@ impl<
                     self.apps
                         .enter(appid, |_app, upcalls| {
                             if let Err(e) = self.calculate_digest() {
-                                upcalls.schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0);
+                                upcalls
+                                    .schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0)
+                                    .ok();
                             }
                         })
                         .unwrap();

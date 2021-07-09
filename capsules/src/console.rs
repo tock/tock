@@ -309,7 +309,7 @@ impl uart::TransmitClient for Console<'_> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            upcalls.schedule_upcall(1, written, 0, 0);
+                            upcalls.schedule_upcall(1, written, 0, 0).ok();
                         }
                     }
                     Err(return_code) => {
@@ -317,7 +317,9 @@ impl uart::TransmitClient for Console<'_> {
                         app.write_len = 0;
                         app.write_remaining = 0;
                         app.pending_write = false;
-                        upcalls.schedule_upcall(1, kernel::into_statuscode(return_code), 0, 0);
+                        upcalls
+                            .schedule_upcall(1, kernel::into_statuscode(return_code), 0, 0)
+                            .ok();
                     }
                 }
             })
@@ -338,12 +340,9 @@ impl uart::TransmitClient for Console<'_> {
                                 app.write_len = 0;
                                 app.write_remaining = 0;
                                 app.pending_write = false;
-                                upcalls.schedule_upcall(
-                                    1,
-                                    kernel::into_statuscode(return_code),
-                                    0,
-                                    0,
-                                );
+                                upcalls
+                                    .schedule_upcall(1, kernel::into_statuscode(return_code), 0, 0)
+                                    .ok();
                                 false
                             }
                         }
@@ -423,21 +422,25 @@ impl uart::ReceiveClient for Console<'_> {
                                     (rcode, rx_len)
                                 };
 
-                                upcalls.schedule_upcall(
-                                    2,
-                                    kernel::into_statuscode(ret),
-                                    received_length,
-                                    0,
-                                );
+                                upcalls
+                                    .schedule_upcall(
+                                        2,
+                                        kernel::into_statuscode(ret),
+                                        received_length,
+                                        0,
+                                    )
+                                    .ok();
                             }
                             _ => {
                                 // Some UART error occurred
-                                upcalls.schedule_upcall(
-                                    2,
-                                    kernel::into_statuscode(Err(ErrorCode::FAIL)),
-                                    0,
-                                    0,
-                                );
+                                upcalls
+                                    .schedule_upcall(
+                                        2,
+                                        kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                        0,
+                                        0,
+                                    )
+                                    .ok();
                             }
                         }
                     })

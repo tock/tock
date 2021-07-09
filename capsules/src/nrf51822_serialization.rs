@@ -250,7 +250,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.active_app.map(|appid| {
             let _ = self.apps.enter(*appid, |_app, upcalls| {
                 // Call the callback after TX has finished
-                upcalls.schedule_upcall(0, 1, 0, 0);
+                upcalls.schedule_upcall(0, 1, 0, 0).ok();
             });
         });
     }
@@ -293,7 +293,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // Note: This indicates how many bytes were received by
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
-                upcalls.schedule_upcall(0, 4, rx_len, len);
+                upcalls.schedule_upcall(0, 4, rx_len, len).ok();
             });
         });
 

@@ -92,7 +92,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
 
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |_app, upcalls| {
-                        upcalls.schedule_upcall(0, 0, status, 0);
+                        upcalls.schedule_upcall(0, 0, status, 0).ok();
                     });
                 });
             }
@@ -119,7 +119,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                                 0
                             })
                             .unwrap_or(0);
-                        upcalls.schedule_upcall(0, 1, status, 0);
+                        upcalls.schedule_upcall(0, 1, status, 0).ok();
                     });
                 });
             }
@@ -142,7 +142,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                                 0
                             })
                             .unwrap_or(0);
-                        upcalls.schedule_upcall(0, 7, status, 0);
+                        upcalls.schedule_upcall(0, 7, status, 0).ok();
                     });
                 });
             }
@@ -195,7 +195,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                             })
                             .unwrap_or(0);
 
-                        upcalls.schedule_upcall(0, 3, length as usize, 0);
+                        upcalls.schedule_upcall(0, 3, length as usize, 0).ok();
                     });
                 });
             }
@@ -206,7 +206,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                 // Notify the app that the read finished
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |_app, upcalls| {
-                        upcalls.schedule_upcall(0, 4, length as usize, 0);
+                        upcalls.schedule_upcall(0, 4, length as usize, 0).ok();
                     });
                 });
             }
@@ -221,7 +221,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                 // Ask the app to setup a read buffer. The app must call
                 // command 3 after it has setup the shared read buffer with
                 // the correct bytes.
-                upcalls.schedule_upcall(0, 2, 0, 0);
+                upcalls.schedule_upcall(0, 2, 0, 0).ok();
             });
         });
     }
