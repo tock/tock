@@ -509,7 +509,7 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 ---------------------------------
 
 The Read-Write Allow system call class is how a userspace process
-shares buffer with the kernel that the kernel can read and write. 
+shares a buffer with the kernel that the kernel can read and write. 
 
 Calling a Read-Write Allow system call returns a buffer (address and
 length).  On the first call to a Read-Write Allow system call, the
@@ -557,7 +557,7 @@ Note that buffers held by the kernel are still considered part of a
 process address space, even if conceptually the process should not
 access that memory. This means, for example, that userspace may extend
 a buffer by calling allow with the same pointer and a longer length
-and such a call is not required to return an error code if `INVALID`.
+and such a call is not required to return an error code of `INVALID`.
 Similarly, it is possible for userspace to allow the same buffer
 multiple times to the kernel. This means, in practice, that the kernel
 may have multiple writeable references to the same memory and must
@@ -633,7 +633,7 @@ for (i, c) in src[0..real_len].iter().enumerate() {
 ```
 
 For similar reasons, a capsule should not cache computations on values
-from an allowed buffer, as if the buffer changes those computations
+from an allowed buffer. If the buffer changes, then those computations
 may no longer be correct (e.g., computing a length based on fields in
 the buffer).
 
