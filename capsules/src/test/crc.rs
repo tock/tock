@@ -3,8 +3,8 @@
 use kernel::common::cells::TakeCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
-use kernel::ErrorCode;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
+use kernel::ErrorCode;
 
 pub struct TestCrc<'a, C: 'a> {
     crc: &'a C,
@@ -29,8 +29,10 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
 
         let res = self.crc.input(leasable);
         if let Err((error, _buffer)) = res {
-            debug!("CrcTest ERROR: failed to start input processing: {:?}", error);
-            return;
+            debug!(
+                "CrcTest ERROR: failed to start input processing: {:?}",
+                error
+            );
         }
     }
 
@@ -39,7 +41,7 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
     }
 }
 
-impl<'a, C: Crc<'a>>  Client for TestCrc<'a, C> {
+impl<'a, C: Crc<'a>> Client for TestCrc<'a, C> {
     fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableBuffer<'static, u8>) {
         if result.is_err() {
             debug!("CrcTest ERROR: failed to process input: {:?}", result);
@@ -51,13 +53,14 @@ impl<'a, C: Crc<'a>>  Client for TestCrc<'a, C> {
             let res = self.crc.compute();
             if res.is_err() {
                 debug!("CrcTest ERROR: failed to start CRC computation: {:?}", res);
-                return;
             }
         } else {
             let res = self.crc.input(buffer);
             if let Err((error, _buffer)) = res {
-                debug!("CrcTest ERROR: failed to start input processing: {:?}", error);
-                return;
+                debug!(
+                    "CrcTest ERROR: failed to start input processing: {:?}",
+                    error
+                );
             }
         }
     }
@@ -66,7 +69,6 @@ impl<'a, C: Crc<'a>>  Client for TestCrc<'a, C> {
     fn crc_done(&self, result: Result<CrcOutput, ErrorCode>) {
         if let Err(code) = result {
             debug!("CrcTest ERROR: failed to compute CRC: {:?}", code);
-            return;
         } else {
             if let Ok(output) = result {
                 match output {

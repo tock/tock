@@ -62,7 +62,6 @@ use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
     CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
-    Upcall,
 };
 
 /// Syscall driver number.
@@ -86,8 +85,6 @@ pub enum NonvolatileUser {
 }
 
 pub struct App {
-    callback_read: Upcall,
-    callback_write: Upcall,
     pending_command: bool,
     command: NonvolatileCommand,
     offset: usize,
@@ -99,8 +96,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback_read: Upcall::default(),
-            callback_write: Upcall::default(),
             pending_command: false,
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
@@ -115,7 +110,7 @@ pub struct NonvolatileStorage<'a> {
     // The underlying physical storage device.
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<App, 2>,
 
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
@@ -150,7 +145,7 @@ pub struct NonvolatileStorage<'a> {
 impl<'a> NonvolatileStorage<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App>,
+        grant: Grant<App, 2>,
         userspace_start_address: usize,
         userspace_length: usize,
         kernel_start_address: usize,
@@ -216,7 +211,7 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 app_id.map_or(Err(ErrorCode::FAIL), |appid| {
                     self.apps
-                        .enter(appid, |app| {
+                        .enter(appid, |app, _| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
                                 NonvolatileCommand::UserspaceRead => app.buffer_read.len(),
@@ -372,7 +367,7 @@ impl<'a> NonvolatileStorage<'a> {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
                 let appid = cntr.processid();
-                let started_command = cntr.enter(|app| {
+                let started_command = cntr.enter(|app, _| {
                     if app.pending_command {
                         app.pending_command = false;
                         self.current_user
@@ -408,7 +403,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app| {
+                    let _ = self.apps.enter(app_id, move |app, upcalls| {
                         // Need to copy in the contents of the buffer
                         app.buffer_read.mut_map_or((), |app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
@@ -423,7 +418,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_read.schedule(length, 0, 0);
+                        upcalls.schedule_upcall(0, length, 0, 0);
                     });
                 }
             }
@@ -442,12 +437,12 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                     });
                 }
                 NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |app| {
+                    let _ = self.apps.enter(app_id, move |_app, upcalls| {
                         // Replace the buffer we used to do this write.
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        app.callback_write.schedule(length, 0, 0);
+                        upcalls.schedule_upcall(1, length, 0, 0);
                     });
                 }
             }
@@ -501,7 +496,7 @@ impl Driver for NonvolatileStorage<'_> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.buffer_read);
                     Ok(())
                 })
@@ -529,7 +524,7 @@ impl Driver for NonvolatileStorage<'_> {
         let res = match allow_num {
             0 => self
                 .apps
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.buffer_write);
                     Ok(())
                 })
@@ -543,38 +538,12 @@ impl Driver for NonvolatileStorage<'_> {
         }
     }
 
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a read done callback.
-    /// - `1`: Setup a write done callback.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app| match subscribe_num {
-                0 => {
-                    mem::swap(&mut app.callback_read, &mut callback);
-                    Ok(())
-                }
-                1 => {
-                    mem::swap(&mut app.callback_write, &mut callback);
-                    Ok(())
-                }
-                _ => Err(ErrorCode::NOSUPPORT),
-            })
-            .unwrap_or_else(|err| Err(err.into()));
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a read done callback.
+    // - `1`: Setup a write done callback.
 
     /// Command interface.
     ///
@@ -635,5 +604,9 @@ impl Driver for NonvolatileStorage<'_> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

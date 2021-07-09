@@ -54,7 +54,7 @@
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -65,6 +65,14 @@ pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 /// that app has an interrupt registered for that button.
 pub type SubscribeMap = u32;
 
+/// This capsule keeps track for each app of which buttons it has a registered
+/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
+/// that app has an interrupt registered for that button.
+#[derive(Default)]
+pub struct App {
+    subscribe_map: u32,
+}
+
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
 pub struct Button<'a, P: gpio::InterruptPin<'a>> {
@@ -73,7 +81,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<(Upcall, SubscribeMap)>,
+    apps: Grant<App, 1>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -83,7 +91,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
-        grant: Grant<(Upcall, SubscribeMap)>,
+        grant: Grant<App, 1>,
     ) -> Self {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
@@ -103,40 +111,16 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
     }
 }
 
+/// ### `subscribe_num`
+///
+/// - `0`: Set callback for pin interrupts. Note setting this callback has
+///   no reliance on individual pins being configured as interrupts. The
+///   interrupt will be called with two parameters: the index of the button
+///   that triggered the interrupt and the pressed/not pressed state of the
+///   button.
+const UPCALL_NUM: usize = 0;
+
 impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
-    /// Set callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Set callback for pin interrupts. Note setting this callback has
-    ///   no reliance on individual pins being configured as interrupts. The
-    ///   interrupt will be called with two parameters: the index of the button
-    ///   that triggered the interrupt and the pressed/not pressed state of the
-    ///   button.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |cntr| {
-                    core::mem::swap(&mut cntr.0, &mut callback);
-                })
-                .map_err(|err| err.into()),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
-
     /// Configure interrupts and read state for buttons.
     ///
     /// `data` is the index of the button in the button array as passed to
@@ -169,8 +153,8 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr| {
-                            cntr.1 |= 1 << data;
+                        .enter(appid, |cntr, _| {
+                            cntr.subscribe_map |= 1 << data;
                             let _ = pins[data]
                                 .0
                                 .enable_interrupts(gpio::InterruptEdge::EitherEdge);
@@ -189,16 +173,16 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr| {
-                            cntr.1 &= !(1 << data);
+                        .enter(appid, |cntr, _| {
+                            cntr.subscribe_map &= !(1 << data);
                             CommandReturn::success()
                         })
                         .unwrap_or_else(|err| CommandReturn::failure(err.into()));
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
-                    self.apps.each(|_, cntr| {
-                        if cntr.1 & (1 << data) != 0 {
+                    self.apps.each(|_, cntr, _| {
+                        if cntr.subscribe_map & (1 << data) != 0 {
                             interrupt_count.set(interrupt_count.get() + 1);
                         }
                     });
@@ -226,6 +210,10 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
+    }
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
@@ -235,10 +223,10 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
         let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
-        self.apps.each(|_, cntr| {
-            if cntr.1 & (1 << pin_num) != 0 {
+        self.apps.each(|_, cntr, upcalls| {
+            if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
-                cntr.0.schedule(pin_num as usize, button_state as usize, 0);
+                upcalls.schedule_upcall(UPCALL_NUM, pin_num as usize, button_state as usize, 0);
             }
         });
 

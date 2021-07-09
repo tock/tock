@@ -22,6 +22,7 @@ use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 /// Actual process memory
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
@@ -34,7 +35,7 @@ struct Teensy40 {
     led:
         &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
@@ -53,6 +54,32 @@ impl kernel::Platform for Teensy40 {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
+    }
+}
+
+/// Static configurations for DMA channels.
+///
+/// All DMA channels must be unique.
+mod dma_config {
+    use super::imxrt1060::nvic;
+
+    /// DMA channel for LPUART2_RX (arbitrary).
+    pub const LPUART2_RX: usize = 7;
+    /// DMA channel for LPUART2_TX (arbitrary).
+    pub const LPUART2_TX: usize = 8;
+
+    /// Add your DMA interrupt vector numbers here.
+    const DMA_INTERRUPTS: &[u32] = &[nvic::DMA7_23, nvic::DMA8_24];
+
+    /// Enable DMA interrupts for the selected channels.
+    #[inline(always)]
+    pub fn enable_interrupts() {
+        DMA_INTERRUPTS
+            .iter()
+            .copied()
+            // Safety: creating NVIC vector in platform code. Vector is valid.
+            .map(|vector| unsafe { cortexm7::nvic::Nvic::new(vector) })
+            .for_each(|intr| intr.enable());
     }
 }
 
@@ -162,8 +189,17 @@ pub unsafe fn main() {
         peripherals.ccm.perclk_divider(),
     );
 
+    peripherals.dma.clock().enable();
+    peripherals.dma.reset_tcds();
+    peripherals
+        .lpuart2
+        .set_rx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_RX]);
+    peripherals
+        .lpuart2
+        .set_tx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_TX]);
+
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
-    cortexm7::nvic::Nvic::new(imxrt1060::nvic::LPUART2).enable();
+    dma_config::enable_interrupts();
 
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
@@ -189,7 +225,12 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Setup the console
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     // LED
     let led = components::led::LedsComponent::new(components::led_component_helper!(
@@ -204,8 +245,12 @@ pub unsafe fn main() {
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -215,7 +260,11 @@ pub unsafe fn main() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
-    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+    let ipc = kernel::ipc::IPC::new(
+        board_kernel,
+        kernel::ipc::DRIVER_NUM,
+        &memory_allocation_capability,
+    );
 
     //
     // Platform

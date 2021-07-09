@@ -36,6 +36,7 @@ mod test_take_map_cell;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
@@ -69,8 +70,8 @@ struct Hail {
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
+    crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
 }
 
@@ -237,7 +238,12 @@ pub unsafe fn main() {
     hil::uart::Receive::set_receive_client(&peripherals.usart0, uart_mux);
 
     // Setup the console and the process inspection console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
@@ -248,9 +254,10 @@ pub unsafe fn main() {
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = components::nrf51822::Nrf51822Component::new(
+        board_kernel,
+        capsules::nrf51822_serialization::DRIVER_NUM,
         &peripherals.usart3,
         &peripherals.pa[17],
-        board_kernel,
     )
     .finalize(());
 
@@ -267,18 +274,35 @@ pub unsafe fn main() {
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
-    let temp =
-        components::temperature::TemperatureComponent::new(board_kernel, si7021).finalize(());
-    let humidity = components::si7021::HumidityComponent::new(board_kernel, si7021).finalize(());
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM,
+        si7021,
+    )
+    .finalize(());
+    let humidity = components::si7021::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM,
+        si7021,
+    )
+    .finalize(());
 
     // Configure the ISL29035, device address 0x44
-    let ambient_light =
-        components::isl29035::AmbientLightComponent::new(board_kernel, sensors_i2c, mux_alarm)
-            .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+    let ambient_light = components::isl29035::AmbientLightComponent::new(
+        board_kernel,
+        capsules::ambient_light::DRIVER_NUM,
+        sensors_i2c,
+        mux_alarm,
+    )
+    .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
 
     // Alarm
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
@@ -293,16 +317,22 @@ pub unsafe fn main() {
     fxos8700_i2c.set_client(fxos8700);
     peripherals.pa[9].set_client(fxos8700);
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
-        .finalize(components::ninedof_component_helper!(fxos8700));
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
     // Create the SPI system call capsule.
-    let spi_syscalls = components::spi::SpiSyscallComponent::new(board_kernel, mux_spi, 0)
-        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        0,
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
     let led = components::led::LedsComponent::new(components::led_component_helper!(
@@ -318,6 +348,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             sam4l::gpio::GPIOPin,
             (
@@ -358,7 +389,7 @@ pub unsafe fn main() {
         capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
         capsules::adc::AdcDedicated::new(
             &peripherals.adc,
-            board_kernel.create_grant(&memory_allocation_capability),
+            board_kernel.create_grant(capsules::adc::DRIVER_NUM, &memory_allocation_capability),
             ref_channels,
             &mut capsules::adc::ADC_BUFFER1,
             &mut capsules::adc::ADC_BUFFER2,
@@ -368,11 +399,17 @@ pub unsafe fn main() {
     peripherals.adc.set_client(adc);
 
     // Setup RNG
-    let rng = components::rng::RngComponent::new(board_kernel, &peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &peripherals.trng,
+    )
+    .finalize(());
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
             0 => &peripherals.pb[14], // D0
@@ -384,8 +421,12 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
     // CRC
-    let crc = components::crc::CrcComponent::new(board_kernel, &peripherals.crccu)
-        .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    let crc = components::crc::CrcComponent::new(
+        board_kernel,
+        capsules::crc::DRIVER_NUM,
+        &peripherals.crccu,
+    )
+    .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
 
     // DAC
     let dac = static_init!(
@@ -433,7 +474,11 @@ pub unsafe fn main() {
         led,
         button,
         rng,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
         crc,
         dac,
     };

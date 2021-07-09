@@ -16,7 +16,7 @@ gives code examples.
   * [Examples of command and `CommandResult`](#examples-of-command-and-commandresult)
     + [ReturnCode versus ErrorCode](#returncode-versus-errorcode)
   * [Examples of `allow_readwrite` and `allow_readonly`](#examples-of-allow_readwrite-and-allow_readonly)
-  * [Example of `subscribe`](#example-of-subscribe)
+  * [The new subscription mechanism](#the-new-subscription-mechanism)
   * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`](#using-readonlyappslice-and-readwriteappslice-console)
   * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`](#using-readonlyappslice-and-readwriteappslice-spi_controller)
 
@@ -43,15 +43,6 @@ This is the signature for the 2.0 `Driver` trait:
 
 ```rust
 pub trait Driver {
-    fn subscribe(
-        &self,
-        which: usize,
-        callback: Callback,
-        app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
-        Err((callback, ErrorCode::NOSUPPORT))
-    }
-
     fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
         CommandResult::failure(ErrorCode::NOSUPPORT)
     }
@@ -73,6 +64,8 @@ pub trait Driver {
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
+
+    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
 }
 ```
 
@@ -81,13 +74,13 @@ The first thing to note is that there are now two versions of the old `allow`
 method: one for a read/write buffer and one for a read-only buffer. They
 pass different types of slices.
 
-The second thing to note is that the three methods that pass pointers,
-`allow_readwrite`, `allow_readonly`, and `subscribe`, return a `Result`.
-The success case (`Ok`) returns a pointer back in the form of a `Callback`
-or application slice. The failure case (`Err`) returns the same structure
+The second thing to note is that the two methods that pass pointers,
+`allow_readwrite` and `allow_readonly`, return a `Result`.
+The success case (`Ok`) returns a pointer back in the form of
+an application slice. The failure case (`Err`) returns the same structure
 back but also has an `ErrorCode`.
 
-These three methods follow a swapping calling convention: you pass in
+These two methods follow a swapping calling convention: you pass in
 a pointer and get one back. If the call fails, you get back the one
 you passed in. If the call succeeds, you get back the one the capsule
 previously had. That is, you call `allow_readwrite` with an
@@ -107,13 +100,21 @@ The `command` method behaves differently, because commands only
 operate on values, not pointers. Each command has its own arguments and
 number of return types. This is encapsulated within `CommandResult`.
 
+The third thing to note is that there is no longer a `subscribe()` method. This
+has been removed and instead all upcalls are managed entirely by the kernel.
+Scheduling an upcall is now done with a provided object from entering a grant.
+
+The fourth thing to note is the new `allocate_grant()` method. This allows the
+kernel to request that a capsule enters its grant region so that it is allocated
+for the specific process. This should be implemented with a roughly boilerplate
+implementation [described below](#the-new-subscription-mechanism).
 
 Porting Capsules and Example Code
 -------------------
 
 The major change you'll see in porting your code is that capsule logic
 becomes simpler: `Options` have been replaced by structures, and
-there's a basic structure to swapping callbacks or application slices.
+there's a basic structure to swapping application slices.
 
 
 ### Examples of command and `CommandResult`
@@ -272,69 +273,51 @@ method swaps the passed `ReadOnlyAppSlice` and the one in the `App` region,
 returning the one that was in the app region. It then returns `slice`,
 which is either the passed slice or the swapped out one.
 
-### Example of `subscribe`
+### The new subscription mechanism
 
-A call to `subscribe` has a similar structure to `allow`. Here is
-an example from `console`:
+Tock 2.0 introduces a guarantee for the subscribe syscall that for every unique
+subscribe (i.e. `(driver_num, subscribe_num)` tuple), userspace will be returned
+the previously subscribe upcall (or null if this is the first subscription).
+This guarantee means that once an upcall is returned, the kernel will never
+schedule the upcall again (unless it is re-subscribed in the future), and
+userspace can deallocate the upcall function if it so chooses.
 
-```rust
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Callback,
-        app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
-        let res = match subscribe_num {
-            1 => { // putstr/write done
-                self
-                .apps
-                .enter(app_id, |app, _| {
-                    mem::swap(&mut app.write_callback, &mut callback);
-                })
-               .map_err(ErrorCode::from)
-            },
-            2 => { // getnstr/read done
-                self
-                .apps
-                .enter(app_id, |app, _| {
-                     mem::swap(&mut app.read_callback, &mut callback);
-                }).map_err(ErrorCode::from)
-            },
-            _ => Err(ErrorCode::NOSUPPORT)
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-```
-
-Note that `subscribe` now takes a `Callback` instead of an `Option<Callback>`.
-The `Callback` structure is a wrapper around an `Option<ProcessCallback>`,
-which holds actual callback information. The Null Callback is represented
-as a `Callback` where the `Option` is `None`. This is then encapsulated
-within the call to `Callback::schedule`, where the Null Callback does
-nothing.
-
-In cases where a `Callback` is stored in a `Cell`, one does not need to
-use `mem::swap`. Instead, one can use `Cell::replace`. For example:
+Providing this guarantee necessitates changes to the capsule interface for
+declaring and using upcalls. To declare upcalls, a capsule now provides the
+number of upcalls as a templated value on `Grant`.
 
 ```rust
- fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Callback,
-        _app_id: AppId,
-    ) -> Result<Callback, (Callback, ErrorCode)> {
-        match subscribe_num {
-            0 => Ok(self.callback.replace(callback)),
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
+struct capsule {
+    ...
+    apps: Grant<T, NUM_UPCALLS>,
+    ...
 }
 ```
+
+The second parameter tells the kernel how many upcalls to save. Capsules no
+longer can store an object of type `Upcall` in their grant region.
+
+To ensure that the kernel can store the upcalls, a capsule must implement the
+`allocate_grant()` method. The typical implementation looks like:
+
+```rust
+fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+   self.apps.enter(processid, |_, _| {})
+}
+```
+
+Finally to schedule an upcall any calls to `app.upcall.schedule()` should be
+replaced with code like:
+
+```rust
+self.apps.enter(appid, |app, upcalls| {
+    upcalls.schedule_upcall(upcall_number, r0, r1, r2);
+});
+```
+
+The parameter `upcall_number` matches the `subscribe_num` the process used with
+the subscribe syscall.
+
 
 
 

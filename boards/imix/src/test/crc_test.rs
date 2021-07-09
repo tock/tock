@@ -8,12 +8,14 @@
 //! ```
 //!     CRC32: 0xcbf43926
 //!     CRC32C: 0xe3069283
-//!     CRC16CITT: 0x89f6 
+//!     CRC16CITT: 0x89f6
 //!
 //! ```
+//!
 //! These results are for computing the CRC over the string
-//! "123456789" (not including the quotes). The result values
-//! were taken from https://reveng.sourceforge.io/crc-catalogue/17plus.htm
+//! "123456789" (not including the quotes). The result values were
+//! taken from
+//! <https://reveng.sourceforge.io/crc-catalogue/17plus.htm>
 
 use capsules::test::crc::TestCrc;
 use kernel::hil::crc::Crc;
@@ -33,9 +35,5 @@ unsafe fn static_init_crc(crc: &'static Crccu) -> &'static TestCrc<'static, Crcc
     for i in 0..9 {
         data[i] = i as u8 + ('1' as u8);
     }
-    static_init!(
-        TestCrc<'static, Crccu>,
-        TestCrc::new(&crc, data)
-    )
+    static_init!(TestCrc<'static, Crccu>, TestCrc::new(&crc, data))
 }
-

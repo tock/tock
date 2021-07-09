@@ -1,13 +1,14 @@
 # Tock Register Interface
 
-This crate provides an interface for defining and manipulating memory mapped
-registers and bitfields.
+This crate provides an interface and types for defining and
+manipulating registers and bitfields.
 
 ## Defining registers
 
 The crate provides three types for working with memory mapped registers:
 `ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
-write-only functionality, respectively.
+write-only functionality, respectively. These types implement the `Readable`,
+`Writeable` and `ReadWriteable` traits.
 
 Defining the registers is done with the `register_structs` macro, which expects
 for each register an offset, a field name, and a type. Registers must be
@@ -95,43 +96,15 @@ padding are consistent with the actual fields in the struct, and that alignment
 is correct.
 
 Since those tests would break compilation in `custom-test-frameworks`
-environments, it is possible to opt out of the test generation. To do so, add
-the following cargo feature:
+environments, it is possible to opt out of the test generation. To do
+so, disable the default feature set containing the `std_unit_tests`
+feature:
 
 ```toml
 [dependencies.tock-registers]
 version = "0.4.x"
-features = ["no_std_unit_tests"]
-```
-
-WARNING: For now, the **unit tests checking offsets and alignments are not yet
-run** on `make ci-travis`. This means that leaving an unintentional gap between
-registers will **not** be caught. Instead, the `register_structs` macro will
-generate a struct with invalid offsets without warning. Please follow the
-discussion on https://github.com/tock/tock/pull/1393.
-
-For example, the following call to the macro:
-
-```rust
-register_structs! {
-    Registers {
-        (0x000 => foo: ReadOnly<u8>),
-        (0x008 => bar: ReadOnly<u8>),
-        (0x009 => @END),
-    }
-}
-```
-
-will generate the following struct, even though there is an unintentional gap of
-4 bytes between addresses `0x004` (the end of register `foo`) and `0x008` (the
-intended beginning of register `bar`).
-
-```rust
-#[repr(C)]
-struct Registers {
-    foo: ReadOnly<u32>,
-    bar: ReadOnly<u32>,
-}
+default-features = false
+features = ["register_types"]
 ```
 
 By default, the visibility of the generated structs and fields is private. You
@@ -226,10 +199,12 @@ register_bitfields! [
 ## Register Interface Summary
 
 There are four types provided by the register interface: `ReadOnly`,
-`WriteOnly`, `ReadWrite`, and `Aliased`. They provide the following functions:
+`WriteOnly`, `ReadWrite`, and `Aliased`. They expose the following
+methods, through the implementations of the `Readable`, `Writeable`
+and `ReadWriteable` traits respectively:
 
 ```rust
-ReadOnly<T: IntLike, R: RegisterLongName = ()>
+ReadOnly<T: UIntLike, R: RegisterLongName = ()>: Readable
 .get() -> T                                    // Get the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
 .read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
@@ -238,11 +213,11 @@ ReadOnly<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-WriteOnly<T: IntLike, R: RegisterLongName = ()>
+WriteOnly<T: UIntLike, R: RegisterLongName = ()>: Writeable
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-ReadWrite<T: IntLike, R: RegisterLongName = ()>
+ReadWrite<T: UIntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWriteable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -259,7 +234,7 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
-Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>
+Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
@@ -275,7 +250,8 @@ Aliased<T: IntLike, R: RegisterLongName = (), W: RegisterLongName = ()>
 The `Aliased` type represents cases where read-only and write-only registers,
 with different meanings, are aliased to the same memory location.
 
-The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
+The first type parameter (the `UIntLike` type) is `u8`, `u16`, `u32`,
+`u64`, `u128` or `usize`.
 
 ## Example: Using registers and bitfields
 
@@ -481,3 +457,15 @@ register_bitfields! [
     ]
 ]
 ```
+
+## Implementing custom register types
+
+The `Readable`, `Writeable` and `ReadWriteable` traits make it
+possible to implement custom register types, even outside of this
+crate. A particularly useful application area for this are CPU
+registers, such as ARM SPSRs or RISC-V CSRs. It is sufficient to
+implement the `Readable::get` and `Writeable::set` methods for the
+rest of the API to be automatically implemented by the crate-provided
+traits. For more in-depth documentation on how this works, [refer to
+the `interfaces` module
+documentation](https://docs.tockos.org/tock_registers/index.html).

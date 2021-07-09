@@ -48,7 +48,6 @@
 //
 // - Support continuous-mode CRC
 
-
 use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
@@ -58,7 +57,7 @@ use kernel::common::registers::{
     register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::common::{deferred_call::DeferredCall, leasable_buffer::LeasableBuffer, StaticRef};
-use kernel::hil::crc::{Crc, CrcAlgorithm, Client, CrcOutput};
+use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::ErrorCode;
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
@@ -438,7 +437,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
             return Err((ErrorCode::BUSY, data));
         }
 
-        // Need to initialize after checking business, because init will 
+        // Need to initialize after checking business, because init will
         // clear out interrupt state.
         self.init();
 
@@ -487,7 +486,16 @@ impl<'a> Crc<'a> for Crccu<'a> {
         self.current_full_buffer.set(full_slice_ptr_len);
 
         // Ensure the &'static mut slice reference goes out of scope
-        core::mem::drop(full_slice);
+        //
+        // We can't use mem::drop on a reference here, clippy will
+        // complain, even though it would be effective at making this
+        // 'static mut buffer inaccessible. For now, just make sure to
+        // not reference it below.
+        //
+        // TODO: this needs a proper type and is a broader issue. See
+        // tock/tock#2637 for more information.
+        //
+        // core::mem::drop(full_slice);
 
         // Set the descriptor memory address accordingly
         self.registers

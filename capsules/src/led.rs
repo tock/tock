@@ -133,4 +133,8 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
             })
             .expect("LEDs slice taken")
     }
+
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        Ok(())
+    }
 }

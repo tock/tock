@@ -14,7 +14,8 @@ use riscv_csr::csr::{
     PMPCFG14, PMPCFG15, PMPCFG2, PMPCFG3, PMPCFG4, PMPCFG5, PMPCFG6, PMPCFG7, PMPCFG8, PMPCFG9,
     STVEC, UTVEC,
 };
-use tock_registers::registers::{FieldValue, ReadWriteable, Readable, Writeable};
+use tock_registers::fields::FieldValue;
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
 pub mod mcause;
 pub mod mcycle;

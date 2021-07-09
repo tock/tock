@@ -37,13 +37,13 @@ pub struct EarlGreyDefaultPeripherals<'a> {
 }
 
 impl<'a> EarlGreyDefaultPeripherals<'a> {
-    pub fn new(otbn_deferred_caller: &'static DynamicDeferredCall) -> Self {
+    pub fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
         Self {
-            aes: crate::aes::Aes::new(),
+            aes: crate::aes::Aes::new(deferred_caller),
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
-            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE, otbn_deferred_caller),
+            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE, deferred_caller),
             gpio_port: crate::gpio::Port::new(),
             i2c0: lowrisc::i2c::I2c::new(
                 crate::i2c::I2C0_BASE,
@@ -279,10 +279,12 @@ fn handle_exception(exception: mcause::Exception) {
     match exception {
         mcause::Exception::UserEnvCall | mcause::Exception::SupervisorEnvCall => (),
 
+        // Breakpoints occur from the tests running on hardware
+        mcause::Exception::Breakpoint => loop {},
+
         mcause::Exception::InstructionMisaligned
         | mcause::Exception::InstructionFault
         | mcause::Exception::IllegalInstruction
-        | mcause::Exception::Breakpoint
         | mcause::Exception::LoadMisaligned
         | mcause::Exception::LoadFault
         | mcause::Exception::StoreMisaligned

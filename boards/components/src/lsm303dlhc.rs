@@ -56,11 +56,15 @@ macro_rules! lsm303dlhc_i2c_component_helper {
 
 pub struct Lsm303dlhcI2CComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
 }
 
 impl Lsm303dlhcI2CComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> Lsm303dlhcI2CComponent {
-        Lsm303dlhcI2CComponent { board_kernel }
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> Lsm303dlhcI2CComponent {
+        Lsm303dlhcI2CComponent {
+            board_kernel,
+            driver_num,
+        }
     }
 }
 
@@ -83,7 +87,7 @@ impl Component for Lsm303dlhcI2CComponent {
                 static_buffer.0,
                 static_buffer.1,
                 static_buffer.2,
-                self.board_kernel.create_grant(&grant_cap),
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
             )
         );
         static_buffer.0.set_client(lsm303dlhc);

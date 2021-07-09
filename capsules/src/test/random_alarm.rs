@@ -5,12 +5,11 @@
 //! Author: Philip Levis <plevis@google.com>
 //! Last Modified: 6/17/2020
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 
 pub struct TestRandomAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,
-    counter: Cell<usize>,
+    pub counter: Cell<usize>,
     expected: Cell<A::Ticks>,
     _id: char,
 }
@@ -26,7 +25,6 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
     }
 
     pub fn run(&self) {
-        debug!("Starting random alarm test Test{}.", self._id);
         self.set_next_alarm();
     }
 
@@ -43,15 +41,6 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         // If the delay is already 0, don't subtract anything.
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
-        debug!(
-            "Test{}@{:?}: Expected at {:?} (diff = {:?}), setting alarm to {:?} (delay = {:?})",
-            self._id,
-            now,
-            self.expected.get(),
-            now.wrapping_sub(self.expected.get()),
-            start.wrapping_add(delay),
-            delay
-        );
         self.counter.set(counter + 1);
         self.expected.set(start.wrapping_add(delay));
     }
@@ -59,7 +48,6 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
 
 impl<'a, A: Alarm<'a>> AlarmClient for TestRandomAlarm<'a, A> {
     fn alarm(&self) {
-        debug!("Test{}: Alarm fired.", self._id);
         self.set_next_alarm();
     }
 }

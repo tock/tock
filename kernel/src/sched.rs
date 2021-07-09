@@ -230,6 +230,27 @@ impl Kernel {
         self.work.get() == 0
     }
 
+    /// Helper function that moves all non-generic portions of process_map_or
+    /// into a non-generic function to reduce code bloat from monomorphization.
+    pub(crate) fn get_process(&self, processid: ProcessId) -> Option<&dyn process::Process> {
+        // We use the index in the `appid` so we can do a direct lookup.
+        // However, we are not guaranteed that the app still exists at that
+        // index in the processes array. To avoid additional overhead, we do the
+        // lookup and check here, rather than calling `.index()`.
+        match self.processes.get(processid.index) {
+            Some(Some(process)) => {
+                // Check that the process stored here matches the identifier
+                // in the `appid`.
+                if process.processid() == processid {
+                    Some(*process)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Run a closure on a specific process if it exists. If the process with a
     /// matching `ProcessId` does not exist at the index specified within the
     /// `ProcessId`, then `default` will be returned.
@@ -244,30 +265,10 @@ impl Kernel {
     where
         F: FnOnce(&dyn process::Process) -> R,
     {
-        // We use the index in the `appid` so we can do a direct lookup.
-        // However, we are not guaranteed that the app still exists at that
-        // index in the processes array. To avoid additional overhead, we do the
-        // lookup and check here, rather than calling `.index()`.
-        let tentative_index = appid.index;
-
-        // Get the process at that index, and if it matches, run the closure
-        // on it.
-        self.processes
-            .get(tentative_index)
-            .map_or(None, |process_entry| {
-                // Check if there is any process state here, or if the entry is
-                // `None`.
-                process_entry.map_or(None, |process| {
-                    // Check that the process stored here matches the identifier
-                    // in the `appid`.
-                    if process.processid() == appid {
-                        Some(closure(process))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .unwrap_or(default)
+        match self.get_process(appid) {
+            Some(process) => closure(process),
+            None => default,
+        }
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -384,10 +385,11 @@ impl Kernel {
     /// Calling this function is restricted to only certain users, and to
     /// enforce this calling this function requires the
     /// `MemoryAllocationCapability` capability.
-    pub fn create_grant<T: Default>(
+    pub fn create_grant<T: Default, const NUM_UPCALLS: usize>(
         &'static self,
+        driver_num: usize,
         _capability: &dyn capabilities::MemoryAllocationCapability,
-    ) -> Grant<T> {
+    ) -> Grant<T, NUM_UPCALLS> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -395,7 +397,7 @@ impl Kernel {
         // Create and return a new grant.
         let grant_index = self.grant_counter.get();
         self.grant_counter.increment();
-        Grant::new(self, grant_index)
+        Grant::new(self, driver_num, grant_index)
     }
 
     /// Returns the number of grants that have been setup in the system and
@@ -471,11 +473,17 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that
     /// argument is set to true, the kernel will never attempt to put the
     /// chip to sleep, and this function can be called again immediately.
-    pub fn kernel_loop_operation<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+    pub fn kernel_loop_operation<
+        P: Platform,
+        C: Chip,
+        SC: Scheduler<C>,
+        const NUM_PROCS: usize,
+        const NUM_UPCALLS_IPC: usize,
+    >(
         &self,
         platform: &P,
         chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
+        ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         scheduler: &SC,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
@@ -545,11 +553,17 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
-    pub fn kernel_loop<P: Platform, C: Chip, SC: Scheduler<C>, const NUM_PROCS: usize>(
+    pub fn kernel_loop<
+        P: Platform,
+        C: Chip,
+        SC: Scheduler<C>,
+        const NUM_PROCS: usize,
+        const NUM_UPCALLS_IPC: usize,
+    >(
         &self,
         platform: &P,
         chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
+        ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         scheduler: &SC,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
@@ -590,13 +604,19 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<P: Platform, C: Chip, S: Scheduler<C>, const NUM_PROCS: usize>(
+    fn do_process<
+        P: Platform,
+        C: Chip,
+        S: Scheduler<C>,
+        const NUM_PROCS: usize,
+        const NUM_UPCALLS_IPC: usize,
+    >(
         &self,
         platform: &P,
         chip: &C,
         scheduler: &S,
         process: &dyn process::Process,
-        ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
+        ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -902,37 +922,149 @@ impl Kernel {
                 upcall_ptr,
                 appdata,
             } => {
-                // A upcall is identified as a tuple of
-                // the driver number and the subdriver
-                // number.
+                // A upcall is identified as a tuple of the driver number and
+                // the subdriver number.
                 let upcall_id = UpcallId {
                     driver_num: driver_number,
                     subscribe_num: subdriver_number,
                 };
-                // Only one upcall should exist per tuple.
-                // To ensure that there are no pending
-                // upcalls with the same identifier but
-                // with the old function pointer, we clear
-                // them now.
-                process.remove_pending_upcalls(upcall_id);
 
+                // First check if `upcall_ptr` is null. A null `upcall_ptr` will
+                // result in `None` here and represents the special
+                // "unsubscribe" operation.
                 let ptr = NonNull::new(upcall_ptr);
-                let upcall = ptr.map_or(Upcall::default(), |ptr| {
-                    Upcall::new(process.processid(), upcall_id, appdata, ptr.cast())
+
+                // For convenience create an `Upcall` type now. This is just a
+                // data structure and doesn't do any checking or conversion.
+                let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
+
+                // If `ptr` is not null, we must first verify that the upcall
+                // function pointer is within process accessible memory. Per
+                // TRD104:
+                //
+                // > If the passed upcall is not valid (is outside process
+                // > executable memory...), the kernel...MUST immediately return
+                // > a failure with a error code of `INVALID`.
+                let rval1 = ptr.map_or(None, |upcall_ptr_nonnull| {
+                    if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
+                        Some(ErrorCode::INVAL)
+                    } else {
+                        None
+                    }
                 });
-                let rval = platform.with_driver(driver_number, |driver| match driver {
-                    Some(d) => {
-                        let res = d.subscribe(subdriver_number, upcall, process.processid());
-                        match res {
-                            // An Ok() returns the previous upcall, while
-                            // Err() returns the one that was just passed
-                            // (because the call was rejected).
-                            Ok(oldcb) => oldcb.into_subscribe_success(),
-                            Err((newcb, err)) => newcb.into_subscribe_failure(err),
+
+                // If the upcall is either null or valid, then we continue
+                // handling the upcall.
+                let rval = match rval1 {
+                    Some(err) => upcall.into_subscribe_failure(err),
+                    None => {
+                        // At this point we must save the new upcall and return the
+                        // old. The upcalls are stored by the core kernel in the
+                        // grant region so we can guarantee a correct upcall swap.
+                        // However, we do need help with initially allocating the
+                        // grant if this driver has never been used before.
+                        //
+                        // To avoid the overhead with checking for process liveness
+                        // and grant allocation, we assume the grant is initially
+                        // allocated. If it turns out it isn't we ask the capsule to
+                        // allocate the grant.
+                        match crate::grant::subscribe(process, upcall) {
+                            Ok(old_upcall) => old_upcall.into_subscribe_success(),
+                            Err((new_upcall, _err)) => {
+                                // If we get here the subscribe swap failed. We try
+                                // again after asking the capsule to allocate the
+                                // grant.
+                                platform.with_driver(driver_number, |driver| match driver {
+                                    Some(d) => {
+                                        // For debugging purposes, query the
+                                        // number of allocated grants of the
+                                        // process. This can be used to
+                                        // determine whether the driver has
+                                        // allocated its Grant region correctly
+                                        // as requested. If the process is not
+                                        // active, we use 0 as a default value.
+                                        // This should never happen on a
+                                        // subscribe system call.
+                                        let allocated_grants_count = if config::CONFIG.trace_syscalls {
+                                            process.grant_allocated_count().unwrap_or(0)
+                                        } else {
+                                            0
+                                        };
+
+                                        if d.allocate_grant(process.processid()).is_err() {
+                                            // If the capsule errors on allocation
+                                            // we assume it is because the grant
+                                            // could not be created and return an
+                                            // error to userspace.
+                                            new_upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                                        } else {
+                                            // Now we try again. It is possible that
+                                            // the capsule did not actually allocate
+                                            // the grant, at which point this will
+                                            // fail again and we return an error to
+                                            // userspace.
+                                            match crate::grant::subscribe(process, new_upcall) {
+                                                // An Ok() returns the previous upcall,
+                                                // while Err() returns the one that was
+                                                // just passed.
+                                                Ok(old_upcall) => {
+                                                    old_upcall.into_subscribe_success()
+                                                }
+                                                Err((new_upcall, ErrorCode::NOMEM)) => {
+                                                    // Special case the handling of ErrorCode::NOMEM,
+                                                    // as it indicates a missing Grant allocation.
+                                                    // Depending on the kernel configuration, we
+                                                    // inform the user about the root cause of this
+                                                    // issue.
+                                                    if config::CONFIG.trace_syscalls {
+                                                        // It appears the Grant is still not allocated.
+                                                        // Based on whether the number of allocated
+                                                        // Grants, we can determine whether the driver
+                                                        // has allocated an additional, unrelated Grant
+                                                        // region (with a different driver_num), or
+                                                        // none at all. Inform the developer accordingly.
+                                                        if let Some(currently_allocated_grants_count) =
+                                                            process.grant_allocated_count() {
+                                                                if currently_allocated_grants_count
+                                                                    > allocated_grants_count
+                                                                {
+                                                                    debug!("[{:?}] ERROR driver {} allocated wrong grant for upcalls",
+                                                                           process.processid(), driver_number);
+                                                                } else {
+                                                                    debug!("[{:?}] WARN driver {} did not allocate grant for upcalls",
+                                                                           process.processid(), driver_number);
+                                                                }
+                                                            }
+                                                    }
+                                                    new_upcall.into_subscribe_failure(ErrorCode::NOMEM)
+                                                }
+                                                Err((new_upcall, err)) => {
+                                                    // Handler for all errors other than
+                                                    // ErrorCode::NOMEM, for example when
+                                                    // the subscribe number exceeds the
+                                                    // number of Upcalls in the Grant region.
+                                                    new_upcall.into_subscribe_failure(err)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None => new_upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                                })
+                            }
                         }
                     }
-                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
-                });
+                };
+
+                // Per TRD104, we only clear upcalls if the subscribe will
+                // return success. At this point we know the result and clear if
+                // necessary.
+                if rval.is_success() {
+                    // Only one upcall should exist per tuple. To ensure that
+                    // there are no pending upcalls with the same identifier but
+                    // with the old function pointer, we clear them now.
+                    process.remove_pending_upcalls(upcall_id);
+                }
+
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",

@@ -417,7 +417,13 @@ pub trait Process {
     /// - There is not enough available memory to do the allocation, or
     /// - The grant_num is invalid, or
     /// - The grant_num already has an allocated grant.
-    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
+    fn allocate_grant(
+        &self,
+        grant_num: usize,
+        driver_num: usize,
+        size: usize,
+        align: usize,
+    ) -> Option<NonNull<u8>>;
 
     /// Check if a given grant for this process has been allocated.
     ///
@@ -474,6 +480,19 @@ pub trait Process {
     ///
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;
+
+    /// Get the grant number (grant_num) associated with a given driver number if there is a grant
+    /// associated with that driver_num.
+    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error>;
+
+    // subscribe
+
+    /// Verify that an Upcall function pointer is within process-accessible
+    /// memory.
+    ///
+    /// Returns `true` if the upcall function pointer is valid for this process,
+    /// and `false` otherwise.
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
 
     // functions for processes that are architecture specific
 

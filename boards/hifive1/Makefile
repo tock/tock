@@ -2,6 +2,7 @@
 
 TARGET=riscv32imac-unknown-none-elf
 PLATFORM=hifive1
+QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common
 
@@ -14,10 +15,10 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 		-c "source [find board/sifive-hifive1-revb.cfg]; program $<; resume 0x20000000; exit"
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	qemu-system-riscv32 -M sifive_e,revb=true -kernel $^  -nographic
+	$(QEMU) -M sifive_e,revb=true -kernel $^  -nographic
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	qemu-system-riscv32 -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20040000 -nographic
+	$(QEMU) -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20040000 -nographic
 
 
 TOCKLOADER=tockloader

@@ -74,16 +74,15 @@
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
-
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::cells::NumericCellExt;
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::hil::crc::{Crc, CrcAlgorithm, Client, CrcOutput};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
-use kernel::{Read, ReadOnlyAppSlice};
 use kernel;
+use kernel::common::cells::NumericCellExt;
+use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::{Read, ReadOnlyAppSlice};
 
 /// Syscall driver number.
 use crate::driver;
@@ -93,7 +92,6 @@ pub const DEFAULT_CRC_BUF_LENGTH: usize = 256;
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     buffer: ReadOnlyAppSlice,
     // if Some, the process is waiting for the result of CRC
     // of len bytes using the given algorithm
@@ -105,7 +103,7 @@ pub struct App {
 pub struct CrcDriver<'a, C: Crc<'a>> {
     crc: &'a C,
     crc_buffer: TakeCell<'static, [u8]>,
-    grant: Grant<App>,
+    grant: Grant<App, 1>,
     current_process: OptionalCell<ProcessId>,
     // We need to save our current
     app_buffer_written: Cell<usize>,
@@ -128,7 +126,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
     pub fn new(
         crc: &'a C,
         crc_buffer: &'static mut [u8],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> CrcDriver<'a, C> {
         CrcDriver {
             crc,
@@ -170,7 +168,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
         self.app_buffer_written.set(0);
         for process in self.grant.iter() {
             let process_id = process.processid();
-            let started = process.enter(|grant| {
+            let started = process.enter(|grant, upcalls| {
                 // If there's no buffer this means the process is dead, so
                 // no need to issue a callback on this error case.
                 let res: Result<(), ErrorCode> = grant.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -206,7 +204,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
                     },
                     Err(e) => {
                         if grant.request.is_some() {
-                            grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                            upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
                             grant.request = None;
                         }
                         Err(e)
@@ -215,7 +213,6 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
             });
             if started.is_ok() {
                 return started;
-            } else {
             }
         }
         Err(ErrorCode::FAIL)
@@ -244,7 +241,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
             // Provide user buffer to compute Crc over
             0 => self
                 .grant
-                .enter(process_id, |grant| {
+                .enter(process_id, |grant, _| {
                     mem::swap(&mut grant.buffer, &mut slice);
                 })
                 .map_err(ErrorCode::from),
@@ -257,47 +254,24 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
         }
     }
 
-    /// The `subscribe` syscall supports the single `subscribe_number`
-    /// zero, which is used to provide a callback that will receive the
-    /// result of a Crc computation.  The signature of the callback is
-    ///
-    /// ```
-    ///
-    /// fn callback(status: Result<(), i2c::Error>, result: usize) {}
-    /// ```
-    ///
-    /// where
-    ///
-    ///   * `status` is indicates whether the computation
-    ///     succeeded. The status `BUSY` indicates the unit is already
-    ///     busy. The status `SIZE` indicates the provided buffer is
-    ///     too large for the unit to handle.
-    ///
-    ///   * `result` is the result of the Crc computation when `status == BUSY`.
-    ///
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // Set callback for Crc result
-            0 => self
-                .grant
-                .enter(process_id, |grant| {
-                    mem::swap(&mut grant.callback, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+    // The `subscribe` syscall supports the single `subscribe_number`
+    // zero, which is used to provide a callback that will receive the
+    // result of a Crc computation.  The signature of the callback is
+    //
+    // ```
+    //
+    // fn callback(status: Result<(), ErrorCode>, result: usize) {}
+    // ```
+    //
+    // where
+    //
+    //   * `status` is indicates whether the computation
+    //     succeeded. The status `BUSY` indicates the unit is already
+    //     busy. The status `SIZE` indicates the provided buffer is
+    //     too large for the unit to handle.
+    //
+    //   * `result` is the result of the Crc computation when `status == BUSY`.
+    //
 
     /// The command system call for this driver return meta-data about the driver and kicks off
     /// Crc computations returned through callbacks.
@@ -368,16 +342,19 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
                 } else {
                     return CommandReturn::failure(ErrorCode::INVAL);
                 };
-                let res = self.grant.enter(process_id, |grant| {
-                    if grant.request.is_some() {
-                        Err(ErrorCode::BUSY)
-                    } else if length > grant.buffer.len() {
-                        Err(ErrorCode::SIZE)
-                    } else {
-                        grant.request = Some((algorithm, length));
-                        Ok(())
-                    }
-                }).unwrap_or_else(|e| Err(ErrorCode::from(e)));
+                let res = self
+                    .grant
+                    .enter(process_id, |grant, _| {
+                        if grant.request.is_some() {
+                            Err(ErrorCode::BUSY)
+                        } else if length > grant.buffer.len() {
+                            Err(ErrorCode::SIZE)
+                        } else {
+                            grant.request = Some((algorithm, length));
+                            Ok(())
+                        }
+                    })
+                    .unwrap_or_else(|e| Err(ErrorCode::from(e)));
 
                 match res {
                     Ok(()) => {
@@ -391,12 +368,16 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
                             // wait for it to be started when it's its turn.
                             CommandReturn::success()
                         }
-                    },
-                    Err(e) => CommandReturn::failure(e)
+                    }
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grant.enter(processid, |_, _| {})
     }
 }
 
@@ -420,12 +401,17 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                     // Put the kernel buffer back
                     self.crc_buffer.replace(buffer.take());
                     self.current_process.map(|pid| {
-                        let _res = self.grant.enter(*pid, |grant| {
+                        let _res = self.grant.enter(*pid, |grant, upcalls| {
                             // This shouldn't happen unless there's a way to clear out a request
                             // through a system call: regardless, the request is gone, so cancel
                             // the CRC.
                             if grant.request.is_none() {
-                                grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::FAIL)), 0, 0);
+                                upcalls.schedule_upcall(
+                                    0,
+                                    kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                    0,
+                                    0,
+                                );
                                 return;
                             }
 
@@ -437,52 +423,74 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                             // app_buffer_written: don't allow wraparound
                             let remaining = size - cmp::min(self.app_buffer_written.get(), size);
 
-                            if remaining == 0 { // No more bytes to input: compute
+                            if remaining == 0 {
+                                // No more bytes to input: compute
                                 let res = self.crc.compute();
                                 match res {
                                     Ok(()) => {
                                         computing = true;
-                                    },
+                                    }
                                     Err(_) => {
                                         grant.request = None;
-                                        grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::FAIL)), 0, 0);
+                                        upcalls.schedule_upcall(
+                                            0,
+                                            kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                            0,
+                                            0,
+                                        );
                                     }
                                 }
-                            } else { // More bytes: do the next input
+                            } else {
+                                // More bytes: do the next input
                                 let amount = grant.buffer.map_or(0, |app_slice| {
-                                    self.do_next_input(&app_slice[self.app_buffer_written.get()..], remaining)
+                                    self.do_next_input(
+                                        &app_slice[self.app_buffer_written.get()..],
+                                        remaining,
+                                    )
                                 });
                                 if amount == 0 {
                                     grant.request = None;
-                                    grant.callback.schedule(kernel::into_statuscode(Err(ErrorCode::NOMEM)), 0, 0);
+                                    upcalls.schedule_upcall(
+                                        0,
+                                        kernel::into_statuscode(Err(ErrorCode::NOMEM)),
+                                        0,
+                                        0,
+                                    );
                                 } else {
                                     self.app_buffer_written.add(amount);
                                 }
                             }
                         });
                     });
-                } else { // There's more in the leasable buffer: pass it to input again
+                } else {
+                    // There's more in the leasable buffer: pass it to input again
                     let res = self.crc.input(buffer);
                     match res {
                         Ok(()) => {}
                         Err((e, returned_buffer)) => {
                             self.crc_buffer.replace(returned_buffer.take());
                             self.current_process.map(|pid| {
-                                let _res = self.grant.enter(*pid, |grant| {
+                                let _res = self.grant.enter(*pid, |grant, upcalls| {
                                     grant.request = None;
-                                    grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                                    upcalls.schedule_upcall(
+                                        0,
+                                        kernel::into_statuscode(Err(e)),
+                                        0,
+                                        0,
+                                    );
                                 });
                             });
                         }
                     }
                 }
-            },
-            Err(e) => { // The callback returned an error, pass it back to userspace
-                self.crc_buffer.replace(buffer.take()); 
+            }
+            Err(e) => {
+                // The callback returned an error, pass it back to userspace
+                self.crc_buffer.replace(buffer.take());
                 self.current_process.map(|pid| {
-                    let _res = self.grant.enter(*pid, |grant| {
+                    let _res = self.grant.enter(*pid, |grant, upcalls| {
                         grant.request = None;
-                        grant.callback.schedule(kernel::into_statuscode(Err(e)), 0, 0);
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
                     });
                 });
             }
@@ -498,23 +506,20 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
         // First of all, inform the app about the finished operation /
         // the result
         self.current_process.take().map(|process_id| {
-            let _ = self.grant.enter(process_id, |grant| {
+            let _ = self.grant.enter(process_id, |grant, upcalls| {
                 grant.request = None;
                 match result {
                     Ok(output) => {
                         let (val, user_int) = encode_upcall_crc_output(output);
-                        grant.callback.schedule(
+                        upcalls.schedule_upcall(
+                            0,
                             kernel::into_statuscode(Ok(())),
                             val as usize,
                             user_int as usize,
                         );
-                    },
+                    }
                     Err(e) => {
-                        grant.callback.schedule(
-                            kernel::into_statuscode(Err(e)),
-                            0,
-                            0,
-                        );
+                        upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
                     }
                 }
             });

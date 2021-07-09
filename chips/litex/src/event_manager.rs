@@ -4,7 +4,7 @@
 //! behave differently, can be found in the LiteX repository under
 //! [`litex/soc/interconnect/csr_eventmanager.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/interconnect/csr_eventmanager.py).
 
-use crate::litex_registers::{IntLike, Read, ReadWrite};
+use crate::litex_registers::{Read, ReadWrite, UIntLike};
 use core::marker::PhantomData;
 
 /// LiteX event manager abstraction
@@ -19,7 +19,7 @@ use core::marker::PhantomData;
 /// peripheral's configuration status registers bank.
 pub struct LiteXEventManager<'a, T, S, P, E>
 where
-    T: IntLike,
+    T: UIntLike,
     S: Read<T>,
     P: ReadWrite<T>,
     E: ReadWrite<T>,
@@ -32,7 +32,7 @@ where
 
 impl<'a, T, S, P, E> LiteXEventManager<'a, T, S, P, E>
 where
-    T: IntLike,
+    T: UIntLike,
     S: Read<T>,
     P: ReadWrite<T>,
     E: ReadWrite<T>,

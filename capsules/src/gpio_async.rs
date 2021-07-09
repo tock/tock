@@ -27,7 +27,7 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +35,7 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    grants: Grant<App>,
+    grants: Grant<App, 2>,
     /// **Transient** ownership of the partially virtualized peripheral.
     ///
     /// Current GPIO HIL semantics notify *all* processes of interrupts
@@ -55,13 +55,10 @@ pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-    interrupt_callback: Upcall,
-}
+pub struct App {}
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
-    pub fn new(ports: &'a [&'a Port], grants: Grant<App>) -> GPIOAsync<'a, Port> {
+    pub fn new(ports: &'a [&'a Port], grants: Grant<App, 2>) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
             grants,
@@ -95,16 +92,16 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
         // schedule callback with the pin number and value for all apps
-        self.grants.each(|_, app| {
-            app.interrupt_callback.schedule(identifier, pin, 0);
+        self.grants.each(|_, _app, upcalls| {
+            upcalls.schedule_upcall(1, identifier, pin, 0);
         });
     }
 
     fn done(&self, value: usize) {
         // alert currently configuring app
         self.configuring_process.map(|pid| {
-            let _ = self.grants.enter(*pid, |app| {
-                app.callback.schedule(0, value, 0);
+            let _ = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, 0, value, 0);
             });
         });
         // then clear currently configuring app
@@ -113,52 +110,20 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
 }
 
 impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
-    /// Setup callbacks for gpio_async events.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a callback for when **split-phase operations complete**.
-    ///   This callback gets called from the gpio_async `done()` event and
-    ///   signals the end of operations like asserting a GPIO pin or configuring
-    ///   an interrupt pin. The callback will be called with two valid
-    ///   arguments. The first is the callback type, which is currently 0 for
-    ///   all `done()` events. The second is a value, which is only useful for
-    ///   operations which should return something, like a GPIO read.
-    /// - `1`: Setup a callback for when a **GPIO interrupt** occurs. This
-    ///   callback will be called with two arguments, the first being the port
-    ///   number of the interrupting pin, and the second being the pin number.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(app_id, |app| {
-                match subscribe_num {
-                    // Set callback for `done()` events
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // Set callback for pin interrupts
-                    1 => {
-                        core::mem::swap(&mut app.interrupt_callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callbacks for gpio_async events.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a callback for when **split-phase operations complete**.
+    //   This callback gets called from the gpio_async `done()` event and
+    //   signals the end of operations like asserting a GPIO pin or configuring
+    //   an interrupt pin. The callback will be called with two valid
+    //   arguments. The first is the callback type, which is currently 0 for
+    //   all `done()` events. The second is a value, which is only useful for
+    //   operations which should return something, like a GPIO read.
+    // - `1`: Setup a callback for when a **GPIO interrupt** occurs. This
+    //   callback will be called with two arguments, the first being the port
+    //   number of the interrupting pin, and the second being the pin number.
 
     /// Configure and read GPIO pins.
     ///
@@ -251,5 +216,9 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         }
 
         res.into()
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.grants.enter(processid, |_, _| {})
     }
 }

@@ -31,52 +31,53 @@
 //! }`, `BaseWidth` in `{ 32 }`.
 
 use core::marker::PhantomData;
+use tock_registers::fields::{Field, FieldValue, TryFromValue};
+use tock_registers::interfaces::{Readable, Writeable};
 pub use tock_registers::register_bitfields;
 use tock_registers::registers::{
-    Field, FieldValue, IntLike as TRIntLike, LocalRegisterCopy, ReadOnly as TRReadOnly,
-    ReadWrite as TRReadWrite, Readable, RegisterLongName, TryFromValue, WriteOnly as TRWriteOnly,
-    Writeable,
+    ReadOnly as TRReadOnly, ReadWrite as TRReadWrite, WriteOnly as TRWriteOnly,
 };
+use tock_registers::{LocalRegisterCopy, RegisterLongName, UIntLike as TRUIntLike};
 
-/// Extension of the `tock_registers` `IntLike` trait.
+/// Extension of the `tock_registers` `UIntLike` trait.
 ///
-/// This extends the `IntLike` trait of `tock_registers` to also
+/// This extends the `UIntLike` trait of `tock_registers` to also
 /// provide the `1` and maximum (all bits set) values of the
 /// respective integer type
 ///
 /// This allows for peripherals to be written generic over the
 /// underlying CSR width (as in the case of event managers, LEDs,
 /// etc.), manipulating bitmaps
-pub trait IntLike: TRIntLike {
+pub trait UIntLike: TRUIntLike {
     fn one() -> Self;
     fn max() -> Self {
         !Self::zero()
     }
 }
 
-// Implement the custom IntLike trait for all required base integer
+// Implement the custom UIntLike trait for all required base integer
 // types
-impl IntLike for u8 {
+impl UIntLike for u8 {
     fn one() -> Self {
         1
     }
 }
-impl IntLike for u16 {
+impl UIntLike for u16 {
     fn one() -> Self {
         1
     }
 }
-impl IntLike for u32 {
+impl UIntLike for u32 {
     fn one() -> Self {
         1
     }
 }
-impl IntLike for u64 {
+impl UIntLike for u64 {
     fn one() -> Self {
         1
     }
 }
-impl IntLike for u128 {
+impl UIntLike for u128 {
     fn one() -> Self {
         1
     }
@@ -90,7 +91,7 @@ impl IntLike for u128 {
 /// This must be public to prevent generating a `private_in_public`
 /// but really should not be used directly. Use `Read` instead, which
 /// also incorporates this functionality.
-pub trait BaseReadableRegister<T: IntLike> {
+pub trait BaseReadableRegister<T: UIntLike> {
     type Reg: RegisterLongName;
     const REG_WIDTH: usize;
 
@@ -106,7 +107,7 @@ pub trait BaseReadableRegister<T: IntLike> {
 /// This must be public to prevent generating a `private_in_public`
 /// but really should not be used directly. Use `Write` instead, which
 /// also incorporates this functionality.
-pub trait BaseWriteableRegister<T: IntLike> {
+pub trait BaseWriteableRegister<T: UIntLike> {
     type Reg: RegisterLongName;
     const REG_WIDTH: usize;
 
@@ -120,7 +121,7 @@ pub trait BaseWriteableRegister<T: IntLike> {
 /// `tock_registers::registers::{ReadOnly, ReadWrite}` types
 ///
 /// It is automatically implemented for all `BaseReadableRegister`s
-pub trait Read<T: IntLike> {
+pub trait Read<T: UIntLike> {
     type Reg: RegisterLongName;
     const REG_WIDTH: usize;
 
@@ -155,7 +156,7 @@ pub trait Read<T: IntLike> {
 /// `tock_registers::registers::{WriteOnly, ReadWrite}` types
 ///
 /// It is automatically implemented for all `BaseWriteableRegister`s
-pub trait Write<T: IntLike> {
+pub trait Write<T: UIntLike> {
     type Reg: RegisterLongName;
     const REG_WIDTH: usize;
 
@@ -174,7 +175,7 @@ pub trait Write<T: IntLike> {
 ///
 /// It is automatically implemented for all types that are both
 /// `BaseReadableRegister` and `BaseWriteableRegister`s
-pub trait ReadWrite<T: IntLike>: Read<T> + Write<T> {
+pub trait ReadWrite<T: UIntLike>: Read<T> + Write<T> {
     const REG_WIDTH: usize;
 
     /// Write the value of one or more fields, leaving the other
@@ -194,7 +195,7 @@ pub trait ReadWrite<T: IntLike>: Read<T> + Write<T> {
 // Implement the [`Read`] trait (providing high-level methods to read
 // specific fields of a register) for every type implementing the
 // [`BaseReadableRegister`] trait.
-impl<R, T: IntLike> Read<T> for R
+impl<R, T: UIntLike> Read<T> for R
 where
     R: BaseReadableRegister<T>,
 {
@@ -243,7 +244,7 @@ where
 // Implement the [`Write`] trait (providing high-level methods to set
 // specific fields of a register) for every type implementing the
 // [`BaseWritableRegister`] trait.
-impl<R, T: IntLike> Write<T> for R
+impl<R, T: UIntLike> Write<T> for R
 where
     R: BaseWriteableRegister<T>,
 {
@@ -264,7 +265,7 @@ where
 // Implement the [`ReadWrite`] trait (providing high-level methods to
 // update specific fields of a register) for every type implementing
 // both the [`Read`] and [`Write`] trait.
-impl<R, T: IntLike> ReadWrite<T> for R
+impl<R, T: UIntLike> ReadWrite<T> for R
 where
     R: Read<T> + Write<T>,
 {
@@ -430,19 +431,19 @@ impl LiteXSoCRegisterConfiguration for LiteXSoCRegistersC32B32 {
 /// [`RegisterLongName`] until generic associated types stabilize in
 /// Rust. Please see the [`LiteXSoCRegisterConfiguration`]
 /// documentation for more information.
-pub struct ReadRegWrapper<'a, T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>>(
+pub struct ReadRegWrapper<'a, T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T>>(
     &'a R,
     PhantomData<T>,
     PhantomData<N>,
 );
-impl<'a, T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>> ReadRegWrapper<'a, T, N, R> {
+impl<'a, T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T>> ReadRegWrapper<'a, T, N, R> {
     #[inline]
     pub fn wrap(reg: &'a R) -> Self {
         ReadRegWrapper(reg, PhantomData, PhantomData)
     }
 }
 
-impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>> BaseReadableRegister<T>
+impl<T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T>> BaseReadableRegister<T>
     for ReadRegWrapper<'_, T, N, R>
 {
     type Reg = N;
@@ -461,12 +462,12 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T>> BaseReadableRe
 /// [`RegisterLongName`] until generic associated types stabilize in
 /// Rust. Please see the [`LiteXSoCRegisterConfiguration`]
 /// documentation for more information.
-pub struct WriteRegWrapper<'a, T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>(
+pub struct WriteRegWrapper<'a, T: UIntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>(
     &'a R,
     PhantomData<T>,
     PhantomData<N>,
 );
-impl<'a, T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>
+impl<'a, T: UIntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>
     WriteRegWrapper<'a, T, N, R>
 {
     #[inline]
@@ -475,7 +476,7 @@ impl<'a, T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>>
     }
 }
 
-impl<T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>> BaseWriteableRegister<T>
+impl<T: UIntLike, N: RegisterLongName, R: BaseWriteableRegister<T>> BaseWriteableRegister<T>
     for WriteRegWrapper<'_, T, N, R>
 {
     type Reg = N;
@@ -496,13 +497,13 @@ impl<T: IntLike, N: RegisterLongName, R: BaseWriteableRegister<T>> BaseWriteable
 /// documentation for more information.
 pub struct ReadWriteRegWrapper<
     'a,
-    T: IntLike,
+    T: UIntLike,
     N: RegisterLongName,
     R: BaseReadableRegister<T> + BaseWriteableRegister<T>,
 >(&'a R, PhantomData<T>, PhantomData<N>);
 impl<
         'a,
-        T: IntLike,
+        T: UIntLike,
         N: RegisterLongName,
         R: BaseReadableRegister<T> + BaseWriteableRegister<T>,
     > ReadWriteRegWrapper<'a, T, N, R>
@@ -513,7 +514,7 @@ impl<
     }
 }
 
-impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteableRegister<T>>
+impl<T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteableRegister<T>>
     BaseReadableRegister<T> for ReadWriteRegWrapper<'_, T, N, R>
 {
     type Reg = N;
@@ -525,7 +526,7 @@ impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteable
     }
 }
 
-impl<T: IntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteableRegister<T>>
+impl<T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteableRegister<T>>
     BaseWriteableRegister<T> for ReadWriteRegWrapper<'_, T, N, R>
 {
     type Reg = N;

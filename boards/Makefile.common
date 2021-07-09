@@ -191,6 +191,18 @@ ifneq (,$(findstring thumb,$(TARGET)))
   OBJDUMP_FLAGS += --arch-name=thumb
 endif
 
+# Additional flags that can be passed to cargo bloat via an
+# environment variable. Allows users to pass arbitrary flags
+# supported by cargo bloat to customize the output. By default,
+# pass an empty string.
+CARGO_BLOAT_FLAGS ?=
+
+
+# cargo bloat does not support -Z build-std, so we must remove it from cargo flags
+# see https://github.com/RazrFalcon/cargo-bloat/issues/62
+CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
+
+
 # Check whether the system already has a sha256sum application
 # present, if not use the custom shipped one
 ifeq (, $(shell sha256sum --version 2>/dev/null))
@@ -207,33 +219,35 @@ ifneq ($(V),)
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
   $(info *******************************************************)
-  $(info MAKEFILE_COMMON_PATH = $(MAKEFILE_COMMON_PATH))
-  $(info TOCK_ROOT_DIRECTORY  = $(TOCK_ROOT_DIRECTORY))
-  $(info TARGET_DIRECTORY     = $(TARGET_DIRECTORY))
+  $(info MAKEFILE_COMMON_PATH          = $(MAKEFILE_COMMON_PATH))
+  $(info TOCK_ROOT_DIRECTORY           = $(TOCK_ROOT_DIRECTORY))
+  $(info TARGET_DIRECTORY              = $(TARGET_DIRECTORY))
   $(info )
-  $(info PLATFORM             = $(PLATFORM))
-  $(info TARGET               = $(TARGET))
-  $(info TOCK_KERNEL_VERSION  = $(TOCK_KERNEL_VERSION))
-  $(info RUSTC_FLAGS          = $(RUSTC_FLAGS))
-  $(info RUSTC_FLAGS_TOCK     = $(RUSTC_FLAGS_TOCK))
-  $(info MAKEFLAGS            = $(MAKEFLAGS))
-  $(info OBJDUMP_FLAGS        = $(OBJDUMP_FLAGS))
-  $(info OBJCOPY_FLAGS        = $(OBJCOPY_FLAGS))
-  $(info CARGO_FLAGS          = $(CARGO_FLAGS))
-  $(info CARGO_FLAGS_TOCK     = $(CARGO_FLAGS_TOCK))
-  $(info SIZE_FLAGS           = $(SIZE_FLAGS))
+  $(info PLATFORM                      = $(PLATFORM))
+  $(info TARGET                        = $(TARGET))
+  $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
+  $(info RUSTC_FLAGS                   = $(RUSTC_FLAGS))
+  $(info RUSTC_FLAGS_TOCK              = $(RUSTC_FLAGS_TOCK))
+  $(info MAKEFLAGS                     = $(MAKEFLAGS))
+  $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
+  $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
+  $(info CARGO_FLAGS                   = $(CARGO_FLAGS))
+  $(info CARGO_FLAGS_TOCK              = $(CARGO_FLAGS_TOCK))
+  $(info CARGO_FLAGS_TOCK_NO_BUILD_STD = $(CARGO_FLAGS_TOCK_NO_BUILD_STD))
+  $(info SIZE_FLAGS                    = $(SIZE_FLAGS))
+  $(info CARGO_BLOAT_FLAGS             = $(CARGO_BLOAT_FLAGS))
   $(info )
-  $(info TOOLCHAIN            = $(TOOLCHAIN))
-  $(info SIZE                 = $(SIZE))
-  $(info OBJCOPY              = $(OBJCOPY))
-  $(info OBJDUMP              = $(OBJDUMP))
-  $(info CARGO                = $(CARGO))
-  $(info RUSTUP               = $(RUSTUP))
-  $(info SHA256SUM            = $(SHA256SUM))
+  $(info TOOLCHAIN                     = $(TOOLCHAIN))
+  $(info SIZE                          = $(SIZE))
+  $(info OBJCOPY                       = $(OBJCOPY))
+  $(info OBJDUMP                       = $(OBJDUMP))
+  $(info CARGO                         = $(CARGO))
+  $(info RUSTUP                        = $(RUSTUP))
+  $(info SHA256SUM                     = $(SHA256SUM))
   $(info )
-  $(info cargo --version      = $(shell $(CARGO) --version))
-  $(info rustc --version      = $(shell rustc --version))
-  $(info rustup --version     = $(shell $(RUSTUP) --version))
+  $(info cargo --version               = $(shell $(CARGO) --version))
+  $(info rustc --version               = $(shell rustc --version))
+  $(info rustup --version              = $(shell $(RUSTUP) --version))
   $(info *******************************************************)
   $(info )
 endif
@@ -281,6 +295,27 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 show-target:
 	$(info $(TARGET))
 
+# This rule is a copy of the rule used to build the release target, but
+# `cargo rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
+# interface of `cargo build`, rather than `cargo rustc`, so we need to move
+# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only means
+# that cargo cannot reuse built dependencies built using `cargo bloat`.
+# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details.
+# To pass additional flags to `cargo bloat`, populate the
+# CARGO_BLOAT_FLAGS environment variable, e.g. call
+# `CARGO_BLOAT_FLAGS=--crates make cargobloat`
+.PHONY: cargobloat
+cargobloat:
+	$(Q) $(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
+
+# To pass additional flags to `cargo bloat`, populate the
+# CARGO_BLOAT_FLAGS environment variable, e.g. call
+# `CARGO_BLOAT_FLAGS=--crates make cargobloatnoinline`
+.PHONY: cargobloatnoinline
+cargobloatnoinline:
+	$(Q) $(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 .PHONY: stack-analysis
 #stack_analysis: RUSTC_FLAGS_TOCK += -Z emit-stack-sizes

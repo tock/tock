@@ -22,7 +22,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -94,16 +94,14 @@ enum State {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App>,
+    apps: Grant<App, 1>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -112,7 +110,7 @@ impl<'a> LPS25HB<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-        apps: Grant<App>,
+        apps: Grant<App, 1>,
     ) -> Self {
         // setup and return struct
         Self {
@@ -204,8 +202,8 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 let pressure_ubar = (pressure * 1000) / 4096;
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
-                        app.callback.schedule(pressure_ubar as usize, 0, 0);
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        upcalls.schedule_upcall(0, pressure_ubar as usize, 0, 0);
                     });
                 });
 
@@ -242,32 +240,6 @@ impl gpio::Client for LPS25HB<'_> {
 }
 
 impl Driver for LPS25HB<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -284,7 +256,7 @@ impl Driver for LPS25HB<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -301,5 +273,9 @@ impl Driver for LPS25HB<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

@@ -18,10 +18,10 @@ use core::mem::MaybeUninit;
 
 use capsules::crc;
 use kernel::capabilities;
-use kernel::create_capability;
-use kernel::{static_init, static_init_half};
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil::crc::Crc;
+use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -36,13 +36,19 @@ macro_rules! crc_component_helper {
 
 pub struct CrcComponent<C: 'static + Crc<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
     crc: &'static C,
 }
 
 impl<C: 'static + Crc<'static>> CrcComponent<C> {
-    pub fn new(board_kernel: &'static kernel::Kernel, crc: &'static C) -> CrcComponent<C> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        crc: &'static C,
+    ) -> CrcComponent<C> {
         CrcComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             crc: crc,
         }
     }
@@ -59,11 +65,14 @@ impl<C: 'static + Crc<'static>> Component for CrcComponent<C> {
             [0; crc::DEFAULT_CRC_BUF_LENGTH]
         );
 
-
         let crc = static_init_half!(
             static_buffer,
             crc::CrcDriver<'static, C>,
-            crc::CrcDriver::new(self.crc, crc_buf, self.board_kernel.create_grant(&grant_cap))
+            crc::CrcDriver::new(
+                self.crc,
+                crc_buf,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
 
         self.crc.set_client(crc);

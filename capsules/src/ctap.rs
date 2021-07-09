@@ -33,7 +33,7 @@ use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::usb_hid;
 use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice, Upcall,
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, Read, ReadWrite, ReadWriteAppSlice,
 };
 
 /// Syscall driver number.
@@ -41,7 +41,6 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 pub struct App {
-    callback: Upcall,
     recv_buf: ReadWriteAppSlice,
     send_buf: ReadWriteAppSlice,
     can_receive: Cell<bool>,
@@ -50,7 +49,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            callback: Upcall::default(),
             recv_buf: ReadWriteAppSlice::default(),
             send_buf: ReadWriteAppSlice::default(),
             can_receive: Cell::new(false),
@@ -61,7 +59,7 @@ impl Default for App {
 pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
-    app: Grant<App>,
+    app: Grant<App, 1>,
     appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
@@ -74,7 +72,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
         usb: Option<&'a U>,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
-        grant: Grant<App>,
+        grant: Grant<App, 1>,
     ) -> CtapDriver<'a, U> {
         CtapDriver {
             usb: usb,
@@ -136,12 +134,12 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |app| {
+                .enter(*id, |app, upcalls| {
                     app.recv_buf.mut_map_or((), |dest| {
                         dest.as_mut().copy_from_slice(buffer.as_ref());
                     });
 
-                    app.callback.schedule(0, 0, 0);
+                    upcalls.schedule_upcall(0, 0, 0, 0);
                     app.can_receive.set(false);
                 })
                 .map_err(|err| {
@@ -162,8 +160,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |app| {
-                    app.callback.schedule(1, 0, 0);
+                .enter(*id, |_app, upcalls| {
+                    upcalls.schedule_upcall(0, 1, 0, 0);
                 })
                 .map_err(|err| {
                     if err == kernel::procs::Error::NoSuchApp
@@ -180,7 +178,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         self.appid
             .map(|id| {
                 self.app
-                    .enter(*id, |app| app.can_receive.get())
+                    .enter(*id, |app, _| app.can_receive.get())
                     .unwrap_or(false)
             })
             .unwrap_or(false)
@@ -198,7 +196,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Pass buffer for the recvieved data to be stored in
             0 => self
                 .app
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.recv_buf);
                     Ok(())
                 })
@@ -207,7 +205,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Pass buffer for the sent data to be stored in
             1 => self
                 .app
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     mem::swap(&mut slice, &mut app.send_buf);
                     Ok(())
                 })
@@ -223,40 +221,14 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
         }
     }
 
-    /// Subscribe to CtapDriver events.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Subscribe to interrupts from Ctap events.
-    ///        The callback signature is `fn(direction: u32)`
-    ///        `fn(0)` indicates a packet was recieved
-    ///        `fn(1)` indicates a packet was transmitted
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => {
-                // set callback
-                self.app
-                    .enter(appid, |app| {
-                        mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    })
-                    .unwrap_or(Err(ErrorCode::FAIL))
-            }
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Subscribe to CtapDriver events.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Subscribe to interrupts from Ctap events.
+    //        The callback signature is `fn(direction: u32)`
+    //        `fn(0)` indicates a packet was recieved
+    //        `fn(1)` indicates a packet was transmitted
 
     fn command(
         &self,
@@ -282,7 +254,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Send data
             0 => self
                 .app
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         app.send_buf
@@ -308,7 +280,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Allow receive
             1 => self
                 .app
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         app.can_receive.set(true);
@@ -331,7 +303,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Cancel send
             2 => self
                 .app
-                .enter(appid, |_app| {
+                .enter(appid, |_app, _| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
@@ -349,7 +321,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // Cancel receive
             3 => self
                 .app
-                .enter(appid, |_app| {
+                .enter(appid, |_app, _| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
@@ -380,7 +352,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             //            send buffer.
             4 => self
                 .app
-                .enter(appid, |app| {
+                .enter(appid, |app, _| {
                     if let Some(usb) = self.usb {
                         if app.can_receive.get() {
                             // We are already receiving
@@ -431,5 +403,9 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> Driver for CtapDriver<'a, U> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+        self.app.enter(processid, |_, _| {})
     }
 }

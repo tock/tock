@@ -140,6 +140,7 @@ const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaul
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
@@ -171,7 +172,7 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         nrf52840::acomp::Comparator<'static>,
@@ -259,6 +260,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
@@ -281,6 +283,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::alarm::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -350,8 +353,12 @@ pub unsafe fn main() {
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
 
     let channel = nrf52_components::UartChannelComponent::new(
         uart_channel,
@@ -378,13 +385,22 @@ pub unsafe fn main() {
             .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -402,6 +418,7 @@ pub unsafe fn main() {
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
+        capsules::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -444,6 +461,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
+        capsules::net::udp::driver::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -451,21 +469,33 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
 
-    let temp =
-        components::temperature::TemperatureComponent::new(board_kernel, &base_peripherals.temp)
-            .finalize(());
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM,
+        &base_peripherals.temp,
+    )
+    .finalize(());
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     // SPI
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
         .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
     // Create the SPI system call capsule.
-    let spi_controller =
-        components::spi::SpiSyscallComponent::new(board_kernel, mux_spi, &gpio_port[SPI_CS])
-            .finalize(components::spi_syscall_component_helper!(
-                nrf52840::spi::SPIM
-            ));
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        &gpio_port[SPI_CS],
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        nrf52840::spi::SPIM
+    ));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
@@ -488,6 +518,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
         mx25r6435f,
         0x60000, // Start address for userspace accessible region
         0x20000, // Length of userspace accessible region
@@ -514,7 +545,10 @@ pub unsafe fn main() {
             i2c_master_buffer,
             i2c_slave_buffer1,
             i2c_slave_buffer2,
-            board_kernel.create_grant(&memory_allocation_capability),
+            board_kernel.create_grant(
+                capsules::i2c_master_slave_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            ),
         )
     );
     base_peripherals.twi1.configure(
@@ -534,6 +568,7 @@ pub unsafe fn main() {
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
+        capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::acomp_component_buf!(
         nrf52840::acomp::Comparator
@@ -592,7 +627,11 @@ pub unsafe fn main() {
         analog_comparator,
         nonvolatile_storage,
         udp_driver,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
         i2c_master_slave,
         spi_controller,
     };

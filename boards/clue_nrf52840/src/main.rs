@@ -85,6 +85,7 @@ const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaul
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
+const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
 
@@ -118,7 +119,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -214,6 +215,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
@@ -247,6 +249,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -284,8 +287,12 @@ pub unsafe fn main() {
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -317,7 +324,10 @@ pub unsafe fn main() {
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(&memory_allocation_capability)
+            board_kernel.create_grant(
+                capsules::buzzer_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            )
         )
     );
     virtual_alarm_buzzer.set_alarm_client(buzzer);
@@ -364,7 +374,12 @@ pub unsafe fn main() {
         .finalize(());
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -372,7 +387,12 @@ pub unsafe fn main() {
     // RANDOM NUMBERS
     //--------------------------------------------------------------------------
 
-    let rng = components::rng::RngComponent::new(board_kernel, &base_peripherals.trng).finalize(());
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -408,7 +428,10 @@ pub unsafe fn main() {
 
     let proximity = static_init!(
         capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(apds9960, board_kernel.create_grant(&grant_cap))
+        capsules::proximity::ProximitySensor::new(
+            apds9960,
+            board_kernel.create_grant(capsules::proximity::DRIVER_NUM, &grant_cap)
+        )
     );
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
@@ -417,10 +440,19 @@ pub unsafe fn main() {
         components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
     );
 
-    let temperature =
-        components::temperature::TemperatureComponent::new(board_kernel, sht3x).finalize(());
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM,
+        sht3x,
+    )
+    .finalize(());
 
-    let humidity = components::humidity::HumidityComponent::new(board_kernel, sht3x).finalize(());
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM,
+        sht3x,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // TFT
@@ -470,16 +502,25 @@ pub unsafe fn main() {
 
     let _ = tft.init();
 
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(57600));
+    let screen = components::screen::ScreenComponent::new(
+        board_kernel,
+        capsules::screen::DRIVER_NUM,
+        tft,
+        Some(tft),
+    )
+    .finalize(components::screen_buffer_size!(57600));
 
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio =
-        nrf52_components::BLEComponent::new(board_kernel, &base_peripherals.ble_radio, mux_alarm)
-            .finalize(());
+    let ble_radio = nrf52_components::BLEComponent::new(
+        board_kernel,
+        capsules::ble_advertising_driver::DRIVER_NUM,
+        &base_peripherals.ble_radio,
+        mux_alarm,
+    )
+    .finalize(());
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -498,6 +539,7 @@ pub unsafe fn main() {
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
+        capsules::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -529,7 +571,11 @@ pub unsafe fn main() {
         rng: rng,
         buzzer: buzzer,
         alarm: alarm,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
         temperature: temperature,
         humidity: humidity,
     };

@@ -5,7 +5,7 @@ use crate::ErrorCode;
 
 /// Client for CRC algorithm implementations
 ///
-/// Implement this trait and use [`CRC::set_client`] in order to
+/// Implement this trait and use [`Crc::set_client`] in order to
 /// receive callbacks from the CRC implementation.
 pub trait Client {
     /// Called when the current data chunk has been processed by the
@@ -85,7 +85,7 @@ pub trait Crc<'a> {
     /// [`ErrorCode::NOSUPPORT`] will be returned if the algorithm
     /// requested is not supported. To non-invasively check whether a
     /// given algorithm is supported by a CRC implementation, use
-    /// [`algorithm_supported`].
+    /// [`Crc::algorithm_supported`].
     fn set_algorithm(&self, algorithm: CrcAlgorithm) -> Result<(), ErrorCode>;
 
     /// Input chunked data into the CRC implementation.
@@ -93,8 +93,8 @@ pub trait Crc<'a> {
     /// Calling this method may enable the CRC engine in case of a
     /// physical unit.
     ///
-    /// If [`set_algorithm`] has not been invoked before, this method
-    /// must return [`ErrorCode::RESERVE`].
+    /// If [`Crc::set_algorithm`] has not been invoked before, this
+    /// method must return [`ErrorCode::RESERVE`].
     ///
     /// If the device is currently already processing a chunk of data
     /// or calculating a CRC, [`ErrorCode::BUSY`] must be returned.
@@ -116,8 +116,8 @@ pub trait Crc<'a> {
     /// Calling this method may enable the CRC engine in case of a
     /// physical unit.
     ///
-    /// If [`set_algorithm`] has not been invoked before, this method
-    /// must return [`ErrorCode::RESERVE`].
+    /// If [`Crc::set_algorithm`] has not been invoked before, this
+    /// method must return [`ErrorCode::RESERVE`].
     ///
     /// If the device is currently processing a chunk of data or
     /// calculating a CRC, [`ErrorCode::BUSY`] must be returned.
