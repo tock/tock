@@ -1501,5 +1501,3 @@ impl hil::i2c::I2CSlave for I2CHw {
         self.slave_listen();
     }
 }
-
-impl hil::i2c::I2CMasterSlave for I2CHw {}
