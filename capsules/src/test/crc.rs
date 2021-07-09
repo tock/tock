@@ -75,14 +75,14 @@ impl<'a, C: Crc<'a>> Client for TestCrc<'a, C> {
                     CrcOutput::Crc32(x) => {
                         debug!("CRC32: {:#x}", x);
                         self.run_test(CrcAlgorithm::Crc32C);
-                    },
+                    }
                     CrcOutput::Crc32C(x) => {
                         debug!("CRC32C: {:#x}", x);
                         self.run_test(CrcAlgorithm::Crc16CCITT);
-                    },
+                    }
                     CrcOutput::Crc16CCITT(x) => {
                         debug!("CRC16CCITT: {:#x}", x);
-                    },
+                    }
                 }
             }
         }

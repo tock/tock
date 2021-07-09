@@ -171,37 +171,40 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
             let started = process.enter(|grant, upcalls| {
                 // If there's no buffer this means the process is dead, so
                 // no need to issue a callback on this error case.
-                let res: Result<(), ErrorCode> = grant.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    if let Some((algorithm, len)) = grant.request {
-                        let copy_len = cmp::min(len, buffer.len());
-                        if copy_len == 0 { // 0-length or 0-size buffer
-                            Err(ErrorCode::SIZE)
-                        } else {
-                            let res = self.crc.set_algorithm(algorithm);
-                            match res {
-                                Ok(()) =>  {
-                                    let copy_len = self.do_next_input(buffer, copy_len);
-                                    if copy_len > 0 {
-                                        self.app_buffer_written.set(copy_len);
-                                        self.current_process.set(process_id);
-                                        Ok(())
-                                    } else { // Next input failed
-                                        Err(ErrorCode::FAIL)
-                                    } 
-                                },
-                                Err(_) => { // Setting the algorithm failed
-                                    Err(ErrorCode::INVAL)
+                let res: Result<(), ErrorCode> =
+                    grant.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
+                        if let Some((algorithm, len)) = grant.request {
+                            let copy_len = cmp::min(len, buffer.len());
+                            if copy_len == 0 {
+                                // 0-length or 0-size buffer
+                                Err(ErrorCode::SIZE)
+                            } else {
+                                let res = self.crc.set_algorithm(algorithm);
+                                match res {
+                                    Ok(()) => {
+                                        let copy_len = self.do_next_input(buffer, copy_len);
+                                        if copy_len > 0 {
+                                            self.app_buffer_written.set(copy_len);
+                                            self.current_process.set(process_id);
+                                            Ok(())
+                                        } else {
+                                            // Next input failed
+                                            Err(ErrorCode::FAIL)
+                                        }
+                                    }
+                                    Err(_) => {
+                                        // Setting the algorithm failed
+                                        Err(ErrorCode::INVAL)
+                                    }
                                 }
                             }
+                        } else {
+                            // no request
+                            Err(ErrorCode::FAIL)
                         }
-                    } else { // no request
-                        Err(ErrorCode::FAIL)
-                    }
-                });
+                    });
                 match res {
-                    Ok (()) => {
-                        Ok(())
-                    },
+                    Ok(()) => Ok(()),
                     Err(e) => {
                         if grant.request.is_some() {
                             upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
@@ -321,7 +324,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
     ///   * `2: Crc-16CCITT`  This algorithm uses polynomial 0x1021 and does
     ///   no post-processing on the output value. The sixteen-bit Crc
     ///   result is placed in the low-order bits of the returned result
-    ///   value. That is, result values will always be of the form `0x0000xxxx` 
+    ///   value. That is, result values will always be of the form `0x0000xxxx`
     ///   for this algorithm.  It can be performed purely in hardware on the SAM4L.
     fn command(
         &self,
