@@ -11,7 +11,6 @@ use core::ptr::NonNull;
 use crate::capabilities;
 use crate::config;
 use crate::debug;
-use crate::driver::CommandReturn;
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
@@ -28,6 +27,7 @@ use crate::process::{self, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
+use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::NumericCellExt;
 

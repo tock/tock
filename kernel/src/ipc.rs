@@ -4,12 +4,12 @@
 //! share memory.
 
 use crate::capabilities::MemoryAllocationCapability;
-use crate::driver::{CommandReturn, Driver};
 use crate::grant::Grant;
 use crate::kernel::Kernel;
 use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
+use crate::syscall_driver::{CommandReturn, SyscallDriver};
 use crate::ErrorCode;
 
 /// Syscall number
@@ -155,7 +155,9 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
     }
 }
 
-impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS, NUM_UPCALLS> {
+impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> SyscallDriver
+    for IPC<NUM_PROCS, NUM_UPCALLS>
+{
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
     /// and notifying an IPC client is done by setting client_or_svc to 1.

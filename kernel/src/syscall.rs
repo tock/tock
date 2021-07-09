@@ -3,9 +3,9 @@
 use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
 use crate::process;
+use crate::syscall_driver::CommandReturn;
 
 /// Helper function to split a u64 into a higher and lower u32.
 ///

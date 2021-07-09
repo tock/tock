@@ -1,10 +1,10 @@
 //! Interfaces for implementing boards in Tock.
 
-use crate::driver::Driver;
 use crate::errorcode;
 use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
+use crate::syscall_driver::SyscallDriver;
 
 use crate::platform::chip::Chip;
 use crate::platform::scheduler_timer;
@@ -81,7 +81,7 @@ pub trait KernelResources<C: Chip> {
 /// impl SyscallDispatch for Hail {
 ///     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
 ///     where
-///         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+///         F: FnOnce(Option<&dyn kernel::SyscallDriver>) -> R,
 ///     {
 ///         match driver_num {
 ///             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -101,7 +101,7 @@ pub trait SyscallDispatch {
     /// An implementation
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn Driver>) -> R;
+        F: FnOnce(Option<&dyn SyscallDriver>) -> R;
 }
 
 /// Trait for implementing system call filters that the kernel uses to decide
