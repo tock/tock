@@ -1,7 +1,9 @@
-use crate::common::cells::OptionalCell;
-use crate::ErrorCode;
+//! HIL for General Purpose Input-Output (GPIO) pins.
 
 use core::cell::Cell;
+
+use crate::utilities::cells::OptionalCell;
+use crate::ErrorCode;
 
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Clone, Copy, Debug)]

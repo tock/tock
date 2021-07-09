@@ -4,14 +4,13 @@
 //! share memory.
 
 use crate::capabilities::MemoryAllocationCapability;
+use crate::driver::{CommandReturn, Driver};
 use crate::grant::Grant;
+use crate::kernel::Kernel;
+use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
-use crate::sched::Kernel;
-use crate::{
-    CommandReturn, Driver, ErrorCode, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
-    ReadableProcessBuffer,
-};
+use crate::ErrorCode;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
