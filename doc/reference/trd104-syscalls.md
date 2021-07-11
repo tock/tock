@@ -218,7 +218,7 @@ are additional error codes to include errors related to userspace.
 | 8     | CANCEL      | The operation was actively cancelled by a call to a cancel() method or function.        |
 | 9     | NOMEM       | The operation required memory that was not available (e.g. a grant region or a buffer). |
 | 10    | NOSUPPORT   | The system call is not available to or not supported for the calling process.           |
-| 11    | NODEVICE    | The driver specified by the driver identifier is not available to the calling process.  |
+| 11    | NODEVICE    | The driver specified by the driver number is not available to the calling process.      |
 | 12    | UNINSTALLED | The resource was removed or uninstalled (e.g., an SD card).                             |
 | 13    | NOACK       | The packet transmission was sent but not acknowledged.                                  |
 | 1024  | BADRVAL     | The variant of the return value did not match what the system call should return.       |
@@ -238,7 +238,7 @@ variant than the userspace library expects.
 =================================
 
 Tock has 7 classes or types of system calls. When a system call is
-invoked, the class is encoded as the Syscall Class ID. Some system
+invoked, the class is encoded as the Syscall Class Number. Some system
 call classes are implemented by the core kernel and so the supported
 calls are the same across kernels. Others are implemented by system
 call drivers, which can be added and removed in different kernel
@@ -247,15 +247,15 @@ depends on what system call drivers it has installed.
 
 The 6 classes are:
 
-| Syscall Class    | Syscall Class ID |
-|------------------|------------------|
-| Yield            |        0         |
-| Subscribe        |        1         |
-| Command          |        2         |
-| Read-Write Allow |        3         |
-| Read-Only Allow  |        4         |
-| Memop            |        5         |
-| Exit             |        6         |
+| Syscall Class    | Syscall Class Number |
+|------------------|----------------------|
+| Yield            |           0          |
+| Subscribe        |           1          |
+| Command          |           2          |
+| Read-Write Allow |           3          |
+| Read-Only Allow  |           4          |
+| Memop            |           5          |
+| Exit             |           6          |
 
 All of the system call classes except Yield and Exit are
 non-blocking. When a userspace process calls a Subscribe, Command,
@@ -272,14 +272,14 @@ Subscribe call in 4.2).
 Successful calls to Exit system calls do not return (the process exits).
 
 System calls implemented by system call drivers (Subscribe, Command,
-Read-Write Allow, Read-Only Allow) all include two arguments, a driver identifier
-and a syscall identifier. The driver identifier specifies which system
-call driver to invoke. The syscall identifier (which is different than
-the Syscall Class ID in the table above) specifies which instance of
+Read-Write Allow, Read-Only Allow) all include two arguments, a driver number
+and a syscall number. The driver number specifies which system
+call driver to invoke. The syscall number (which is different than
+the Syscall Class Number in the table above) specifies which instance of
 that system call on that driver to invoke. Both arguments are unsigned
 32-bit integers. For example, by convention the Console system call driver 
-has driver identifier `0x1` and a Command to the console driver with
-syscall identifier `0x2` starts receiving console data into a buffer.
+has driver number `0x1` and a Command to the console driver with
+syscall number `0x2` starts receiving console data into a buffer.
 
 If userspace invokes a system call on a peripheral driver that is not 
 installed in the kernel, the kernel MUST return a Failure result with 
@@ -323,22 +323,22 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
 | Argument               | Register |
 |------------------------|----------|
-| Yield identifer        | r0       |
+| Yield number           | r0       |
 | No wait field          | r1       |
 | unused                 | r2       |
 | unused                 | r3       |
 
 
-The yield identifier specifies which call is invoked.
+The yield number specifies which call is invoked.
 
-| System call     | Yield identifier value |
-|-----------------|------------------------|
-| yield-no-wait   |                      0 |
-| yield-wait      |                      1 |
+| System call     | Yield number value |
+|-----------------|--------------------|
+| yield-no-wait   |                  0 |
+| yield-wait      |                  1 |
 
 
-All other yield identifier values are reserved. If an invalid
-yield identifier is passed the kernel MUST return immediately.
+All other yield number values are reserved. If an invalid
+yield number is passed the kernel MUST return immediately.
 
 The no wait field is only used by `yield-no-wait`. It contains the
 memory address of an 8-bit byte that `yield-no-wait` writes to
@@ -371,12 +371,12 @@ kernel.
 The register arguments for Subscribe system calls are as follows. The
 registers r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Driver identifer       | r0       |
-| Subscribe identifier   | r1       |
-| Upcall pointer         | r2       |
-| Application data       | r3       |
+| Argument            | Register |
+|---------------------|----------|
+| Driver number       | r0       |
+| Subscribe number    | r1       |
+| Upcall pointer      | r2       |
+| Application data    | r3       |
 
 
 The `upcall pointer` is the address of the first instruction of
@@ -393,10 +393,10 @@ of the existing upcall.
 
 Any upcall passed from a process MUST remain valid until the next
 successful invocation of `subscribe` by that process with the same
-syscall and driver identifier. When a process makes a successful
+syscall and driver number. When a process makes a successful
 subscribe system call (one which results in the `Success with 2 u32`
 return variant), the kernel MUST cancel all pending upcalls on that
-process for that driver and subscribe identifier: it MUST NOT invoke
+process for that driver and subscribe number: it MUST NOT invoke
 the previous upcall after the call to `subscribe`, and MUST NOT
 invoke the new upcall for events that the kernel handled before the
 call to `subscribe`.
@@ -476,19 +476,19 @@ platform and what drivers were compiled into the kernel.
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Driver identifer       | r0       |
-| Command identifier     | r1       |
-| Argument 0             | r2       |
-| Argument 1             | r3       |
+| Argument          | Register |
+|-------------------|----------|
+| Driver number     | r0       |
+| Command number    | r1       |
+| Argument 0        | r2       |
+| Argument 1        | r3       |
 
 Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
 never pass pointers: those are passed with Allow calls, as they can adjust
 memory protection to allow the kernel to access them.
 
 The return variants of Command are instance-specific. Each specific
-Command instance (combination of major and minor identifier) specifies
+Command instance (combination of Driver and Command number) specifies
 its failure variant and success variant. If userspace invokes a
 command on a peripheral that is not installed, the kernel returns a
 failure variant of `Failure`, with an associated error code of
@@ -499,7 +499,7 @@ addition to the expected failure variant (if different than `Failure`).
 4.3.1 Command Identifier 0
 --------------------------------
 
-Every device driver MUST implement command identifier 0 as the
+Every device driver MUST implement command number 0 as the
 "exists" command.  This command always returns `Success`. This command
 allows userspace to determine if a particular system call driver is
 installed; if it is, the command returns `Success`. If it is not, the
@@ -527,12 +527,12 @@ The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Driver identifer       | r0       |
-| Buffer identifier      | r1       |
-| Address                | r2       |
-| Size                   | r3       |
+| Argument         | Register |
+|------------------|----------|
+| Driver number    | r0       |
+| Buffer number    | r1       |
+| Address          | r2       |
+| Size             | r3       |
 
 The return variants for Read-Write Allow system calls are `Failure
 with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
@@ -543,7 +543,7 @@ were passed in the previous call. On the first successful invocation
 of a particular Read-Write Allow system call, the kernel MUST return
 address 0 and size 0.
 
-The buffer identifier specifies which buffer this is. A driver may
+The buffer number specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
@@ -752,17 +752,17 @@ allocate new ones.
 The register arguments for Exit system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument          | Register |
-|-------------------|----------|
-| Exit identifer    | r0       |
-| Completion code   | r1       |
+| Argument         | Register |
+|------------------|----------|
+| Exit number      | r0       |
+| Completion code  | r1       |
 
-The exit identifier specifies which call is invoked.
+The exit number specifies which call is invoked.
 
-| System call     | Exit identifier value |
-|-----------------|-----------------------|
-| exit-terminate  |                     0 |
-| exit-restart    |                     1 |
+| System call     | Exit number value |
+|-----------------|-------------------|
+| exit-terminate  |                 0 |
+| exit-restart    |                 1 |
 
 The difference between `exit-terminate` and `exit-restart` is what behavior
 the application asks from the kernel. With `exit-terminate`, the application
