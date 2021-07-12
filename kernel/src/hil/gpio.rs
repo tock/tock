@@ -69,6 +69,12 @@ pub trait InterruptPin<'a>: Pin + Interrupt<'a> {}
 /// either input or output and also to source interrupts which
 /// pass a value.
 pub trait InterruptValuePin<'a>: Pin + InterruptWithValue<'a> {}
+
+// Provide blanket implementations for all trait groups
+impl<T: Input + Output + Configure> Pin for T {}
+impl<'a, T: Pin + Interrupt<'a>> InterruptPin<'a> for T {}
+impl<'a, T: Pin + InterruptWithValue<'a>> InterruptValuePin<'a> for T {}
+
 /// Control and configure a GPIO pin.
 pub trait Configure {
     /// Return the current pin configuration.
@@ -363,9 +369,6 @@ impl<'a, IP: InterruptPin<'a>> Output for InterruptValueWrapper<'a, IP> {
         self.source.toggle()
     }
 }
-
-impl<'a, IP: InterruptPin<'a>> InterruptValuePin<'a> for InterruptValueWrapper<'a, IP> {}
-impl<'a, IP: InterruptPin<'a>> Pin for InterruptValueWrapper<'a, IP> {}
 
 impl<'a, IP: InterruptPin<'a>> Client for InterruptValueWrapper<'a, IP> {
     fn fired(&self) {

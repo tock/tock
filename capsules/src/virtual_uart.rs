@@ -338,8 +338,6 @@ pub struct UartDevice<'a> {
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
 
-impl<'a> uart::UartData<'a> for UartDevice<'a> {}
-
 impl<'a> UartDevice<'a> {
     pub const fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {

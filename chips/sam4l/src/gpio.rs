@@ -478,9 +478,6 @@ impl<'a> hil::Controller for GPIOPin<'a> {
     }
 }
 
-impl<'a> gpio::Pin for GPIOPin<'a> {}
-impl<'a> gpio::InterruptPin<'a> for GPIOPin<'a> {}
-
 impl<'a> gpio::Configure for GPIOPin<'a> {
     fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {

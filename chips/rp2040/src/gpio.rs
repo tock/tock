@@ -522,10 +522,6 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
     }
 }
 
-impl<'a> hil::gpio::InterruptPin<'a> for RPGpioPin<'a> {}
-
-impl hil::gpio::Pin for RPGpioPin<'_> {}
-
 impl hil::gpio::Configure for RPGpioPin<'_> {
     fn configuration(&self) -> hil::gpio::Configuration {
         self.get_mode()

@@ -142,9 +142,6 @@ impl<'a> dma::DmaClient for Uart<'a> {
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
-
 impl<'a> hil::uart::Configure for Uart<'a> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // Disable module

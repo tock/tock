@@ -732,6 +732,3 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
         regs.int0stat.get() | regs.int1stat.get() != 0
     }
 }
-
-impl<'a> gpio::Pin for GpioPin<'a> {}
-impl<'a> gpio::InterruptPin<'a> for GpioPin<'a> {}

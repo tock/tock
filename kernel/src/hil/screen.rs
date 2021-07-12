@@ -221,6 +221,8 @@ pub trait Screen {
 }
 
 pub trait ScreenAdvanced: Screen + ScreenSetup {}
+// Provide blanket implementations for trait group
+impl<T: Screen + ScreenSetup> ScreenAdvanced for T {}
 
 pub trait ScreenSetupClient {
     /// The screen will call this function to notify that a command has finished.

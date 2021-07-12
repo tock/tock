@@ -425,8 +425,6 @@ macro_rules! pin_implementation {
             }
         }
 
-        impl<'a> gpio::Pin for $pin_type<'a> {}
-
         impl<'a> gpio::Input for $pin_type<'a> {
             fn read(&self) -> bool {
                 self.read_level()
@@ -607,8 +605,6 @@ impl<'a> gpio::Interrupt<'a> for IntPin<'a> {
         (self.registers.ifg[self.reg_idx].get() & (1 << self.pin)) > 0
     }
 }
-
-impl<'a> gpio::InterruptPin<'a> for IntPin<'a> {}
 
 impl<'a> GpioManager<'a> {
     pub fn handle_interrupt(&self, port_idx: usize) {

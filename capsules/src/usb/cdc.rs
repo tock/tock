@@ -750,9 +750,3 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
         }
     }
 }
-
-impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Uart<'a> for CdcAcm<'a, U, A> {}
-impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::UartData<'a>
-    for CdcAcm<'a, U, A>
-{
-}

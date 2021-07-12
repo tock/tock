@@ -6,7 +6,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
-    self, Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
+    Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
 use kernel::ErrorCode;
 
@@ -722,5 +722,3 @@ impl<'a> Receive<'a> for Uart<'a> {
         }
     }
 }
-
-impl<'a> uart::Uart<'a> for Uart<'a> {}

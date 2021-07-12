@@ -291,6 +291,3 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
         self.gpio_registers.intr_state.is_set(self.pin)
     }
 }
-
-impl<'a> gpio::Pin for GpioPin<'a> {}
-impl<'a> gpio::InterruptPin<'a> for GpioPin<'a> {}

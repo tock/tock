@@ -259,9 +259,6 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
-
 impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         let regs = self.registers;

@@ -361,8 +361,6 @@ impl hil::i2c::I2CSlave for TWI {
     }
 }
 
-impl hil::i2c::I2CMasterSlave for TWI {}
-
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in
 // chip.rs based on which peripheral is enabled.

@@ -1016,8 +1016,6 @@ impl<'p> Radio<'p> {
     }
 }
 
-impl<'p> kernel::hil::radio::Radio for Radio<'p> {}
-
 impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
     fn initialize(
         &self,

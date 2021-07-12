@@ -200,9 +200,6 @@ impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
     }
 }
 
-impl<'a, A: hil::time::Alarm<'a>> uart::Uart<'a> for SeggerRtt<'a, A> {}
-impl<'a, A: hil::time::Alarm<'a>> uart::UartData<'a> for SeggerRtt<'a, A> {}
-
 impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.client.set(client);
