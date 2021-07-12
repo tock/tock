@@ -494,13 +494,15 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 }
 
 impl hil::symmetric_encryption::AES128Ctr for Aes<'_> {
-    fn set_mode_aes128ctr(&self, encrypting: bool) {
+    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.set_mode(encrypting, ConfidentialityMode::CTR);
+        Ok(())
     }
 }
 
 impl hil::symmetric_encryption::AES128CBC for Aes<'_> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) {
+    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.set_mode(encrypting, ConfidentialityMode::CBC);
+        Ok(())
     }
 }

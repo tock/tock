@@ -88,17 +88,17 @@ pub trait AES128<'a> {
 
 pub trait AES128Ctr {
     /// Call before `AES128::crypt()` to perform AES128Ctr
-    fn set_mode_aes128ctr(&self, encrypting: bool);
+    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
 pub trait AES128CBC {
     /// Call before `AES128::crypt()` to perform AES128CBC
-    fn set_mode_aes128cbc(&self, encrypting: bool);
+    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
 pub trait AES128ECB {
     /// Call before `AES128::crypt()` to perform AES128ECB
-    fn set_mode_aes128ecb(&self, encrypting: bool);
+    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
 pub trait CCMClient {

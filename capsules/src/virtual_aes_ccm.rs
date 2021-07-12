@@ -438,7 +438,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         };
 
         // We are performing CBC-MAC, so always encrypting.
-        self.aes.set_mode_aes128cbc(true);
+        self.aes.set_mode_aes128cbc(true)?;
         self.aes.start_message();
         match self.aes.crypt(None, crypt_buf, 0, auth_end) {
             None => {
@@ -478,7 +478,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             return res;
         }
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get());
+        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
         self.aes.start_message();
         let crypt_buf = match self.crypt_buf.take() {
             None => panic!("Cannot perform CCM* encrypt because crypt_buf is not present."),
