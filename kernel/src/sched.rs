@@ -21,6 +21,7 @@ use crate::debug;
 use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
+use crate::hil::time::Time;
 use crate::ipc;
 use crate::memop;
 use crate::platform::mpu::MPU;
@@ -477,6 +478,7 @@ impl Kernel {
         P: Platform,
         C: Chip,
         SC: Scheduler<C>,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -484,6 +486,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         scheduler: &SC,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
@@ -511,6 +514,7 @@ impl Kernel {
                                     scheduler,
                                     process,
                                     ipc,
+                                    ros,
                                     timeslice_us,
                                 );
                                 scheduler.result(reason, time_executed);
@@ -557,6 +561,7 @@ impl Kernel {
         P: Platform,
         C: Chip,
         SC: Scheduler<C>,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -564,12 +569,13 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         scheduler: &SC,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         chip.watchdog().setup();
         loop {
-            self.kernel_loop_operation(platform, chip, ipc, scheduler, false, capability);
+            self.kernel_loop_operation(platform, chip, ipc, ros, scheduler, false, capability);
         }
     }
 
@@ -608,6 +614,7 @@ impl Kernel {
         P: Platform,
         C: Chip,
         S: Scheduler<C>,
+        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -617,6 +624,7 @@ impl Kernel {
         scheduler: &S,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        ros: Option<&crate::ros::ROSDriver<T>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -679,8 +687,10 @@ impl Kernel {
                     // process. Arming the scheduler timer instructs it to
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
+                    ros.map(|r| {
+                        r.update_values(process.processid(), process.pending_tasks());
+                    });
                     process.setup_mpu();
-
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();
@@ -1165,6 +1175,77 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.processid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+                process.set_syscall_return_value(res);
+            }
+            Syscall::SharedAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = platform.with_driver(driver_number, |driver| match driver {
+                    Some(d) => {
+                        // Try to create an appropriate [`SharedAppSlice`]
+                        // that can be shared access with the app.
+                        // This method will ensure that the memory in question
+                        // is located in the process-accessible memory space.
+                        //
+                        // TODO: Enforce anti buffer-aliasing guarantees to avoid
+                        // undefined behavior in Rust.
+                        match process.build_readwrite_appslice(allow_address, allow_size) {
+                            Ok(appslice) => {
+                                // Creating the [`SharedAppSlice`] worked,
+                                // provide it to the capsule.
+                                match d.allow_shared(
+                                    process.processid(),
+                                    subdriver_number,
+                                    appslice,
+                                ) {
+                                    Ok(returned_appslice) => {
+                                        // The capsule has accepted the allow
+                                        // operation. Pass the previous buffer
+                                        // information back to the process.
+                                        //
+                                        // TODO: Prevent swapping of AppSlices by
+                                        // the capsule
+                                        let (ptr, len) = returned_appslice.consume();
+                                        SyscallReturn::SharedAllowSuccess(ptr, len)
+                                    }
+                                    Err((rejected_appslice, err)) => {
+                                        let (ptr, len) = rejected_appslice.consume();
+                                        SyscallReturn::SharedAllowFailure(err, ptr, len)
+                                    }
+                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the [`SharedAppSlice`].
+                                // Report back to the process.
+                                SyscallReturn::SharedAllowFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
+                            }
+                        }
+                    }
+                    None => SyscallReturn::SharedAllowFailure(
+                        ErrorCode::NODEVICE,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] shared allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.processid(),
                         driver_number,
                         subdriver_number,

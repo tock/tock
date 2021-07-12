@@ -684,5 +684,12 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+    board_kernel.kernel_loop(
+        &imix,
+        chip,
+        Some(&imix.ipc),
+        None::<&kernel::ros::ROSDriver<sam4l::ast::Ast>>,
+        scheduler,
+        &main_cap,
+    );
 }

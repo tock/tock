@@ -385,6 +385,7 @@ pub unsafe fn main() {
         &nucleo_f446re,
         chip,
         Some(&nucleo_f446re.ipc),
+        None::<&kernel::ros::ROSDriver<stm32f446re::tim2::Tim2>>,
         scheduler,
         &main_loop_capability,
     );

@@ -19,6 +19,7 @@ pub enum NUM {
 
     // Kernel
     Ipc                   = 0x10000,
+    ReadOnlySysCalls      = 0x10001,
 
     // HW Buses
     Spi                   = 0x20001,

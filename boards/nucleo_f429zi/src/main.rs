@@ -598,6 +598,7 @@ pub unsafe fn main() {
         &nucleo_f429zi,
         chip,
         Some(&nucleo_f429zi.ipc),
+        None::<&kernel::ros::ROSDriver<stm32f429zi::tim2::Tim2>>,
         scheduler,
         &main_loop_capability,
     );

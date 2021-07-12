@@ -538,6 +538,7 @@ pub unsafe fn main() {
             earlgrey_nexysvideo,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+            None::<&kernel::ros::ROSDriver<earlgrey::timer::RvTimer>>,
             scheduler,
             &main_loop_cap,
         );

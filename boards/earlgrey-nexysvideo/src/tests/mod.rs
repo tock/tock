@@ -29,6 +29,7 @@ fn run_kernel_op(loops: usize) {
                 PLATFORM.unwrap(),
                 CHIP.unwrap(),
                 None::<&kernel::ipc::IPC<NUM_PROCS>>,
+                None::<&kernel::ros::ROSDriver<earlgrey::timer::RvTimer>>,
                 SCHEDULER.unwrap(),
                 true,
                 MAIN_CAP.unwrap(),

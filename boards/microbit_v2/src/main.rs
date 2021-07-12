@@ -603,6 +603,7 @@ pub unsafe fn main() {
         &microbit,
         chip,
         Some(&microbit.ipc),
+        None::<&kernel::ros::ROSDriver<nrf52::rtc::Rtc>>,
         scheduler,
         &main_loop_capability,
     );
