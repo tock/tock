@@ -280,7 +280,7 @@ Attending:
   parameters into non-generic functions that are marked `#[inline(never)]`. I
   then call those from the generic functions. For code that doesn't need to be
   duplicated for the generic types, you only have a single instance of those
-  function. As written, this saved about 7300 bytes on Imix. Functionally
+  function. As written, this saved about 7300 bytes on Imix. Functionally it is
   identical, except it might result in slightly-worse performance. A high-level
   takeaway is we should be careful to do the minimal amount possible in generic
   functions we expect to be instantiated multiple times.
