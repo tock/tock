@@ -1,5 +1,5 @@
-//! Virtualize the HMAC interface to enable multiple users of an underlying
-//! HMAC hardware peripheral.
+//! Virtualize the SHA interface to enable multiple users of an underlying
+//! SHA hardware peripheral.
 
 use crate::virtual_digest::{Mode, Operation};
 use core::cell::Cell;
@@ -9,11 +9,10 @@ use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, Client, Digest};
 use kernel::ErrorCode;
 
-pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, L>, const L: usize> {
-    mux: &'a MuxHmac<'a, A, L>,
-    next: ListLink<'a, VirtualMuxHmac<'a, A, L>>,
+pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
+    mux: &'a MuxSha<'a, A, L>,
+    next: ListLink<'a, VirtualMuxSha<'a, A, L>>,
     client: OptionalCell<&'a dyn digest::Client<'a, L>>,
-    key: TakeCell<'static, [u8]>,
     data: TakeCell<'static, [u8]>,
     data_len: Cell<usize>,
     digest: TakeCell<'static, [u8; L]>,
@@ -21,27 +20,23 @@ pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, L>, const L: usize> {
     id: u32,
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxHmac<'a, A, L>>
-    for VirtualMuxHmac<'a, A, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxSha<'a, A, L>>
+    for VirtualMuxSha<'a, A, L>
 {
-    fn next(&self) -> &'a ListLink<VirtualMuxHmac<'a, A, L>> {
+    fn next(&self) -> &'a ListLink<VirtualMuxSha<'a, A, L>> {
         &self.next
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxHmac<'a, A, L> {
-    pub fn new(
-        mux_hmac: &'a MuxHmac<'a, A, L>,
-        key: &'static mut [u8],
-    ) -> VirtualMuxHmac<'a, A, L> {
-        let id = mux_hmac.next_id.get();
-        mux_hmac.next_id.set(id + 1);
+impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
+    pub fn new(mux_sha: &'a MuxSha<'a, A, L>) -> VirtualMuxSha<'a, A, L> {
+        let id = mux_sha.next_id.get();
+        mux_sha.next_id.set(id + 1);
 
-        VirtualMuxHmac {
-            mux: mux_hmac,
+        VirtualMuxSha {
+            mux: mux_sha,
             next: ListLink::empty(),
             client: OptionalCell::empty(),
-            key: TakeCell::new(key),
             data: TakeCell::empty(),
             data_len: Cell::new(0),
             digest: TakeCell::empty(),
@@ -52,7 +47,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxHmac<'a, A, L> {
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
-    for VirtualMuxHmac<'a, A, L>
+    for VirtualMuxSha<'a, A, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
@@ -61,11 +56,11 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
         if node.is_none() {
             self.mux.users.push_head(self);
         }
-        self.mux.hmac.set_client(client);
+        self.mux.sha.set_client(client);
     }
 
-    /// Add data to the hmac IP.
-    /// All data passed in is fed to the HMAC hardware block.
+    /// Add data to the sha IP.
+    /// All data passed in is fed to the SHA hardware block.
     /// Returns the number of bytes written on success
     fn add_data(
         &self,
@@ -73,7 +68,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
-            self.mux.hmac.add_data(data)
+            self.mux.sha.add_data(data)
         } else {
             // Another app is already running, queue this app as long as we
             // don't already have data queued.
@@ -88,7 +83,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
         }
     }
 
-    /// Request the hardware block to generate a HMAC
+    /// Request the hardware block to generate a SHA
     /// This doesn't return anything, instead the client needs to have
     /// set a `hash_done` handler.
     fn run(
@@ -97,7 +92,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
     ) -> Result<(), (ErrorCode, &'static mut [u8; L])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
-            self.mux.hmac.run(digest)
+            self.mux.sha.run(digest)
         } else {
             // Another app is already running, queue this app as long as we
             // don't already have data queued.
@@ -110,22 +105,22 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
         }
     }
 
-    /// Disable the HMAC hardware and clear the keys and any other sensitive
+    /// Disable the SHA hardware and clear the keys and any other sensitive
     /// data
     fn clear_data(&self) {
         if self.mux.running_id.get() == self.id {
             self.mux.running.set(false);
             self.mode.set(Mode::None);
-            self.mux.hmac.clear_data()
+            self.mux.sha.clear_data()
         }
     }
 }
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::Client<'a, L> for VirtualMuxHmac<'a, A, L>
+    > digest::Client<'a, L> for VirtualMuxSha<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
@@ -143,77 +138,74 @@ impl<
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::HMACSha256
-    for VirtualMuxHmac<'a, A, L>
+impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha256
+    for VirtualMuxSha<'a, A, L>
 {
-    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
-            self.mode.set(Mode::Hmac(Operation::Sha256));
-            self.mux.hmac.set_mode_hmacsha256(key)
+            self.mode.set(Mode::Sha(Operation::Sha256));
+            self.mux.sha.set_mode_sha256()
         } else {
-            self.mode.set(Mode::Hmac(Operation::Sha256));
-            self.key.map(|buf| buf.copy_from_slice(key));
+            self.mode.set(Mode::Sha(Operation::Sha256));
             Ok(())
         }
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::HMACSha384
-    for VirtualMuxHmac<'a, A, L>
+impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha384
+    for VirtualMuxSha<'a, A, L>
 {
-    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode> {
+    fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
-            self.mode.set(Mode::Hmac(Operation::Sha384));
-            self.mux.hmac.set_mode_hmacsha384(key)
+            self.mode.set(Mode::Sha(Operation::Sha384));
+            self.mux.sha.set_mode_sha384()
         } else {
-            self.mode.set(Mode::Hmac(Operation::Sha384));
-            self.key.map(|buf| buf.copy_from_slice(key));
+            self.mode.set(Mode::Sha(Operation::Sha384));
             Ok(())
         }
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::HMACSha512
-    for VirtualMuxHmac<'a, A, L>
+impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha512
+    for VirtualMuxSha<'a, A, L>
 {
-    fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode> {
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
-            self.mode.set(Mode::Hmac(Operation::Sha512));
-            self.mux.hmac.set_mode_hmacsha512(key)
+            self.mode.set(Mode::Sha(Operation::Sha512));
+            self.mux.sha.set_mode_sha512()
         } else {
-            self.mode.set(Mode::Hmac(Operation::Sha512));
-            self.key.map(|buf| buf.copy_from_slice(key));
+            self.mode.set(Mode::Sha(Operation::Sha512));
             Ok(())
         }
     }
 }
 
-pub struct MuxHmac<'a, A: digest::Digest<'a, L>, const L: usize> {
-    hmac: &'a A,
+pub struct MuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
+    sha: &'a A,
     running: Cell<bool>,
     running_id: Cell<u32>,
     next_id: Cell<u32>,
-    users: List<'a, VirtualMuxHmac<'a, A, L>>,
+    users: List<'a, VirtualMuxSha<'a, A, L>>,
 }
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > MuxHmac<'a, A, L>
+    > MuxSha<'a, A, L>
 {
-    pub const fn new(hmac: &'a A) -> MuxHmac<'a, A, L> {
-        MuxHmac {
-            hmac,
+    pub const fn new(sha: &'a A) -> MuxSha<'a, A, L> {
+        MuxSha {
+            sha,
             running: Cell::new(false),
             running_id: Cell::new(0),
             next_id: Cell::new(0),
@@ -229,23 +221,17 @@ impl<
 
             match node.mode.get() {
                 Mode::None => {}
-                Mode::Sha(_) => {}
-                Mode::Hmac(op) => {
+                Mode::Hmac(_) => {}
+                Mode::Sha(op) => {
                     match op {
                         Operation::Sha256 => {
-                            node.key.map(|buf| {
-                                self.hmac.set_mode_hmacsha256(buf).unwrap();
-                            });
+                            self.sha.set_mode_sha256().unwrap();
                         }
                         Operation::Sha384 => {
-                            node.key.map(|buf| {
-                                self.hmac.set_mode_hmacsha384(buf).unwrap();
-                            });
+                            self.sha.set_mode_sha384().unwrap();
                         }
                         Operation::Sha512 => {
-                            node.key.map(|buf| {
-                                self.hmac.set_mode_hmacsha512(buf).unwrap();
-                            });
+                            self.sha.set_mode_sha512().unwrap();
                         }
                     }
                     return;
@@ -256,14 +242,14 @@ impl<
                 let mut lease = LeasableBuffer::new(node.data.take().unwrap());
                 lease.slice(0..node.data_len.get());
 
-                if let Err((err, digest)) = self.hmac.add_data(lease) {
+                if let Err((err, digest)) = self.sha.add_data(lease) {
                     node.add_data_done(Err(err), digest);
                 }
                 return;
             }
 
             if node.digest.is_some() {
-                if let Err((err, data)) = self.hmac.run(node.digest.take().unwrap()) {
+                if let Err((err, data)) = self.sha.run(node.digest.take().unwrap()) {
                     node.hash_done(Err(err), data);
                 }
             }

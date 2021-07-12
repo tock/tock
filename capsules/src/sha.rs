@@ -1,34 +1,33 @@
-//! HMAC (Hash-based Message Authentication Code).
+//! SHA
 //!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! let hmac = &earlgrey::hmac::HMAC;
+//! let sha = &earlgrey::sha::HMAC;
 //!
-//! let mux_hmac = static_init!(MuxHmac<'static, lowrisc::hmac::Hmac>, MuxHmac::new(hmac));
-//! digest::Digest::set_client(&earlgrey::hmac::HMAC, mux_hmac);
+//! let mux_sha = static_init!(MuxSha<'static, lowrisc::sha::Sha>, MuxSha::new(sha));
+//! digest::Digest::set_client(&earlgrey::sha::HMAC, mux_sha);
 //!
-//! let virtual_hmac_user = static_init!(
-//!     VirtualMuxHmac<'static, lowrisc::hmac::Hmac>,
-//!     VirtualMuxHmac::new(mux_hmac)
+//! let virtual_sha_user = static_init!(
+//!     VirtualMuxSha<'static, lowrisc::sha::Sha>,
+//!     VirtualMuxSha::new(mux_sha)
 //! );
-//! let hmac = static_init!(
-//!     capsules::hmac::HmacDriver<'static, VirtualMuxHmac<'static, lowrisc::hmac::Hmac>>,
-//!     capsules::hmac::HmacDriver::new(
-//!         virtual_hmac_user,
+//! let sha = static_init!(
+//!     capsules::sha::ShaDriver<'static, VirtualMuxSha<'static, lowrisc::sha::Sha>>,
+//!     capsules::sha::ShaDriver::new(
+//!         virtual_sha_user,
 //!         board_kernel.create_grant(&memory_allocation_cap),
 //!     )
 //! );
-//! digest::Digest::set_client(virtual_hmac_user, hmac);
+//! digest::Digest::set_client(virtual_sha_user, sha);
 //! ```
 
 use crate::driver;
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 
 use core::cell::Cell;
-use core::convert::TryInto;
 use core::mem;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
@@ -44,8 +43,8 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
-    hmac: &'a H,
+pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+    sha: &'a H,
 
     active: Cell<bool>,
 
@@ -59,18 +58,18 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > HmacDriver<'a, H, L>
+    > ShaDriver<'a, H, L>
 {
     pub fn new(
-        hmac: &'a H,
+        sha: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
         grant: Grant<App, 1>,
-    ) -> HmacDriver<'a, H, L> {
-        HmacDriver {
-            hmac: hmac,
+    ) -> ShaDriver<'a, H, L> {
+        ShaDriver {
+            sha: sha,
             active: Cell::new(false),
             apps: grant,
             appid: OptionalCell::empty(),
@@ -84,23 +83,15 @@ impl<
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
                 .enter(*appid, |app, _| {
-                    let ret = app.key.map_or(Err(ErrorCode::RESERVE), |k| {
-                        if let Some(op) = &app.sha_operation {
-                            match op {
-                                ShaOperation::Sha256 => self
-                                    .hmac
-                                    .set_mode_hmacsha256(k.as_ref().try_into().unwrap()),
-                                ShaOperation::Sha384 => self
-                                    .hmac
-                                    .set_mode_hmacsha384(k.as_ref().try_into().unwrap()),
-                                ShaOperation::Sha512 => self
-                                    .hmac
-                                    .set_mode_hmacsha512(k.as_ref().try_into().unwrap()),
-                            }
-                        } else {
-                            Err(ErrorCode::INVAL)
+                    let ret = if let Some(op) = &app.sha_operation {
+                        match op {
+                            ShaOperation::Sha256 => self.sha.set_mode_sha256(),
+                            ShaOperation::Sha384 => self.sha.set_mode_sha384(),
+                            ShaOperation::Sha512 => self.sha.set_mode_sha512(),
                         }
-                    });
+                    } else {
+                        Err(ErrorCode::INVAL)
+                    };
                     if ret.is_err() {
                         return ret;
                     }
@@ -126,7 +117,7 @@ impl<
                         // Add the data from the static buffer to the HMAC
                         let mut lease_buf = LeasableBuffer::new(self.data_buffer.take().unwrap());
                         lease_buf.slice(0..static_buffer_len);
-                        if let Err(e) = self.hmac.add_data(lease_buf) {
+                        if let Err(e) = self.sha.add_data(lease_buf) {
                             self.data_buffer.replace(e.1);
                             return Err(e.0);
                         }
@@ -135,21 +126,6 @@ impl<
                 })
                 .unwrap_or_else(|err| Err(err.into()))
         })
-    }
-
-    fn calculate_digest(&self) -> Result<(), ErrorCode> {
-        self.data_copied.set(0);
-
-        if let Err(e) = self.hmac.run(self.dest_buffer.take().unwrap()) {
-            // Error, clear the appid and data
-            self.hmac.clear_data();
-            self.appid.clear();
-            self.dest_buffer.replace(e.1);
-
-            return Err(e.0);
-        }
-
-        Ok(())
     }
 
     fn check_queue(&self) {
@@ -173,13 +149,28 @@ impl<
             }
         }
     }
+
+    fn calculate_digest(&self) -> Result<(), ErrorCode> {
+        self.data_copied.set(0);
+
+        if let Err(e) = self.sha.run(self.dest_buffer.take().unwrap()) {
+            // Error, clear the appid and data
+            self.sha.clear_data();
+            self.appid.clear();
+            self.dest_buffer.replace(e.1);
+
+            return Err(e.0);
+        }
+
+        Ok(())
+    }
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::Client<'a, L> for HmacDriver<'a, H, L>
+    > digest::Client<'a, L> for ShaDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -217,7 +208,7 @@ impl<
 
                         if ret == Err(ErrorCode::RESERVE) {
                             // No data buffer, clear the appid and data
-                            self.hmac.clear_data();
+                            self.sha.clear_data();
                             self.appid.clear();
                             exit = true;
                         }
@@ -242,9 +233,9 @@ impl<
                                 lease_buf.slice(..(data_len - copied_data))
                             }
 
-                            if self.hmac.add_data(lease_buf).is_err() {
+                            if self.sha.add_data(lease_buf).is_err() {
                                 // Error, clear the appid and data
-                                self.hmac.clear_data();
+                                self.sha.clear_data();
                                 self.appid.clear();
                                 return;
                             }
@@ -279,12 +270,12 @@ impl<
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |app, upcalls| {
-                    self.hmac.clear_data();
+                    self.sha.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
                     app.dest.mut_map_or((), |dest| {
-                        dest.as_mut()[0..L].copy_from_slice(&digest.as_ref()[0..L]);
+                        dest.as_mut().copy_from_slice(digest.as_ref());
                     });
 
                     match result {
@@ -314,26 +305,11 @@ impl<
     }
 }
 
-/// Specify memory regions to be used.
-///
-/// ### `allow_num`
-///
-/// - `0`: Allow a buffer for storing the key.
-///        The kernel will read from this when running
-///        This should not be changed after running `run` until the HMAC
-///        has completed
-/// - `1`: Allow a buffer for storing the buffer.
-///        The kernel will read from this when running
-///        This should not be changed after running `run` until the HMAC
-///        has completed
-/// - `2`: Allow a buffer for storing the digest.
-///        The kernel will fill this with the HMAC digest before calling
-///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > Driver for HmacDriver<'a, H, L>
+    > Driver for ShaDriver<'a, H, L>
 {
     fn allow_readwrite(
         &self,
@@ -368,15 +344,6 @@ impl<
         mut slice: ReadOnlyAppSlice,
     ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
         let res = match allow_num {
-            // Pass buffer for the key to be in
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.key, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
             // Pass buffer for the data to be in
             1 => self
                 .apps
@@ -395,13 +362,6 @@ impl<
             Err(e) => Err((slice, e)),
         }
     }
-
-    // Subscribe to HmacDriver events.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Subscribe to interrupts from HMAC events.
-    //        The callback signature is `fn(result: u32)`
 
     /// Setup and run the HMAC hardware
     ///
@@ -518,7 +478,7 @@ impl<
                     let ret = self.run();
 
                     if let Err(e) = ret {
-                        self.hmac.clear_data();
+                        self.sha.clear_data();
                         self.appid.clear();
                         self.check_queue();
                         CommandReturn::failure(e)
@@ -557,7 +517,7 @@ impl<
                     let ret = self.run();
 
                     if let Err(e) = ret {
-                        self.hmac.clear_data();
+                        self.sha.clear_data();
                         self.appid.clear();
                         self.check_queue();
                         CommandReturn::failure(e)
@@ -624,7 +584,6 @@ pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
-    key: ReadOnlyAppSlice,
     data: ReadOnlyAppSlice,
     dest: ReadWriteAppSlice,
 }
