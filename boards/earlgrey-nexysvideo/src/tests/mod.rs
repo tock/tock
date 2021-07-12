@@ -1,9 +1,8 @@
 use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
-use crate::NUM_PROCS;
 use crate::PLATFORM;
-use crate::SCHEDULER;
+use crate::{NUM_PROCS, NUM_UPCALLS_IPC};
 use kernel::debug;
 
 pub fn semihost_command_exit_success() -> ! {
@@ -28,8 +27,7 @@ fn run_kernel_op(loops: usize) {
             BOARD.unwrap().kernel_loop_operation(
                 PLATFORM.unwrap(),
                 CHIP.unwrap(),
-                None::<&kernel::ipc::IPC<NUM_PROCS>>,
-                SCHEDULER.unwrap(),
+                None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
                 true,
                 MAIN_CAP.unwrap(),
             );

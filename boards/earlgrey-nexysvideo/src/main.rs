@@ -49,9 +49,6 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; 4] = [None
 // Test access to the peripherals
 #[cfg(test)]
 static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals> = None;
-// Test access to scheduler
-#[cfg(test)]
-static mut SCHEDULER: Option<&PrioritySched> = None;
 // Test access to board
 #[cfg(test)]
 static mut BOARD: Option<&'static kernel::Kernel> = None;
@@ -590,13 +587,11 @@ use kernel::platform::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, earlgrey_nexysvideo, chip, peripherals) = setup();
+        let (board_kernel, earlgrey_nexysvideo, _chip, peripherals) = setup();
 
         BOARD = Some(board_kernel);
         PLATFORM = Some(&earlgrey_nexysvideo);
         PERIPHERALS = Some(peripherals);
-        SCHEDULER =
-            Some(components::sched::priority::PriorityComponent::new(board_kernel).finalize(()));
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {
