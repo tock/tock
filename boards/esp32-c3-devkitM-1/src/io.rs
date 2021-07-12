@@ -42,3 +42,15 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         rv32i::support::nop();
     }
 }
+
+#[cfg(test)]
+#[no_mangle]
+#[panic_handler]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+    let writer = &mut WRITER;
+
+    debug::panic_print(writer, pi, &rv32i::support::nop, &PROCESSES, &CHIP);
+
+    let _ = writeln!(writer, "{}", pi);
+    loop {}
+}
