@@ -1,0 +1,2 @@
+[target.'cfg(target_arch = "riscv32")']
+runner = "./run.sh"
