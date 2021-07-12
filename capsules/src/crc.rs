@@ -206,8 +206,10 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
                 match res {
                     Ok(()) => Ok(()),
                     Err(e) => {
-                        upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
-                        grant.request = None;
+                        if grant.request.is_some() {
+                            upcalls.schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0);
+                            grant.request = None;
+                        }
                         Err(e)
                     }
                 }
@@ -261,7 +263,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
     //
     // ```
     //
-    // fn callback(status: Result<(), i2c::Error>, result: usize) {}
+    // fn callback(status: Result<(), ErrorCode>, result: usize) {}
     // ```
     //
     // where
@@ -281,7 +283,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
     ///
     ///   *   `0`: Returns non-zero to indicate the driver is present.
     ///
-    ///   *   `2`: Requests that a Crc be computed over the buffer
+    ///   *   `1`: Requests that a Crc be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
     ///       this command will return `INVAL`.
     ///
@@ -319,20 +321,11 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
     ///   output.  It *may* be equivalent to various Crc functions using
     ///   the same name.
     ///
-    ///   * `2: SAM4L-16`  This algorithm uses polynomial 0x1021 and does
+    ///   * `2: Crc-16CCITT`  This algorithm uses polynomial 0x1021 and does
     ///   no post-processing on the output value. The sixteen-bit Crc
     ///   result is placed in the low-order bits of the returned result
-    ///   value, and the high-order bits will all be set.  That is, result
-    ///   values will always be of the form `0xFFFFxxxx` for this
-    ///   algorithm.  It can be performed purely in hardware on the SAM4L.
-    ///
-    ///   * `3: SAM4L-32`  This algorithm uses the same polynomial as
-    ///   `Crc-32`, but does no post-processing on the output value.  It
-    ///   can be perfomed purely in hardware on the SAM4L.
-    ///
-    ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
-    ///   `Crc-32C`, but does no post-processing on the output value.  It
-    ///   can be performed purely in hardware on the SAM4L.
+    ///   value. That is, result values will always be of the form `0x0000xxxx`
+    ///   for this algorithm.  It can be performed purely in hardware on the SAM4L.
     fn command(
         &self,
         command_num: usize,
@@ -345,7 +338,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
             0 => CommandReturn::success(),
 
             // Request a Crc computation
-            2 => {
+            1 => {
                 // Parse the user provided algorithm number
                 let algorithm = if let Some(alg) = alg_from_user_int(algorithm_id) {
                     alg
@@ -551,6 +544,6 @@ fn encode_upcall_crc_output(output: CrcOutput) -> (u32, u32) {
     match output {
         CrcOutput::Crc32(val) => (val, 0),
         CrcOutput::Crc32C(val) => (val, 1),
-        CrcOutput::Crc16CCITT(val) => ((val as u32) | 0xFFFF0000, 2),
+        CrcOutput::Crc16CCITT(val) => (val as u32, 2),
     }
 }
