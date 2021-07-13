@@ -4,8 +4,9 @@
 //!
 //! # System-call Overview
 //!
-//! Tock supports six system calls. The `yield` and `memop` system calls are
-//! handled by the core kernel, while four others are implemented by drivers:
+//! Tock supports six system calls. The `subscribe`, `yield`, and `memop` system
+//! calls are handled by the core kernel, while `command`, `allow_readwrite`,
+//! and `allow_readonly` are implemented by drivers. The main system calls:
 //!
 //!   * `subscribe` passes a upcall to the driver which it can
 //!   invoke on the process later, when an event has occurred or data
@@ -24,12 +25,12 @@
 //! Each of these three system calls takes at least two
 //! parameters. The first is a _driver identifier_ and tells the
 //! scheduler which driver to forward the system call to. The second
-//! parameters is a __syscall identifer_ and is used by the driver to
+//! parameters is a __syscall number_ and is used by the driver to
 //! differentiate instances of the call with different driver-specific
 //! meanings (e.g. `subscribe` for "data received" vs `subscribe` for
 //! "send completed"). The mapping between _driver identifiers_ and
 //! drivers is determined by a particular platform, while the _syscall
-//! identifier_ is driver-specific.
+//! number_ is driver-specific.
 //!
 //! One convention in Tock is that _driver minor number_ 0 for the `command`
 //! syscall can always be used to determine if the driver is supported by
