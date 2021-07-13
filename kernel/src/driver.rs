@@ -184,7 +184,13 @@ pub trait Driver {
     /// is signaled with an upcall). Command 0 is a reserved command to
     /// detect if a peripheral system call driver is installed and must
     /// always return a CommandReturn::Success.
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        r2: usize,
+        r3: usize,
+        caller_id: ProcessId,
+    ) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
@@ -195,7 +201,7 @@ pub trait Driver {
     fn allow_readwrite(
         &self,
         process_id: ProcessId,
-        which: usize,
+        allow_num: usize,
         slice: ReadWriteProcessBuffer,
     ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
@@ -210,7 +216,7 @@ pub trait Driver {
     fn allow_readonly(
         &self,
         process_id: ProcessId,
-        which: usize,
+        allow_num: usize,
         slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
@@ -305,5 +311,5 @@ pub trait Driver {
     // mechanism may find more uses in the future if the kernel needs to store
     // additional state on a per-driver basis and therefore needs a mechanism to
     // force a grant allocation.
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
+    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
 }
