@@ -703,12 +703,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                 self.apps
                     .enter(*id, |_app, upcalls| {
                         calledback = true;
-                        upcalls.schedule_upcall(
-                            0,
-                            AdcMode::SingleSample as usize,
-                            self.channel.get(),
-                            sample as usize,
-                        );
+                        upcalls
+                            .schedule_upcall(
+                                0,
+                                AdcMode::SingleSample as usize,
+                                self.channel.get(),
+                                sample as usize,
+                            )
+                            .ok();
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
@@ -726,12 +728,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                 self.apps
                     .enter(*id, |_app, upcalls| {
                         calledback = true;
-                        upcalls.schedule_upcall(
-                            0,
-                            AdcMode::ContinuousSample as usize,
-                            self.channel.get(),
-                            sample as usize,
-                        );
+                        upcalls
+                            .schedule_upcall(
+                                0,
+                                AdcMode::ContinuousSample as usize,
+                                self.channel.get(),
+                                sample as usize,
+                            )
+                            .ok();
                     })
                     .map_err(|err| {
                         if err == kernel::procs::Error::NoSuchApp
@@ -995,12 +999,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         if perform_callback {
                             // actually schedule the callback
                             let len_chan = ((buf_len / 2) << 8) | (self.channel.get() & 0xFF);
-                            upcalls.schedule_upcall(
-                                0,
-                                self.mode.get() as usize,
-                                len_chan,
-                                buf_ptr as usize,
-                            );
+                            upcalls
+                                .schedule_upcall(
+                                    0,
+                                    self.mode.get() as usize,
+                                    len_chan,
+                                    buf_ptr as usize,
+                                )
+                                .ok();
 
                             // if the mode is SingleBuffer, the operation is
                             // complete. Clean up state
@@ -1349,12 +1355,9 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
             let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
-                upcalls.schedule_upcall(
-                    0,
-                    AdcMode::SingleSample as usize,
-                    channel,
-                    sample as usize,
-                );
+                upcalls
+                    .schedule_upcall(0, AdcMode::SingleSample as usize, channel, sample as usize)
+                    .ok();
             });
         });
     }

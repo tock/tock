@@ -262,12 +262,14 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    upcalls.schedule_upcall(
-                        ALARM_CALLBACK_NUM,
-                        now.into_u32() as usize,
-                        reference.wrapping_add(dt) as usize,
-                        0,
-                    );
+                    upcalls
+                        .schedule_upcall(
+                            ALARM_CALLBACK_NUM,
+                            now.into_u32() as usize,
+                            reference.wrapping_add(dt) as usize,
+                            0,
+                        )
+                        .ok();
                 }
             }
         });

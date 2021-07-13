@@ -202,7 +202,7 @@ impl<'a> TextScreen<'a> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
-                upcalls.schedule_upcall(0, data1, data2, data3);
+                upcalls.schedule_upcall(0, data1, data2, data3).ok();
             });
         });
     }

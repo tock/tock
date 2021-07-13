@@ -437,7 +437,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 0, 0, 0);
+                upcalls.schedule_upcall(0, 0, 0, 0).ok();
             });
         });
     }
@@ -457,7 +457,9 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((accumulated_charge_overflow as usize) << 4);
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 1, ret, self.ltc294x.model.get() as usize);
+                upcalls
+                    .schedule_upcall(0, 1, ret, self.ltc294x.model.get() as usize)
+                    .ok();
             });
         });
     }
@@ -465,7 +467,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     fn charge(&self, charge: u16) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 2, charge as usize, 0);
+                upcalls.schedule_upcall(0, 2, charge as usize, 0).ok();
             });
         });
     }
@@ -473,7 +475,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     fn done(&self) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 3, 0, 0);
+                upcalls.schedule_upcall(0, 3, 0, 0).ok();
             });
         });
     }
@@ -481,7 +483,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     fn voltage(&self, voltage: u16) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 4, voltage as usize, 0);
+                upcalls.schedule_upcall(0, 4, voltage as usize, 0).ok();
             });
         });
     }
@@ -489,7 +491,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     fn current(&self, current: u16) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(*pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 5, current as usize, 0);
+                upcalls.schedule_upcall(0, 5, current as usize, 0).ok();
             });
         });
     }

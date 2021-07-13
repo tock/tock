@@ -124,7 +124,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, 0, 0, 0);
+                upcalls.schedule_upcall(0, 0, 0, 0).ok();
             });
         });
 

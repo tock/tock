@@ -470,12 +470,9 @@ where
                         .unwrap_or(false);
 
                     if success {
-                        upcalls.schedule_upcall(
-                            0,
-                            kernel::into_statuscode(result),
-                            len as usize,
-                            0,
-                        );
+                        upcalls
+                            .schedule_upcall(0, kernel::into_statuscode(result), len as usize, 0)
+                            .ok();
                     }
                 }
 

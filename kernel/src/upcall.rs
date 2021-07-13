@@ -18,6 +18,47 @@ pub struct UpcallId {
     pub subscribe_num: usize,
 }
 
+/// Errors which can occur when scheduling a process Upcall.
+///
+/// Scheduling a null-Upcall (which will not be delivered to a process) is
+/// deliberately not an error, given that a null-Upcall is a well-defined Upcall
+/// to be set by a process. It behaves essentially the same as if the process
+/// would set a proper Upcall, and would ignore all invocations, with the
+/// benefit that no task is inserted in the process' task queue.
+#[derive(Copy, Clone, Debug)]
+pub enum UpcallError {
+    /// The passed `subscribe_num` exceeds the number of Upcalls
+    /// available for this process.
+    ///
+    /// For a [`Grant`](crate::grant::Grant) with `n` `NUM_UPCALLS`,
+    /// this error is returned when
+    /// `GrantUpcallTable::schedule_upcall` is invoked with
+    /// `subscribe_num >= n`.
+    ///
+    /// No Upcall has been scheduled, the call to
+    /// `GrantUpcallTable::schedule_upcall` had no observable effects.
+    ///
+    InvalidSubscribeNum,
+    /// The process' task queue is full.
+    ///
+    /// This error can occur when too many tasks (for example,
+    /// Upcalls) have been scheduled for a process, without that
+    /// process yielding or having a chance to resume execution.
+    ///
+    /// No Upcall has been scheduled, the call to
+    /// `GrantUpcallTable::schedule_upcall` had no observable effects.
+    QueueFull,
+    /// A kernel-internal invariant has been violated.
+    ///
+    /// This error should never happen. It can be returned if the
+    /// process is inactive (which should be caught by
+    /// [`Grant::enter`](crate::grant::Grant::enter)) or
+    /// `process.tasks` was taken.
+    ///
+    /// These cases cannot be reasonably handled.
+    KernelError,
+}
+
 /// Type for calling an upcall in a process.
 ///
 /// This is essentially a wrapper around a function pointer with
@@ -78,21 +119,47 @@ impl Upcall {
         r0: usize,
         r1: usize,
         r2: usize,
-    ) -> bool {
-        let res = self.fn_ptr.map_or(false, |fp| {
-            process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                source: process::FunctionCallSource::Driver(self.upcall_id),
-                argument0: r0,
-                argument1: r1,
-                argument2: r2,
-                argument3: self.appdata,
-                pc: fp.as_ptr() as usize,
-            }))
-        });
+    ) -> Result<(), UpcallError> {
+        let res = self.fn_ptr.map_or(
+            // A null-Upcall is treated as being delivered to
+            // the process and ignored
+            Ok(()),
+            |fp| {
+                let enqueue_res =
+                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                        source: process::FunctionCallSource::Driver(self.upcall_id),
+                        argument0: r0,
+                        argument1: r1,
+                        argument2: r2,
+                        argument3: self.appdata,
+                        pc: fp.as_ptr() as usize,
+                    }));
+
+                match enqueue_res {
+                    Ok(()) => Ok(()),
+                    Err(ErrorCode::NODEVICE) => {
+                        // There should be no code path to schedule an
+                        // Upcall on a process that is no longer
+                        // alive. Indicate a kernel-internal error.
+                        Err(UpcallError::KernelError)
+                    }
+                    Err(ErrorCode::NOMEM) => {
+                        // No space left in the process' task queue.
+                        Err(UpcallError::QueueFull)
+                    }
+                    Err(_) => {
+                        // All other errors returned by
+                        // `Process::enqueue_task` must be treated as
+                        // kernel-internal errors
+                        Err(UpcallError::KernelError)
+                    }
+                }
+            },
+        );
 
         if config::CONFIG.trace_syscalls {
             debug!(
-                "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {}",
+                "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {:?}",
                 self.process_id,
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,

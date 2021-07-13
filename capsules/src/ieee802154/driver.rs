@@ -467,12 +467,14 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
         let _ = self
             .apps
             .enter(self.saved_appid.expect("missing appid"), |_app, upcalls| {
-                upcalls.schedule_upcall(
-                    1,
-                    kernel::into_statuscode(self.saved_result.expect("missing result")),
-                    0,
-                    0,
-                );
+                upcalls
+                    .schedule_upcall(
+                        1,
+                        kernel::into_statuscode(self.saved_result.expect("missing result")),
+                        0,
+                        0,
+                    )
+                    .ok();
             });
     }
 }
@@ -892,7 +894,9 @@ impl device::TxClient for RadioDriver<'_> {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |_app, upcalls| {
-                upcalls.schedule_upcall(1, kernel::into_statuscode(result), acked as usize, 0);
+                upcalls
+                    .schedule_upcall(1, kernel::into_statuscode(result), acked as usize, 0)
+                    .ok();
             });
         });
         self.do_next_tx_async();
@@ -935,7 +939,7 @@ impl device::RxClient for RadioDriver<'_> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                upcalls.schedule_upcall(0, pans, dst_addr, src_addr);
+                upcalls.schedule_upcall(0, pans, dst_addr, src_addr).ok();
             }
         });
     }

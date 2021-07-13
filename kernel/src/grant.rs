@@ -129,7 +129,7 @@ use core::slice;
 
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::sched::Kernel;
-use crate::upcall::{Upcall, UpcallId};
+use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
 
 /// This GrantData object provides access to the memory allocated for a grant
@@ -215,11 +215,17 @@ impl<'a> GrantUpcallTable<'a> {
     /// identified by the `subscribe_num`, which must match the subscribe number
     /// used when the upcall was originally subscribed by a process.
     /// `subscribe_num`s are indexed starting at zero.
-    pub fn schedule_upcall(&self, subscribe_num: usize, r0: usize, r1: usize, r2: usize) -> bool {
+    pub fn schedule_upcall(
+        &self,
+        subscribe_num: usize,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+    ) -> Result<(), UpcallError> {
         // Implement `self.upcalls[subscribe_num]` without a chance of a panic.
-        self.upcalls
-            .get(subscribe_num)
-            .map_or(false, |saved_upcall| {
+        self.upcalls.get(subscribe_num).map_or(
+            Err(UpcallError::InvalidSubscribeNum),
+            |saved_upcall| {
                 // We can create an `Upcall` object based on what is stored in
                 // the process grant and use that to add the upcall to the
                 // pending array for the process.
@@ -233,7 +239,8 @@ impl<'a> GrantUpcallTable<'a> {
                     saved_upcall.fn_ptr,
                 );
                 upcall.schedule(self.process, r0, r1, r2)
-            })
+            },
+        )
     }
 }
 

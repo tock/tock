@@ -126,20 +126,25 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                                 )
                                             },
                                         );
-                                        my_upcalls.schedule_upcall(
-                                            to_schedule,
-                                            called_from.id() + 1,
-                                            crate::mem::ReadableProcessBuffer::len(slice),
-                                            crate::mem::ReadableProcessBuffer::ptr(slice) as usize,
-                                        );
+                                        my_upcalls
+                                            .schedule_upcall(
+                                                to_schedule,
+                                                called_from.id() + 1,
+                                                crate::mem::ReadableProcessBuffer::len(slice),
+                                                crate::mem::ReadableProcessBuffer::ptr(slice)
+                                                    as usize,
+                                            )
+                                            .ok();
                                     }
                                     None => {
-                                        my_upcalls.schedule_upcall(
-                                            to_schedule,
-                                            called_from.id() + 1,
-                                            0,
-                                            0,
-                                        );
+                                        my_upcalls
+                                            .schedule_upcall(
+                                                to_schedule,
+                                                called_from.id() + 1,
+                                                0,
+                                                0,
+                                            )
+                                            .ok();
                                     }
                                 }
                             }
@@ -228,8 +233,12 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                             |target| {
                                 let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandReturn::success(),
-                                    false => CommandReturn::failure(ErrorCode::FAIL),
+                                    Ok(()) => CommandReturn::success(),
+                                    Err(e) => match e {
+                                        // The other side has a null upcall, choosing to ignore
+                                        ErrorCode::OFF => CommandReturn::success(),
+                                        _ => CommandReturn::failure(e),
+                                    },
                                 }
                             },
                         )
@@ -251,8 +260,12 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> Driver for IPC<NUM_PROCS,
                             |target| {
                                 let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                                 match ret {
-                                    true => CommandReturn::success(),
-                                    false => CommandReturn::failure(ErrorCode::FAIL),
+                                    Ok(()) => CommandReturn::success(),
+                                    Err(e) => match e {
+                                        // The other side has a null upcall, choosing to ignore
+                                        ErrorCode::OFF => CommandReturn::success(),
+                                        _ => CommandReturn::failure(e),
+                                    },
                                 }
                             },
                         )

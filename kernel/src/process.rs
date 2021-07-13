@@ -170,13 +170,14 @@ pub trait Process {
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a upcall or an IPC call.
     ///
-    /// This function returns `true` if the `Task` was successfully enqueued,
-    /// and `false` otherwise. This is represented as a simple `bool` because
-    /// this is passed to the capsule that tried to schedule the `Task`.
-    ///
-    /// This will fail if the process is no longer active, and therefore cannot
-    /// execute any new tasks.
-    fn enqueue_task(&self, task: Task) -> bool;
+    /// This function returns `Ok(())` if the `Task` was successfully
+    /// enqueued. If the process is no longer alive,
+    /// `Err(ErrorCode::NODEVICE)` is returned. If the task could not
+    /// be enqueued because there is insufficient space in the
+    /// internal task queue, `Err(ErrorCode::NOMEM)` is
+    /// returned. Other return values must be treated as
+    /// kernel-internal errors.
+    fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
