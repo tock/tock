@@ -190,7 +190,7 @@ pub trait Driver {
         command_num: usize,
         r2: usize,
         r3: usize,
-        caller_id: ProcessId,
+        process_id: ProcessId,
     ) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
