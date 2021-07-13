@@ -44,7 +44,9 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{CommandReturn, Driver};
 use kernel::{ErrorCode, Grant, ProcessId};
-use kernel::{Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -52,12 +54,12 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 #[derive(Default)]
 pub struct App {
-    write_buffer: ReadOnlyAppSlice,
+    write_buffer: ReadOnlyProcessBuffer,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
 
-    read_buffer: ReadWriteAppSlice,
+    read_buffer: ReadWriteProcessBuffer,
     read_len: usize,
 }
 
@@ -119,25 +121,27 @@ impl<'a> Console<'a> {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
-                let len = app.write_buffer.map_or(0, |data| data.len());
+                let len = app.write_buffer.enter(|data| data.len()).unwrap_or(0);
                 if app.write_remaining > len {
                     // A slice has changed under us and is now smaller than
                     // what we need to write -- just write what we can.
                     app.write_remaining = len;
                 }
-                let transaction_len = app.write_buffer.map_or(0, |data| {
-                    for (i, c) in data[data.len() - app.write_remaining..data.len()]
-                        .iter()
-                        .enumerate()
-                    {
-                        if buffer.len() <= i {
-                            return i; // Short circuit on partial send
+                let transaction_len = app
+                    .write_buffer
+                    .enter(|data| {
+                        for (i, c) in data[data.len() - app.write_remaining..data.len()]
+                            .iter()
+                            .enumerate()
+                        {
+                            if buffer.len() <= i {
+                                return i; // Short circuit on partial send
+                            }
+                            buffer[i] = c.get();
                         }
-                        buffer[i] = *c;
-                    }
-                    app.write_remaining
-                });
-
+                        app.write_remaining
+                    })
+                    .unwrap_or(0);
                 app.write_remaining -= transaction_len;
                 let _ = self.uart.transmit_buffer(buffer, transaction_len);
             });
@@ -181,8 +185,8 @@ impl Driver for Console<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
@@ -209,8 +213,8 @@ impl Driver for Console<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
@@ -374,14 +378,17 @@ impl uart::ReceiveClient for Console<'_> {
                         match error {
                             uart::Error::None | uart::Error::Aborted => {
                                 // Receive some bytes, signal error type and return bytes to process buffer
-                                let count = app.read_buffer.mut_map_or(-1, |data| {
-                                    let mut c = 0;
-                                    for (a, b) in data.iter_mut().zip(rx_buffer) {
-                                        c = c + 1;
-                                        *a = *b;
-                                    }
-                                    c
-                                });
+                                let count = app
+                                    .read_buffer
+                                    .mut_enter(|data| {
+                                        let mut c = 0;
+                                        for (a, b) in data.iter().zip(rx_buffer) {
+                                            c = c + 1;
+                                            a.set(*b);
+                                        }
+                                        c
+                                    })
+                                    .unwrap_or(-1);
 
                                 // Make sure we report the same number
                                 // of bytes that we actually copied into

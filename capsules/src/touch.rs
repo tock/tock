@@ -16,7 +16,10 @@ use core::mem;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
+    WriteableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -32,7 +35,7 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    events_buffer: ReadWriteAppSlice,
+    events_buffer: ReadWriteProcessBuffer,
     ack: bool,
     dropped_events: usize,
     x: u16,
@@ -45,7 +48,7 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            events_buffer: ReadWriteAppSlice::default(),
+            events_buffer: ReadWriteProcessBuffer::default(),
             ack: true,
             dropped_events: 0,
             x: 0,
@@ -201,47 +204,51 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                 if app.ack {
                     app.dropped_events = 0;
 
-                    let num = app.events_buffer.mut_map_or(0, |buffer| {
-                        let num = if buffer.len() / 8 < len {
-                            buffer.len() / 8
-                        } else {
-                            len
-                        };
-
-                        for event_index in 0..num {
-                            let mut event = touch_events[event_index].clone();
-                            self.update_rotation(&mut event);
-                            let event_status = touch_status_to_number(&event.status);
-                            // debug!(
-                            //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
-                            //     event.status, event.x, event.y, event.size, event.pressure
-                            // );
-                            // one touch entry is 8 bytes long
-                            let offset = event_index * 8;
-                            if buffer.len() > event_index + 8 {
-                                buffer[offset] = event.id as u8;
-                                buffer[offset + 1] = event_status as u8;
-                                buffer[offset + 2] = ((event.x & 0xFFFF) >> 8) as u8;
-                                buffer[offset + 3] = (event.x & 0xFF) as u8;
-                                buffer[offset + 4] = ((event.y & 0xFFFF) >> 8) as u8;
-                                buffer[offset + 5] = (event.y & 0xFF) as u8;
-                                buffer[offset + 6] = if let Some(size) = event.size {
-                                    size as u8
-                                } else {
-                                    0
-                                };
-                                buffer.as_mut()[offset + 7] = if let Some(pressure) = event.pressure
-                                {
-                                    pressure as u8
-                                } else {
-                                    0
-                                };
+                    let num = app
+                        .events_buffer
+                        .mut_enter(|buffer| {
+                            let num = if buffer.len() / 8 < len {
+                                buffer.len() / 8
                             } else {
-                                break;
+                                len
+                            };
+
+                            for event_index in 0..num {
+                                let mut event = touch_events[event_index].clone();
+                                self.update_rotation(&mut event);
+                                let event_status = touch_status_to_number(&event.status);
+                                // debug!(
+                                //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
+                                //     event.status, event.x, event.y, event.size, event.pressure
+                                // );
+                                // one touch entry is 8 bytes long
+                                let offset = event_index * 8;
+                                if buffer.len() > event_index + 8 {
+                                    buffer[offset].set(event.id as u8);
+                                    buffer[offset + 1].set(event_status as u8);
+                                    buffer[offset + 2].set(((event.x & 0xFFFF) >> 8) as u8);
+                                    buffer[offset + 3].set((event.x & 0xFF) as u8);
+                                    buffer[offset + 4].set(((event.y & 0xFFFF) >> 8) as u8);
+                                    buffer[offset + 5].set((event.y & 0xFF) as u8);
+                                    buffer[offset + 6].set(if let Some(size) = event.size {
+                                        size as u8
+                                    } else {
+                                        0
+                                    });
+                                    buffer[offset + 7].set(
+                                        if let Some(pressure) = event.pressure {
+                                            pressure as u8
+                                        } else {
+                                            0
+                                        },
+                                    );
+                                } else {
+                                    break;
+                                }
                             }
-                        }
-                        num
-                    });
+                            num
+                        })
+                        .unwrap_or(0);
                     let dropped_events = app.dropped_events;
                     if num > 0 {
                         app.ack = false;
@@ -286,8 +293,8 @@ impl<'a> Driver for Touch<'a> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         match allow_num {
             // allow a buffer for the multi touch
             // buffer data format

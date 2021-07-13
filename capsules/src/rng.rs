@@ -27,7 +27,10 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
+    WriteableProcessBuffer,
+};
 
 /// Syscall driver number.
 use crate::driver;
@@ -35,7 +38,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
 pub struct App {
-    buffer: ReadWriteAppSlice,
+    buffer: ReadWriteProcessBuffer,
     remaining: usize,
     idx: usize,
 }
@@ -70,13 +73,9 @@ impl rng::Client for RngDriver<'_> {
                     // Provide the current application values to the closure
                     let (oldidx, oldremaining) = (app.idx, app.remaining);
 
-                    let (newidx, newremaining) = app.buffer.mut_map_or(
-                        // If the process is no longer alive
-                        // (or this is a default AppSlice),
-                        // set the idx and remaining values of
-                        // this app to (0, 0)
-                        (0, 0),
-                        |buffer| {
+                    let (newidx, newremaining) = app
+                        .buffer
+                        .mut_enter(|buffer| {
                             let mut idx = oldidx;
                             let mut remaining = oldremaining;
 
@@ -94,7 +93,7 @@ impl rng::Client for RngDriver<'_> {
                             // Add all available and requested randomness to the app buffer.
 
                             // 1. Slice buffer to start from current idx
-                            let buf = &mut buffer.as_mut()[idx..(idx + remaining)];
+                            let buf = &buffer[idx..(idx + remaining)];
                             // 2. Take at most as many random samples as needed to fill the buffer
                             //    (if app.remaining is not word-sized, take an extra one).
                             let remaining_ints = if remaining % 4 == 0 {
@@ -105,22 +104,26 @@ impl rng::Client for RngDriver<'_> {
 
                             // 3. Zip over the randomness iterator and chunks
                             //    of up to 4 bytes from the buffer.
-                            for (inp, outs) in
-                                randomness.take(remaining_ints).zip(buf.chunks_mut(4))
-                            {
+                            for (inp, outs) in randomness.take(remaining_ints).zip(buf.chunks(4)) {
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
                                 let inbytes = u32::to_le_bytes(inp);
-                                outs.iter_mut().zip(inbytes.iter()).for_each(|(out, inb)| {
-                                    *out = *inb;
+                                outs.iter().zip(inbytes.iter()).for_each(|(out, inb)| {
+                                    out.set(*inb);
                                     remaining -= 1;
                                     idx += 1;
                                 });
                             }
 
                             (idx, remaining)
-                        },
-                    );
+                        })
+                        .unwrap_or(
+                            // If the process is no longer alive
+                            // (or this is a default AppSlice),
+                            // set the idx and remaining values of
+                            // this app to (0, 0)
+                            (0, 0),
+                        );
 
                     // Store the updated values in the application
                     app.idx = newidx;
@@ -156,8 +159,8 @@ impl<'a> Driver for RngDriver<'a> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         // pass buffer in from application
         let res = match allow_num {
             0 => self

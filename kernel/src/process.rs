@@ -9,7 +9,7 @@ use core::str;
 use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::platform::mpu::{self};
 use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, SyscallReturn};
@@ -317,13 +317,13 @@ pub trait Process {
     /// process memory brk.
     fn app_memory_break(&self) -> *const u8;
 
-    /// Creates a `ReadWriteAppSlice` from the given offset and size
-    /// in process memory.
+    /// Creates a [`ReadWriteProcessBuffer`] from the given offset and
+    /// size in process memory.
     ///
     /// ## Returns
     ///
     /// In case of success, this method returns the created
-    /// [`ReadWriteAppSlice`].
+    /// [`ReadWriteProcessBuffer`].
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
@@ -333,19 +333,19 @@ pub trait Process {
     ///   accessible to the process), [`ErrorCode::INVAL`]
     /// - if the process is not active: [`ErrorCode::FAIL`]
     /// - for all other errors: [`ErrorCode::FAIL`]
-    fn build_readwrite_appslice(
+    fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-    ) -> Result<ReadWriteAppSlice, ErrorCode>;
+    ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
-    /// Creates a [`ReadOnlyAppSlice`] from the given offset and size
-    /// in process memory.
+    /// Creates a [`ReadOnlyProcessBuffer`] from the given offset and
+    /// size in process memory.
     ///
     /// ## Returns
     ///
     /// In case of success, this method returns the created
-    /// [`ReadOnlyAppSlice`].
+    /// [`ReadOnlyProcessBuffer`].
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
@@ -355,11 +355,11 @@ pub trait Process {
     ///   read-accessible to the process), [`ErrorCode::INVAL`]
     /// - if the process is not active: [`ErrorCode::FAIL`]
     /// - for all other errors: [`ErrorCode::FAIL`]
-    fn build_readonly_appslice(
+    fn build_readonly_process_buffer(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<ReadOnlyAppSlice, ErrorCode>;
+    ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 
     /// Set a single byte within the process address space at
     /// `addr` to `value`. Return true if `addr` is within the RAM

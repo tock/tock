@@ -110,7 +110,8 @@ use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
 use kernel::{
-    CommandReturn, ErrorCode, ProcessId, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, ErrorCode, ProcessId, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
+    ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -174,7 +175,7 @@ pub struct App {
     alarm_data: AlarmData,
 
     // Advertising meta-data
-    adv_data: ReadOnlyAppSlice,
+    adv_data: ReadOnlyProcessBuffer,
     address: [u8; PACKET_ADDR_LEN],
     pdu_type: AdvPduType,
     advertisement_interval_ms: u32,
@@ -187,15 +188,15 @@ pub struct App {
     random_nonce: u32,
 
     // Scanning meta-data
-    scan_buffer: ReadWriteAppSlice,
+    scan_buffer: ReadWriteProcessBuffer,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             alarm_data: AlarmData::new(),
-            adv_data: ReadOnlyAppSlice::default(),
-            scan_buffer: ReadWriteAppSlice::default(),
+            adv_data: ReadOnlyProcessBuffer::default(),
+            scan_buffer: ReadWriteProcessBuffer::default(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
             process_status: Some(BLEState::NotInitialized),
@@ -245,38 +246,40 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data.map_or(Err(ErrorCode::FAIL), |adv_data| {
-            ble.kernel_tx
-                .take()
-                .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
-                    let adv_data_len =
-                        cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                    let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
-                    let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                    {
-                        let (header, payload) = kernel_tx.split_at_mut(2);
-                        header[0] = self.pdu_type;
-                        match self.pdu_type {
-                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                // Set TxAdd because AdvA field is going to be a "random"
-                                // address
-                                header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+        self.adv_data
+            .enter(|adv_data| {
+                ble.kernel_tx
+                    .take()
+                    .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
+                        let adv_data_len =
+                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                        let adv_data_corrected = &adv_data[..adv_data_len];
+                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                        {
+                            let (header, payload) = kernel_tx.split_at_mut(2);
+                            header[0] = self.pdu_type;
+                            match self.pdu_type {
+                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                    // Set TxAdd because AdvA field is going to be a "random"
+                                    // address
+                                    header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+                                }
+                                _ => {}
                             }
-                            _ => {}
-                        }
-                        // The LENGTH field is 6-bits wide, so make sure to truncate it
-                        header[1] = (payload_len & 0x3f) as u8;
+                            // The LENGTH field is 6-bits wide, so make sure to truncate it
+                            header[1] = (payload_len & 0x3f) as u8;
 
-                        let (adva, data) = payload.split_at_mut(6);
-                        adva.copy_from_slice(&self.address);
-                        data[..adv_data_len].copy_from_slice(adv_data_corrected);
-                    }
-                    let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                    ble.radio
-                        .transmit_advertisement(kernel_tx, total_len, channel);
-                    Ok(())
-                })
-        })
+                            let (adva, data) = payload.split_at_mut(6);
+                            adva.copy_from_slice(&self.address);
+                            adv_data_corrected.copy_to_slice(&mut data[..adv_data_len]);
+                        }
+                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                        ble.radio
+                            .transmit_advertisement(kernel_tx, total_len, channel);
+                        Ok(())
+                    })
+            })
+            .unwrap_or(Err(ErrorCode::FAIL))
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -458,10 +461,13 @@ where
 
                 if len <= PACKET_LENGTH as u8 && result == Ok(()) {
                     // write to buffer in userland
-                    let success = app.scan_buffer.mut_map_or(false, |userland| {
-                        userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
-                        true
-                    });
+                    let success = app
+                        .scan_buffer
+                        .mut_enter(|userland| {
+                            userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
+                            true
+                        })
+                        .unwrap_or(false);
 
                     if success {
                         upcalls.schedule_upcall(
@@ -670,8 +676,8 @@ where
         &self,
         appid: kernel::ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Advertisement buffer
             0 => self
@@ -698,8 +704,8 @@ where
         &self,
         appid: kernel::ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             // Passive scanning buffer
             0 => self

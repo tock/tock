@@ -61,7 +61,8 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ErrorCode;
 use kernel::{
-    CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice,
+    CommandReturn, Driver, Grant, ProcessId, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
+    ReadableProcessBuffer, WriteableProcessBuffer,
 };
 
 /// Syscall driver number.
@@ -89,8 +90,8 @@ pub struct App {
     command: NonvolatileCommand,
     offset: usize,
     length: usize,
-    buffer_read: ReadWriteAppSlice,
-    buffer_write: ReadOnlyAppSlice,
+    buffer_read: ReadWriteProcessBuffer,
+    buffer_write: ReadOnlyProcessBuffer,
 }
 
 impl Default for App {
@@ -100,8 +101,8 @@ impl Default for App {
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
             length: 0,
-            buffer_read: ReadWriteAppSlice::default(),
-            buffer_write: ReadOnlyAppSlice::default(),
+            buffer_read: ReadWriteProcessBuffer::default(),
+            buffer_write: ReadOnlyProcessBuffer::default(),
         }
     }
 }
@@ -238,7 +239,7 @@ impl<'a> NonvolatileStorage<'a> {
 
                                 // Need to copy bytes if this is a write!
                                 if command == NonvolatileCommand::UserspaceWrite {
-                                    app.buffer_write.map_or((), |app_buffer| {
+                                    let _ = app.buffer_write.enter(|app_buffer| {
                                         self.buffer.map(|kernel_buffer| {
                                             // Check that the internal buffer and the buffer that was
                                             // allowed are long enough.
@@ -249,7 +250,7 @@ impl<'a> NonvolatileStorage<'a> {
                                             for (i, c) in
                                                 kernel_buffer[0..write_len].iter_mut().enumerate()
                                             {
-                                                *c = d[i];
+                                                *c = d[i].get();
                                             }
                                         });
                                     });
@@ -405,12 +406,12 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                 NonvolatileUser::App { app_id } => {
                     let _ = self.apps.enter(app_id, move |app, upcalls| {
                         // Need to copy in the contents of the buffer
-                        app.buffer_read.mut_map_or((), |app_buffer| {
+                        let _ = app.buffer_read.mut_enter(|app_buffer| {
                             let read_len = cmp::min(app_buffer.len(), length);
 
-                            let d = &mut app_buffer[0..(read_len as usize)];
+                            let d = &app_buffer[0..(read_len as usize)];
                             for (i, c) in buffer[0..read_len].iter().enumerate() {
-                                d[i] = *c;
+                                d[i].set(*c);
                             }
                         });
 
@@ -491,8 +492,8 @@ impl Driver for NonvolatileStorage<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps
@@ -519,8 +520,8 @@ impl Driver for NonvolatileStorage<'_> {
         &self,
         appid: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             0 => self
                 .apps

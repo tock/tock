@@ -16,7 +16,10 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{CommandReturn, ProcessId};
-use kernel::{Driver, ErrorCode, Grant, Read, ReadOnlyAppSlice, ReadWrite, ReadWriteAppSlice};
+use kernel::{
+    Driver, ErrorCode, Grant, ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer,
+    WriteableProcessBuffer,
+};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -28,10 +31,10 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
 pub struct App {
-    master_tx_buffer: ReadOnlyAppSlice,
-    master_rx_buffer: ReadWriteAppSlice,
-    slave_tx_buffer: ReadOnlyAppSlice,
-    slave_rx_buffer: ReadWriteAppSlice,
+    master_tx_buffer: ReadOnlyProcessBuffer,
+    master_rx_buffer: ReadWriteProcessBuffer,
+    slave_tx_buffer: ReadOnlyProcessBuffer,
+    slave_rx_buffer: ReadWriteProcessBuffer,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -98,22 +101,24 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |app, upcalls| {
                         // Because this (somewhat incorrectly) doesn't report
-                        // back how many bytes were read, the result of mut_map_or
+                        // back how many bytes were read, the result of mut_enter
                         // is ignored. Note that this requires userspace to keep
                         // track of this information, and if read_len is longer
                         // than the buffer could lead to array overrun errors in
                         // userspace. The I2C syscall API should pass back lengths.
                         // -pal 3/5/21
-                        app.master_rx_buffer.mut_map_or(0, move |app_buffer| {
-                            let len = cmp::min(app_buffer.len(), read_len as usize);
+                        app.master_rx_buffer
+                            .mut_enter(move |app_buffer| {
+                                let len = cmp::min(app_buffer.len(), read_len as usize);
 
-                            for (i, c) in buffer[0..len].iter().enumerate() {
-                                app_buffer[i] = *c;
-                            }
+                                for (i, c) in buffer[0..len].iter().enumerate() {
+                                    app_buffer[i].set(*c);
+                                }
 
-                            self.master_buffer.replace(buffer);
-                            0
-                        });
+                                self.master_buffer.replace(buffer);
+                                0
+                            })
+                            .unwrap_or(0);
                         upcalls.schedule_upcall(0, 1, status, 0);
                     });
                 });
@@ -123,18 +128,20 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |app, upcalls| {
                         // Because this (somewhat incorrectly) doesn't report
-                        // back how many bytes were read, the result of mut_map_or
+                        // back how many bytes were read, the result of mut_enter
                         // is ignored. Note that this requires userspace to keep
                         // track of this information, and if read_len is longer
                         // than the buffer could lead to array overrun errors in
                         // userspace. The I2C syscall API should pass back lengths.
                         // -pal 3/5/21
-                        app.master_rx_buffer.mut_map_or(0, move |app_buffer| {
-                            let len = cmp::min(app_buffer.len(), read_len as usize);
-                            app_buffer.as_mut()[..len].copy_from_slice(&buffer[..len]);
-                            self.master_buffer.replace(buffer);
-                            0
-                        });
+                        app.master_rx_buffer
+                            .mut_enter(move |app_buffer| {
+                                let len = cmp::min(app_buffer.len(), read_len as usize);
+                                app_buffer[..len].copy_from_slice(&buffer[..len]);
+                                self.master_buffer.replace(buffer);
+                                0
+                            })
+                            .unwrap_or(0);
                         upcalls.schedule_upcall(0, 7, status, 0);
                     });
                 });
@@ -166,25 +173,27 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
             hil::i2c::SlaveTransmissionType::Write => {
                 self.app.map(|app| {
                     let _ = self.apps.enter(*app, |app, upcalls| {
-                        app.slave_rx_buffer.mut_map_or(0, move |app_rx| {
-                            // Check bounds for write length
-                            // Because this (somewhat incorrectly) doesn't report
-                            // back how many bytes were read, the result of mut_map_or
-                            // is ignored. Note that this requires userspace to keep
-                            // track of this information, and if read_len is longer
-                            // than the buffer could lead to array overrun errors in
-                            // userspace. The I2C syscall API should pass back lengths.
-                            // -pal 3/5/21
-                            let buf_len = cmp::min(app_rx.len(), buffer.len());
-                            let read_len = cmp::min(buf_len, length as usize);
+                        app.slave_rx_buffer
+                            .mut_enter(move |app_rx| {
+                                // Check bounds for write length
+                                // Because this (somewhat incorrectly) doesn't report
+                                // back how many bytes were read, the result of mut_map_or
+                                // is ignored. Note that this requires userspace to keep
+                                // track of this information, and if read_len is longer
+                                // than the buffer could lead to array overrun errors in
+                                // userspace. The I2C syscall API should pass back lengths.
+                                // -pal 3/5/21
+                                let buf_len = cmp::min(app_rx.len(), buffer.len());
+                                let read_len = cmp::min(buf_len, length as usize);
 
-                            for (i, c) in buffer[0..read_len].iter_mut().enumerate() {
-                                app_rx[i] = *c;
-                            }
+                                for (i, c) in buffer[0..read_len].iter_mut().enumerate() {
+                                    app_rx[i].set(*c);
+                                }
 
-                            self.slave_buffer1.replace(buffer);
-                            0
-                        });
+                                self.slave_buffer1.replace(buffer);
+                                0
+                            })
+                            .unwrap_or(0);
 
                         upcalls.schedule_upcall(0, 3, length as usize, 0);
                     });
@@ -234,8 +243,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         &self,
         app: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut slice: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = self
             .apps
             .enter(app, |app, _| {
@@ -265,8 +274,8 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         &self,
         app: ProcessId,
         allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        mut slice: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         let res = self
             .apps
             .enter(app, |app, _| {
@@ -327,35 +336,37 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                 // above, so grant is allocated, and the app can't disappear
                 // while we are in the kernel.
                 let _ = self.apps.enter(app, |app, _| {
-                    app.master_tx_buffer.map_or(0, |app_tx| {
-                        // Because this (somewhat incorrectly) doesn't report
-                        // back how many bytes are being written, the result of mut_map_or
-                        // is ignored. Note that this does not provide useful feedback
-                        // to user space if a write is longer than the buffer.
-                        // The I2C syscall API should pass back lengths.
-                        // -pal 3/5/21
-                        self.master_buffer.take().map(|kernel_tx| {
-                            // Check bounds for write length
-                            let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
-                            let write_len = cmp::min(buf_len, len);
+                    app.master_tx_buffer
+                        .enter(|app_tx| {
+                            // Because this (somewhat incorrectly) doesn't report
+                            // back how many bytes are being written, the result of mut_map_or
+                            // is ignored. Note that this does not provide useful feedback
+                            // to user space if a write is longer than the buffer.
+                            // The I2C syscall API should pass back lengths.
+                            // -pal 3/5/21
+                            self.master_buffer.take().map(|kernel_tx| {
+                                // Check bounds for write length
+                                let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
+                                let write_len = cmp::min(buf_len, len);
 
-                            for (i, c) in kernel_tx[0..write_len].iter_mut().enumerate() {
-                                *c = app_tx[i];
-                            }
+                                for (i, c) in kernel_tx[0..write_len].iter_mut().enumerate() {
+                                    *c = app_tx[i].get();
+                                }
 
-                            self.master_action.set(MasterAction::Write);
+                                self.master_action.set(MasterAction::Write);
 
-                            hil::i2c::I2CMaster::enable(self.i2c);
-                            // TODO verify errors
-                            let _ = hil::i2c::I2CMaster::write(
-                                self.i2c,
-                                address,
-                                kernel_tx,
-                                write_len as u8,
-                            );
-                        });
-                        0
-                    });
+                                hil::i2c::I2CMaster::enable(self.i2c);
+                                // TODO verify errors
+                                let _ = hil::i2c::I2CMaster::write(
+                                    self.i2c,
+                                    address,
+                                    kernel_tx,
+                                    write_len as u8,
+                                );
+                            });
+                            0
+                        })
+                        .unwrap_or(0);
                 });
 
                 CommandReturn::success()
@@ -373,29 +384,31 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     // to user space if a write is longer than the buffer.
                     // The I2C syscall API should pass back lengths.
                     // -pal 3/5/21
-                    app.master_rx_buffer.map_or(0, |app_rx| {
-                        self.master_buffer.take().map(|kernel_tx| {
-                            // Check bounds for write length
-                            let buf_len = cmp::min(app_rx.len(), kernel_tx.len());
-                            let read_len = cmp::min(buf_len, len);
+                    app.master_rx_buffer
+                        .enter(|app_rx| {
+                            self.master_buffer.take().map(|kernel_tx| {
+                                // Check bounds for write length
+                                let buf_len = cmp::min(app_rx.len(), kernel_tx.len());
+                                let read_len = cmp::min(buf_len, len);
 
-                            for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                *c = app_rx[i];
-                            }
+                                for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
+                                    *c = app_rx[i].get();
+                                }
 
-                            self.master_action.set(MasterAction::Read(read_len as u8));
+                                self.master_action.set(MasterAction::Read(read_len as u8));
 
-                            hil::i2c::I2CMaster::enable(self.i2c);
-                            // TODO verify errors
-                            let _ = hil::i2c::I2CMaster::read(
-                                self.i2c,
-                                address,
-                                kernel_tx,
-                                read_len as u8,
-                            );
-                        });
-                        0
-                    });
+                                hil::i2c::I2CMaster::enable(self.i2c);
+                                // TODO verify errors
+                                let _ = hil::i2c::I2CMaster::read(
+                                    self.i2c,
+                                    address,
+                                    kernel_tx,
+                                    read_len as u8,
+                                );
+                            });
+                            0
+                        })
+                        .unwrap_or(0);
                 });
 
                 CommandReturn::success()
@@ -430,23 +443,28 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     // to user space if a write is longer than the buffer.
                     // The I2C syscall API should pass back lengths.
                     // -pal 3/5/21
-                    app.slave_tx_buffer.map_or(0, |app_tx| {
-                        self.slave_buffer2.take().map(|kernel_tx| {
-                            // Check bounds for write length
-                            let len = data;
-                            let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
-                            let read_len = cmp::min(buf_len, len);
+                    app.slave_tx_buffer
+                        .enter(|app_tx| {
+                            self.slave_buffer2.take().map(|kernel_tx| {
+                                // Check bounds for write length
+                                let len = data;
+                                let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
+                                let read_len = cmp::min(buf_len, len);
 
-                            for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                *c = app_tx[i];
-                            }
+                                for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
+                                    *c = app_tx[i].get();
+                                }
 
-                            // TODO verify errors
-                            let _ =
-                                hil::i2c::I2CSlave::read_send(self.i2c, kernel_tx, read_len as u8);
-                        });
-                        0
-                    });
+                                // TODO verify errors
+                                let _ = hil::i2c::I2CSlave::read_send(
+                                    self.i2c,
+                                    kernel_tx,
+                                    read_len as u8,
+                                );
+                            });
+                            0
+                        })
+                        .unwrap_or(0);
                 });
 
                 CommandReturn::success()
@@ -488,13 +506,13 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                     // to user space if a write is longer than the buffer.
                     // The I2C syscall API should pass back lengths.
                     // -pal 3/5/21
-                    app.master_tx_buffer.map_or(0, |app_tx| {
+                    let _ = app.master_tx_buffer.enter(|app_tx| {
                         self.master_buffer.take().map(|kernel_tx| {
                             // Check bounds for write length
                             let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
                             let write_len = cmp::min(buf_len, write_len);
                             let read_len = cmp::min(buf_len, read_len);
-                            kernel_tx[..write_len].copy_from_slice(&app_tx[..write_len]);
+                            app_tx[..write_len].copy_to_slice(&mut kernel_tx[..write_len]);
                             self.master_action
                                 .set(MasterAction::WriteRead(read_len as u8));
                             hil::i2c::I2CMaster::enable(self.i2c);
@@ -507,7 +525,6 @@ impl Driver for I2CMasterSlaveDriver<'_> {
                                 read_len as u8,
                             );
                         });
-                        0
                     });
                 });
                 CommandReturn::success()
