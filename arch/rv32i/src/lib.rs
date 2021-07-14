@@ -7,7 +7,7 @@
 
 use core::fmt::Write;
 
-use kernel::common::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
 pub mod epmp;

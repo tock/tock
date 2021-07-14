@@ -122,7 +122,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
-        callback: kernel::procs::FunctionCall,
+        callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.

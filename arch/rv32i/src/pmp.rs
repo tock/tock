@@ -12,13 +12,13 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
-use kernel::common::cells::OptionalCell;
+use kernel::utilities::cells::OptionalCell;
 
 use crate::csr;
-use kernel::common::cells::MapCell;
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{self, register_bitfields};
-use kernel::mpu;
+use kernel::platform::mpu;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{self, register_bitfields};
 use kernel::ProcessId;
 
 // Generic PMP config
@@ -282,7 +282,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGION
     }
 }
 
-impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     type MpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
@@ -585,7 +585,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
 /// kernels access, for example removing execute permission from regions
 /// we don't need to execute from and removing write permissions from
 /// executable reions.
-impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     type KernelMpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
