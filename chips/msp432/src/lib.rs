@@ -18,6 +18,7 @@ pub mod i2c;
 pub mod nvic;
 pub mod pcm;
 pub mod ref_module;
+pub mod spi;
 pub mod sysctl;
 pub mod timer;
 pub mod uart;

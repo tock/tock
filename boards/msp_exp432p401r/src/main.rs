@@ -8,6 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules::virtual_spi::VirtualSpiMasterDevice;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -58,6 +59,10 @@ struct MspExp432P401R {
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
+    spi: &'static capsules::spi_controller::Spi<
+        'static,
+        VirtualSpiMasterDevice<'static, msp432::spi::Spi<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -74,6 +79,7 @@ impl Platform for MspExp432P401R {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             _ => f(None),
         }
     }
@@ -182,6 +188,11 @@ pub unsafe fn main() {
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
 
+    // Setup pins for SPI1
+    peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_3 as usize].enable_primary_function();
+    peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_4 as usize].enable_primary_function();
+    peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_5 as usize].enable_primary_function();
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let chip = static_init!(
         msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>,
@@ -240,8 +251,8 @@ pub unsafe fn main() {
             // 4 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_3 as usize], // A10
             5 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_5 as usize],
             // 6 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_6 as usize], // A7
-            7 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_5 as usize],
-            8 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_4 as usize],
+            // 7 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_5 as usize], //SPI1
+            // 8 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_4 as usize], //SPI1
             // Left inner connector, top to bottom
             // 9 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P06_1 as usize], // A14
             // 10 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P04_0 as usize], // A13
@@ -319,8 +330,19 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
 
-    // Setup ADC
+    //Setup SPI
 
+    // Set up a SPI MUX, so there can be multiple clients.
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi1)
+        .finalize(components::spi_mux_component_helper!(msp432::spi::Spi));
+    // Create the SPI system call capsule.
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(
+        mux_spi,
+        &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_5 as usize],
+    )
+    .finalize(components::spi_syscall_component_helper!(msp432::spi::Spi));
+
+    // Setup ADC
     setup_adc_pins(&peripherals.gpio);
 
     let adc_channels = static_init!(
@@ -388,6 +410,7 @@ pub unsafe fn main() {
             &memory_allocation_capability,
         ),
         adc: adc,
+        spi: spi_syscalls,
     };
 
     debug!("Initialization complete. Entering main loop");
