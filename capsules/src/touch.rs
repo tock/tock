@@ -13,13 +13,14 @@
 
 use core::cell::Cell;
 use core::mem;
+
+use kernel::grant::Grant;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
-    WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -292,7 +293,7 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
     }
 }
 
-impl<'a> Driver for Touch<'a> {
+impl<'a> SyscallDriver for Touch<'a> {
     fn allow_readwrite(
         &self,
         appid: ProcessId,
@@ -413,7 +414,7 @@ impl<'a> Driver for Touch<'a> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

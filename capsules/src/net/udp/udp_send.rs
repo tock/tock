@@ -21,12 +21,14 @@ use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::UDPHeader;
+
 use core::cell::Cell;
+
 use kernel::capabilities::UdpDriverCapability;
-use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::common::{List, ListLink, ListNode};
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {

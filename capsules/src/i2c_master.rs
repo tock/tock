@@ -1,12 +1,14 @@
-//! Driver for an I2C Master interface.
+//! SyscallDriver for an I2C Master interface.
 
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::i2c;
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
-    ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -100,7 +102,7 @@ pub enum Cmd {
 }
 }
 
-impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
+impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -181,7 +183,7 @@ impl<'a, I: 'a + i2c::I2CMaster> Driver for I2CMasterDriver<'a, I> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

@@ -1,4 +1,4 @@
-//! Driver for the Silicon Labs SI7021 temperature/humidity sensor.
+//! SyscallDriver for the Silicon Labs SI7021 temperature/humidity sensor.
 //!
 //! <https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx>
 //!
@@ -37,9 +37,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // Buffer to use for I2C messages

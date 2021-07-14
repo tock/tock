@@ -1,4 +1,4 @@
-//! Driver for SHT3x Temperature and Humidity Sensor
+//! SyscallDriver for SHT3x Temperature and Humidity Sensor
 //!
 //! Author: Cosmin Daniel Radu <cosmindanielradu19@gmail.com>
 //!
@@ -7,9 +7,9 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static BASE_ADDR: u8 = 0x44;

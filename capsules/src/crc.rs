@@ -76,13 +76,15 @@
 
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel;
-use kernel::common::cells::NumericCellExt;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
+
+use kernel::grant::Grant;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
-use kernel::{ReadOnlyProcessBuffer, ReadableProcessBuffer, ReadableProcessSlice};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer, ReadableProcessSlice};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::NumericCellExt;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -210,7 +212,12 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
                     Err(e) => {
                         if grant.request.is_some() {
                             upcalls
-                                .schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0)
+                                .schedule_upcall(
+                                    0,
+                                    kernel::errorcode::into_statuscode(Err(e)),
+                                    0,
+                                    0,
+                                )
                                 .ok();
                             grant.request = None;
                         }
@@ -233,7 +240,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a Crc computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
+impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a Crc computation.
@@ -383,7 +390,7 @@ impl<'a, C: Crc<'a>> Driver for CrcDriver<'a, C> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grant.enter(processid, |_, _| {})
     }
 }
@@ -416,7 +423,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                 upcalls
                                     .schedule_upcall(
                                         0,
-                                        kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
                                         0,
                                         0,
                                     )
@@ -444,7 +451,9 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                         upcalls
                                             .schedule_upcall(
                                                 0,
-                                                kernel::into_statuscode(Err(ErrorCode::FAIL)),
+                                                kernel::errorcode::into_statuscode(Err(
+                                                    ErrorCode::FAIL,
+                                                )),
                                                 0,
                                                 0,
                                             )
@@ -467,7 +476,9 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                     upcalls
                                         .schedule_upcall(
                                             0,
-                                            kernel::into_statuscode(Err(ErrorCode::NOMEM)),
+                                            kernel::errorcode::into_statuscode(Err(
+                                                ErrorCode::NOMEM,
+                                            )),
                                             0,
                                             0,
                                         )
@@ -489,7 +500,12 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                 let _res = self.grant.enter(*pid, |grant, upcalls| {
                                     grant.request = None;
                                     upcalls
-                                        .schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0)
+                                        .schedule_upcall(
+                                            0,
+                                            kernel::errorcode::into_statuscode(Err(e)),
+                                            0,
+                                            0,
+                                        )
                                         .ok();
                                 });
                             });
@@ -504,7 +520,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                     let _res = self.grant.enter(*pid, |grant, upcalls| {
                         grant.request = None;
                         upcalls
-                            .schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0)
+                            .schedule_upcall(0, kernel::errorcode::into_statuscode(Err(e)), 0, 0)
                             .ok();
                     });
                 });
@@ -529,7 +545,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                         upcalls
                             .schedule_upcall(
                                 0,
-                                kernel::into_statuscode(Ok(())),
+                                kernel::errorcode::into_statuscode(Ok(())),
                                 val as usize,
                                 user_int as usize,
                             )
@@ -537,7 +553,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                     }
                     Err(e) => {
                         upcalls
-                            .schedule_upcall(0, kernel::into_statuscode(Err(e)), 0, 0)
+                            .schedule_upcall(0, kernel::errorcode::into_statuscode(Err(e)), 0, 0)
                             .ok();
                     }
                 }

@@ -1,8 +1,8 @@
 // Virtualizer for the RNG
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::{List, ListLink, ListNode};
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::rng::{Client, Continue, Rng};
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 #[derive(Copy, Clone, PartialEq)]

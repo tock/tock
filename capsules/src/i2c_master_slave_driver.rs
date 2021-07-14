@@ -13,13 +13,15 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
 use kernel::hil;
-use kernel::{CommandReturn, ProcessId};
-use kernel::{
-    Driver, ErrorCode, Grant, ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer,
-    WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
+
+use kernel::grant::Grant;
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -79,7 +81,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
 impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
-        let status = kernel::into_statuscode(match status {
+        let status = kernel::errorcode::into_statuscode(match status {
             Ok(_) => Ok(()),
             Err(e) => Err(e.into()),
         });
@@ -238,7 +240,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
     }
 }
 
-impl Driver for I2CMasterSlaveDriver<'_> {
+impl SyscallDriver for I2CMasterSlaveDriver<'_> {
     fn allow_readonly(
         &self,
         app: ProcessId,
@@ -535,7 +537,7 @@ impl Driver for I2CMasterSlaveDriver<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

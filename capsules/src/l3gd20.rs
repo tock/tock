@@ -1,4 +1,4 @@
-//! Driver for the MEMS L3gd20Spi motion sensor, 3 axys digital output gyroscope
+//! SyscallDriver for the MEMS L3gd20Spi motion sensor, 3 axys digital output gyroscope
 //! and temperature sensor.
 //!
 //! May be used with NineDof and Temperature
@@ -103,10 +103,13 @@
 //!
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::sensors;
 use kernel::hil::spi;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
@@ -298,7 +301,7 @@ impl<'a> L3gd20Spi<'a> {
     }
 }
 
-impl Driver for L3gd20Spi<'_> {
+impl SyscallDriver for L3gd20Spi<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -395,7 +398,7 @@ impl Driver for L3gd20Spi<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grants.enter(processid, |_, _| {})
     }
 }

@@ -36,9 +36,9 @@
 use core::cell::Cell;
 use core::cmp;
 use core::convert::TryInto;
-use kernel::common::cells::NumericCellExt;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::utilities::cells::NumericCellExt;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// This module is either waiting to do something, or handling a read/write.

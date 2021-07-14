@@ -1,4 +1,4 @@
-//! Driver for the ISL29035 digital light sensor.
+//! SyscallDriver for the ISL29035 digital light sensor.
 //!
 //! <http://bit.ly/2rA00cH>
 //!
@@ -29,10 +29,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];

@@ -50,9 +50,9 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::kv_system::{self, KVSystem, KeyType};
+use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]

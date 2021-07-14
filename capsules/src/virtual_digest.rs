@@ -2,10 +2,11 @@
 //! Digest hardware peripheral.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, Client, Digest};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]

@@ -13,12 +13,13 @@
 
 use core::convert::From;
 use core::{cmp, mem};
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil;
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
-    ReadableProcessBuffer,
-};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -131,7 +132,7 @@ impl<'a> TextScreen<'a> {
         match command {
             TextScreenCommand::GetResolution => {
                 let (x, y) = self.text_screen.get_size();
-                self.schedule_callback(kernel::into_statuscode(Ok(())), x, y);
+                self.schedule_callback(kernel::errorcode::into_statuscode(Ok(())), x, y);
                 self.run_next_command();
                 Ok(())
             }
@@ -208,7 +209,7 @@ impl<'a> TextScreen<'a> {
     }
 }
 
-impl<'a> Driver for TextScreen<'a> {
+impl<'a> SyscallDriver for TextScreen<'a> {
     fn command(
         &self,
         command_num: usize,
@@ -270,20 +271,20 @@ impl<'a> Driver for TextScreen<'a> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }
 
 impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
-        self.schedule_callback(kernel::into_statuscode(r), 0, 0);
+        self.schedule_callback(kernel::errorcode::into_statuscode(r), 0, 0);
         self.run_next_command();
     }
 
     fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: Result<(), ErrorCode>) {
         self.buffer.replace(buffer);
-        self.schedule_callback(kernel::into_statuscode(r), len, 0);
+        self.schedule_callback(kernel::errorcode::into_statuscode(r), len, 0);
         self.run_next_command();
     }
 }

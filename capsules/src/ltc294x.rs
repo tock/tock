@@ -1,4 +1,4 @@
-//! Driver for the LTC294X line of coulomb counters.
+//! SyscallDriver for the LTC294X line of coulomb counters.
 //!
 //! - <http://www.linear.com/product/LTC2941>
 //! - <http://www.linear.com/product/LTC2942>
@@ -46,10 +46,13 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -497,7 +500,7 @@ impl LTC294XClient for LTC294XDriver<'_> {
     }
 }
 
-impl Driver for LTC294XDriver<'_> {
+impl SyscallDriver for LTC294XDriver<'_> {
     // Setup callbacks.
     //
     // ### `subscribe_num`
@@ -610,7 +613,7 @@ impl Driver for LTC294XDriver<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grants.enter(processid, |_, _| {})
     }
 }

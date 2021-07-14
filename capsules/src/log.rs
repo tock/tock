@@ -70,12 +70,13 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// Globally declare entry ID type.

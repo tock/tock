@@ -31,9 +31,9 @@
 //!    hil::flash
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::kv_system::{self, KVSystem};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 

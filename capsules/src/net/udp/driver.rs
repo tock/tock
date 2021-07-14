@@ -15,18 +15,22 @@ use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
+
 use core::cell::Cell;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use core::mem::size_of;
 use core::{cmp, mem};
+
 use kernel::capabilities::UdpDriverCapability;
-use kernel::common::cells::MapCell;
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::{
-    debug, CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
-    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::debug;
+use kernel::grant::Grant;
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::{ErrorCode, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -169,7 +173,7 @@ impl<'a> UDPDriver<'a> {
         if result != Ok(()) {
             let _ = self.apps.enter(appid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, kernel::into_statuscode(result), 0, 0)
+                    .schedule_upcall(1, kernel::errorcode::into_statuscode(result), 0, 0)
                     .ok();
             });
         }
@@ -283,7 +287,7 @@ impl<'a> UDPDriver<'a> {
     }
 }
 
-impl<'a> Driver for UDPDriver<'a> {
+impl<'a> SyscallDriver for UDPDriver<'a> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -588,7 +592,7 @@ impl<'a> Driver for UDPDriver<'a> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }
@@ -601,7 +605,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, kernel::into_statuscode(result), 0, 0)
+                    .schedule_upcall(1, kernel::errorcode::into_statuscode(result), 0, 0)
                     .ok();
             });
         });

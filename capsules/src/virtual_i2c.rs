@@ -4,12 +4,13 @@
 //! users. `I2CDevice` provides access to a specific I2C address.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 
 pub struct MuxI2C<'a> {
     i2c: &'a dyn i2c::I2CMaster,
