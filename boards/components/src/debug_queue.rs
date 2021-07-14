@@ -16,6 +16,7 @@
 // Author: Guillaume Endignoux <guillaumee@google.com>
 // Last modified: 05 Mar 2020
 
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::static_init;
 
@@ -34,10 +35,7 @@ impl Component for DebugQueueComponent {
     type Output = ();
 
     unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        let ring_buffer = static_init!(
-            kernel::common::RingBuffer<'static, u8>,
-            kernel::common::RingBuffer::new(self.buffer)
-        );
+        let ring_buffer = static_init!(RingBuffer<'static, u8>, RingBuffer::new(self.buffer));
         let debug_queue = static_init!(
             kernel::debug::DebugQueue,
             kernel::debug::DebugQueue::new(ring_buffer)

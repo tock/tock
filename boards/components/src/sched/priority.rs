@@ -10,8 +10,8 @@
 //! ```
 
 use kernel::component::Component;
+use kernel::scheduler::priority::PrioritySched;
 use kernel::static_init;
-use kernel::PrioritySched;
 
 pub struct PriorityComponent {
     board_kernel: &'static kernel::Kernel,
