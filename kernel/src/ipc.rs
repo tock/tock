@@ -6,9 +6,9 @@
 use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::Grant;
 use crate::kernel::Kernel;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer};
 use crate::syscall_driver::{CommandReturn, SyscallDriver};
 use crate::ErrorCode;
 
@@ -129,9 +129,8 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                             .schedule_upcall(
                                                 to_schedule,
                                                 called_from.id() + 1,
-                                                crate::mem::ReadableProcessBuffer::len(slice),
-                                                crate::mem::ReadableProcessBuffer::ptr(slice)
-                                                    as usize,
+                                                ReadableProcessBuffer::len(slice),
+                                                ReadableProcessBuffer::ptr(slice) as usize,
                                             )
                                             .ok();
                                     }
