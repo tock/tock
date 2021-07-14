@@ -1,8 +1,8 @@
 //! RISC-V Generic Machine Timer
 
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::ReadWrite;
 use kernel::hil::time::{Ticks, Ticks64};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::ReadWrite;
 use kernel::ErrorCode;
 
 pub struct MachineTimer<'a> {

@@ -12,10 +12,11 @@
 use crate::csr;
 use core::cell::Cell;
 use core::{cmp, fmt};
-use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::common::registers::{self, register_bitfields};
-use kernel::{mpu, ProcessId};
+use kernel::platform::mpu;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
+use kernel::utilities::registers::{self, register_bitfields};
+use kernel::ProcessId;
 
 // Generic PMP config
 register_bitfields![u8,
@@ -401,7 +402,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGION
     }
 }
 
-impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     type MpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;
@@ -739,7 +740,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::MPU
     }
 }
 
-impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::mpu::KernelMPU
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
     type KernelMpuConfig = PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>;

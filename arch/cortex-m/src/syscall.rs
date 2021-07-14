@@ -153,7 +153,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
         state: &mut CortexMStoredState,
-        callback: kernel::procs::FunctionCall,
+        callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
         // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is
         // within process-accessible memory.
