@@ -79,10 +79,11 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
-
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::TakeCell;
+use kernel::{ErrorCode, ProcessId};
 
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
@@ -263,7 +264,7 @@ impl<'a, L: Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     }
 }
 
-impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
+impl<'a, L: Pin, A: Alarm<'a>> SyscallDriver for LedMatrixDriver<'a, L, A> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -295,7 +296,7 @@ impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
         }
     }
 
-    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
         Ok(())
     }
 }

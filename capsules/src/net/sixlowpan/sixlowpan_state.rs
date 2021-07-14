@@ -232,13 +232,15 @@ use crate::net::ipv6::IP6Packet;
 use crate::net::sixlowpan::sixlowpan_compression;
 use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
+
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::cells::{MapCell, TakeCell};
-use kernel::common::list::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::{Frequency, Ticks};
+use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::ErrorCode;
 
 // Reassembly timeout in seconds

@@ -1,4 +1,4 @@
-//! Driver for the FXOS8700CQ accelerometer.
+//! SyscallDriver for the FXOS8700CQ accelerometer.
 //!
 //! <http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf>
 //!
@@ -22,10 +22,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];

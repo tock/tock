@@ -11,10 +11,11 @@ use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
-use kernel::common::cells::MapCell;
-use kernel::common::leasable_buffer::LeasableBuffer;
+
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 pub const DST_ADDR: IPAddr = IPAddr([

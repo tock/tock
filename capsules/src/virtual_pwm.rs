@@ -20,9 +20,9 @@
 //! virtual_pwm_buzzer.add_to_mux();
 //! ```
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::{List, ListLink, ListNode};
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {

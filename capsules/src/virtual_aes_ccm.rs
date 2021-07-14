@@ -80,20 +80,22 @@
 //!
 //! ```
 
-use crate::net::stream::SResult;
-use crate::net::stream::{encode_bytes, encode_u16};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::debug;
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::common::{List, ListLink, ListNode};
-use kernel::debug;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
 };
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
+
+use crate::net::stream::SResult;
+use crate::net::stream::{encode_bytes, encode_u16};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {
@@ -165,7 +167,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
         self.aes.disable();
     }
 
-    /// inorder to receive callbacks correctly, please call  
+    /// inorder to receive callbacks correctly, please call
     /// ```rust
     /// mux.initialize_callback_handle(
     ///     dynamic_deferred_caller.register(mux)

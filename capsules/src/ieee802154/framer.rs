@@ -78,12 +78,14 @@ use crate::net::ieee802154::{
 };
 use crate::net::stream::SResult;
 use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
+
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, OptionalCell};
+
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
+use kernel::processbuffer::ReadableProcessSlice;
+use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::ErrorCode;
-use kernel::ReadableProcessSlice;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for

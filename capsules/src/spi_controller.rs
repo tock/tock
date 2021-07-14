@@ -3,14 +3,16 @@
 
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
-use kernel::{
-    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -96,7 +98,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
     fn allow_readwrite(
         &self,
         process_id: ProcessId,
@@ -274,7 +276,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grants.enter(processid, |_, _| {})
     }
 }

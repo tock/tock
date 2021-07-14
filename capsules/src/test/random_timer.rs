@@ -5,7 +5,9 @@
 //!
 //! Author: Philip Levis <plevis@google.com>
 //! Last Modified: 6/22/2020
+
 use core::cell::Cell;
+
 use kernel::debug;
 use kernel::hil::time::{Ticks, Timer, TimerClient};
 

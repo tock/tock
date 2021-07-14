@@ -1,4 +1,4 @@
-//! Proximity Driver for the Adafruit APDS9960 gesture/ambient light/proximity sensor.
+//! Proximity SyscallDriver for the Adafruit APDS9960 gesture/ambient light/proximity sensor.
 //!
 //! <https://content.arduino.cc/assets/Nano_BLE_Sense_av02-4191en_ds_apds-9960.pdf>   <-- Datasheet
 //!
@@ -41,9 +41,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // I2C Buffer of 16 bytes

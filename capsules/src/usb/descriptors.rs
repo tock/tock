@@ -6,8 +6,9 @@ use core::cell::Cell;
 use core::cmp::min;
 use core::convert::From;
 use core::fmt;
-use kernel::common::cells::VolatileCell;
+
 use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::VolatileCell;
 
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
 // now we apply these constraints on all platforms.

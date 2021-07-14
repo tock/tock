@@ -25,9 +25,11 @@
 //! }
 //! ```
 
-use kernel::common::cells::OptionalCell;
+use kernel::grant::Grant;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -109,7 +111,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     }
 }
 
-impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
+impl<Port: hil::gpio_async::Port> SyscallDriver for GPIOAsync<'_, Port> {
     // Setup callbacks for gpio_async events.
     //
     // ### `subscribe_num`
@@ -218,7 +220,7 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'_, Port> {
         res.into()
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grants.enter(processid, |_, _| {})
     }
 }

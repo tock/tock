@@ -1,9 +1,9 @@
-//! Driver for STM ADC MCU temperature sensor
+//! SyscallDriver for STM ADC MCU temperature sensor
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
 use kernel::hil::adc;
 use kernel::hil::sensors;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 use crate::driver;

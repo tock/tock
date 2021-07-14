@@ -1,4 +1,4 @@
-//! Driver for the Microchip MCP230xx I2C GPIO extenders.
+//! SyscallDriver for the Microchip MCP230xx I2C GPIO extenders.
 //!
 //! - <https://www.microchip.com/wwwproducts/en/MCP23008>
 //! - <https://www.microchip.com/wwwproducts/en/MCP23017>
@@ -64,10 +64,10 @@
 //! `mcp230xx` object is created.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::gpio_async;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // Buffer to use for I2C messages

@@ -1,4 +1,4 @@
-//! Driver for the FT6x06 Touch Panel.
+//! SyscallDriver for the FT6x06 Touch Panel.
 //!
 //! I2C Interface
 //!
@@ -23,10 +23,10 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {

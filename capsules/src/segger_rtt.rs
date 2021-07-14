@@ -87,9 +87,9 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::ErrorCode;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.

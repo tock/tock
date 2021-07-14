@@ -1,4 +1,4 @@
-//! Driver for the STMicro HTS221 relative humidity and temperature sensor
+//! SyscallDriver for the STMicro HTS221 relative humidity and temperature sensor
 //! using the I2C bus.
 //!
 //! <https://www.st.com/en/mems-and-sensors/hts221.html>
@@ -61,9 +61,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{HumidityClient, HumidityDriver, TemperatureClient, TemperatureDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 const REG_AUTO_INCREMENT: u8 = 1 << 7;
