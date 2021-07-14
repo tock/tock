@@ -14,8 +14,8 @@ use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::ClockInterface;
 use kernel::{create_capability, static_init};
@@ -25,10 +25,11 @@ const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 /// Actual process memory
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 /// What should we do if a process faults?
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -42,10 +43,10 @@ struct Teensy40 {
     >,
 }
 
-impl kernel::Platform for Teensy40 {
+impl kernel::platform::Platform for Teensy40 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -294,7 +295,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
