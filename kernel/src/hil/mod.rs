@@ -2,6 +2,7 @@
 
 pub mod adc;
 pub mod analog_comparator;
+pub mod ble;
 pub mod ble_advertising;
 pub mod bus8080;
 pub mod crc;
