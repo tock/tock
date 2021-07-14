@@ -5,7 +5,8 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::process;
-use crate::syscall_driver::CommandReturn;
+
+pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
 /// Helper function to split a u64 into a higher and lower u32.
 ///

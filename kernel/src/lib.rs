@@ -105,7 +105,6 @@ pub mod process;
 pub mod processbuffer;
 pub mod scheduler;
 pub mod syscall;
-pub mod syscall_driver;
 pub mod upcall;
 pub mod utilities;
 
@@ -115,10 +114,10 @@ mod memop;
 mod process_policies;
 mod process_standard;
 mod process_utilities;
+mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
 pub use crate::kernel::Kernel;
 pub use crate::process::ProcessId;
 pub use crate::scheduler::Scheduler;
-pub use crate::syscall_driver::SyscallDriver;
