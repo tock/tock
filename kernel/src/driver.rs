@@ -4,8 +4,9 @@
 //!
 //! # System-call Overview
 //!
-//! Tock supports six system calls. The `yield` and `memop` system calls are
-//! handled by the core kernel, while four others are implemented by drivers:
+//! Tock supports six system calls. The `subscribe`, `yield`, and `memop` system
+//! calls are handled by the core kernel, while `command`, `allow_readwrite`,
+//! and `allow_readonly` are implemented by drivers. The main system calls:
 //!
 //!   * `subscribe` passes a upcall to the driver which it can
 //!   invoke on the process later, when an event has occurred or data
@@ -24,12 +25,12 @@
 //! Each of these three system calls takes at least two
 //! parameters. The first is a _driver identifier_ and tells the
 //! scheduler which driver to forward the system call to. The second
-//! parameters is a __syscall identifer_ and is used by the driver to
+//! parameters is a __syscall number_ and is used by the driver to
 //! differentiate instances of the call with different driver-specific
 //! meanings (e.g. `subscribe` for "data received" vs `subscribe` for
 //! "send completed"). The mapping between _driver identifiers_ and
 //! drivers is determined by a particular platform, while the _syscall
-//! identifier_ is driver-specific.
+//! number_ is driver-specific.
 //!
 //! One convention in Tock is that _driver minor number_ 0 for the `command`
 //! syscall can always be used to determine if the driver is supported by
@@ -184,7 +185,13 @@ pub trait Driver {
     /// is signaled with an upcall). Command 0 is a reserved command to
     /// detect if a peripheral system call driver is installed and must
     /// always return a CommandReturn::Success.
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        r2: usize,
+        r3: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
@@ -194,8 +201,8 @@ pub trait Driver {
     /// within memory the process can both read and write.
     fn allow_readwrite(
         &self,
-        app: ProcessId,
-        which: usize,
+        process_id: ProcessId,
+        allow_num: usize,
         slice: ReadWriteProcessBuffer,
     ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
@@ -209,8 +216,8 @@ pub trait Driver {
     /// read-only data (e.g., in flash) to the kernel.
     fn allow_readonly(
         &self,
-        app: ProcessId,
-        which: usize,
+        process_id: ProcessId,
+        allow_num: usize,
         slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
@@ -305,5 +312,5 @@ pub trait Driver {
     // mechanism may find more uses in the future if the kernel needs to store
     // additional state on a per-driver basis and therefore needs a mechanism to
     // force a grant allocation.
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
+    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
 }
