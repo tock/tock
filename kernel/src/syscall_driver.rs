@@ -73,9 +73,9 @@
 use core::convert::TryFrom;
 
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::SyscallReturn;
 
 /// Possible return values of a `command` driver method, as specified

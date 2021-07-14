@@ -10,8 +10,8 @@ use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::platform::mpu::{self};
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 
