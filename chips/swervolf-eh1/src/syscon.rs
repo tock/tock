@@ -1,10 +1,10 @@
 //! System Controller driver.
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks64};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 

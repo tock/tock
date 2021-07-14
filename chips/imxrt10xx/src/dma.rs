@@ -737,7 +737,7 @@ impl<'a> Dma<'a> {
     }
 
     /// Returns the interface that controls the DMA clock
-    pub fn clock(&self) -> &(impl kernel::ClockInterface + '_) {
+    pub fn clock(&self) -> &(impl kernel::platform::chip::ClockInterface + '_) {
         &self.clock_gate
     }
 

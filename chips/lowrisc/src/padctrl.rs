@@ -1,6 +1,6 @@
 //! General Purpose Input/Output driver.
 
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 
 register_structs! {
     pub PadCtrlRegisters {

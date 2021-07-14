@@ -1,13 +1,13 @@
 use cortexm0p;
 use cortexm0p::support::atomic;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
-};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::interrupts::TIMER_IRQ_0;

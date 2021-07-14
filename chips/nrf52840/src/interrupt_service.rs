@@ -27,7 +27,9 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52840DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
+    for Nrf52840DefaultPeripherals<'a>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),

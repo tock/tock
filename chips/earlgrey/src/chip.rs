@@ -3,8 +3,8 @@
 use core::fmt::Write;
 use kernel;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::hil::time::Alarm;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::epmp::PMP;
@@ -197,7 +197,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::platform::chip::Chip
     for EarlGrey<'a, A, I>
 {
     type MPU = PMP<8>;

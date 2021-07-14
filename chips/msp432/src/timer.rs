@@ -1,13 +1,13 @@
 //! Timer (TIMER_Ax)
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
 };
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =

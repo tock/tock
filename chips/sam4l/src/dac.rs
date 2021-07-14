@@ -7,10 +7,10 @@
 
 use crate::pm::{self, Clock, PBAClock};
 use core::cell::Cell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 #[repr(C)]

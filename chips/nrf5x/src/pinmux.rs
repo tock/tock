@@ -5,7 +5,7 @@
 //! configuration should create `Pinmux`s and pass them into controller drivers
 //! during initialization.
 
-use kernel::common::cells::VolatileCell;
+use kernel::utilities::cells::VolatileCell;
 
 // Note: only the nrf52840 has two ports, but we create two ports to avoid
 // gating this code by a feature.

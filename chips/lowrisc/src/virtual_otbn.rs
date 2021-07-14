@@ -3,9 +3,9 @@
 
 use crate::otbn::{Client, Otbn};
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{ListLink, ListNode};
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub struct VirtualMuxAccel<'a, const T: usize> {

@@ -1,10 +1,10 @@
 //! ADC driver for the nRF52. Uses the SAADC peripheral.
 
-use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 #[repr(C)]

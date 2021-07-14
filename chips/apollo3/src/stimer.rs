@@ -1,14 +1,14 @@
 //! STimer driver for the Apollo3
 
-use kernel::common::cells::OptionalCell;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const STIMER_BASE: StaticRef<STimerRegisters> =
     unsafe { StaticRef::new(0x4000_8000 as *const STimerRegisters) };

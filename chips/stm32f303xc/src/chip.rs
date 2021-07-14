@@ -2,9 +2,9 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::common::deferred_call;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::deferred_call;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::nvic;

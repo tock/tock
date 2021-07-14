@@ -1,10 +1,10 @@
 //! Platform Level Interrupt Control peripheral driver.
 
-use kernel::common::cells::VolatileCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::LocalRegisterCopy;
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::LocalRegisterCopy;
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x0c00_0000 as *const PlicRegisters) };

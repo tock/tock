@@ -1,12 +1,17 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
-use crate::pm::{self, Clock, PBDClock};
 use core::cell::Cell;
+
+use crate::pm::{self, Clock, PBDClock};
+
 use cortexm4::support;
-use kernel::common::math::log_base_two_u64;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
+
+use kernel::utilities::math::log_base_two_u64;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 #[repr(C)]
 pub struct WdtRegisters {
@@ -218,7 +223,7 @@ impl Wdt {
     }
 }
 
-impl kernel::watchdog::WatchDog for Wdt {
+impl kernel::platform::watchdog::WatchDog for Wdt {
     fn setup(&self) {
         // Setup the WatchDog with a 100ms period.
         self.start(100);

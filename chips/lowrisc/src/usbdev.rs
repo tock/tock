@@ -1,14 +1,14 @@
 //! USB Client driver.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
-    register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
-};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 pub const N_ENDPOINTS: usize = 12;
 pub const N_BUFFERS: usize = 32;

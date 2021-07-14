@@ -1,7 +1,7 @@
 use crate::iomuxc::{DriveStrength, MuxMode, OpenDrainEn, PullKeepEn, PullUpDown, Sion, Speed};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 
 /// IOMUX SNVS Controller Module
 #[repr(C)]
