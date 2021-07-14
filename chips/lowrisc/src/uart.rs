@@ -15,28 +15,29 @@ use kernel::hil::uart;
 
 register_structs! {
     pub UartRegisters {
-        (0x000 => intr_state: ReadWrite<u32, intr::Register>),
-        (0x004 => intr_enable: ReadWrite<u32, intr::Register>),
-        (0x008 => intr_test: ReadWrite<u32, intr::Register>),
+        (0x00 => intr_state: ReadWrite<u32, intr::Register>),
+        (0x04 => intr_enable: ReadWrite<u32, intr::Register>),
+        (0x08 => intr_test: ReadWrite<u32, intr::Register>),
+        (0x0C => alert_test: ReadWrite<u32, intr::Register>),
         /// UART control register
-        (0x00c => ctrl: ReadWrite<u32, ctrl::Register>),
+        (0x10 => ctrl: ReadWrite<u32, ctrl::Register>),
         /// UART live status register
-        (0x010 => status: ReadOnly<u32, status::Register>),
+        (0x14 => status: ReadOnly<u32, status::Register>),
         /// UART read data)
-        (0x014 => rdata: ReadOnly<u32, rdata::Register>),
+        (0x18 => rdata: ReadOnly<u32, rdata::Register>),
         /// UART write data
-        (0x018 => wdata: WriteOnly<u32, wdata::Register>),
+        (0x1C => wdata: WriteOnly<u32, wdata::Register>),
         /// UART FIFO control register")
-        (0x01c => fifo_ctrl: ReadWrite<u32, fifo_ctrl::Register>),
+        (0x20 => fifo_ctrl: ReadWrite<u32, fifo_ctrl::Register>),
         /// UART FIFO status register
-        (0x020 => fifo_status: ReadWrite<u32, fifo_status::Register>),
+        (0x24 => fifo_status: ReadWrite<u32, fifo_status::Register>),
         /// TX pin override control. Gives direct SW control over TX pin state
-        (0x024 => ovrd: ReadWrite<u32, ovrd::Register>),
+        (0x28 => ovrd: ReadWrite<u32, ovrd::Register>),
         /// UART oversampled values
-        (0x028 => val: ReadWrite<u32, val::Register>),
+        (0x2C => val: ReadWrite<u32, val::Register>),
         /// UART RX timeout control
-        (0x02c => timeout_ctrl: ReadWrite<u32, timeout_ctrl::Register>),
-        (0x030 => @END),
+        (0x30 => timeout_ctrl: ReadWrite<u32, timeout_ctrl::Register>),
+        (0x34 => @END),
     }
 }
 

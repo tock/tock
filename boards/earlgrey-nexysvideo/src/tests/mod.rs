@@ -1,9 +1,9 @@
 use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
-use crate::NUM_PROCS;
 use crate::PLATFORM;
 use crate::SCHEDULER;
+use crate::{NUM_PROCS, NUM_UPCALLS_IPC};
 use kernel::debug;
 
 pub fn semihost_command_exit_success() -> ! {
@@ -28,7 +28,7 @@ fn run_kernel_op(loops: usize) {
             BOARD.unwrap().kernel_loop_operation(
                 PLATFORM.unwrap(),
                 CHIP.unwrap(),
-                None::<&kernel::ipc::IPC<NUM_PROCS>>,
+                None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
                 SCHEDULER.unwrap(),
                 true,
                 MAIN_CAP.unwrap(),
@@ -51,4 +51,7 @@ fn trivial_assertion() {
 mod aes_test;
 mod hmac;
 mod multi_alarm;
-mod otbn;
+// OTBN is no longer included in the FPGA build, so we disable the tests
+// For a FPGA build that works with OTBN see lowRISC/opentitan@f50ded219d28c9c669607409cbb7bd1383634e48
+// mod otbn;
+mod tickv_test;

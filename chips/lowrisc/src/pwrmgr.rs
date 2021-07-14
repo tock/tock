@@ -6,22 +6,29 @@ use kernel::common::StaticRef;
 
 register_structs! {
     pub PwrMgrRegisters {
-        (0x00 => ctrl_cfg_regwen: ReadOnly<u32, CTRL_CFG_REGWEN::Register>),
-        (0x04 => control: ReadWrite<u32, CONTROL::Register>),
-        (0x08 => cfg_cdc_sync: ReadWrite<u32, CFG_CDC_SYNC::Register>),
-        (0x0C => wakeup_en_regwen: ReadWrite<u32, WAKEUP_EN_REGWEN::Register>),
-        (0x10 => wakeup_en: ReadWrite<u32, WAKEUP_EN::Register>),
-        (0x14 => wake_status: ReadOnly<u32, WAKE_STATUS::Register>),
-        (0x18 => reset_en_regwen: ReadWrite<u32, RESET_EN_REGWEN::Register>),
-        (0x1C => reset_en: ReadWrite<u32, RESET_EN::Register>),
-        (0x20 => reset_status: ReadOnly<u32, RESET_STATUS::Register>),
-        (0x24 => wake_info_capture_dis: ReadWrite<u32, WAKE_INFO_CAPTURE_DIS::Register>),
-        (0x28 => wake_info: ReadWrite<u32, WAKE_INFO::Register>),
-        (0x2C => @END),
+        (0x00 => intr_state: ReadOnly<u32, INTR::Register>),
+        (0x04 => intr_enable: ReadOnly<u32, INTR::Register>),
+        (0x08 => intr_test: ReadOnly<u32, INTR::Register>),
+        (0x0C => ctrl_cfg_regwen: ReadOnly<u32, CTRL_CFG_REGWEN::Register>),
+        (0x10 => control: ReadWrite<u32, CONTROL::Register>),
+        (0x14 => cfg_cdc_sync: ReadWrite<u32, CFG_CDC_SYNC::Register>),
+        (0x18 => wakeup_en_regwen: ReadWrite<u32, WAKEUP_EN_REGWEN::Register>),
+        (0x1C => wakeup_en: ReadWrite<u32, WAKEUP_EN::Register>),
+        (0x20 => wake_status: ReadOnly<u32, WAKE_STATUS::Register>),
+        (0x24 => reset_en_regwen: ReadWrite<u32, RESET_EN_REGWEN::Register>),
+        (0x28 => reset_en: ReadWrite<u32, RESET_EN::Register>),
+        (0x2C => reset_status: ReadOnly<u32, RESET_STATUS::Register>),
+        (0x30 => escalate_reset_status: ReadOnly<u32>),
+        (0x34 => wake_info_capture_dis: ReadWrite<u32, WAKE_INFO_CAPTURE_DIS::Register>),
+        (0x38 => wake_info: ReadWrite<u32, WAKE_INFO::Register>),
+        (0x3C => @END),
     }
 }
 
 register_bitfields![u32,
+    INTR [
+        WAKEUP OFFSET(0) NUMBITS(1) []
+    ],
     CTRL_CFG_REGWEN [
         EN OFFSET(0) NUMBITS(1) []
     ],
@@ -29,7 +36,9 @@ register_bitfields![u32,
         LOW_POWER_HINT OFFSET(0) NUMBITS(1) [],
         CORE_CLK_EN OFFSET(4) NUMBITS(1) [],
         IO_CLK_EN OFFSET(5) NUMBITS(1) [],
-        MAIN_PD_N OFFSET(6) NUMBITS(1) []
+        USB_CLKC_EN_LP OFFSET(6) NUMBITS(1) [],
+        USB_CLK_EN_ACTIVE OFFSET(7) NUMBITS(1) [],
+        MAIN_PD_N OFFSET(8) NUMBITS(1) [],
     ],
     CFG_CDC_SYNC [
         SYNC OFFSET(0) NUMBITS(1) []
@@ -38,19 +47,29 @@ register_bitfields![u32,
         EN OFFSET(0) NUMBITS(1) []
     ],
     WAKEUP_EN [
-        START OFFSET(0) NUMBITS(16) []
+        EN0 OFFSET(0) NUMBITS(1) [],
+        EN1 OFFSET(1) NUMBITS(1) [],
+        EN2 OFFSET(2) NUMBITS(1) [],
+        EN3 OFFSET(3) NUMBITS(1) [],
+        EN4 OFFSET(4) NUMBITS(1) [],
     ],
     WAKE_STATUS [
-        VAL OFFSET(0) NUMBITS(16) []
+        VAL0 OFFSET(0) NUMBITS(1) [],
+        VAL1 OFFSET(1) NUMBITS(1) [],
+        VAL2 OFFSET(2) NUMBITS(1) [],
+        VAL3 OFFSET(3) NUMBITS(1) [],
+        VAL4 OFFSET(4) NUMBITS(1) [],
     ],
     RESET_EN_REGWEN [
         EN OFFSET(0) NUMBITS(1) []
     ],
     RESET_EN [
-        EN OFFSET(0) NUMBITS(2) []
+        EN0 OFFSET(0) NUMBITS(1) [],
+        EN1 OFFSET(1) NUMBITS(1) [],
     ],
     RESET_STATUS [
-        VAL OFFSET(0) NUMBITS(2) []
+        VAL0 OFFSET(0) NUMBITS(1) [],
+        VAL1 OFFSET(1) NUMBITS(1) [],
     ],
     WAKE_INFO_CAPTURE_DIS [
         VAL OFFSET(0) NUMBITS(1) []

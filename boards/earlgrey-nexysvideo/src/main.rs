@@ -32,11 +32,8 @@ use rv32i::csr;
 #[cfg(test)]
 mod tests;
 
-mod otbn;
-#[allow(dead_code)]
-mod tickv_test;
-
 pub mod io;
+mod otbn;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
@@ -64,6 +61,13 @@ static mut PLATFORM: Option<&'static EarlGreyNexysVideo> = None;
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
+// Test access to TicKV
+static mut TICKV: Option<
+    &capsules::tickv::TicKVStore<
+        'static,
+        capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+    >,
+> = None;
 
 static mut CHIP: Option<
     &'static earlgrey::chip::EarlGrey<
@@ -382,7 +386,7 @@ unsafe fn setup() -> (
     );
 
     // TicKV
-    let _tickv = components::tickv::TicKVComponent::new(
+    let tickv = components::tickv::TicKVComponent::new(
         &mux_flash,                                  // Flash controller
         0x20040000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
         0x40000,                                     // Region size
@@ -393,7 +397,11 @@ unsafe fn setup() -> (
         lowrisc::flash_ctrl::FlashCtrl
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+    TICKV = Some(tickv);
 
+    // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
+    // to the OTBN hardware will hang.
+    // OTBN is still connected though as it works on simulation runs
     let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
 
