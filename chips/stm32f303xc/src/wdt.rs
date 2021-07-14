@@ -2,10 +2,10 @@
 
 use crate::rcc;
 use core::cell::Cell;
-use kernel::common::registers::interfaces::ReadWriteable;
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const WINDOW_WATCHDOG_BASE: StaticRef<WwdgRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const WwdgRegisters) };

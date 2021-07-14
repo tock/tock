@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::hmac::HmacRegisters;
 
 pub const HMAC0_BASE: StaticRef<HmacRegisters> =

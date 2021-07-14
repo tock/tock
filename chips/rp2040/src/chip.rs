@@ -1,9 +1,9 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use kernel::common::deferred_call;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::deferred_call;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 use crate::adc;
 use crate::clocks::Clocks;

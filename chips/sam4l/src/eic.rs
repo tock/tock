@@ -15,13 +15,13 @@
 // Last modified July 22, 2019
 
 use crate::pm::{self, Clock, PBDClock};
-use kernel::common::cells::OptionalCell;
-use kernel::common::peripherals::PeripheralManagement;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::peripheral_management::PeripheralManagement;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 
 /// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
 pub enum FilterMode {

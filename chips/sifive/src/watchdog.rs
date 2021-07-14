@@ -1,8 +1,8 @@
 //! Watchdog driver.
 
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 
 #[repr(C)]
 pub struct WatchdogRegisters {

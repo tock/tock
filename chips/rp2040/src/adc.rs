@@ -1,7 +1,7 @@
 use core::cell::Cell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::{cells::OptionalCell, StaticRef};
 use kernel::hil;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::{
     common::registers::{register_bitfields, register_structs, ReadWrite},
     ErrorCode,

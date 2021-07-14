@@ -2,10 +2,10 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::debug;
 use kernel::hil::time::Alarm;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{mcause, mie::mie, CSR};
 use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
@@ -58,7 +58,7 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
     }
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chip
+impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::platform::chip::Chip
     for LiteXVexRiscv<A, I>
 {
     type MPU = PMP<8>;

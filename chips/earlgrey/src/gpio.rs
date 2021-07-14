@@ -2,7 +2,7 @@
 
 use core::ops::{Index, IndexMut};
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::gpio::GpioRegisters;
 pub use lowrisc::gpio::{pins, GpioPin};
 use lowrisc::padctrl::PadCtrlRegisters;

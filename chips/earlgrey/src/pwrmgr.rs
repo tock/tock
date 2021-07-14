@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::pwrmgr::PwrMgrRegisters;
 
 pub(crate) const PWRMGR_BASE: StaticRef<PwrMgrRegisters> =

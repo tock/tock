@@ -2,9 +2,9 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::cells::VolatileCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::StaticRef;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::StaticRef;
 use kernel::{Chip, InterruptService};
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::syscall::SysCall;
@@ -97,7 +97,7 @@ impl<'a, I: InterruptService<()> + 'a> SweRVolf<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::Chip for SweRVolf<'a, I> {
+impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf<'a, I> {
     type MPU = ();
     type UserspaceKernelBoundary = SysCall;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;

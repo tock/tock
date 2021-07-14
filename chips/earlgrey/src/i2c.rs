@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::i2c::I2cRegisters;
 
 pub const I2C0_BASE: StaticRef<I2cRegisters> =

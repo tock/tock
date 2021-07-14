@@ -31,11 +31,11 @@
 
 use core::cell::Cell;
 use core::{cmp, ptr};
-use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use nrf5x::pinmux::Pinmux;
 

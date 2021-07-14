@@ -1,9 +1,9 @@
 use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
 use cortexm4::{self, nvic};
-use kernel::common::deferred_call;
+use kernel::deferred_call;
 use kernel::hil::time::Alarm;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm4::mpu::MPU,
@@ -85,7 +85,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         self.timer0.set_alarm_client(&self.ieee802154_radio);
     }
 }
-impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
@@ -153,7 +153,7 @@ impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<
     }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::Chip for NRF52<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SchedulerTimer = cortexm4::systick::SysTick;

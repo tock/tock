@@ -2,8 +2,8 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 pub struct Apollo3<I: InterruptService<()> + 'static> {
     mpu: cortexm4::mpu::MPU,
@@ -59,7 +59,7 @@ impl Apollo3DefaultPeripherals {
     }
 }
 
-impl kernel::InterruptService<()> for Apollo3DefaultPeripherals {
+impl kernel::platform::chip::InterruptService<()> for Apollo3DefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {

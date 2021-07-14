@@ -1,10 +1,10 @@
 use core::fmt::Write;
 use cortexm4;
-use kernel::Chip;
+use kernel::platform::chip::Chip;
 
 use crate::nvic;
 use crate::wdt;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
 
 pub struct Msp432<'a, I: InterruptService<()> + 'a> {
     mpu: cortexm4::mpu::MPU,
@@ -64,7 +64,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> kernel::InterruptService<()> for Msp432DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<()> for Msp432DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::ADC => self.adc.handle_interrupt(),

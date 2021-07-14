@@ -1,12 +1,12 @@
 //! Direct Memory Access (DMA)
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 
 const DMA_BASE: StaticRef<DmaRegisters> =
     unsafe { StaticRef::new(0x4000_E000 as *const DmaRegisters) };

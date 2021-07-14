@@ -2,10 +2,10 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::debug;
 use kernel::hil::time::Alarm;
-use kernel::Chip;
+use kernel::platform::chip::Chip;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
@@ -13,7 +13,7 @@ use rv32i::pmp::PMP;
 use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
 
 pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
@@ -103,7 +103,7 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
+impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::platform::chip::Chip
     for E310x<'a, A, I>
 {
     type MPU = PMP<4>;

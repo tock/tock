@@ -1,7 +1,7 @@
 //! Power Reset Clock Interrupt controller driver.
 
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 
 #[repr(C)]
 pub struct PrciRegisters {

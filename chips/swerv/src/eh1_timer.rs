@@ -1,10 +1,10 @@
 //! Internal Timer
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
 use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::register_bitfields;
 use kernel::ErrorCode;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
@@ -180,7 +180,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
     }
 }
 
-impl kernel::SchedulerTimer for Timer<'_> {
+impl kernel::platform::scheduler_timer::SchedulerTimer for Timer<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
         let tics = Self::ticks_from_us(us);

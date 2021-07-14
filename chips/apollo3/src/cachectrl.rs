@@ -1,8 +1,8 @@
 //! Cache Control driver.
 
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const CACHECTRL_BASE: StaticRef<CacheCtrlRegisters> =
     unsafe { StaticRef::new(0x4001_8000 as *const CacheCtrlRegisters) };

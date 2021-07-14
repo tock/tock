@@ -1,11 +1,11 @@
 //! Clock System (CS)
 
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use kernel::NoClockControl;
 
 pub const MCLK_HZ: u32 = 48_000_000;

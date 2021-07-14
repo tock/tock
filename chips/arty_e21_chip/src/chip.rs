@@ -1,8 +1,8 @@
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::Readable;
 use kernel::debug;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
+use kernel::utilities::registers::interfaces::Readable;
 use rv32i;
 
 use crate::clint;
@@ -142,7 +142,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::Chip for ArtyExx<'a, I> {
+impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
     type MPU = PMP<2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SchedulerTimer = ();

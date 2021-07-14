@@ -1,13 +1,13 @@
 //! IO Master Driver (I2C)
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const IOM0_BASE: StaticRef<IomRegisters> =
     unsafe { StaticRef::new(0x5000_4000 as *const IomRegisters) };

@@ -4,14 +4,14 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::cells::VolatileCell;
-use kernel::common::deferred_call::DeferredCall;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::deferred_call_tasks::DeferredCallTask;

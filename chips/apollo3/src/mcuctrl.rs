@@ -1,9 +1,9 @@
 //! MCU Control driver.
 
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::debug;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const MCUCTRL_BASE: StaticRef<McuCtrlRegisters> =
     unsafe { StaticRef::new(0x4002_0000 as *const McuCtrlRegisters) };

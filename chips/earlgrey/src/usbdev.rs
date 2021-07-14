@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 pub use lowrisc::usbdev::Usb;
 use lowrisc::usbdev::UsbRegisters;
 
