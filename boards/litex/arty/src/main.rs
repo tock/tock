@@ -8,14 +8,14 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::common::StaticRef;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::{Alarm, Frequency, Timer};
-use kernel::Chip;
+use kernel::platform::chip::Chip;
+use kernel::platform::Platform;
 use kernel::InterruptService;
-use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
@@ -75,7 +75,8 @@ const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures. Need an
 // empty list at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip, led controller and UART hardware for panic
 // dumps
@@ -105,7 +106,7 @@ static mut PANIC_REFERENCES: LiteXArtyPanicReferences = LiteXArtyPanicReferences
 };
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -142,7 +143,7 @@ struct LiteXArty {
 impl Platform for LiteXArty {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led_driver)),
@@ -454,7 +455,7 @@ pub unsafe fn main() {
         led_driver,
     };
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

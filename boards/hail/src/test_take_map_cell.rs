@@ -1,5 +1,5 @@
-use kernel::common::cells::MapCell;
 use kernel::debug;
+use kernel::utilities::cells::MapCell;
 
 pub unsafe fn test_take_map_cell() {
     static FOO: u32 = 1234;

@@ -11,8 +11,8 @@ use nrf52840::gpio::Pin;
 
 use crate::CHIP;
 use crate::PROCESSES;
-use kernel::common::cells::VolatileCell;
 use kernel::hil::uart::Transmit;
+use kernel::utilities::cells::VolatileCell;
 
 struct Writer {
     initialized: bool,
