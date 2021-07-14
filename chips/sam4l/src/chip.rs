@@ -11,7 +11,6 @@ use kernel::platform::chip::{Chip, InterruptService};
 pub struct Sam4l<I: InterruptService<Task> + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
@@ -21,7 +20,6 @@ impl<I: InterruptService<Task> + 'static> Sam4l<I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new(),
             pm,
             interrupt_service,
         }
@@ -239,8 +237,6 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
 impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -271,14 +267,6 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
