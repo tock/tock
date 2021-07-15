@@ -12,7 +12,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
 
 #[allow(dead_code)]
@@ -58,10 +59,11 @@ struct ArtyE21 {
     >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
+    scheduler: &'static PrioritySched,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for ArtyE21 {
+impl SyscallDispatch for ArtyE21 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -77,6 +79,36 @@ impl Platform for ArtyE21 {
             // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>>
+    for ArtyE21
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = PrioritySched;
+    type SchedulerTimer = ();
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -203,6 +235,8 @@ pub unsafe fn main() {
 
     chip.enable_all_interrupts();
 
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+
     let artye21 = ArtyE21 {
         console: console,
         gpio: gpio,
@@ -210,6 +244,7 @@ pub unsafe fn main() {
         led: led,
         button: button,
         // ipc: kernel::ipc::IPC::new(board_kernel),
+        scheduler,
     };
 
     // Create virtual device for kernel debug.
@@ -255,13 +290,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-
     board_kernel.kernel_loop(
         &artye21,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler,
         &main_loop_cap,
     );
 }
