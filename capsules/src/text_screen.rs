@@ -142,7 +142,7 @@ impl<'a> TextScreen<'a> {
                     TextScreenCommand::GetResolution => {
                         let (x, y) = self.text_screen.get_size();
                         app.pending_command = false;
-                        upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), x, y);
+                        let _ = upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), x, y);
                         run_next = true;
                         Ok(())
                     }
@@ -157,11 +157,11 @@ impl<'a> TextScreen<'a> {
                     TextScreenCommand::Write => {
                         if app.data1 > 0 {
                             app.write_len = app.data1;
-                            app.shared.map_or(Err(ErrorCode::NOMEM), |to_write_buffer| {
+                            let res = app.shared.enter(|to_write_buffer| {
                                 self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                                     let len = cmp::min(app.write_len, buffer.len());
                                     for n in 0..len {
-                                        buffer[n] = to_write_buffer[n];
+                                        buffer[n] = to_write_buffer[n].get();
                                     }
                                     match self.text_screen.print(buffer, len) {
                                         Ok(()) => Ok(()),
@@ -171,7 +171,12 @@ impl<'a> TextScreen<'a> {
                                         }
                                     }
                                 })
-                            })
+                            });
+                            match res {
+                                Ok(Ok(())) => Ok(()),
+                                Ok(Err(err)) => Err(err),
+                                Err(err) => err.into(),
+                            }
                         } else {
                             Err(ErrorCode::NOMEM)
                         }
