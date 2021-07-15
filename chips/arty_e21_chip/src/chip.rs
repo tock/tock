@@ -145,19 +145,9 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
 impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
     type MPU = PMP<2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SchedulerTimer = ();
-    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &()
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
