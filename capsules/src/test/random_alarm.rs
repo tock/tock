@@ -7,7 +7,7 @@
 
 use core::cell::Cell;
 
-use kernel::hil::time::{Alarm, AlarmClient, Ticks};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks, Ticks};
 
 pub struct TestRandomAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,
@@ -21,7 +21,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
             alarm: alarm,
             counter: Cell::new(value),
-            expected: Cell::new(A::ticks_from_seconds(0)),
+            expected: Cell::new(alarm.ticks_from_seconds(0)),
             _id: ch,
         }
     }
@@ -37,7 +37,7 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
             // Try delays of zero in 1 of 11 cases
             us = 0;
         }
-        let delay = A::ticks_from_us(us);
+        let delay = self.alarm.ticks_from_us(us);
         let now = self.alarm.now();
         // Subtract 0-9 so we are always asking from the past.
         // If the delay is already 0, don't subtract anything.

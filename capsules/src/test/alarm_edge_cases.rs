@@ -6,7 +6,7 @@
 //! Last Modified: 6/17/2020
 use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::time::{Alarm, AlarmClient, Ticks};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks, Ticks};
 
 pub struct TestAlarmEdgeCases<'a, A: 'a> {
     alarm: &'a A,
@@ -32,7 +32,7 @@ impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
 
     fn set_next_alarm(&self) {
         let counter = self.counter.get();
-        let delay = A::ticks_from_ms(self.alarms[counter % 20]);
+        let delay = self.alarm.ticks_from_ms(self.alarms[counter % 20]);
         let now = self.alarm.now();
         let start = now.wrapping_sub(A::Ticks::from(10));
 

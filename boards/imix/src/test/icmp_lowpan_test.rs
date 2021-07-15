@@ -30,7 +30,7 @@ use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
@@ -191,7 +191,7 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = A::ticks_from_ms(TEST_DELAY_MS);
+        let delta = self.alarm.ticks_from_ms(TEST_DELAY_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delta);
     }
