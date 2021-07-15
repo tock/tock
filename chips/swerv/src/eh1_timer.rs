@@ -4,7 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
-use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
+use kernel::hil::time::{Alarm, ConvertTicks, Counter, Ticks, Ticks32, Time};
 use kernel::ErrorCode;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
@@ -183,7 +183,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
 impl kernel::SchedulerTimer for Timer<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

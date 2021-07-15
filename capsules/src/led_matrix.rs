@@ -86,7 +86,7 @@ use kernel::common::cells::TakeCell;
 
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 
 /// Syscall driver number.
 use crate::driver;
@@ -168,7 +168,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
             }
         });
         self.row_set(self.rows[self.current_row.get()]);
-        let interval = A::ticks_from_ms(self.timing as u32);
+        let interval = self.alarm.ticks_from_ms(self.timing as u32);
         self.alarm.set_alarm(self.alarm.now(), interval);
     }
 

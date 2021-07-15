@@ -84,7 +84,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
-use kernel::hil::time::{self, Alarm, Ticks};
+use kernel::hil::time::{self, Alarm, ConvertTicks, Ticks};
 use kernel::ErrorCode;
 
 // Time the radio will remain awake listening for packets before sleeping.
@@ -210,7 +210,7 @@ impl<'a, R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
     // Sets the timer to fire a set number of milliseconds in the future based
     // on the current tick value.
     fn set_timer_ms(&self, ms: u32) {
-        let interval = A::ticks_from_ms(ms);
+        let interval = self.alarm.ticks_from_ms(ms);
         self.set_timer(interval);
     }
 

@@ -46,6 +46,7 @@ use core::mem;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::hil::time::ConvertTicks;
 use kernel::ErrorCode;
 use kernel::{CommandReturn, Driver, Grant, ProcessId};
 use kernel::{
@@ -517,7 +518,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatHCSInit);
-                    let delay = A::ticks_from_ms(10);
+                    let delay = self.alarm.ticks_from_ms(10);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
@@ -613,7 +614,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatAppSpecificInit);
-                    let delay = A::ticks_from_ms(10);
+                    let delay = self.alarm.ticks_from_ms(10);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
@@ -651,7 +652,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 10 ms
                     self.alarm_state.set(AlarmState::RepeatGenericInit);
-                    let delay = A::ticks_from_ms(10);
+                    let delay = self.alarm.ticks_from_ms(10);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
@@ -793,7 +794,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 1 ms
                     self.alarm_state.set(AlarmState::WaitForDataBlock);
-                    let delay = A::ticks_from_ms(1);
+                    let delay = self.alarm.ticks_from_ms(1);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
@@ -851,7 +852,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                     // try again after 1 ms
                     self.alarm_state
                         .set(AlarmState::WaitForDataBlocks { count: count });
-                    let delay = A::ticks_from_ms(1);
+                    let delay = self.alarm.ticks_from_ms(1);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
                     // error, send callback and quit
@@ -1038,7 +1039,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 1 ms
                     self.alarm_state.set(AlarmState::WaitForWriteBusy);
-                    let delay = A::ticks_from_ms(1);
+                    let delay = self.alarm.ticks_from_ms(1);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 }
             }
@@ -1396,7 +1397,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 
         // run a timer for 500 ms in order to let the sd card settle
         self.alarm_state.set(AlarmState::DetectionChange);
-        let delay = A::ticks_from_ms(500);
+        let delay = self.alarm.ticks_from_ms(500);
         self.alarm.set_alarm(self.alarm.now(), delay);
     }
 }

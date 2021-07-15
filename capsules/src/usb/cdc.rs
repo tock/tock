@@ -22,7 +22,7 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil;
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
 
@@ -360,7 +360,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
         self.timeout_alarm.set_alarm(
             self.timeout_alarm.now(),
-            A::ticks_from_ms(CDC_BUFFER_TIMEOUT_MS),
+            self.timeout_alarm.ticks_from_ms(CDC_BUFFER_TIMEOUT_MS),
         );
     }
 
