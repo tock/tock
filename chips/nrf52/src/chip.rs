@@ -8,7 +8,6 @@ use kernel::platform::chip::InterruptService;
 pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
     interrupt_service: &'a I,
 }
 
@@ -17,9 +16,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> NRF52<'a, I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            // The NRF52's systick is uncalibrated, but is clocked from the
-            // 64Mhz CPU clock.
-            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(64000000),
             interrupt_service,
         }
     }
@@ -85,7 +81,9 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         self.timer0.set_alarm_client(&self.ieee802154_radio);
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask> for Nrf52DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
+    for Nrf52DefaultPeripherals<'a>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
@@ -156,19 +154,9 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask> for Nrf52Def
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
