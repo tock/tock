@@ -41,7 +41,7 @@ use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
@@ -670,7 +670,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     ///  self.set_delay(10, Status::Idle);
     fn set_delay(&self, timer: u32, next_status: Status) {
         self.status.set(next_status);
-        let interval = A::ticks_from_ms(timer);
+        let interval = self.alarm.ticks_from_ms(timer);
         self.alarm.set_alarm(self.alarm.now(), interval);
     }
 }

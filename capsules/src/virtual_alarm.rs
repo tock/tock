@@ -34,7 +34,7 @@ impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<
 
 impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
-        let zero = A::ticks_from_seconds(0);
+        let zero = 0u32.into();
         VirtualMuxAlarm {
             mux: mux_alarm,
             reference: Cell::new(zero),

@@ -49,6 +49,7 @@
 //!
 //! ```
 //! use kernel::hil;
+//! use kernel::hil::time::ConvertTicks;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Time;
 //! use kernel::ErrorCode;
@@ -61,7 +62,7 @@
 //! impl<'a, A: hil::time::Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let now = self.alarm.now();
-//!         let dt = <A>::ticks_from_seconds(1);
+//!         let dt = self.alarm.ticks_from_seconds(1);
 //!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
@@ -80,7 +81,7 @@
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
 //!                 let now = self.alarm.now();
-//!                 let dt = <A>::ticks_from_seconds(1);
+//!                 let dt = self.alarm.ticks_from_seconds(1);
 //!
 //!                 self.alarm.set_alarm(now, dt);
 //!                 hil::rng::Continue::Done

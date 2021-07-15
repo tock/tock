@@ -47,6 +47,29 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self;
+
+    /// Coverts the specified val into this type if it fits otherwise the
+    /// `max_value()` is returned
+    #[inline]
+    fn from_or_max(val: u64) -> Self {
+        if val < Self::max_value().into_u32() as u64 {
+            Self::from(val as u32)
+        } else {
+            Self::max_value()
+        }
+    }
+
+    /// Scales the ticks by the specified numerator and denominator. If the resulting value would
+    /// be greater than u32,`u32::MAX` is returned instead
+    #[inline]
+    fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
+        let scaled = self.into_u32() as u64 * numerator as u64 / denominator as u64;
+        if scaled < u32::MAX as u64 {
+            scaled as u32
+        } else {
+            u32::MAX
+        }
+    }
 }
 
 /// Represents a clock's frequency in Hz, allowing code to transform
@@ -70,37 +93,69 @@ pub trait Time {
     /// it being constant or changing it should use `Timestamp`
     /// or `Counter`.
     fn now(&self) -> Self::Ticks;
+}
 
+pub trait ConvertTicks<T: Ticks> {
     /// Returns the number of ticks in the provided number of seconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_seconds(s: u32) -> Self::Ticks {
-        let val: u64 = Self::Frequency::frequency() as u64 * s as u64;
-        ticks_from_val(val)
-    }
+    fn ticks_from_seconds(&self, s: u32) -> T;
 
     /// Returns the number of ticks in the provided number of milliseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_ms(ms: u32) -> Self::Ticks {
-        let val: u64 = Self::Frequency::frequency() as u64 * ms as u64;
-        ticks_from_val(val / 1000)
-    }
+
+    fn ticks_from_ms(&self, ms: u32) -> T;
 
     /// Returns the number of ticks in the provided number of microseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-    fn ticks_from_us(us: u32) -> Self::Ticks {
-        let val: u64 = Self::Frequency::frequency() as u64 * us as u64;
-        ticks_from_val(val / 1_000_000)
-    }
+    fn ticks_from_us(&self, us: u32) -> T;
+
+    /// Returns the number of seconds in the provided number of ticks,
+    /// rounding down any fractions. If the value overflows u32, `u32::MAX`
+    /// is returned,
+    fn ticks_to_seconds(&self, tick: T) -> u32;
+
+    /// Returns the number of milliseconds in the provided number of ticks,
+    /// rounding down any fractions. If the value overflows u32, `u32::MAX`
+    /// is returned,
+    fn ticks_to_ms(&self, tick: T) -> u32;
+
+    /// Returns the number of microseconds in the provided number of ticks,
+    /// rounding down any fractions. If the value overflows u32, `u32::MAX`
+    /// is returned,
+    fn ticks_to_us(&self, tick: T) -> u32;
 }
 
-fn ticks_from_val<T: Ticks>(val: u64) -> T {
-    if val <= T::max_value().into_u32() as u64 {
-        T::from(val as u32)
-    } else {
-        T::max_value()
+impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
+    #[inline]
+    fn ticks_from_seconds(&self, s: u32) -> <T as Time>::Ticks {
+        let val = <T as Time>::Frequency::frequency() as u64 * s as u64;
+        <T as Time>::Ticks::from_or_max(val)
+    }
+    #[inline]
+    fn ticks_from_ms(&self, ms: u32) -> <T as Time>::Ticks {
+        let val = <T as Time>::Frequency::frequency() as u64 * ms as u64;
+        <T as Time>::Ticks::from_or_max(val / 1_000)
+    }
+    #[inline]
+    fn ticks_from_us(&self, us: u32) -> <T as Time>::Ticks {
+        let val = <T as Time>::Frequency::frequency() as u64 * us as u64;
+        <T as Time>::Ticks::from_or_max(val / 1_000_000)
+    }
+
+    #[inline]
+    fn ticks_to_seconds(&self, tick: <T as Time>::Ticks) -> u32 {
+        tick.saturating_scale(1, <T as Time>::Frequency::frequency())
+    }
+    #[inline]
+    fn ticks_to_ms(&self, tick: <T as Time>::Ticks) -> u32 {
+        tick.saturating_scale(1_000, <T as Time>::Frequency::frequency())
+    }
+    #[inline]
+    fn ticks_to_us(&self, tick: <T as Time>::Ticks) -> u32 {
+        tick.saturating_scale(1_000_000, <T as Time>::Frequency::frequency())
     }
 }
 
@@ -557,6 +612,21 @@ impl Ticks for Ticks64 {
     fn max_value() -> Self {
         Ticks64(!0u64)
     }
+
+    #[inline]
+    fn from_or_max(val: u64) -> Self {
+        Self(val)
+    }
+
+    #[inline]
+    fn saturating_scale(self, num: u32, den: u32) -> u32 {
+        let scaled = self.0.saturating_mul(num as u64) / den as u64;
+        if scaled < u32::MAX as u64 {
+            scaled as u32
+        } else {
+            u32::MAX
+        }
+    }
 }
 
 impl PartialOrd for Ticks64 {
@@ -578,3 +648,133 @@ impl PartialEq for Ticks64 {
 }
 
 impl Eq for Ticks64 {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Test1MHz64();
+    impl Time for Test1MHz64 {
+        type Frequency = Freq1MHz;
+        type Ticks = Ticks64;
+
+        fn now(&self) -> Self::Ticks {
+            0u32.into()
+        }
+    }
+
+    #[test]
+    fn test_from_ticks64() {
+        let s = Test1MHz64().ticks_to_seconds(1_000_000u32.into());
+        assert_eq!(s, 1);
+
+        let ms = Test1MHz64().ticks_to_ms(1_000_000u32.into());
+        assert_eq!(ms, 1_000);
+
+        let us = Test1MHz64().ticks_to_us(1_000_000u32.into());
+        assert_eq!(us, 1_000_000);
+
+        let s = Test1MHz64().ticks_to_seconds((1_000_000u64 << 31).into());
+        assert_eq!(s, 1 << 31);
+
+        let ms = Test1MHz64().ticks_to_ms((1_000_000u64 << 31).into());
+        assert_eq!(ms, !0u32);
+
+        let us = Test1MHz64().ticks_to_us((1_000_000u64 << 31).into());
+        assert_eq!(us, !0u32);
+    }
+
+    #[test]
+    fn test_to_ticks64() {
+        let t = Test1MHz64().ticks_from_seconds(1);
+        assert_eq!(t.into_u32(), 1_000_000);
+
+        let t = Test1MHz64().ticks_from_ms(1);
+        assert_eq!(t.into_u32(), 1_000);
+
+        let t = Test1MHz64().ticks_from_us(1);
+        assert_eq!(t.into_u32(), 1);
+
+        let t = Test1MHz64().ticks_from_seconds(1 << 31);
+        assert_eq!(t.into_u64(), 1_000_000u64 << 31);
+    }
+
+    struct Test1KHz16();
+    impl Time for Test1KHz16 {
+        type Frequency = Freq1KHz;
+        type Ticks = Ticks16;
+
+        fn now(&self) -> Self::Ticks {
+            0u32.into()
+        }
+    }
+
+    #[test]
+    fn test_from_ticks16() {
+        let s = Test1KHz16().ticks_to_seconds(1_000u32.into());
+        assert_eq!(s, 1);
+
+        let ms = Test1KHz16().ticks_to_ms(1_000u32.into());
+        assert_eq!(ms, 1_000);
+
+        let us = Test1KHz16().ticks_to_us(1_000u32.into());
+        assert_eq!(us, 1_000_000);
+    }
+
+    #[test]
+    fn test_to_ticks16() {
+        let t = Test1KHz16().ticks_from_seconds(1);
+        assert_eq!(t.into_u32(), 1_000);
+
+        let t = Test1KHz16().ticks_from_seconds(u32::MAX);
+        assert_eq!(t.into_u32(), u16::MAX as u32);
+
+        let t = Test1KHz16().ticks_from_seconds(66);
+        assert_eq!(t.into_u32(), u16::MAX as u32);
+
+        let t = Test1KHz16().ticks_from_seconds(65);
+        assert_eq!(t.into_u32(), 65_000);
+
+        let t = Test1KHz16().ticks_from_ms(1);
+        assert_eq!(t.into_u32(), 1);
+
+        let t = Test1KHz16().ticks_from_us(1);
+        assert_eq!(t.into_u32(), 0);
+    }
+
+    struct Test1KHz24();
+    impl Time for Test1KHz24 {
+        type Frequency = Freq1KHz;
+        type Ticks = Ticks24;
+
+        fn now(&self) -> Self::Ticks {
+            0u32.into()
+        }
+    }
+
+    #[test]
+    fn test_ticks24() {
+        let s = Test1KHz24().ticks_to_seconds(5_000_000u32.into());
+        assert_eq!(s, 5_000);
+
+        let ms = Test1KHz24().ticks_to_ms(5_000_000u32.into());
+        assert_eq!(ms, 5_000_000);
+
+        let us = Test1KHz24().ticks_to_us(5_000_000u32.into());
+        assert_eq!(us, u32::MAX);
+    }
+
+    #[test]
+    fn test_dyn_object() {
+        let time: &dyn Time<Frequency = Freq1KHz, Ticks = Ticks24> = &Test1KHz24();
+
+        let s = time.ticks_to_seconds(5_000_000u32.into());
+        assert_eq!(s, 5_000);
+
+        let ms = time.ticks_to_ms(5_000_000u32.into());
+        assert_eq!(ms, 5_000_000);
+
+        let us = time.ticks_to_us(5_000_000u32.into());
+        assert_eq!(us, u32::MAX);
+    }
+}

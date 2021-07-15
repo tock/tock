@@ -89,6 +89,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::hil;
+use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
 use kernel::ErrorCode;
 
@@ -236,7 +237,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
                     // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
                     // be reliable.
-                    let delay = A::ticks_from_us(1000);
+                    let delay = self.alarm.ticks_from_us(1000);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 })
             });

@@ -4,7 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::interfaces::Writeable;
 use kernel::common::registers::{register_structs, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, ConvertTicks, Freq32KHz, Frequency, Ticks, Ticks64, Time};
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 
@@ -97,7 +97,7 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
 impl kernel::SchedulerTimer for Clint<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

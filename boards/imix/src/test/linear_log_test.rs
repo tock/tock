@@ -21,7 +21,7 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::static_init;
 use kernel::storage_volume;
 use kernel::ErrorCode;
@@ -237,7 +237,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn wait(&self) {
-        let delay = A::ticks_from_ms(WAIT_MS);
+        let delay = self.alarm.ticks_from_ms(WAIT_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delay);
     }
