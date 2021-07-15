@@ -95,12 +95,10 @@ impl<'a> TextScreen<'a> {
             .enter(appid, |app, _| {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
+                    app.data1 = data1;
+                    app.data2 = data2;
                     app.command = command;
-                    let r = self.do_command(command, data1, data2, appid);
-                    if r != Ok(()) {
-                        self.current_app.clear();
-                    }
-                    r
+                    Ok(true)
                 } else {
                     if app.pending_command == true {
                         Err(ErrorCode::BUSY)
@@ -109,45 +107,57 @@ impl<'a> TextScreen<'a> {
                         app.command = command;
                         app.data1 = data1;
                         app.data2 = data2;
-                        Ok(())
+                        Ok(false)
                     }
                 }
             })
             .map_err(ErrorCode::from);
-        if let Err(err) = res {
-            CommandReturn::failure(err)
-        } else {
-            CommandReturn::success()
+        let res = match res {
+            Ok(value) => value,
+            Err(err) => Err(err),
+        };
+        match res {
+            Ok(execute_now) => {
+                if execute_now {
+                    match self.do_command() {
+                        Ok(()) => CommandReturn::success(),
+                        Err(err) => {
+                            self.current_app.clear();
+                            CommandReturn::failure(err)
+                        }
+                    }
+                } else {
+                    CommandReturn::success()
+                }
+            }
+            Err(err) => CommandReturn::failure(err),
         }
     }
 
-    fn do_command(
-        &self,
-        command: TextScreenCommand,
-        data1: usize,
-        data2: usize,
-        appid: ProcessId,
-    ) -> Result<(), ErrorCode> {
-        match command {
-            TextScreenCommand::GetResolution => {
-                let (x, y) = self.text_screen.get_size();
-                self.schedule_callback(kernel::into_statuscode(Ok(())), x, y);
-                self.run_next_command();
-                Ok(())
-            }
-            TextScreenCommand::Display => self.text_screen.display_on(),
-            TextScreenCommand::NoDisplay => self.text_screen.display_off(),
-            TextScreenCommand::Blink => self.text_screen.blink_cursor_on(),
-            TextScreenCommand::NoBlink => self.text_screen.blink_cursor_off(),
-            TextScreenCommand::SetCursor => self.text_screen.set_cursor(data1, data2),
-            TextScreenCommand::NoCursor => self.text_screen.hide_cursor(),
-            TextScreenCommand::Write => self
-                .apps
-                .enter(appid, |app, _| {
-                    if data1 > 0 {
-                        app.write_len = data1;
-                        app.shared
-                            .enter(|to_write_buffer| {
+    fn do_command(&self) -> Result<(), ErrorCode> {
+        let mut run_next = false;
+        let res = self.current_app.map_or(Err(ErrorCode::FAIL), |app| {
+            self.apps
+                .enter(*app, |app, upcalls| match app.command {
+                    TextScreenCommand::GetResolution => {
+                        let (x, y) = self.text_screen.get_size();
+                        app.pending_command = false;
+                        let _ = upcalls.schedule_upcall(0, kernel::into_statuscode(Ok(())), x, y);
+                        run_next = true;
+                        Ok(())
+                    }
+                    TextScreenCommand::Display => self.text_screen.display_on(),
+                    TextScreenCommand::NoDisplay => self.text_screen.display_off(),
+                    TextScreenCommand::Blink => self.text_screen.blink_cursor_on(),
+                    TextScreenCommand::NoBlink => self.text_screen.blink_cursor_off(),
+                    TextScreenCommand::SetCursor => {
+                        self.text_screen.set_cursor(app.data1, app.data2)
+                    }
+                    TextScreenCommand::NoCursor => self.text_screen.hide_cursor(),
+                    TextScreenCommand::Write => {
+                        if app.data1 > 0 {
+                            app.write_len = app.data1;
+                            let res = app.shared.enter(|to_write_buffer| {
                                 self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                                     let len = cmp::min(app.write_len, buffer.len());
                                     for n in 0..len {
@@ -161,17 +171,29 @@ impl<'a> TextScreen<'a> {
                                         }
                                     }
                                 })
-                            })
-                            .unwrap_or(Err(ErrorCode::NOMEM))
-                    } else {
-                        Err(ErrorCode::NOMEM)
+                            });
+                            match res {
+                                Ok(Ok(())) => Ok(()),
+                                Ok(Err(err)) => Err(err),
+                                Err(err) => err.into(),
+                            }
+                        } else {
+                            Err(ErrorCode::NOMEM)
+                        }
                     }
+                    TextScreenCommand::Clear => self.text_screen.clear(),
+                    TextScreenCommand::Home => self.text_screen.clear(),
+                    TextScreenCommand::ShowCursor => self.text_screen.show_cursor(),
+                    _ => Err(ErrorCode::NOSUPPORT),
                 })
-                .unwrap_or_else(|err| err.into()),
-            TextScreenCommand::Clear => self.text_screen.clear(),
-            TextScreenCommand::Home => self.text_screen.clear(),
-            TextScreenCommand::ShowCursor => self.text_screen.show_cursor(),
-            _ => Err(ErrorCode::NOSUPPORT),
+                .map_err(ErrorCode::from)
+        });
+        if run_next {
+            self.run_next_command();
+        }
+        match res {
+            Ok(value) => value,
+            Err(err) => Err(err),
         }
     }
 
@@ -183,17 +205,17 @@ impl<'a> TextScreen<'a> {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(appid);
-                    let r = self.do_command(app.command, app.data1, app.data2, appid);
-                    if r != Ok(()) {
-                        self.current_app.clear();
-                    }
-                    r == Ok(())
+                    true
                 } else {
                     false
                 }
             });
             if current_command {
-                break;
+                if self.do_command() != Ok(()) {
+                    self.current_app.clear();
+                } else {
+                    break;
+                }
             }
         }
     }
