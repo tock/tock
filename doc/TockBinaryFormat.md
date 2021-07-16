@@ -15,6 +15,7 @@
     + [`3` Package Name](#3-package-name)
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
+    + [`7` Compatibility](#7-compatibility)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -154,6 +155,15 @@ struct TbfHeaderV2Permissions {
     base: TbfHeaderTlv,
     length: u16,
     perms: [TbfHeaderDriverPermission],
+}
+
+// Compatibility
+struct TbfHeaderV2Compatibility {
+    base: TbfHeaderTlv,
+    length: u16,
+    abi_version: u16,
+    kernel_major: u8,
+    kernel_minor: u8
 }
 ```
 
@@ -371,3 +381,25 @@ but the specific address is determined by the platform. Code in the binary
 should be able to execute successfully at any address, e.g. using position
 independent code.
 
+#### `7` Compatibility
+
+The `compatibility` header is designed to prevent the kernel
+from running applications that are not compatible with it.
+
+It defins the following three items:
+* `ABI version` is the ABI (system call) version that the kernel provides. Tock 1.x 
+ provides ABI version 1 while Tock 2.0 provides ABI version 2. The ABI version is not
+ necessarly related to the kernel major number. The ABI version number increases 
+ each time the systm call numbers, systm call arguments or upcall parameters change.
+* `KM` is the kernel major number (for Tock 2.0, KM is 2)
+* `Km` is the kernel minor number (for Tock 2.0, Km is 0)
+
+Setting any of the `KM` or `Km` values to 0 indicates that the application
+works regadless of the actual value. The `ABI version` is required.
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (7)    | Length (4)  | ABI version |  KM  |  Km  |
++-------------+-------------+---------------------------+
+```
