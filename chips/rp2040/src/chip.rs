@@ -26,7 +26,6 @@ pub enum Processor {
 pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
     mpu: cortexm0p::mpu::MPU,
     userspace_kernel_boundary: cortexm0p::syscall::SysCall,
-    scheduler_timer: cortexm0p::systick::SysTick,
     interrupt_service: &'a I,
     sio: &'a SIO,
     processor0_interrupt_mask: (u128, u128),
@@ -38,7 +37,6 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
-            scheduler_timer: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
             interrupt_service,
             sio: sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC1),
@@ -50,8 +48,6 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
 impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
-    type SchedulerTimer = cortexm0p::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -90,14 +86,6 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
