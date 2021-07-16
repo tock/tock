@@ -14,7 +14,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
@@ -62,10 +63,13 @@ struct NucleoF429ZI {
     >,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for NucleoF429ZI {
+impl SyscallDispatch for NucleoF429ZI {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -81,6 +85,41 @@ impl Platform for NucleoF429ZI {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
+    }
+}
+
+impl
+    KernelResources<
+        stm32f429zi::chip::Stm32f4xx<
+            'static,
+            stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals<'static>,
+        >,
+    > for NucleoF429ZI
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -534,6 +573,9 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let nucleo_f429zi = NucleoF429ZI {
         console: console,
         ipc: kernel::ipc::IPC::new(
@@ -547,6 +589,9 @@ pub unsafe fn main() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // // Optional kernel tests
@@ -588,9 +633,6 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     //Uncomment to run multi alarm test
     //multi_alarm_test::run_multi_alarm(mux_alarm);
 
@@ -598,7 +640,6 @@ pub unsafe fn main() {
         &nucleo_f429zi,
         chip,
         Some(&nucleo_f429zi.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
