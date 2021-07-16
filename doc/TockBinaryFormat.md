@@ -15,6 +15,7 @@
     + [`3` Package Name](#3-package-name)
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
+    + [`7` Compatibility](#6-compatibility)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -154,6 +155,21 @@ struct TbfHeaderV2Permissions {
     base: TbfHeaderTlv,
     length: u16,
     perms: [TbfHeaderDriverPermission],
+}
+
+// Compatibility
+struct TbfHeaderV2Compatibilities {
+    base: TbfHeaderTlv,
+    length: u16,
+    compatibilities: [TbfHeaderV2Compatibility]
+}
+
+enum TbfHeaderV2Compatibility {
+  ABI(u16),
+  Kernel{
+    major: u8,
+    minor: u8
+  }
 }
 ```
 
@@ -364,6 +380,55 @@ included, so long as no `offset` is repeated for a single driver. When
 multiple `offset`s and `allowed_commands`s are used they are ORed together,
 so that they all apply.
 
+#### `7` Compatibility
+
+The `compatibility` header is designed to prevent the kernel
+from running applications that are not compatible with it.
+
+The data is stored in the optional `TbfHeaderV2Compatibilities` field. This
+includes an array of all the `compatibilities`.
+
+```
+0             2             4
++-------------+-------------+------------------...--+
+| Type (6)    | Length      | compatibilities       |
++-------------+-------------+------------------...--+
+```
+
+The general layout of the compatibility item is:
+```text
+Driver Permission Structure:
+0             2             4
++-------------+-------------+
+| requirement | data        |
++-------------+-------------+
+```
+
+##### ABI version
+
+The ABI (system call) version that the kernel provides. Tock 1.x provides ABI version 1 while Tock 2.0 provides ABI version 2. The ABI version is not necessarly related to the kernel major number. The ABI version number increases each time the systm call numbers, systm call arguments or upcall parameters change.
+
+```text
+Driver Permission Structure:
+0             2             4
++-------------+-------------+
+|           1 | version     |
++-------------+-------------+
+```
+
+##### Kernel version
+
+The kernel version is divided into two iiems:
+* `major` the kernel major number (for Tock 2.0, KM is 2)
+* `minor` the kernel minor number (for Tock 2.0, Km is 0)
+
+```text
+Driver Permission Structure:
+0             2             4
++-------------+-------------+
+|           2 | Major| Minor|
++-------------+-------------+
+```
 ## Code
 
 The process code itself has no particular format. It will reside in flash,
