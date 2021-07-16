@@ -14,7 +14,8 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -61,10 +62,13 @@ struct NucleoF446RE {
         'static,
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for NucleoF446RE {
+impl SyscallDispatch for NucleoF446RE {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -77,6 +81,41 @@ impl Platform for NucleoF446RE {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl
+    KernelResources<
+        stm32f446re::chip::Stm32f4xx<
+            'static,
+            stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals<'static>,
+        >,
+    > for NucleoF446RE
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -325,6 +364,9 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_helper!(stm32f446re::tim2::Tim2));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let nucleo_f446re = NucleoF446RE {
         console: console,
         ipc: kernel::ipc::IPC::new(
@@ -335,6 +377,9 @@ pub unsafe fn main() {
         led: led,
         button: button,
         alarm: alarm,
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // // Optional kernel tests
@@ -376,16 +421,12 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     //Uncomment to run multi alarm test
     //multi_alarm_test::run_multi_alarm(mux_alarm);
     board_kernel.kernel_loop(
         &nucleo_f446re,
         chip,
         Some(&nucleo_f446re.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
