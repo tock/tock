@@ -26,6 +26,8 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
@@ -138,6 +140,8 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -153,7 +157,7 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
-impl kernel::platform::Platform for Imix {
+impl SyscallDispatch for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -180,6 +184,34 @@ impl kernel::platform::Platform for Imix {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -570,6 +602,9 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let imix = Imix {
         pconsole,
         console,
@@ -591,6 +626,8 @@ pub unsafe fn main() {
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage,
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // Need to initialize the UART for the nRF51 serialization.
@@ -683,7 +720,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
