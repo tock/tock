@@ -141,7 +141,7 @@ impl ClockInterface for WdgClock<'_> {
     }
 }
 
-impl<'a> kernel::watchdog::WatchDog for WindoWdg<'a> {
+impl<'a> kernel::platform::watchdog::WatchDog for WindoWdg<'a> {
     fn setup(&self) {
         if self.enabled.get() {
             self.start();

@@ -18,9 +18,11 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
+use stm32f303xc::wdt;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -71,10 +73,14 @@ struct STM32F3Discovery {
     >,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
+    watchdog: &'static wdt::WindoWdg<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for STM32F3Discovery {
+impl SyscallDispatch for STM32F3Discovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -94,6 +100,41 @@ impl Platform for STM32F3Discovery {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
+    }
+}
+
+impl
+    KernelResources<
+        stm32f303xc::chip::Stm32f3xx<
+            'static,
+            stm32f303xc::chip::Stm32f3xxDefaultPeripherals<'static>,
+        >,
+    > for STM32F3Discovery
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = wdt::WindoWdg<'static>;
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        self.watchdog
     }
 }
 
@@ -326,7 +367,7 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f303xc::init();
 
-    let (peripherals, syscfg, rcc) = get_peripherals();
+    let (peripherals, syscfg, _rcc) = get_peripherals();
     set_pin_primary_functions(
         syscfg,
         &peripherals.exti,
@@ -349,7 +390,7 @@ pub unsafe fn main() {
 
     let chip = static_init!(
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
-        stm32f303xc::chip::Stm32f3xx::new(peripherals, rcc)
+        stm32f303xc::chip::Stm32f3xx::new(peripherals)
     );
     CHIP = Some(chip);
 
@@ -734,6 +775,9 @@ pub unsafe fn main() {
         stm32f303xc::flash::Flash
     ));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let stm32f3discovery = STM32F3Discovery {
         console: console,
         ipc: kernel::ipc::IPC::new(
@@ -751,6 +795,10 @@ pub unsafe fn main() {
         temp: temp,
         adc: adc_syscall,
         nonvolatile_storage: nonvolatile_storage,
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
+        watchdog: &peripherals.watchdog,
     };
 
     // // Optional kernel tests
@@ -793,10 +841,7 @@ pub unsafe fn main() {
     });
 
     // Uncomment this to enable the watchdog
-    // chip.enable_watchdog();
-
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+    peripherals.watchdog.enable();
 
     //Uncomment to run multi alarm test
     //multi_alarm_test::run_multi_alarm(mux_alarm);
@@ -804,7 +849,6 @@ pub unsafe fn main() {
         &stm32f3discovery,
         chip,
         Some(&stm32f3discovery.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
