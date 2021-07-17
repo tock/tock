@@ -91,7 +91,7 @@ $ sudo chmod g+rw /dev/gpiomem
 ```
 7. Install linux library
 ```bash
-$ sudo apt install arm-none-eabi
+$ sudo apt-get install -y gcc-arm-none-eabi
 # Install bluetooth library
 $ sudo apt-get install bluez bluez-tools pi-bluetooth 
 # !IMPORTANT! Remember to reboot after installation
