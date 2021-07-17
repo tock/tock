@@ -18,6 +18,8 @@ The Tock core team maintains the following hardware CI instances:
   * [Process of Instances](#process-of-instances)
     + [What are actions/runners?](#what-are-actionsrunners)
   * [Configuration Files](#configuration-files)
+  * [Configuring Uart/I2C/SPI on Raspberry Pi](#configuring-uart-i2c-spi-on-raspberry-pi)
+    + [Uart setup](#uart-setup)
   * [Looking in the Workflow](#looking-in-the-workflow)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
@@ -257,7 +259,7 @@ Before looking at the workflow, there are two configuration files that are impor
             - Test.all specifier:
                 - Tests to be built, installed, and tested on the raspberry pi. The “app” variable holds the list of tests to be conducted. The “all” in the specifier can be changed to a Raspberry Pi ID to conduct specific tests on specific Raspberry Pi’s.
 
-## Configuring Uart/I2C/SPI on Raspberry Pi
+## Configuring Uart-I2C-SPI on Raspberry Pi
 
 The Raspberry Pi does not have Uart, I2C, and SPI configured by default,so there are several things that must be done to enable these interfaces to properly test Tock hardware. 
 
@@ -268,14 +270,30 @@ Follow these commands to setup Uart on raspberry to transmit, and receive messag
 
 1. Setup udev rules
     - put below content in new file
+    ```bash
+        KERNEL=="ttyS0", SYMLINK+="serial0" GROUP="tty" MODE="0660"
+        KERNEL=="ttyAMA0", SYMLINK+="serial1" GROUP="tty" MODE="0660"
+    ```
     - Reload udev rules: 
         ```bash
-        
+        sudo udevadm control --reload-rules && sudo udevadm trigger
         ```
 3. Remove the console setting **console=serial0,115200** from **/boot/firmware/cmdline.txt**
 4. Disable the Serial Service which used the miniUART
+    ```bash
+    sudo systemctl stop serial-getty@ttyS0.service
+    sudo systemctl disable serial-getty@ttyS0.service
+    sudo systemctl mask serial-getty@ttyS0.service
+    ```
 5. Add the user which will use the miniUART to **tty** and **dialout** group
-6. Finally, reboot Ubuntu 20.04, then both hci0 and /dev/ttyS0 can work at the same time for me.
+    ```bash
+    sudo adduser ${USER} tty
+    sudo adduser ${USER} dialout
+    ```
+6. Finally, reboot Ubuntu 20.04, then both **hci0** and **/dev/ttyS0** can work at the same time 
+
+### I2C Set up
+
 ## Looking in the Workflow 
 
 **Note:** File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
