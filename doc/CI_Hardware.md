@@ -257,6 +257,25 @@ Before looking at the workflow, there are two configuration files that are impor
             - Test.all specifier:
                 - Tests to be built, installed, and tested on the raspberry pi. The “app” variable holds the list of tests to be conducted. The “all” in the specifier can be changed to a Raspberry Pi ID to conduct specific tests on specific Raspberry Pi’s.
 
+## Configuring Uart/I2C/SPI on Raspberry Pi
+
+The Raspberry Pi does not have Uart, I2C, and SPI configured by default,so there are several things that must be done to enable these interfaces to properly test Tock hardware. 
+
+### Uart Setup
+[Source](https://askubuntu.com/questions/1254376/enable-uart-communication-on-pi4-ubuntu-20-04)
+
+Follow these commands to setup Uart on raspberry to transmit, and receive messages. This specifically allows the user to send data through port ttys0.
+
+1. Setup udev rules
+    - put below content in new file
+    - Reload udev rules: 
+        ```bash
+        
+        ```
+3. Remove the console setting **console=serial0,115200** from **/boot/firmware/cmdline.txt**
+4. Disable the Serial Service which used the miniUART
+5. Add the user which will use the miniUART to **tty** and **dialout** group
+6. Finally, reboot Ubuntu 20.04, then both hci0 and /dev/ttyS0 can work at the same time for me.
 ## Looking in the Workflow 
 
 **Note:** File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
