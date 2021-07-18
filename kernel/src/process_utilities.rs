@@ -125,13 +125,14 @@ impl fmt::Debug for ProcessLoadError {
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
-pub fn load_processes<C: Chip>(
+pub fn load_processes_advanced<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
+    enforce_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -218,6 +219,7 @@ pub fn load_processes<C: Chip>(
                     version,
                     remaining_memory,
                     fault_policy,
+                    enforce_kernel_version,
                     i,
                 )?
             };
@@ -246,4 +248,31 @@ pub fn load_processes<C: Chip>(
     }
 
     Ok(())
+}
+
+/// This is a wrapper function for `load_processes_advanced` that uses
+/// the default arguments that mainstream boards should provide.
+///
+/// Default arguments are:
+///  - `enforce_kernel_version`: prevent loading processes that do not provide a `KernelVersion`
+#[inline(always)]
+pub fn load_processes<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
+    procs: &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+    capability: &dyn ProcessManagementCapability,
+) -> Result<(), ProcessLoadError> {
+    load_processes_advanced(
+        kernel,
+        chip,
+        app_flash,
+        app_memory,
+        procs,
+        fault_policy,
+        true,
+        capability,
+    )
 }

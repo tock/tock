@@ -105,6 +105,7 @@ pub enum TbfHeaderTypes {
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
     TbfHeaderFixedAddresses = 5,
+    TbfHeaderKernelVersion = 7,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -164,6 +165,12 @@ pub struct TbfHeaderV2FixedAddresses {
     start_process_flash: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2KernelVersion {
+    major: u16,
+    minor: u16,
+}
+
 // Conversion functions from slices to the various TBF fields.
 
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
@@ -209,6 +216,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
+            7 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -296,6 +304,25 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2KernelVersion, Self::Error> {
+        Ok(TbfHeaderV2KernelVersion {
+            major: u16::from_le_bytes(
+                b.get(0..2)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            minor: u16::from_le_bytes(
+                b.get(2..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -308,6 +335,7 @@ pub struct TbfHeaderV2 {
     pub(crate) package_name: Option<&'static str>,
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
+    pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -432,6 +460,16 @@ impl TbfHeader {
         match hd.fixed_addresses.as_ref()?.start_process_flash {
             0xFFFFFFFF => None,
             start => Some(start),
+        }
+    }
+
+    pub fn get_kernel_version(&self) -> Option<(u16, u16)> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.kernel_version {
+                Some(kernel_version) => Some((kernel_version.major, kernel_version.minor)),
+                _ => None,
+            },
+            _ => None,
         }
     }
 }

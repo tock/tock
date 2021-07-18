@@ -16,7 +16,7 @@
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
     + [`7` Persistent ACL](#7-persistent-acl)
-    + [`8` Compatibility](#8-compatibility)
+    + [`8` Kernel Version](#8-kernel-version)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -169,13 +169,12 @@ struct TbfHeaderV2PersistentAcl {
     access_length: u16,
     access_ids: [u32],
 
-// Compatibility
-struct TbfHeaderV2Compatibility {
+// Kernel Version
+struct TbfHeaderV2KernelVersion {
     base: TbfHeaderTlv,
     length: u16,
-    abi_version: u16,
-    kernel_major: u8,
-    kernel_minor: u8
+    major: u8,
+    minor: u8
 }
 ```
 
@@ -444,20 +443,23 @@ independent code.
 The `compatibility` header is designed to prevent the kernel
 from running applications that are not compatible with it.
 
-It defins the following three items:
-* `ABI version` is the ABI (system call) version that the kernel provides. Tock 1.x 
- provides ABI version 1 while Tock 2.0 provides ABI version 2. The ABI version is not
- necessarly related to the kernel major number. The ABI version number increases 
- each time the systm call numbers, systm call arguments or upcall parameters change.
-* `KM` is the kernel major number (for Tock 2.0, KM is 2)
-* `Km` is the kernel minor number (for Tock 2.0, Km is 0)
+It defins the following two items:
+* `Kernel major` or `V` is the kernel major number (for Tock 2.0, it is 2)
+* `Kernel minor` or `v` is the kernel minor number (for Tock 2.0, it is 0)
 
-Setting any of the `KM` or `Km` values to 0 indicates that the application
-works regadless of the actual value. The `ABI version` is required.
+Apps defining this header are compatible with kernel version ^V.v (>= V.v and < (V+1).0)
 
 ```
 0             2             4             6             8
 +-------------+-------------+---------------------------+
-| Type (7)    | Length (4)  | ABI version |  KM  |  Km  |
+| Type (7)    | Length (4)  | Kernel major| Kernel minor|
 +-------------+-------------+---------------------------+
 ```
+
+
+## Code
+
+The process code itself has no particular format. It will reside in flash,
+but the specific address is determined by the platform. Code in the binary
+should be able to execute successfully at any address, e.g. using position
+independent code.
