@@ -642,7 +642,7 @@ pub unsafe fn main() {
     )
     .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
-    lsm303dlhc.configure(
+    if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
         false,
         lsm303xx::Lsm303Scale::Scale2G,
@@ -650,7 +650,9 @@ pub unsafe fn main() {
         true,
         lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
         lsm303xx::Lsm303Range::Range1_9G,
-    );
+    ) {
+        debug!("Failed to configure LSM303DLHC sensor ({:?})", error);
+    }
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)

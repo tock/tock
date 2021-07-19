@@ -366,7 +366,7 @@ pub unsafe fn main() {
     )
     .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
 
-    lsm303agr.configure(
+    if let Err(error) = lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
         false,
         capsules::lsm303xx::Lsm303Scale::Scale2G,
@@ -374,7 +374,9 @@ pub unsafe fn main() {
         true,
         capsules::lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
         capsules::lsm303xx::Lsm303Range::Range1_9G,
-    );
+    ) {
+        debug!("Failed to configure LSM303AGR sensor ({:?})", error);
+    }
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
