@@ -14,7 +14,8 @@ use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 // use components::fxos8700::Fxos8700Component;
@@ -77,10 +78,13 @@ struct Imxrt1050EVKB {
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm7::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for Imxrt1050EVKB {
+impl SyscallDispatch for Imxrt1050EVKB {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -95,6 +99,36 @@ impl Platform for Imxrt1050EVKB {
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>>
+    for Imxrt1050EVKB
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm7::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -415,6 +449,9 @@ pub unsafe fn main() {
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
             .finalize(components::ninedof_component_helper!(fxos8700));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
         ipc: kernel::ipc::IPC::new(
@@ -427,6 +464,9 @@ pub unsafe fn main() {
         ninedof: ninedof,
         alarm: alarm,
         gpio: gpio,
+
+        scheduler,
+        systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
     };
 
     // Optional kernel tests
@@ -471,13 +511,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(
         &imxrt1050,
         chip,
         Some(&imxrt1050.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
