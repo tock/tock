@@ -714,6 +714,75 @@ impl PartialEq for Ticks64 {
 
 impl Eq for Ticks64 {}
 
+pub enum DayOfWeek {
+    Sunday,
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+}
+
+pub enum Month {
+    January,
+    February,
+    March,
+    April,
+    May,
+    June,
+    July,
+    August,
+    September,
+    October,
+    November,
+    December,
+}
+
+
+
+
+
+pub struct DateTime {
+    pub year: u32,
+    pub month: Month,
+    pub day: u32,
+    pub day_of_week: DayOfWeek,
+    pub hour: u32,
+    pub minute: u32,
+    pub seconds: u32,
+
+ 
+}
+
+pub trait Rtc {
+    fn get_date_time (&self) -> Result<DateTime, ErrorCode>;
+    fn set_date_time (&self, date_time: DateTime) -> Result<(), ErrorCode>;
+
+    fn get_year(&self) -> Result<u32, ErrorCode>;
+    fn set_year (&self, year:u32) -> Result<(), ErrorCode>;
+
+    fn get_month(&self) -> Result<Month, ErrorCode>;
+    fn set_month(&self, month: Month) -> Result<(), ErrorCode>;
+
+    fn get_day_of_month(&self) -> Result<u32, ErrorCode>;
+    fn set_day_of_month(&self, day:u32) -> Result<(), ErrorCode>;
+
+    fn get_day_of_week(&self) -> Result<DayOfWeek, ErrorCode>;
+    fn set_day_of_week(&self, day_of_week: DayOfWeek) -> Result<(), ErrorCode>;
+
+    fn get_hour(&self) -> Result<u32, ErrorCode>;
+    fn set_hour(&self, hour: u32) -> Result<(), ErrorCode>;
+
+    fn get_minute(&self) -> Result<u32, ErrorCode>;
+    fn set_minute(&self,minute: u32) -> Result<(), ErrorCode>;
+
+    fn get_seconds(&self) -> Result<u32, ErrorCode>;
+    fn set_seconds(&self, seconds: u32) -> Result<(), ErrorCode>;
+    
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

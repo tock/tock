@@ -14,6 +14,7 @@ pub mod timer;
 pub mod uart;
 pub mod watchdog;
 pub mod xosc;
+pub mod rtc;
 
 use cortexm0p::{
     self, generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler,

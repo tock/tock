@@ -17,7 +17,9 @@ use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
+use crate::rtc;
 use cortexm0p::interrupt_mask;
+
 
 #[repr(u8)]
 pub enum Processor {
@@ -124,7 +126,11 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
+
     pub i2c0: i2c::I2c<'a>,
+
+    pub rtc: rtc::Rtc, 
+
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
@@ -141,7 +147,11 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
+
             i2c0: i2c::I2c::new_i2c0(),
+
+            rtc: rtc::Rtc::new(),
+
         }
     }
 
