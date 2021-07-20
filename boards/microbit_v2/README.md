@@ -131,7 +131,8 @@ $ tockloader --openocd --board microbit_v2 --bundle-apps install app.tab
 
 <br>
 
-Note:
+#### Note:
+<br>
  If you get  `Could not find MEM-AP to control the core`  error when trying to connect to Micro:Bit with openOCD, you have [control access port](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf52832.ps.v1.1/dif.html?cp=2_2_0_15_1#concept_udr_mns_1s) protection enabled. 
 
 Using openOCD, you can check if access protection is enabled by executing the command: `> dap apreg 1 0x0c`
