@@ -154,4 +154,4 @@ Reset the device.
 
 > Note that this will erase all Flash and RAM as this is the only way to disable CTRL-AP protection.
 
-> Another solution would be to use Nordic's [nrfjprog](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.tools/dita/tools/nrf5x_command_line_tools/nrf5x_command_line_tools_lpage.html) to unlock your chip via `$ nrfjprog -f NRF52 --recover`, but this requires the use of a JLink debugger (on-board nRF5 DKs or external).
+> Another solution would be to use Nordic's [nrfjprog](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.tools/dita/tools/nrf5x_command_line_tools/nrf5x_command_line_tools_lpage.html) to unlock your chip via `$ nrfjprog -f NRF52 --recover`, but this requires the use of a JLink debugger (on-board nRF52 DKs or external).
