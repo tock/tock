@@ -11,6 +11,7 @@ pub struct Stm32f429ziDefaultPeripherals<'a> {
     // Once implemented, place Stm32f429zi specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
     pub can1: stm32f4xx::can::Can<'a>,
+    pub rtc: crate::rtc::Rtc<'a>,
 }
 
 impl<'a> Stm32f429ziDefaultPeripherals<'a> {
@@ -24,6 +25,7 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
+            rtc: crate::rtc::Rtc::new(rcc),
         }
     }
     // Necessary for setting up circular dependencies and registering deferred calls

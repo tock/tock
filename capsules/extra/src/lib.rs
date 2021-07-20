@@ -27,6 +27,7 @@ pub mod can;
 pub mod ccs811;
 pub mod crc;
 pub mod dac;
+pub mod date_time;
 pub mod debug_process_restart;
 pub mod fm25cl;
 pub mod ft6x06;

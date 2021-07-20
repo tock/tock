@@ -15,6 +15,9 @@ pub mod interrupt_service;
 pub mod stm32f429zi_nvic;
 pub mod trng_registers;
 
+pub mod pwr;
+pub mod rtc;
+
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // `used` ensures that the symbol is kept until the final binary. However, as of
