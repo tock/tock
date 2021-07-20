@@ -127,3 +127,21 @@ $ tockloader --openocd --board microbit_v2 --bundle-apps install app.tab
 ```
 
 > `--bundle-apps` seems to be needed due to an [openocd issue](https://github.com/tock/tockloader/issues/67)
+
+
+<br>
+
+Note:
+ If you get  `Could not find MEM-AP to control the core`  error when trying to connect to Micro:Bit with openOCD, you have [control access port](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf52832.ps.v1.1/dif.html?cp=2_2_0_15_1#concept_udr_mns_1s) protection enabled. 
+
+Using openOCD, you can check if access protection is enabled by executing the command: `> dap apreg 1 0x0c`
+
+This command reads the register at address 0x0c in the access port at index 1 (the control access port's index). If it returns 0x0 then [access port protection is enabled](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf52832.ps.v1.1/dif.html?cp=2_2_0_15_1_0_3#register.APPROTECTSTATUS).
+
+Unlock the chip by executing the command:
+
+`> dap apreg 1 0x04 0x01`
+
+and then resetting the device. Note that this will erase all Flash and RAM as this is the only way to disable CTRL-AP protection.
+
+Note: The easiest solution would be to use Nordic's [nrfjprog](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.tools/dita/tools/nrf5x_command_line_tools/nrf5x_command_line_tools_lpage.html) to unlock your chip via `$ nrfjprog -f NRF52 --recover`, but this requires the use of a JLink debugger (on-board nRF5 DKs or external).
