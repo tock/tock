@@ -457,6 +457,9 @@ define ci_setup_tools
 	elif command -v brew > /dev/null; then\
 		echo "Running: brew install libusb-compat pkg-config";\
 		brew install libusb-compat pkg-config;\
+	elif command -v dnf > /dev/null; then\
+		echo "Running: sudo dnf install libusb-devel";\
+		sudo dnf install libusb-devel;\
 	else\
 		echo "";\
 		echo "ERR: Do not know how to install libusb on this platform.";\
