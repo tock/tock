@@ -664,12 +664,9 @@ pub unsafe fn main() {
             // dc pin (optional)
             None,
             // reset pin
-            Some(
-                base_peripherals
-                    .gpio_ports
-                    .get_pin(stm32f412g::gpio::PinId::PD11)
-                    .unwrap()
-            )
+            base_peripherals
+                .gpio_ports
+                .get_pin(stm32f412g::gpio::PinId::PD11)
         ),
     );
 
