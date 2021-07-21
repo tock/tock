@@ -10,6 +10,7 @@ use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
 use crate::resets::Resets;
+use crate::spi;
 use crate::sysinfo;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
@@ -132,10 +133,11 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub pins: RPPins<'a>,
     pub uart0: Uart<'a>,
     pub adc: adc::Adc,
+    pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
 }
 
-impl Rp2040DefaultPeripherals<'_> {
+impl<'a> Rp2040DefaultPeripherals<'a> {
     pub const fn new() -> Self {
         Self {
             resets: Resets::new(),
@@ -147,8 +149,13 @@ impl Rp2040DefaultPeripherals<'_> {
             pins: RPPins::new(),
             uart0: Uart::new_uart0(),
             adc: adc::Adc::new(),
+            spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
         }
+    }
+
+    pub fn set_clocks(&'a self) {
+        self.spi0.set_clocks(&self.clocks);
     }
 }
 
@@ -165,6 +172,10 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::SIO_IRQ_PROC1 => {
                 self.sio.handle_proc_interrupt(Processor::Processor1);
+                true
+            }
+            interrupts::SPI0_IRQ => {
+                self.spi0.handle_interrupt();
                 true
             }
             interrupts::UART0_IRQ => {
