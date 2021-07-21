@@ -33,7 +33,7 @@
 //!         // dc
 //!         Some(&nrf52840::gpio::PORT[GPIO_D3]),
 //!         // reset
-//!         &nrf52840::gpio::PORT[GPIO_D2]
+//!         Some(&nrf52840::gpio::PORT[GPIO_D2])
 //!     ),
 //! );
 //! ```
@@ -106,7 +106,7 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
         &'static B,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         Option<&'static P>,
-        &'static P,
+        Option<&'static P>,
         &'static mut MaybeUninit<ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>>,
         &'static ST77XXScreen,
         &'static mut [u8],

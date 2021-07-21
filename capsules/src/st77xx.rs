@@ -29,7 +29,7 @@
 //!         // dc
 //!         Some(&nrf52840::gpio::PORT[GPIO_D3]),
 //!         // reset
-//!         &nrf52840::gpio::PORT[GPIO_D2]
+//!         Some(&nrf52840::gpio::PORT[GPIO_D2])
 //!     ),
 //! );
 //! ```
@@ -209,7 +209,7 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     bus: &'a B,
     alarm: &'a A,
     dc: Option<&'a P>,
-    reset: &'a P,
+    reset: Option<&'a P>,
     status: Cell<Status>,
     width: Cell<usize>,
     height: Cell<usize>,
@@ -238,7 +238,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         bus: &'a B,
         alarm: &'a A,
         dc: Option<&'a P>,
-        reset: &'a P,
+        reset: Option<&'a P>,
         buffer: &'static mut [u8],
         sequence_buffer: &'static mut [SendCommand],
         screen: &'static ST77XXScreen,
@@ -246,7 +246,9 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         if let Some(dc) = dc {
             dc.make_output();
         }
-        reset.make_output();
+        if let Some(reset) = reset {
+            reset.make_output();
+        }
         ST77XX {
             alarm: alarm,
 
@@ -584,19 +586,27 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::Reset1 => {
                 // self.send_command_with_default_parameters(&NOP);
-                self.reset.clear();
+                if let Some(reset) = self.reset {
+                    reset.clear();
+                }
                 self.set_delay(10, Status::Reset2);
             }
             Status::Reset2 => {
-                self.reset.set();
+                if let Some(reset) = self.reset {
+                    reset.set();
+                }
                 self.set_delay(120, Status::Reset3);
             }
             Status::Reset3 => {
-                self.reset.clear();
+                if let Some(reset) = self.reset {
+                    reset.clear();
+                }
                 self.set_delay(120, Status::Reset4);
             }
             Status::Reset4 => {
-                self.reset.set();
+                if let Some(reset) = self.reset {
+                    reset.set();
+                }
                 self.set_delay(120, Status::Init);
             }
             Status::Init => {
