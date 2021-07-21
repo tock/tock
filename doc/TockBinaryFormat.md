@@ -172,7 +172,6 @@ struct TbfHeaderV2PersistentAcl {
 // Kernel Version
 struct TbfHeaderV2KernelVersion {
     base: TbfHeaderTlv,
-    length: u16,
     major: u16,
     minor: u16
 }
