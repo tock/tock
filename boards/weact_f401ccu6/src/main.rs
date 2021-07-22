@@ -14,7 +14,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f401cc::interrupt_service::Stm32f401ccDefaultPeripherals;
@@ -61,10 +62,12 @@ struct WeactF401CC {
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for WeactF401CC {
+impl SyscallDispatch for WeactF401CC {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -79,6 +82,36 @@ impl Platform for WeactF401CC {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>>
+    for WeactF401CC
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -394,6 +427,9 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let weact_f401cc = WeactF401CC {
         console: console,
         ipc: kernel::ipc::IPC::new(
@@ -406,6 +442,8 @@ pub unsafe fn main() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     debug!("Initialization complete. Entering main loop");
@@ -442,9 +480,6 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     //Uncomment to run multi alarm test
     // multi_alarm_test::run_multi_alarm(mux_alarm);
 
@@ -452,7 +487,6 @@ pub unsafe fn main() {
         &weact_f401cc,
         chip,
         Some(&weact_f401cc.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
