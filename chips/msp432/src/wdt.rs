@@ -104,7 +104,7 @@ impl Wdt {
     }
 }
 
-impl kernel::watchdog::WatchDog for Wdt {
+impl kernel::platform::watchdog::WatchDog for Wdt {
     fn setup(&self) {
         // The clock-source of the watchdog is the SMCLK which runs at 1.5MHz. We configure a
         // prescaler of 2^15 which results in a watchdog interval of approximately 22ms ->

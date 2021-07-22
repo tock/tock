@@ -14,7 +14,8 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::hil::gpio::Configure;
-use kernel::platform::Platform;
+use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
@@ -59,10 +60,43 @@ struct MspExp432P401R {
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
+    wdt: &'static msp432::wdt::Wdt,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
+}
+
+impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPeripherals<'static>>>
+    for MspExp432P401R
+{
+    type SyscallDispatch = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = msp432::wdt::Wdt;
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &self.wdt
+    }
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for MspExp432P401R {
+impl SyscallDispatch for MspExp432P401R {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -377,6 +411,9 @@ pub unsafe fn main() {
     // Enable the internal temperature sensor on ADC Channel 22
     peripherals.adc_ref.enable_temp_sensor(true);
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
         console: console,
@@ -389,6 +426,9 @@ pub unsafe fn main() {
             &memory_allocation_capability,
         ),
         adc: adc,
+        scheduler,
+        systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
+        wdt: &peripherals.wdt,
     };
 
     debug!("Initialization complete. Entering main loop");
@@ -422,9 +462,6 @@ pub unsafe fn main() {
     )
     .unwrap();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     //Uncomment to run multi alarm test
     //multi_alarm_test::run_multi_alarm(mux_alarm);
 
@@ -432,7 +469,6 @@ pub unsafe fn main() {
         &msp_exp432p4014,
         chip,
         Some(&msp_exp432p4014.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }
