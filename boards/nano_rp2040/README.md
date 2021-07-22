@@ -10,6 +10,23 @@ board built using the Raspberry Pi Foundation's RP2040 chip.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
+## Installing elf2uf2
+
+The Nano RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
+The `elf2uf2` utility is needed to transform the Tock ELF file into an UF2 file.
+
+To install `elf2uf2`, run the commands:
+
+```bash
+$ git clone https://github.com/raspberrypi/pico-sdk
+$ mkdir build
+$ cd mkdir
+$ cmake ..
+$ cd tools/elf2uf2
+$ make
+$ sudo cp elf2uf2 /usr/local/bin
+```
+
 ## Flashing the kernel
 
 The Arduino Nano RP2040 Connect can be programmed using its bootloader, which requires an UF2 file.
@@ -45,6 +62,8 @@ $ make flash-debug
 > be different on several systems, make sure to adjust it.
 
 ## Flashing app
+
+Enter BOOTSEL mode.
 
 Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
