@@ -667,7 +667,6 @@ pub unsafe fn main() {
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PD11)
-                .unwrap()
         ),
     );
 

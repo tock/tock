@@ -496,7 +496,7 @@ pub unsafe fn main() {
             // dc
             Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
             // reset
-            &nrf52840_peripherals.gpio_port[ST7789H2_RESET]
+            Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET])
         ),
     );
 
