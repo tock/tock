@@ -82,7 +82,11 @@ pub struct RaspberryPiPico {
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+
     i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
+
+    date_time: &'static capsules::date_time::DateTime<'static>,
+
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -101,7 +105,11 @@ impl SyscallDriverLookup for RaspberryPiPico {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+
+            capsules::date_time::DRIVER_NUM =>f(Some(self.date_time)),
+
             _ => f(None),
         }
     }
@@ -506,6 +514,8 @@ pub unsafe fn main() {
         peripherals.sysinfo.get_revision(),
         platform_type
     );
+    // RTC DATE TIME
+    
 
     ////////////////////////////////////////////////
     peripherals.rtc.rtc_init();
@@ -568,6 +578,16 @@ pub unsafe fn main() {
         Result::Err(e) => {debug!("Error {:?}",e);},
         
     };
+
+    let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_date_time = board_kernel.create_grant(&grant_dt);
+
+    let date_time = static_init!( 
+        capsules::date_time::DateTime<'static>,
+        capsules::date_time::DateTime::new(peripherals.rtc, grant_date_time)
+    );
+
+
 
     debug!("testing rtc");
 

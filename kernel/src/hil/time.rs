@@ -783,6 +783,13 @@ pub trait Rtc {
 
 }
 
+pub trait RtcClient {
+    /// Called when a date time reading has completed.
+
+    fn callback(&self, year_month_dotm: u32, dotw_hour_min_sec:u32);
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -912,3 +919,4 @@ mod tests {
         assert_eq!(us, u32::MAX);
     }
 }
+
