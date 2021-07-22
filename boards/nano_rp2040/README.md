@@ -73,4 +73,4 @@ $ APP="<path to app's tbf file>" make program
 ## Serial Interface
 
 Tock for Nano RP2040 does not yet support USB. The serial console is using UART0, 
-meaning that a USB TTL adapter is needed to interface the board.
+meaning that a [USB TTL adapter](https://www.adafruit.com/product/954) is needed to interface the board.
