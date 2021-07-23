@@ -106,7 +106,7 @@
  - Alexandru: I started arount Tock 1.4 and had issues using Alarm as generic
  - Hudson: Jett started at 1.6 and was able to use it as generic
  - Phil: The underlying question is do you want to be able to check things at runtime or compile time? The intention was to be able to do all of this statically
- - Loen: This confused me at first as well, but I don't think that doing this as a dynamic trait object loses this. I think because of all of the associated type specifications you still get the compile-time checks
+ - Leon: This confused me at first as well, but I don't think that doing this as a dynamic trait object loses this. I think because of all of the associated type specifications you still get the compile-time checks
  - Jett: That's correct.
  - Phil: I think the PR comments cover much of this- I agree this is an improvement, indeed using `dyn` time is generally bad, but we should not strictly preclude it either. I think the real question here is the TRD. What is the magnitude of change that triggers a new TRD version?
  - Phil: Say we have a new TRD (10x), this is a pretty small change, does this lay the groundwork for having lots of little TRDs? What are our criteria for creating a new TRD?
