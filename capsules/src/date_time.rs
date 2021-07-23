@@ -113,8 +113,8 @@ impl RtcClient for DateTime<'_> {
                                 Month::December => 12,
                             };
                             //let mut year_month_dotm = (date.year * 10000 + month)*100 + date.day;
-                            let mut year_month_dotm = date.year << 12;
-                            year_month_dotm = year_month_dotm + month << 4;
+                            let mut year_month_dotm = date.year << 4; //bits monnth
+                            year_month_dotm = year_month_dotm + month << 5; //bits dotm
                             year_month_dotm = year_month_dotm + date.day;
 
                             let dotw: u32 = match date.day_of_week {
@@ -128,10 +128,9 @@ impl RtcClient for DateTime<'_> {
                             };
 
                             // let mut dotw_hour_min_sec:u32 = ((dotw*10 + date.hour)*100 + date.minute)*100 + date.seconds;
-                            let mut dotw_hour_min_sec: u32 = dotw << 3;
-                            dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 5;
-                            dotw_hour_min_sec =
-                                (dotw_hour_min_sec + date.minute) << 6 + date.seconds;
+                            let mut dotw_hour_min_sec: u32 = dotw << 5; //bits hour
+                            dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 6; //bits minute
+                            dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6 + date.seconds; //6 bits seconds
 
                             upcalls
                                 .schedule_upcall(
