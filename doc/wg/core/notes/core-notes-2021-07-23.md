@@ -103,7 +103,7 @@
  - Jett: That is correct.
  - Leon: Ah, okay.
  - Jett/Leon: In short, all of the upstream code should not be using it as a trait object since it doesn't make sense in their use cases.
- - Alexandru: I started arount Tock 1.4 and had issues using Alarm as generic
+ - Alexandru: I started around Tock 1.4 and had issues using Alarm as generic
  - Hudson: Jett started at 1.6 and was able to use it as generic
  - Phil: The underlying question is do you want to be able to check things at runtime or compile time? The intention was to be able to do all of this statically
  - Leon: This confused me at first as well, but I don't think that doing this as a dynamic trait object loses this. I think because of all of the associated type specifications you still get the compile-time checks
