@@ -448,6 +448,12 @@ It defins the following two items:
 
 Apps defining this header are compatible with kernel version ^V.v (>= V.v and < (V+1).0)
 
+The kernel version header refers only to the ABI and API exposed by the kernel 
+itself, it does not cover API changes within drivers. 
+
+A kernel major and minor version  guarantees the  ABI for exchanging 
+data between kernel and userspace and the the system call numbers.
+
 ```
 0             2             4             6             8
 +-------------+-------------+---------------------------+
