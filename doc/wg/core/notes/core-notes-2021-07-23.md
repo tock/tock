@@ -160,7 +160,7 @@
  - Phil: Right, and in a strict addition case, it would just be a new TRD (that does not obsolete the existing one)
  - Jett: GPIO as example, if we added new members to the GPIO trait, that would require a new TRD
  - Phil: Yeah, it does not matter how it's implemented, the interface has changed.
- - Leon: So if it's auto-implemented it would not require downstream clients
+ - Leon: So if it's auto-implemented it would not require any changes for downstream clients
  - Pat: And to be clear, when we add new interfaces, it would obsolete the old TRD or act as a new supplemental one?
  - Phil: Supplemental.
  - Branden: So if Jett could've done this just by adding new traits, we wouldn't need to obsolete
