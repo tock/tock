@@ -714,6 +714,7 @@ impl PartialEq for Ticks64 {
 
 impl Eq for Ticks64 {}
 
+#[derive(Copy, Clone)]
 pub enum DayOfWeek {
     Sunday,
     Monday,
@@ -724,6 +725,7 @@ pub enum DayOfWeek {
     Saturday,
 }
 
+#[derive(Copy, Clone)]
 pub enum Month {
     January,
     February,
@@ -742,7 +744,7 @@ pub enum Month {
 
 
 
-
+#[derive(Copy, Clone)]
 pub struct DateTime {
     pub year: u32,
     pub month: Month,
@@ -755,8 +757,11 @@ pub struct DateTime {
  
 }
 
+
+
+
 pub trait Rtc {
-    fn get_date_time (&self) -> Result<DateTime, ErrorCode>;
+    fn get_date_time (&self) -> Result<Option<DateTime>, ErrorCode>;
     fn set_date_time (&self, date_time: DateTime) -> Result<(), ErrorCode>;
 
     fn get_year(&self) -> Result<u32, ErrorCode>;
@@ -780,13 +785,13 @@ pub trait Rtc {
     fn get_seconds(&self) -> Result<u32, ErrorCode>;
     fn set_seconds(&self, seconds: u32) -> Result<(), ErrorCode>;
     
-
+    //fn read_date_time(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait RtcClient {
     /// Called when a date time reading has completed.
 
-    fn callback(&self, year_month_dotm: u32, dotw_hour_min_sec:u32);
+    fn callback(&self, datetime: Result<DateTime,ErrorCode>);
 }
 
 
@@ -919,4 +924,7 @@ mod tests {
         assert_eq!(us, u32::MAX);
     }
 }
+
+
+
 

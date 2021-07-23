@@ -309,7 +309,7 @@ impl time::Rtc for Rtc {
     }
 */
 
-    fn get_date_time (&self) -> Result<time::DateTime, ErrorCode>{
+    fn get_date_time (&self) -> Result<Option<time::DateTime>, ErrorCode>{
         let mut month_name: time::Month = time::Month::January;
         match self.get_month(){
             Ok(v) => {month_name = v;},
@@ -323,16 +323,18 @@ impl time::Rtc for Rtc {
         };
 
         Ok(
-            time::DateTime {
-                year: self.registers.setup_0.read(SETUP_0::YEAR),
-                month: month_name, 
-                day: self.registers.setup_0.read(SETUP_0::DAY),
-                day_of_week: dotw, 
-                hour: self.registers.setup_1.read(SETUP_1::HOUR),
-                minute: self.registers.setup_1.read(SETUP_1::MIN),
-                seconds: self.registers.setup_1.read(SETUP_1::SEC),
-            }
-        )
+            Some(
+                time::DateTime {
+                    year: self.registers.setup_0.read(SETUP_0::YEAR),
+                    month: month_name, 
+                    day: self.registers.setup_0.read(SETUP_0::DAY),
+                    day_of_week: dotw, 
+                    hour: self.registers.setup_1.read(SETUP_1::HOUR),
+                    minute: self.registers.setup_1.read(SETUP_1::MIN),
+                    seconds: self.registers.setup_1.read(SETUP_1::SEC),
+                }
+            )
+        )   
         
     }
 

@@ -425,6 +425,17 @@ pub unsafe fn main() {
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
+
+    let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_date_time = board_kernel.create_grant(capsules::date_time::DRIVER_NUM,&grant_dt);
+
+    let date_time = static_init!( 
+        capsules::date_time::DateTime<'static>,
+        capsules::date_time::DateTime::new(&peripherals.rtc, grant_date_time)
+    );
+
+
+
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));
 
@@ -445,6 +456,8 @@ pub unsafe fn main() {
                 adc_channel_2,
                 adc_channel_3,
             ));
+
+
     // PROCESS CONSOLE
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
@@ -498,10 +511,15 @@ pub unsafe fn main() {
         console,
         adc: adc_syscall,
         temperature: temp,
+<<<<<<< HEAD
         i2c,
 
+=======
+        date_time: date_time,
+>>>>>>> update for date_time capsule
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
+
     };
 
     let platform_type = match peripherals.sysinfo.get_platform() {
@@ -565,27 +583,25 @@ pub unsafe fn main() {
     }
 
     match peripherals.rtc.get_date_time(){
-        Result::Ok(v) => {
-            debug!("YEAR {}",v.year);
-            debug!("MONTH {:?}",get_month_string(v.month));//match pe month
-            debug!("DAY {}",v.day);
-            debug!("DAY OF WEEK {:?}", get_dotw_string(v.day_of_week));//match pe dotw
-            debug!("HOUR {}", v.hour);
-            debug!("MINUTE {}", v.minute);
-            debug!("SECONDS {}", v.seconds);
-            //debug!("{}-{}-{}-{}-{}")
+        Result::Ok(d) => {
+            match d{
+                Some(v)=>{
+                    debug!("YEAR {}",v.year);
+                    debug!("MONTH {:?}",get_month_string(v.month));//match pe month
+                    debug!("DAY {}",v.day);
+                    debug!("DAY OF WEEK {:?}", get_dotw_string(v.day_of_week));//match pe dotw
+                    debug!("HOUR {}", v.hour);
+                    debug!("MINUTE {}", v.minute);
+                    debug!("SECONDS {}", v.seconds);
+                },
+                None =>{debug!("rtc data is received async");}
+            }
         },
         Result::Err(e) => {debug!("Error {:?}",e);},
         
     };
 
-    let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_date_time = board_kernel.create_grant(&grant_dt);
-
-    let date_time = static_init!( 
-        capsules::date_time::DateTime<'static>,
-        capsules::date_time::DateTime::new(peripherals.rtc, grant_date_time)
-    );
+   
 
 
 
