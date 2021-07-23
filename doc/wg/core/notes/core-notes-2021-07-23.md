@@ -101,7 +101,7 @@
  - Leon: But that hasn't happened yet has it?
  - Pat: My understanding was the downstream had exactly this need, which motivated this PR?
  - Jett: That is correct.
- - Loen: Ah, okay.
+ - Leon: Ah, okay.
  - Jett/Leon: In short, all of the upstream code should not be using it as a trait object since it doesn't make sense in their use cases.
  - Alexandru: I started arount Tock 1.4 and had issues using Alarm as generic
  - Hudson: Jett started at 1.6 and was able to use it as generic
