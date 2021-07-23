@@ -211,18 +211,24 @@ impl<'a> Lsm303agrI2C<'a> {
     }
 
     fn is_present(&self) -> Result<(), ErrorCode> {
-        self.state.set(State::IsPresent);
-        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
-            // turn on i2c to send commands
-            buf[0] = 0x0F;
-            self.i2c_magnetometer.enable();
-            if let Err((error, buf)) = self.i2c_magnetometer.write_read(buf, 1, 1) {
-                self.buffer.replace(buf);
-                Err(error.into())
-            } else {
-                Ok(())
-            }
-        })
+        if self.state.get() != State::Idle {
+            self.state.set(State::IsPresent);
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
+                // turn on i2c to send commands
+                buf[0] = 0x0F;
+                self.i2c_magnetometer.enable();
+                if let Err((error, buf)) = self.i2c_magnetometer.write_read(buf, 1, 1) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buf);
+                    self.i2c_magnetometer.disable();
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     fn set_power_mode(
@@ -242,6 +248,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     .value;
                 self.i2c_accelerometer.enable();
                 if let Err((error, buf)) = self.i2c_accelerometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -271,6 +279,8 @@ impl<'a> Lsm303agrI2C<'a> {
                     .value;
                 self.i2c_accelerometer.enable();
                 if let Err((error, buf)) = self.i2c_accelerometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -289,7 +299,9 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
                 self.i2c_accelerometer.enable();
                 if let Err((error, buf)) = self.i2c_accelerometer.write_read(buf, 1, 6) {
+                    self.state.set(State::Idle);
                     self.buffer.replace(buf);
+                    self.i2c_accelerometer.disable();
                     Err(error.into())
                 } else {
                     Ok(())
@@ -308,6 +320,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[1] = ((data_rate as u8) << 2) | 1 << 7;
                 self.i2c_magnetometer.enable();
                 if let Err((error, buf)) = self.i2c_magnetometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -329,6 +343,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[2] = 0;
                 self.i2c_magnetometer.enable();
                 if let Err((error, buf)) = self.i2c_magnetometer.write(buf, 3) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -347,6 +363,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[0] = AgrAccelerometerRegisters::TEMP_OUT_H_A as u8;
                 self.i2c_accelerometer.enable();
                 if let Err((error, buf)) = self.i2c_accelerometer.write_read(buf, 1, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -365,6 +383,8 @@ impl<'a> Lsm303agrI2C<'a> {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.enable();
                 if let Err((error, buf)) = self.i2c_magnetometer.write_read(buf, 1, 6) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
                     self.buffer.replace(buf);
                     Err(error.into())
                 } else {
@@ -410,10 +430,12 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    let _ = self.set_scale_and_resolution(
+                    if let Err(_error) = self.set_scale_and_resolution(
                         self.accel_scale.get(),
                         self.accel_high_resolution.get(),
-                    );
+                    ) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::SetScaleAndResolution => {
@@ -429,7 +451,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    let _ = self.set_magneto_data_rate(self.mag_data_rate.get());
+                    if let Err(_error) = self.set_magneto_data_rate(self.mag_data_rate.get()) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::ReadAccelerationXYZ => {
@@ -491,7 +515,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    let _ = self.set_range(self.mag_range.get());
+                    if let Err(_error) = self.set_range(self.mag_range.get()) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::SetRange => {
