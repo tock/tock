@@ -3,7 +3,7 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite}
 use kernel::hil::time;    
 use kernel::ErrorCode;
 use kernel::debug;
-use kernel::common::registers::interfaces::{Readable, Writeable, ReadWriteable};
+use kernel::common::registers::interfaces::{Readable, ReadWriteable};
 
 register_structs! {
     /// Register block to control RTC
@@ -291,32 +291,14 @@ impl time::Rtc for Rtc {
         Ok(())
     }
 
-/*
-    fn get_date_time (&self) -> Result<time::DateTime, ErrorCode>{
-     
-
-        Ok(
-            time::DateTime {
-            year: self.get_year(),
-            month: self.get_month(),
-            day: self.get_day_of_month(),
-            day_of_week: self.get_day_of_week(),
-            hour: self.get_hour(),
-            minute: self.get_minute(),
-            seconds: self.get_seconds(),
-            }
-        ) 
-    }
-*/
-
     fn get_date_time (&self) -> Result<Option<time::DateTime>, ErrorCode>{
-        let mut month_name: time::Month = time::Month::January;
+        let month_name: time::Month;
         match self.get_month(){
             Ok(v) => {month_name = v;},
             Err(e) => {debug!("error settng month {:?}",e); return Err(e);},
         };
 
-        let mut dotw : time::DayOfWeek = time::DayOfWeek::Sunday;
+        let dotw : time::DayOfWeek;
         match self.get_day_of_week(){
             Ok(v) => {dotw = v;},
             Err(e) => {debug!("error settng day of week {:?}",e); return Err(e);}
