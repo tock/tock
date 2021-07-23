@@ -784,8 +784,7 @@ pub trait Rtc {
 
     fn get_seconds(&self) -> Result<u32, ErrorCode>;
     fn set_seconds(&self, seconds: u32) -> Result<(), ErrorCode>;
-    
-    //fn read_date_time(&self) -> Result<(), ErrorCode>;
+
 }
 
 pub trait RtcClient {

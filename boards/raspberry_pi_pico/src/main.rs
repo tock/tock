@@ -598,7 +598,6 @@ pub unsafe fn main() {
             }
         },
         Result::Err(e) => {debug!("Error {:?}",e);},
-        
     };
 
    

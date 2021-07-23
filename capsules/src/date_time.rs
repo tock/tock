@@ -1,6 +1,6 @@
 use crate::driver::NUM;
 use core::cell::Cell;
-use kernel::debug;
+use kernel::{debug, UpcallError};
 use kernel::hil::time::{DateTime as HilDateTime, DayOfWeek, Month, Rtc, RtcClient};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
@@ -92,6 +92,7 @@ impl<'a> DateTime<'a> {
 impl RtcClient for DateTime<'_> {
     fn callback(&self, datetime: Result<HilDateTime, ErrorCode>) {
         for cntr in self.apps.iter() {
+            let mut upcall_status: Option<()> = None;
             cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     self.in_progress.set(false);
@@ -132,7 +133,7 @@ impl RtcClient for DateTime<'_> {
                             dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 6; //bits minute
                             dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6 + date.seconds; //6 bits seconds
 
-                            upcalls
+                            upcall_status = upcalls
                                 .schedule_upcall(
                                     0,
                                     year_month_dotm as usize,
@@ -147,6 +148,10 @@ impl RtcClient for DateTime<'_> {
                     }
                 }
             });
+
+            if upcall_status == None {
+                break;
+            }
         }
     }
 }
