@@ -760,7 +760,7 @@ pub struct DateTime {
 
 
 
-pub trait Rtc {
+pub trait Rtc<'a> {
     fn get_date_time (&self) -> Result<Option<DateTime>, ErrorCode>;
     fn set_date_time (&self, date_time: DateTime) -> Result<(), ErrorCode>;
 
@@ -785,6 +785,7 @@ pub trait Rtc {
     fn get_seconds(&self) -> Result<u32, ErrorCode>;
     fn set_seconds(&self, seconds: u32) -> Result<(), ErrorCode>;
 
+    fn set_client(&self, client: &'a dyn RtcClient);
 }
 
 pub trait RtcClient {

@@ -433,6 +433,7 @@ pub unsafe fn main() {
         capsules::date_time::DateTime<'static>,
         capsules::date_time::DateTime::new(&peripherals.rtc, grant_date_time)
     );
+    kernel::hil::time::Rtc::set_client(&peripherals.rtc, date_time);
 
 
 
@@ -511,12 +512,9 @@ pub unsafe fn main() {
         console,
         adc: adc_syscall,
         temperature: temp,
-<<<<<<< HEAD
         i2c,
-
-=======
         date_time: date_time,
->>>>>>> update for date_time capsule
+
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
 

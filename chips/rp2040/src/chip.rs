@@ -128,8 +128,8 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub sysinfo: sysinfo::SysInfo,
 
     pub i2c0: i2c::I2c<'a>,
-
-    pub rtc: rtc::Rtc, 
+    pub rtc: rtc::Rtc,
+    pub rtc: rtc::Rtc<'a>,
 
 }
 

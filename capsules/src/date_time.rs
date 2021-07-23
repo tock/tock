@@ -1,6 +1,6 @@
 use crate::driver::NUM;
 use core::cell::Cell;
-use kernel::{debug, UpcallError};
+use kernel::{debug};
 use kernel::hil::time::{DateTime as HilDateTime, DayOfWeek, Month, Rtc, RtcClient};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
 
@@ -17,14 +17,14 @@ pub struct AppData {
 }
 
 pub struct DateTime<'a> {
-    date_time: &'a dyn Rtc,
+    date_time: &'a dyn Rtc<'a>,
     apps: Grant<AppData, 1>,
     in_progress: Cell<bool>,
 
 }
 
 impl<'a> DateTime<'a> {
-    pub fn new(date_time: &'a dyn Rtc, grant: Grant<AppData, 1>) -> DateTime {
+    pub fn new(date_time: &'a dyn Rtc<'a>, grant: Grant<AppData, 1>) -> DateTime<'a> {
         DateTime {
             date_time: date_time,
             apps: grant,
@@ -91,6 +91,7 @@ impl<'a> DateTime<'a> {
 
 impl RtcClient for DateTime<'_> {
     fn callback(&self, datetime: Result<HilDateTime, ErrorCode>) {
+        debug!("got called back");
         for cntr in self.apps.iter() {
             let mut upcall_status: Option<()> = None;
             cntr.enter(|app, upcalls| {
@@ -133,7 +134,7 @@ impl RtcClient for DateTime<'_> {
                             dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 6; //bits minute
                             dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6 + date.seconds; //6 bits seconds
 
-                            upcall_status = upcalls
+                            upcalls
                                 .schedule_upcall(
                                     0,
                                     year_month_dotm as usize,
@@ -150,7 +151,7 @@ impl RtcClient for DateTime<'_> {
             });
 
             if upcall_status == None {
-                break;
+                debug!("something is weird out here");
             }
         }
     }
