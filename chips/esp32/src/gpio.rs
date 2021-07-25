@@ -151,6 +151,16 @@ impl<'a> GpioPin<'a> {
             client: OptionalCell::empty(),
         }
     }
+
+    fn handle_interrupt(&self) {
+        // Clear the interrupt
+        self.registers.status_w1tc.set(1 << self.pin.shift);
+
+        // Trigger the upcall
+        self.client.map(|client| {
+            client.fired();
+        });
+    }
 }
 
 impl gpio::Configure for GpioPin<'_> {
@@ -304,7 +314,10 @@ impl<'a> Port<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        unimplemented!()
+        // Determine the GPIO pin that triggered.
+        let pin = self.pins[0].registers.status.get().trailing_zeros() as usize;
+
+        self.pins[pin].handle_interrupt();
     }
 }
 
