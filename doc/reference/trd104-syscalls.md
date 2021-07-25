@@ -641,11 +641,11 @@ the buffer).
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow
-class.  It differs in two ways:
+class. It differs in two ways:
 
-  1. The buffer it passes to the kernel is read-only, and the process MAY
-  freely read the buffer.
-  2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow.
+1. The buffer it passes to the kernel is read-only, and the process MAY
+   freely read the buffer.
+2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow.
 
 The semantics and calling conventions of Read-Only Allow are otherwise
 identical to Read-Write Allow: a userspace API MUST NOT depend on
