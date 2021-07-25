@@ -536,6 +536,7 @@ pub unsafe fn main() {
     ////////////////////////////////////////////////
     peripherals.rtc.rtc_init();
 
+
     let dt = DateTime{
         year: 2021,
         month: Month::January,
@@ -546,12 +547,17 @@ pub unsafe fn main() {
         seconds: 1,
     };
 
+    peripherals.rtc.set_initial(dt);
 
+    /*
     match peripherals.rtc.set_date_time(dt){
         Result::Ok(()) => {debug!("time set");},
         Result::Err(e) => {debug!("Error setting time {:?}", e);},
     };
 
+    */
+    /////////////////////////////////////////////finished rtc setup
+    debug!("finished rtc setup");
 
 
 /*
