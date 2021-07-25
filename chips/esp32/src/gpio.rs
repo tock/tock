@@ -12,6 +12,9 @@ use kernel::hil::gpio;
 pub const GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x6000_4000 as *const GpioRegisters) };
 
+pub const IOMUX_BASE: StaticRef<IoMuxRegisters> =
+    unsafe { StaticRef::new(0x6000_9000 as *const IoMuxRegisters) };
+
 register_structs! {
     pub GpioRegisters {
         (0x0 => bt_select: ReadWrite<u32>),
@@ -47,6 +50,14 @@ register_structs! {
         (0x630 => _reserved9),
         (0x6FC => date: ReadWrite<u32>),
         (0x700 => @END),
+    },
+
+    pub IoMuxRegisters {
+        (0x00 => pin_ctrl: ReadWrite<u32>),
+        (0x04 => gpio: [ReadWrite<u32, IO_MUX_GPIO::Register>; 22]),
+        (0x5C => _reserved0),
+        (0xFC => date: ReadWrite<u32>),
+        (0x100 => @END),
     }
 }
 
@@ -105,8 +116,24 @@ register_bitfields![u32,
     ],
 ];
 
+register_bitfields![u32,
+    IO_MUX_GPIO [
+        FILTER_EN OFFSET(15) NUMBITS(1) [],
+        MCU_SEL OFFSET(12) NUMBITS(3) [],
+        FUN_IE OFFSET(9) NUMBITS(1) [],
+        FUN_WPU OFFSET(8) NUMBITS(1) [],
+        FUN_WPD OFFSET(7) NUMBITS(1) [],
+        MCU_IE OFFSET(4) NUMBITS(1) [],
+        MCU_WPU OFFSET(3) NUMBITS(1) [],
+        MCU_WPD OFFSET(2) NUMBITS(1) [],
+        SLP_SEL OFFSET(1) NUMBITS(1) [],
+        MCU_OE OFFSET(0) NUMBITS(1) [],
+    ],
+];
+
 pub struct GpioPin<'a> {
     registers: StaticRef<GpioRegisters>,
+    iomux_registers: StaticRef<IoMuxRegisters>,
     pin: Field<u32, pins::Register>,
     client: OptionalCell<&'a dyn gpio::Client>,
 }
@@ -114,10 +141,12 @@ pub struct GpioPin<'a> {
 impl<'a> GpioPin<'a> {
     pub const fn new(
         gpio_base: StaticRef<GpioRegisters>,
+        iomux_base: StaticRef<IoMuxRegisters>,
         pin: Field<u32, pins::Register>,
     ) -> GpioPin<'a> {
         GpioPin {
             registers: gpio_base,
+            iomux_registers: iomux_base,
             pin,
             client: OptionalCell::empty(),
         }
@@ -223,6 +252,16 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
             }
         }
 
+        self.iomux_registers.gpio[self.pin.shift]
+            .write(IO_MUX_GPIO::FUN_IE::SET + IO_MUX_GPIO::MCU_IE::SET);
+
+        self.registers.pin[self.pin.shift].modify(PIN::SYNC2_BYPASS::SET);
+        self.registers.pin[self.pin.shift].modify(PIN::SYNC1_BYPASS::SET);
+
+        self.registers
+            .status_next
+            .set(1 << self.pin.shift | self.registers.status_next.get());
+
         self.registers.pin[self.pin.shift].modify(PIN::WAKEUP_ENABLE::SET);
     }
 
@@ -243,23 +282,23 @@ impl<'a> Port<'a> {
     pub const fn new() -> Self {
         Self {
             pins: [
-                GpioPin::new(GPIO_BASE, pins::pin0),
-                GpioPin::new(GPIO_BASE, pins::pin1),
-                GpioPin::new(GPIO_BASE, pins::pin2),
-                GpioPin::new(GPIO_BASE, pins::pin3),
-                GpioPin::new(GPIO_BASE, pins::pin4),
-                GpioPin::new(GPIO_BASE, pins::pin5),
-                GpioPin::new(GPIO_BASE, pins::pin6),
-                GpioPin::new(GPIO_BASE, pins::pin7),
-                GpioPin::new(GPIO_BASE, pins::pin8),
-                GpioPin::new(GPIO_BASE, pins::pin9),
-                GpioPin::new(GPIO_BASE, pins::pin10),
-                GpioPin::new(GPIO_BASE, pins::pin11),
-                GpioPin::new(GPIO_BASE, pins::pin12),
-                GpioPin::new(GPIO_BASE, pins::pin13),
-                GpioPin::new(GPIO_BASE, pins::pin14),
-                GpioPin::new(GPIO_BASE, pins::pin15),
-                GpioPin::new(GPIO_BASE, pins::pin16),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin0),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin1),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin2),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin3),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin4),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin5),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin6),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin7),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin8),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin9),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin10),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin11),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin12),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin13),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin14),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin15),
+                GpioPin::new(GPIO_BASE, IOMUX_BASE, pins::pin16),
             ],
         }
     }
