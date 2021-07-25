@@ -45,17 +45,17 @@ impl<'a> DateTime<'a> {
 
                                 self.callback(Ok(date));
 
-                                return CommandReturn::success();
+                                CommandReturn::success()
                             }
 
                             //async
                             None => {
-                                return CommandReturn::success();
+                                CommandReturn::success()
                             }
                         }
                     }
                     Result::Err(_e) => {
-                        return CommandReturn::failure(ErrorCode::FAIL);
+                        CommandReturn::failure(ErrorCode::FAIL)
                     }
                 }
             }
@@ -71,21 +71,27 @@ impl<'a> DateTime<'a> {
         dotw_hour_min_sec: u32,
         appid: ProcessId,
     ) -> CommandReturn {
+        /*
         self.apps
             .enter(appid, |app, _| {
-                if !self.in_progress.get() {
-                    app.subscribed = true;
-                    self.in_progress.set(true);
-                    self.call_driver(
-                        command,
-                        year_month_dotm as usize,
-                        dotw_hour_min_sec as usize,
-                    )
-                } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
-                }
+                debug!();
+
             })
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+
+         */
+        if !self.in_progress.get() {
+            //app.subscribed = true;
+            self.in_progress.set(true);
+            self.call_driver(
+                command,
+                year_month_dotm as usize,
+                dotw_hour_min_sec as usize,
+            ).into()
+        }else{
+            CommandReturn::failure(ErrorCode::NOSUPPORT)
+        }
+
     }
 }
 
@@ -95,6 +101,7 @@ impl RtcClient for DateTime<'_> {
         for cntr in self.apps.iter() {
             let mut upcall_status: Option<()> = None;
             cntr.enter(|app, upcalls| {
+                app.subscribed = true;
                 if app.subscribed {
                     self.in_progress.set(false);
                     app.subscribed = false;
@@ -150,9 +157,10 @@ impl RtcClient for DateTime<'_> {
                 }
             });
 
-            if upcall_status == None {
-                debug!("something is weird out here");
-            }
+
+            debug!("something is weird out here");
+
+
         }
     }
 }

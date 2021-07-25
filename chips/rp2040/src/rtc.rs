@@ -161,6 +161,43 @@ impl<'a> Rtc<'a>{
         }
     }
 
+    fn date_time_setup(&self, datetime:time::DateTime) -> Result<(),ErrorCode>{
+        self.registers.setup_0.modify(SETUP_0::YEAR.val(datetime.year));
+        self.registers.setup_0.modify(SETUP_0::MONTH.val(datetime.year));
+        self.registers.setup_0.modify(SETUP_0::DAY.val(datetime.day));
+        //self.registers.setup_1.modify(SETUP_1::YEAR.val(datetime.year));
+        self.registers.setup_1.modify(SETUP_1::DOTW.val(datetime.year));
+        self.registers.setup_1.modify(SETUP_1::HOUR.val(datetime.hour));
+        self.registers.setup_1.modify(SETUP_1::MIN.val(datetime.minute));
+        self.registers.setup_1.modify(SETUP_1::SEC.val(datetime.seconds));
+
+        Ok(())
+
+    }
+
+    pub fn set_initial(&self, datetime:time::DateTime) -> Result<(),ErrorCode>{
+        let mut hw_ctrl:u32;
+
+        self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
+        hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
+
+        while (hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)>0){
+            debug!("is running");
+        }
+
+        self.date_time_setup(datetime);
+        
+        self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
+        hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
+
+        while (!((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE))>0)){
+            debug!("is NOT running");
+        }
+
+        Ok(())
+
+    }
+
 
     pub fn get_leap_year(){}
 
@@ -174,12 +211,17 @@ impl<'a> Rtc<'a>{
         self.registers.clkdiv_m1.modify(CLKDIV_M1::CLKDIV_M.val(rtc_freq));
         
     }
+
+
+
 }
 
 
 
 impl<'a> time::Rtc<'a> for Rtc<'a> {
     fn get_date_time (&self) -> Result<Option<time::DateTime>, ErrorCode>{
+
+
         let month_name: time::Month;
         match self.get_month(){
             Ok(v) => {month_name = v;},
@@ -193,14 +235,19 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
         };
 
         let datetime = time::DateTime {
-            year: self.registers.setup_0.read(SETUP_0::YEAR),
+            hour: self.registers.rtc_0.read(RTC_0::HOUR),
+            minute: self.registers.rtc_0.read(RTC_0::MIN),
+            seconds: self.registers.rtc_0.read(RTC_0::SEC),
+
+            year: self.registers.rtc_1.read(RTC_1::YEAR),
             month: month_name,
-            day: self.registers.setup_0.read(SETUP_0::DAY),
+            day: self.registers.rtc_1.read(RTC_1::DAY),
             day_of_week: dotw,
-            hour: self.registers.setup_1.read(SETUP_1::HOUR),
-            minute: self.registers.setup_1.read(SETUP_1::MIN),
-            seconds: self.registers.setup_1.read(SETUP_1::SEC),
+
         };
+
+
+        debug!("year: {}   day:{}   \n hour:{}   minute:{}  seconds:{}",datetime.year,datetime.day,datetime.hour, datetime.minute, datetime.seconds);
 
         self.client.map(|client| client.callback(Ok(datetime)));
 

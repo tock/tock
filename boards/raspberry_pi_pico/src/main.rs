@@ -429,7 +429,7 @@ pub unsafe fn main() {
     let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_date_time = board_kernel.create_grant(capsules::date_time::DRIVER_NUM,&grant_dt);
 
-    let date_time = static_init!( 
+    let date_time = static_init!(
         capsules::date_time::DateTime<'static>,
         capsules::date_time::DateTime::new(&peripherals.rtc, grant_date_time)
     );
@@ -546,11 +546,15 @@ pub unsafe fn main() {
         seconds: 1,
     };
 
+
     match peripherals.rtc.set_date_time(dt){
         Result::Ok(()) => {debug!("time set");},
         Result::Err(e) => {debug!("Error setting time {:?}", e);},
     };
 
+
+
+/*
     fn get_month_string(month:Month)-> &'static str{
         match month{
             Month::January => "January",
@@ -599,7 +603,7 @@ pub unsafe fn main() {
     };
 
    
-
+*/
 
 
     debug!("testing rtc");
