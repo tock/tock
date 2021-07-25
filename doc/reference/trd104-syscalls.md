@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** May 27, 2021<br/>
-**Draft-Version:** 5<br/>
+**Draft-Modified:** July 25, 2021<br/>
+**Draft-Version:** 6<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -512,16 +512,33 @@ The Read-Write Allow system call class is how a userspace process
 shares a buffer with the kernel that the kernel can read and write.
 
 Calling a Read-Write Allow system call returns a buffer (address and
-length).  On the first call to a Read-Write Allow system call, the
-kernel returns a zero-length buffer. Subsequent successful calls to
-Read-Write Allow return the previous buffer passed.  The standard
-access model for allowed buffers is that userspace does not read or
-write a buffer that has been allowed: access to the memory is intended
-to be exclusive either to userspace or to the kernel. To regain access
-to a passed buffer, the process calls the same Read-Write Allow system
-call again, which, if successful, returns the buffer. It can do so
-with a zero-length buffer if it wishes to pass no memory to the
-kernel.
+length). Kernel drivers MUST be implemented such that the returned
+buffer follows a defined set of rules, as specified in the following:
+
+- On the first successful call to a Read-Write Allow system call, the
+  kernel returns a zero-length buffer. The returned address value is
+  not specified.
+- Subsequent successful calls to Read-Write Allow return the previous
+  buffer passed, with unmodified address and length values.
+
+However these rules are not enforced by the core kernel and thus
+userspace MUST NOT rely on the fact that drivers follow these rules as
+described. Userspace SHOULD employ additional checks to ensure that
+drivers behave as specified, and implement proper error handling in
+any other case. The core kernel MAY enforce a subset of these
+specified rules in the future.
+
+The standard access model for allowed buffers is that userspace does
+not read or write a buffer that has been allowed: access to the memory
+is intended to be exclusive either to userspace or to the kernel. To
+regain access to a passed buffer, the process calls the same
+Read-Write Allow system call again, which, if successful, returns the
+buffer. It can do so with a zero-length buffer if it wishes to pass no
+memory to the kernel. Once a buffer has been returned to userspace as
+part of a Read-Write Allow system call, it is guaranteed for the
+kernel to no longer have access to the described memory region, unless
+it is currently shared with the kernel as part of the passed in buffer
+or another Allow mechanism.
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
