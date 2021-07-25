@@ -78,7 +78,9 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20SpiComponent<S> {
             )
         );
         static_buffer.0.set_client(l3gd20);
-        l3gd20.configure();
+
+        // TODO verify SPI return value
+        let _ = l3gd20.configure();
 
         l3gd20
     }

@@ -524,9 +524,10 @@ impl spi::SpiMaster for SpiHw {
 
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
         self.init_as_role(spi, SpiRole::SpiMaster);
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -598,24 +599,26 @@ impl spi::SpiMaster for SpiHw {
         }
     }
 
-    fn set_rate(&self, rate: u32) -> u32 {
-        self.set_baud_rate(rate)
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        Ok(self.set_baud_rate(rate))
     }
 
     fn get_rate(&self) -> u32 {
         self.get_baud_rate()
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
         self.set_clock(polarity);
+        Ok(())
     }
 
     fn get_clock(&self) -> ClockPolarity {
         self.get_clock()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -634,15 +637,20 @@ impl spi::SpiMaster for SpiHw {
         csr.modify(ChipSelectParams::CSAAT::InactiveAfterTransfer);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        let peripheral_number = match cs {
-            0 => Peripheral::Peripheral0,
-            1 => Peripheral::Peripheral1,
-            2 => Peripheral::Peripheral2,
-            3 => Peripheral::Peripheral3,
-            _ => Peripheral::Peripheral0,
-        };
-        self.set_active_peripheral(peripheral_number);
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+        match match cs {
+            0 => Some(Peripheral::Peripheral0),
+            1 => Some(Peripheral::Peripheral1),
+            2 => Some(Peripheral::Peripheral2),
+            3 => Some(Peripheral::Peripheral3),
+            _ => None,
+        } {
+            Some(peripheral_number) => {
+                self.set_active_peripheral(peripheral_number);
+                Ok(())
+            }
+            None => Err(ErrorCode::INVAL),
+        }
     }
 }
 
@@ -656,9 +664,10 @@ impl spi::SpiSlave for SpiHw {
         self.slave_client.is_some()
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
         self.init_as_role(spi, SpiRole::SpiSlave);
+        Ok(())
     }
 
     /// This sets the value in the TDR register, to be sent as soon as the
@@ -689,16 +698,18 @@ impl spi::SpiSlave for SpiHw {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
         self.set_clock(polarity);
+        Ok(())
     }
 
     fn get_clock(&self) -> ClockPolarity {
         self.get_clock()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {

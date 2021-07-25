@@ -84,6 +84,7 @@ impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
+        // TODO verify SPI return value
         let _ = self.spi_slave.read_write_bytes(
             self.kernel_write.take(),
             self.kernel_read.take(),
@@ -226,21 +227,26 @@ impl<S: SpiSlaveDevice> Driver for SpiPeripheral<'_, S> {
                 CommandReturn::success_u32(0)
             }
             3 /* set phase */ => {
-                match arg1 {
+                match match arg1 {
                     0 => self.spi_slave.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_slave.set_phase(ClockPhase::SampleTrailing),
-                };
-                CommandReturn::success()
+                } {
+                    Ok(()) => CommandReturn::success(),
+                    Err(error) => CommandReturn::failure(error.into())
+                }
             }
             4 /* get phase */ => {
                 CommandReturn::success_u32(self.spi_slave.get_phase() as u32)
             }
             5 /* set polarity */ => {
-                match arg1 {
+                match match arg1 {
                     0 => self.spi_slave.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_slave.set_polarity(ClockPolarity::IdleHigh),
-                };
-                CommandReturn::success()
+                } {
+                    Ok(()) => CommandReturn::success(),
+                    Err(error) => CommandReturn::failure(error.into())
+                }
+
             }
             6 /* get polarity */ => {
                 CommandReturn::success_u32(self.spi_slave.get_polarity() as u32)

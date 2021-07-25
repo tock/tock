@@ -126,12 +126,12 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     }
 
     /// Setup SPI for this chip
-    fn configure_spi(&self) {
+    fn configure_spi(&self) -> Result<(), ErrorCode> {
         self.spi.configure(
             hil::spi::ClockPolarity::IdleLow,
             hil::spi::ClockPhase::SampleLeading,
             SPI_SPEED,
-        );
+        )
     }
 
     pub fn write(
@@ -140,7 +140,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
         buffer: &'static mut [u8],
         len: u16,
     ) -> Result<(), ErrorCode> {
-        self.configure_spi();
+        self.configure_spi()?;
 
         self.txbuffer
             .take()
@@ -168,7 +168,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     }
 
     pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> Result<(), ErrorCode> {
-        self.configure_spi();
+        self.configure_spi()?;
 
         self.txbuffer
             .take()
@@ -292,7 +292,7 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'_, S> {
 // Implement the custom interface that exposes chip-specific commands.
 impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
     fn read_status(&self) -> Result<(), ErrorCode> {
-        self.configure_spi();
+        self.configure_spi()?;
 
         self.txbuffer
             .take()
@@ -304,6 +304,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'_, S> {
 
                         // Use 4 bytes instead of the required 2 because that works better
                         // with DMA for some reason.
+                        // TODO verify SPI return value
                         let _ = self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
                         self.state.set(State::ReadStatus);
                         Ok(())

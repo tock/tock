@@ -35,6 +35,7 @@ impl spi::SpiMasterClient for DummyCB {
     ) {
         unsafe {
             // do actual stuff
+            // TODO verify SPI return value
             let _ = self.spi.read_write_bytes(&mut A5, None, A5.len());
 
             // FLOP = !FLOP;
@@ -76,7 +77,8 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
     let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
     spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
     spi.set_client(spicb);
-    spi.init();
+    // TODO verify SPI return value
+    let _ = spi.init();
     spi.set_baud_rate(200000);
 
     let len = BUF2.len();

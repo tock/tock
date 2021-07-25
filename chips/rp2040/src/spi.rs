@@ -350,9 +350,9 @@ impl<'a> Spi<'a> {
                 self.registers.sspimsc.modify(SSPIMSC::RXIM::CLEAR);
                 self.disable();
                 self.transfers.set(SPI_IDLE);
-                self.tx_buffer
-                    .take()
-                    .map(|buf| client.read_write_done(buf, self.rx_buffer.take(), self.len.get()));
+                self.tx_buffer.take().map(|buf| {
+                    client.read_write_done(buf, self.rx_buffer.take(), self.len.get(), Ok(()))
+                });
             });
         }
     }
@@ -362,9 +362,16 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         if self.transfers.get() == SPI_IDLE {
@@ -411,19 +418,24 @@ impl<'a> Spi<'a> {
 
             Ok(())
         } else {
-            Err(ErrorCode::BUSY)
+            Err((ErrorCode::BUSY, write_buffer, read_buffer))
         }
     }
 
     // IdleLow  = SPO = 0
     // IdleHigh = SPO = 1
-    fn set_polarity(&self, polarity: ClockPolarity) {
-        self.enable();
-        match polarity {
-            ClockPolarity::IdleHigh => self.registers.sspcr0.modify(SSPCR0::SPO::SET),
-            ClockPolarity::IdleLow => self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR),
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.enable();
+            match polarity {
+                ClockPolarity::IdleHigh => self.registers.sspcr0.modify(SSPCR0::SPO::SET),
+                ClockPolarity::IdleLow => self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR),
+            }
+            self.disable();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
         }
-        self.disable();
     }
 
     fn get_polarity(&self) -> ClockPolarity {
@@ -436,13 +448,18 @@ impl<'a> Spi<'a> {
 
     // SampleLeading  = SPH = 0
     // SampleTrailing = SPH = 1
-    fn set_phase(&self, phase: ClockPhase) {
-        self.enable();
-        match phase {
-            ClockPhase::SampleLeading => self.registers.sspcr0.modify(SSPCR0::SPH::CLEAR),
-            ClockPhase::SampleTrailing => self.registers.sspcr0.modify(SSPCR0::SPH::SET),
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.enable();
+            match phase {
+                ClockPhase::SampleLeading => self.registers.sspcr0.modify(SSPCR0::SPH::CLEAR),
+                ClockPhase::SampleTrailing => self.registers.sspcr0.modify(SSPCR0::SPH::SET),
+            }
+            self.disable();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
         }
-        self.disable();
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -471,8 +488,11 @@ impl<'a> SpiMaster for Spi<'a> {
         self.master_client.set(client);
     }
 
-    fn init(&self) {
-        self.set_rate(16 * 1000 * 1000);
+    fn init(&self) -> Result<(), ErrorCode> {
+        match self.set_rate(16 * 1000 * 1000) {
+            Err(error) => Err(error),
+            Ok(_) => Ok(()),
+        }?;
         // set format: 8 bit mode, SSPCLKOUT polarity and phase on 0
         self.set_format();
 
@@ -482,6 +502,8 @@ impl<'a> SpiMaster for Spi<'a> {
 
         // set device on master
         self.registers.sspcr1.modify(SSPCR1::MS::CLEAR);
+
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -493,45 +515,70 @@ impl<'a> SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        // debug!("{:?}", write_buffer);
-
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        match self.read_write_bytes(Some(write_buffer), read_buffer, len) {
+            // some_write_buffer should always be Some(write_buffer)
+            Err((error, some_write_buffer, read_buffer)) => {
+                Err((error, some_write_buffer.unwrap(), read_buffer))
+            }
+            Ok(()) => Ok(()),
+        }
     }
 
-    fn write_byte(&self, out_val: u8) {
-        while !self.registers.sspsr.is_set(SSPSR::TFE) {}
+    fn write_byte(&self, out_val: u8) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            while !self.registers.sspsr.is_set(SSPSR::TFE) {}
 
-        self.registers.sspdr.modify(SSPDR::DATA.val(out_val as u32));
+            self.registers.sspdr.modify(SSPDR::DATA.val(out_val as u32));
+
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
-        self.write_byte(val);
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
+        if !self.is_busy() {
+            if let Err(error) = self.write_byte(val) {
+                return Err(error);
+            }
 
-        while !self.registers.sspsr.is_set(SSPSR::RNE) {}
+            while !self.registers.sspsr.is_set(SSPSR::RNE) {}
 
-        self.registers.sspdr.read(SSPDR::DATA) as u8
+            Ok(self.registers.sspdr.read(SSPDR::DATA) as u8)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        self.set_active_slave(cs);
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.set_active_slave(cs);
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn set_rate(&self, baudrate: u32) -> u32 {
+    fn set_rate(&self, baudrate: u32) -> Result<u32, ErrorCode> {
         let freq_in = self.clocks.map_or(125_000_000, |clocks| {
             clocks.get_frequency(clocks::Clock::Peripheral)
         });
+
+        if baudrate > freq_in {
+            return Err(ErrorCode::INVAL);
+        }
+
         let mut prescale = 0;
         let mut postdiv = 0;
-        //a se sterge
 
         for p in (2..254).step_by(2) {
             if (freq_in as u64) < (((p + 2) * 256) as u64 * baudrate as u64) {
@@ -547,12 +594,16 @@ impl<'a> SpiMaster for Spi<'a> {
             }
         }
 
-        self.registers
-            .sspcpsr
-            .modify(SSPCPSR::CPSDVSR.val(prescale));
-        self.registers.sspcr0.modify(SSPCR0::SCR.val(postdiv - 1));
+        if prescale > 0 && postdiv > 0 {
+            self.registers
+                .sspcpsr
+                .modify(SSPCPSR::CPSDVSR.val(prescale));
+            self.registers.sspcr0.modify(SSPCR0::SCR.val(postdiv - 1));
 
-        freq_in / (prescale * postdiv)
+            Ok(freq_in / (prescale * postdiv))
+        } else {
+            Err(ErrorCode::INVAL)
+        }
     }
 
     fn get_rate(&self) -> u32 {
@@ -564,16 +615,16 @@ impl<'a> SpiMaster for Spi<'a> {
         freq_in / (prescale * postdiv)
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
-        self.set_polarity(polarity);
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity)
     }
 
     fn get_clock(&self) -> ClockPolarity {
         self.get_polarity()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
-        self.set_phase(phase);
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
+        self.set_phase(phase)
     }
 
     fn get_phase(&self) -> ClockPhase {

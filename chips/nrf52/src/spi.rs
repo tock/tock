@@ -339,9 +339,10 @@ impl hil::spi::SpiMaster for SPIM {
         self.client.set(client);
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         self.registers.intenset.write(INTE::END::Enable);
         self.initialized.set(true);
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -412,18 +413,19 @@ impl hil::spi::SpiMaster for SPIM {
     // Tell the SPI peripheral what to use as a chip select pin.
     // The type of the argument is based on what makes sense for the
     // peripheral when this trait is implemented.
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         cs.make_output();
         cs.set();
         self.chip_select.set(cs);
+        Ok(())
     }
 
     // Returns the actual rate set
-    fn set_rate(&self, rate: u32) -> u32 {
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         debug_assert!(self.initialized.get());
         let f = Frequency::from_spi_rate(rate);
         self.registers.frequency.set(f as u32);
-        f.into_spi_rate()
+        Ok(f.into_spi_rate())
     }
 
     fn get_rate(&self) -> u32 {
@@ -436,7 +438,7 @@ impl hil::spi::SpiMaster for SPIM {
         f.into_spi_rate()
     }
 
-    fn set_clock(&self, polarity: hil::spi::ClockPolarity) {
+    fn set_clock(&self, polarity: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         debug_assert!(self.initialized.get());
         let new_polarity = match polarity {
@@ -444,6 +446,7 @@ impl hil::spi::SpiMaster for SPIM {
             hil::spi::ClockPolarity::IdleHigh => CONFIG::CPOL::ActiveLow,
         };
         self.registers.config.modify(new_polarity);
+        Ok(())
     }
 
     fn get_clock(&self) -> hil::spi::ClockPolarity {
@@ -455,13 +458,14 @@ impl hil::spi::SpiMaster for SPIM {
         }
     }
 
-    fn set_phase(&self, phase: hil::spi::ClockPhase) {
+    fn set_phase(&self, phase: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         let new_phase = match phase {
             hil::spi::ClockPhase::SampleLeading => CONFIG::CPHA::SampleOnLeadingEdge,
             hil::spi::ClockPhase::SampleTrailing => CONFIG::CPHA::SampleOnTrailingEdge,
         };
         self.registers.config.modify(new_phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {

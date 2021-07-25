@@ -418,7 +418,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.master_client.set(client);
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         // enable error interrupt (used only for debugging)
         // self.registers.cr2.modify(CR2::ERRIE::SET);
 
@@ -440,6 +440,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
             // Enable
             CR1::SPE::SET,
         );
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -492,11 +493,11 @@ impl<'a> spi::SpiMaster for Spi<'a> {
     }
 
     /// We *only* support 1Mhz. If `rate` is set to any value other than
-    /// `1_000_000`, then this function panics
-    fn set_rate(&self, rate: u32) -> u32 {
+    /// `1_000_000`, then return INVAL
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         // debug! ("stm32f3 spi set rate");
         if rate != 1_000_000 {
-            panic!("rate must be 1_000_000");
+            return Err(ErrorCode::INVAL);
         }
 
         self.set_cr(|| {
@@ -504,7 +505,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
             self.registers.cr1.modify(CR1::BR.val(0b010));
         });
 
-        1_000_000
+        Ok(1_000_000)
     }
 
     /// We *only* support 1Mhz. If we need to return any other value other than
@@ -517,16 +518,18 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         1_000_000
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
         self.set_polarity(polarity);
+        Ok(())
     }
 
     fn get_clock(&self) -> ClockPolarity {
         self.get_polarity()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -541,8 +544,9 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.active_after.set(false);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         self.set_active_slave(cs);
+        Ok(())
     }
 }
 

@@ -56,7 +56,8 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
-                self.spi.specify_chip_select(node.chip_select.get());
+                // TODO verify SPI return value
+                let _ = self.spi.specify_chip_select(node.chip_select.get());
                 let op = node.operation.get();
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
@@ -64,9 +65,10 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     Op::Configure(cpol, cpal, rate) => {
                         // The `chip_select` type will be correct based on
                         // what implemented `SpiMaster`.
-                        self.spi.set_clock(cpol);
-                        self.spi.set_phase(cpal);
-                        self.spi.set_rate(rate);
+                        // TODO verify SPI return value
+                        let _ = self.spi.set_clock(cpol);
+                        let _ = self.spi.set_phase(cpal);
+                        let _ = self.spi.set_rate(rate);
                     }
                     Op::ReadWriteBytes(len) => {
                         // Only async operations want to block by setting
@@ -87,13 +89,16 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         });
                     }
                     Op::SetPolarity(pol) => {
-                        self.spi.set_clock(pol);
+                        // TODO verify SPI return value
+                        let _ = self.spi.set_clock(pol);
                     }
                     Op::SetPhase(pal) => {
-                        self.spi.set_phase(pal);
+                        // TODO verify SPI return value
+                        let _ = self.spi.set_phase(pal);
                     }
                     Op::SetRate(rate) => {
-                        self.spi.set_rate(rate);
+                        // TODO verify SPI return value
+                        let _ = self.spi.set_rate(rate);
                     }
                     Op::ReadWriteDone(status, len) => {
                         node.txbuffer.take().map(|write_buffer| {
@@ -310,9 +315,13 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Sp
 }
 
 impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Spi> {
-    fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase) {
-        self.spi.set_clock(cpol);
-        self.spi.set_phase(cpal);
+    fn configure(
+        &self,
+        cpol: hil::spi::ClockPolarity,
+        cpal: hil::spi::ClockPhase,
+    ) -> Result<(), ErrorCode> {
+        self.spi.set_clock(cpol)?;
+        self.spi.set_phase(cpal)
     }
 
     fn read_write_bytes(
@@ -331,12 +340,12 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
         self.spi.read_write_bytes(write_buffer, read_buffer, len)
     }
 
-    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
-        self.spi.set_clock(cpol);
+    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
+        self.spi.set_clock(cpol)
     }
 
-    fn set_phase(&self, cpal: hil::spi::ClockPhase) {
-        self.spi.set_phase(cpal);
+    fn set_phase(&self, cpal: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
+        self.spi.set_phase(cpal)
     }
 
     fn get_polarity(&self) -> hil::spi::ClockPolarity {

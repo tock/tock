@@ -78,7 +78,7 @@ pub trait SpiMaster {
 
     fn set_client(&self, client: &'static dyn SpiMasterClient);
 
-    fn init(&self);
+    fn init(&self) -> Result<(), ErrorCode>;
     fn is_busy(&self) -> bool;
 
     /// Perform an asynchronous read/write operation, whose
@@ -100,14 +100,14 @@ pub trait SpiMaster {
     /// Tell the SPI peripheral what to use as a chip select pin.
     /// The type of the argument is based on what makes sense for the
     /// peripheral when this trait is implemented.
-    fn specify_chip_select(&self, cs: Self::ChipSelect);
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode>;
 
     /// Returns the actual rate set
-    fn set_rate(&self, rate: u32) -> u32;
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
     fn get_rate(&self) -> u32;
-    fn set_clock(&self, polarity: ClockPolarity);
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
     fn get_clock(&self) -> ClockPolarity;
-    fn set_phase(&self, phase: ClockPhase);
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode>;
     fn get_phase(&self) -> ClockPhase;
 
     // These two functions determine what happens to the chip
@@ -167,7 +167,7 @@ pub trait SpiSlaveClient {
 }
 
 pub trait SpiSlave {
-    fn init(&self);
+    fn init(&self) -> Result<(), ErrorCode>;
     /// Returns true if there is a client.
     fn has_client(&self) -> bool;
 
@@ -188,9 +188,9 @@ pub trait SpiSlave {
         ),
     >;
 
-    fn set_clock(&self, polarity: ClockPolarity);
+    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
     fn get_clock(&self) -> ClockPolarity;
-    fn set_phase(&self, phase: ClockPhase);
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode>;
     fn get_phase(&self) -> ClockPhase;
 }
 
@@ -199,7 +199,7 @@ pub trait SpiSlave {
 /// cannot communicate with different SPI devices.
 pub trait SpiSlaveDevice {
     /// Setup the SPI settings and speed of the bus.
-    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase);
+    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase) -> Result<(), ErrorCode>;
 
     /// Perform an asynchronous read/write operation, whose
     /// completion is signaled by invoking SpiSlaveClient.read_write_done on
@@ -220,8 +220,8 @@ pub trait SpiSlaveDevice {
         ),
     >;
 
-    fn set_polarity(&self, cpol: ClockPolarity);
+    fn set_polarity(&self, cpol: ClockPolarity) -> Result<(), ErrorCode>;
     fn get_polarity(&self) -> ClockPolarity;
-    fn set_phase(&self, cpal: ClockPhase);
+    fn set_phase(&self, cpal: ClockPhase) -> Result<(), ErrorCode>;
     fn get_phase(&self) -> ClockPhase;
 }

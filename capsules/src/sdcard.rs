@@ -249,24 +249,24 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         }
     }
 
-    fn set_spi_slow_mode(&self) {
+    fn set_spi_slow_mode(&self) -> Result<(), ErrorCode> {
         // need to be in slow mode while initializing the SD card
         // set to CPHA=0, CPOL=0, 400 kHZ
         self.spi.configure(
             hil::spi::ClockPolarity::IdleLow,
             hil::spi::ClockPhase::SampleLeading,
             400000,
-        );
+        )
     }
 
-    fn set_spi_fast_mode(&self) {
+    fn set_spi_fast_mode(&self) -> Result<(), ErrorCode> {
         // can read/write in fast mode after the SD card is initialized
         // set to CPHA=0, CPOL=0, 4 MHz
         self.spi.configure(
             hil::spi::ClockPolarity::IdleLow,
             hil::spi::ClockPhase::SampleLeading,
             4000000,
-        );
+        )
     }
 
     /// send a command over SPI and collect the response
@@ -286,10 +286,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
         if self.is_initialized() {
             // device is already initialized
-            self.set_spi_fast_mode();
+            // TODO verify SPI return value
+            let _ = self.set_spi_fast_mode();
         } else {
             // device is still being initialized
-            self.set_spi_slow_mode();
+            // TODO verify SPI return value
+            let _ = self.set_spi_slow_mode();
         }
 
         // send dummy bytes to start
@@ -340,7 +342,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         read_buffer: &'static mut [u8],
         recv_len: usize,
     ) {
-        self.set_spi_fast_mode();
+        // TODO verify SPI return value
+        let _ = self.set_spi_fast_mode();
 
         // set write buffer to null transactions
         // Limit to minimum length between write_buffer and recv_len.
@@ -362,8 +365,10 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         read_buffer: &'static mut [u8],
         recv_len: usize,
     ) {
-        self.set_spi_fast_mode();
+        // TODO verify SPI return value
+        let _ = self.set_spi_fast_mode();
 
+        // TODO verify SPI return value
         let _ = self
             .spi
             .read_write_bytes(write_buffer, Some(read_buffer), recv_len);

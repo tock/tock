@@ -208,7 +208,7 @@ impl<
     }
 
     /// Setup SPI for this chip
-    fn configure_spi(&self) {
+    fn configure_spi(&self) -> Result<(), ErrorCode> {
         self.hold_pin.map(|pin| {
             pin.set();
         });
@@ -216,11 +216,11 @@ impl<
             hil::spi::ClockPolarity::IdleLow,
             hil::spi::ClockPhase::SampleLeading,
             SPI_SPEED,
-        );
+        )
     }
 
     pub fn read_identification(&self) -> Result<(), ErrorCode> {
-        self.configure_spi();
+        self.configure_spi()?;
 
         self.txbuffer
             .take()
@@ -262,7 +262,7 @@ impl<
     }
 
     fn erase_sector(&self, sector_index: u32) -> Result<(), ErrorCode> {
-        self.configure_spi();
+        self.configure_spi()?;
         self.state.set(State::EraseSectorWriteEnable {
             sector_index,
             operation: Operation::Erase,
@@ -275,46 +275,49 @@ impl<
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
     ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
-        self.configure_spi();
-
-        let retval = self
-            .txbuffer
-            .take()
-            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
-                self.rxbuffer
-                    .take()
-                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
-                        // Setup the read instruction
-                        txbuffer[0] = Opcodes::READ as u8;
-                        txbuffer[1] = ((sector_index * SECTOR_SIZE) >> 16) as u8;
-                        txbuffer[2] = ((sector_index * SECTOR_SIZE) >> 8) as u8;
-                        txbuffer[3] = ((sector_index * SECTOR_SIZE) >> 0) as u8;
-
-                        // Call the SPI driver to kick things off.
-                        self.state.set(State::ReadSector {
-                            sector_index,
-                            page_index: 0,
-                        });
-                        if let Err((err, txbuffer, rxbuffer)) = self.spi.read_write_bytes(
-                            txbuffer,
-                            Some(rxbuffer),
-                            (PAGE_SIZE + 4) as usize,
-                        ) {
-                            self.txbuffer.replace(txbuffer);
-                            self.rxbuffer.replace(rxbuffer.unwrap());
-                            Err(err)
-                        } else {
-                            Ok(())
-                        }
-                    })
-            });
-
-        match retval {
+        match self.configure_spi() {
             Ok(()) => {
-                self.client_sector.replace(sector);
-                Ok(())
+                let retval = self
+                    .txbuffer
+                    .take()
+                    .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
+                        self.rxbuffer
+                            .take()
+                            .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
+                                // Setup the read instruction
+                                txbuffer[0] = Opcodes::READ as u8;
+                                txbuffer[1] = ((sector_index * SECTOR_SIZE) >> 16) as u8;
+                                txbuffer[2] = ((sector_index * SECTOR_SIZE) >> 8) as u8;
+                                txbuffer[3] = ((sector_index * SECTOR_SIZE) >> 0) as u8;
+
+                                // Call the SPI driver to kick things off.
+                                self.state.set(State::ReadSector {
+                                    sector_index,
+                                    page_index: 0,
+                                });
+                                if let Err((err, txbuffer, rxbuffer)) = self.spi.read_write_bytes(
+                                    txbuffer,
+                                    Some(rxbuffer),
+                                    (PAGE_SIZE + 4) as usize,
+                                ) {
+                                    self.txbuffer.replace(txbuffer);
+                                    self.rxbuffer.replace(rxbuffer.unwrap());
+                                    Err(err)
+                                } else {
+                                    Ok(())
+                                }
+                            })
+                    });
+
+                match retval {
+                    Ok(()) => {
+                        self.client_sector.replace(sector);
+                        Ok(())
+                    }
+                    Err(ecode) => Err((ecode, sector)),
+                }
             }
-            Err(ecode) => Err((ecode, sector)),
+            Err(error) => Err((error, sector)),
         }
     }
 
@@ -323,19 +326,23 @@ impl<
         sector_index: u32,
         sector: &'static mut Mx25r6435fSector,
     ) -> Result<(), (ErrorCode, &'static mut Mx25r6435fSector)> {
-        self.configure_spi();
-        self.state.set(State::EraseSectorWriteEnable {
-            sector_index,
-            operation: Operation::Write { sector_index },
-        });
-        let retval = self.enable_write();
-
-        match retval {
+        match self.configure_spi() {
             Ok(()) => {
-                self.client_sector.replace(sector);
-                Ok(())
+                self.state.set(State::EraseSectorWriteEnable {
+                    sector_index,
+                    operation: Operation::Write { sector_index },
+                });
+                let retval = self.enable_write();
+
+                match retval {
+                    Ok(()) => {
+                        self.client_sector.replace(sector);
+                        Ok(())
+                    }
+                    Err(ecode) => Err((ecode, sector)),
+                }
             }
-            Err(ecode) => Err((ecode, sector)),
+            Err(error) => Err((error, sector)),
         }
     }
 }
@@ -399,6 +406,7 @@ impl<
                                 page_index: page_index + 1,
                             });
                             self.client_sector.replace(sector);
+                            // TODO verify SPI return value
                             let _ = self.spi.read_write_bytes(
                                 write_buffer,
                                 Some(read_buffer),
@@ -418,6 +426,7 @@ impl<
                 write_buffer[2] = ((sector_index * SECTOR_SIZE) >> 8) as u8;
                 write_buffer[3] = ((sector_index * SECTOR_SIZE) >> 0) as u8;
 
+                // TODO verify SPI return value
                 let _ = self.spi.read_write_bytes(write_buffer, None, 4);
             }
             State::EraseSectorErase { operation } => {
@@ -483,6 +492,7 @@ impl<
                     });
                     // Need to write enable before each PP
                     write_buffer[0] = Opcodes::WREN as u8;
+                    // TODO verify SPI return value
                     let _ = self.spi.read_write_bytes(write_buffer, None, 1);
                 }
             }
