@@ -1,5 +1,6 @@
 //! Platform Level Interrupt Control peripheral driver.
 
+use crate::interrupts;
 use kernel::common::cells::VolatileCell;
 use kernel::common::registers::interfaces::{Readable, Writeable};
 use kernel::common::registers::{
@@ -10,11 +11,18 @@ use kernel::common::StaticRef;
 register_structs! {
     pub IntcRegisters {
         (0x000 => _reserved0),
+        (0x040 => gpio_interrupt_pro_map: ReadWrite<u32>),
+        (0x044 => gpio_interrupt_pro_nmi_map: ReadWrite<u32>),
+        (0x048 => _reserved1),
+        (0x054 => uart0_intr_map: ReadWrite<u32>),
+        (0x058 => _reserved2),
+        (0x0f8 => status: [ReadWrite<u32>; 2]),
+        (0x100 => clk_en: ReadWrite<u32>),
         (0x104 => enable: ReadWrite<u32, INT::Register>),
         (0x108 => type_reg: ReadWrite<u32, INT::Register>),
         (0x10C => clear: ReadWrite<u32, INT::Register>),
         (0x110 => eip: ReadWrite<u32, INT::Register>),
-        (0x114 => _reserved1),
+        (0x114 => _reserved3),
         (0x118 => priority: [ReadWrite<u32, PRIORITY::Register>; 31]),
         (0x194 => thresh: ReadWrite<u32, THRESH::Register>),
         (0x198 => @END),
@@ -53,6 +61,21 @@ impl Intc {
         }
     }
 
+    /// The ESP32C3 is interesting. It allows interrupts to be mapped on the
+    /// fly by setting the `intr_map` registers. This feature is completely
+    /// undocumented. The ESP32 HAL and projects that use that (like Zephyr)
+    /// call into the ROM code to enable interrupts which maps the interrupts.
+    /// In Tock we map them ourselves so we don't need to call into the ROM.
+    pub fn map_interrupts(&self) {
+        self.registers.uart0_intr_map.set(interrupts::IRQ_UART0);
+        self.registers
+            .gpio_interrupt_pro_map
+            .set(interrupts::IRQ_GPIO);
+        self.registers
+            .gpio_interrupt_pro_nmi_map
+            .set(interrupts::IRQ_GPIO_NMI);
+    }
+
     /// Clear all pending interrupts.
     pub fn clear_all_pending(&self) {
         self.registers.clear.set(0xFF);
@@ -60,7 +83,7 @@ impl Intc {
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        self.registers.enable.set(0xFF);
+        self.registers.enable.set(0xFFFF_FFFF);
 
         // Set some default priority for each interrupt. This is not really used
         // at this point.

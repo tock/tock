@@ -175,6 +175,7 @@ unsafe fn setup() -> (
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
+    chip.map_pic_interrupts();
     chip.enable_pic_interrupts();
 
     // enable interrupts globally

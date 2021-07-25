@@ -1,12 +1,13 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use crate::intc::{Intc, IntcRegisters};
+use crate::interrupts;
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
+use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::common::StaticRef;
 use kernel::{static_init, Chip, InterruptService};
-use rv32i::csr::{self, mcause, CSR};
+use rv32i::csr::{self, mcause, mtvec::mtvec, CSR};
 use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
 
@@ -44,8 +45,11 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
 impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            5 => {
+            interrupts::IRQ_UART0 => {
                 self.uart0.handle_interrupt();
+            }
+            interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => {
+                self.gpio.handle_interrupt();
             }
             _ => return false,
         }
@@ -70,6 +74,10 @@ impl<'a, I: InterruptService<()> + 'a> Esp32C3<'a, I> {
             scheduler_timer: kernel::VirtualSchedulerTimer::new(timer1),
             pic_interrupt_service,
         }
+    }
+
+    pub fn map_pic_interrupts(&self) {
+        self.intc.map_interrupts();
     }
 
     pub unsafe fn enable_pic_interrupts(&self) {
@@ -266,5 +274,70 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
         _ => {
             panic!("unexpected non-interrupt\n");
         }
+    }
+}
+
+/// The ESP32C3 should support non-vectored and vectored interrupts, but
+/// vectored interrupts seem more reliable so let's use that.
+pub unsafe fn configure_trap_handler() {
+    CSR.mtvec
+        .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
+}
+
+// Mock implementation for crate tests that does not include the section
+// specifier, as the test will not use our linker script, and the host
+// compilation environment may not allow the section name.
+#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+pub extern "C" fn _start_trap_vectored() {
+    use core::hint::unreachable_unchecked;
+    unsafe {
+        unreachable_unchecked();
+    }
+}
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[link_section = ".riscv.trap_vectored"]
+#[export_name = "_start_trap_vectored"]
+#[naked]
+pub extern "C" fn _start_trap_vectored() -> ! {
+    unsafe {
+        // Below are 32 (non-compressed) jumps to cover the entire possible
+        // range of vectored traps.
+        asm!(
+            "
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+        ",
+            options(noreturn)
+        );
     }
 }
