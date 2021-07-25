@@ -172,12 +172,37 @@ impl gpio::Configure for GpioPin<'_> {
         }
     }
 
-    fn set_floating_state(&self, _mode: gpio::FloatingState) {
-        unimplemented!()
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
+        match mode {
+            gpio::FloatingState::PullUp => {
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPU::SET + IO_MUX_GPIO::MCU_WPU::SET);
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPD::CLEAR + IO_MUX_GPIO::MCU_WPD::CLEAR);
+            }
+            gpio::FloatingState::PullDown => {
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPU::CLEAR + IO_MUX_GPIO::MCU_WPU::CLEAR);
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPD::SET + IO_MUX_GPIO::MCU_WPD::SET);
+            }
+            gpio::FloatingState::PullNone => {
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPU::CLEAR + IO_MUX_GPIO::MCU_WPU::CLEAR);
+                self.iomux_registers.gpio[self.pin.shift]
+                    .modify(IO_MUX_GPIO::FUN_WPD::CLEAR + IO_MUX_GPIO::MCU_WPD::CLEAR);
+            }
+        }
     }
 
     fn floating_state(&self) -> gpio::FloatingState {
-        unimplemented!()
+        if self.iomux_registers.gpio[self.pin.shift].is_set(IO_MUX_GPIO::FUN_WPU) {
+            gpio::FloatingState::PullUp
+        } else if self.iomux_registers.gpio[self.pin.shift].is_set(IO_MUX_GPIO::FUN_WPD) {
+            gpio::FloatingState::PullDown
+        } else {
+            gpio::FloatingState::PullNone
+        }
     }
 
     fn deactivate_to_low_power(&self) {
