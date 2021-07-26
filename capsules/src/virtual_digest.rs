@@ -32,6 +32,7 @@ pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     data: TakeCell<'static, [u8]>,
     data_len: Cell<usize>,
     digest: TakeCell<'static, [u8; L]>,
+    verify: Cell<bool>,
     mode: Cell<Mode>,
     ready: Cell<bool>,
     id: u32,
@@ -62,6 +63,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
             data: TakeCell::empty(),
             data_len: Cell::new(0),
             digest: TakeCell::empty(),
+            verify: Cell::new(false),
             mode: Cell::new(Mode::None),
             ready: Cell::new(false),
             id: id,
@@ -150,6 +152,27 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
             self.mux.digest.clear_data()
         }
     }
+
+    fn verify(
+        &self,
+        compare: &'static mut [u8; L],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; L])> {
+        // Check if any mux is enabled
+        if self.mux.running_id.get() == self.id {
+            self.mux.digest.verify(compare)
+        } else {
+            // Another app is already running, queue this app as long as we
+            // don't already have data queued.
+            if self.digest.is_none() {
+                self.digest.replace(compare);
+                self.verify.set(true);
+                self.ready.set(true);
+                Ok(())
+            } else {
+                Err((ErrorCode::BUSY, compare))
+            }
+        }
+    }
 }
 
 impl<
@@ -189,6 +212,24 @@ impl<
             Mode::Sha(_) => {
                 self.sha_client
                     .map(move |client| client.hash_done(result, digest));
+            }
+        }
+
+        // Forcefully clear the data to allow other apps to use the HMAC
+        self.clear_data();
+        self.mux.do_next_op();
+    }
+
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+        match self.mode.get() {
+            Mode::None => {}
+            Mode::Hmac(_) => {
+                self.hmac_client
+                    .map(move |client| client.verification_done(result, compare));
+            }
+            Mode::Sha(_) => {
+                self.sha_client
+                    .map(move |client| client.verification_done(result, compare));
             }
         }
 
@@ -398,8 +439,14 @@ impl<
             }
 
             if node.digest.is_some() {
-                if let Err((err, data)) = self.digest.run(node.digest.take().unwrap()) {
-                    node.hash_done(Err(err), data);
+                if node.verify.get() {
+                    if let Err((err, compare)) = self.digest.verify(node.digest.take().unwrap()) {
+                        node.verification_done(Err(err), compare);
+                    }
+                } else {
+                    if let Err((err, data)) = self.digest.run(node.digest.take().unwrap()) {
+                        node.hash_done(Err(err), data);
+                    }
                 }
             }
         });

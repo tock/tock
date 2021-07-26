@@ -253,6 +253,13 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
         regs.cmd.modify(CMD::START::CLEAR);
         regs.wipe_secret.set(1 as u32);
     }
+
+    fn verify(
+        &'a self,
+        compare: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        Err((ErrorCode::NOSUPPORT, compare))
+    }
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {

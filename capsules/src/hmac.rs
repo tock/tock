@@ -343,6 +343,14 @@ impl<
         self.check_queue();
         self.dest_buffer.replace(digest);
     }
+
+    fn verification_done(
+        &'a self,
+        _result: Result<bool, ErrorCode>,
+        _compare: &'static mut [u8; L],
+    ) {
+        unimplemented!();
+    }
 }
 
 /// Specify memory regions to be used.

@@ -19,6 +19,18 @@ pub trait Client<'a, const L: usize> {
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
 }
 
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait ClientVerify<'a, const L: usize> {
+    /// This callback is called when a verification is computed.
+    /// On error or success `digest` will contain a reference to the original
+    /// data supplied to `verify()`.
+    /// On success the result indicate if the hashes match or don't.
+    /// On failure the result will indicate an `ErrorCode`.
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
+}
+
 /// Computes a digest (cryptographic hash) over data
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
@@ -61,6 +73,36 @@ pub trait Digest<'a, const L: usize> {
     /// This won't clear the buffers provided to this API, that is up to the
     /// user to clear.
     fn clear_data(&self);
+}
+
+/// Computes a digest (cryptographic hash) over data
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait DigestVerify<'a, const L: usize> {
+    /// Compare the specified digest in the `compare` buffer to the calculated
+    /// digest. This function is similar to `run()` and should be used instead
+    /// of `run()` if the caller doesn't need to know the output, just if it
+    /// matches a known value.
+    ///
+    /// For example:
+    /// ```rust,ignore
+    ///     // Compute a digest on data
+    ///     add_data(...);
+    ///     add_data(...);
+    ///
+    ///     // Compare the computed digest generated to an existing digest
+    ///     verify(...);
+    /// ```
+    /// NOTE: The above is just pseudo code. The user is expected to check for
+    /// errors and wait for the asyncronous calls to complete.
+    ///
+    /// The verify function is useful to compare input with a known digest
+    /// value. The verify function also saves callers from allocating a buffer
+    /// for the digest when they just need verification.
+    fn verify(
+        &'a self,
+        compare: &'static mut [u8; L],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
 
 pub trait Sha224 {
