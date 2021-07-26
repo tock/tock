@@ -2,6 +2,7 @@
 
 pub mod adc;
 pub mod analog_comparator;
+pub mod asymmetric_encryption;
 pub mod ble_advertising;
 pub mod bus8080;
 pub mod crc;
