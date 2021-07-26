@@ -19,7 +19,7 @@
 // Dummy main function for this example to compile with `cargo test`.
 fn main() {}
 
-use kernel::common::list::{List, ListLink, ListNode};
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
 
 pub trait Funky<'a>: 'a {
