@@ -15,6 +15,7 @@ pub mod analog_comparator;
 pub mod analog_sensor;
 pub mod apds9960;
 pub mod app_flash_driver;
+pub mod asymmetric_encryption;
 pub mod ble_advertising_driver;
 pub mod bus;
 pub mod button;
