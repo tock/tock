@@ -25,7 +25,7 @@ use kernel::hil::time::Alarm;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
-use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
@@ -119,7 +119,7 @@ struct EarlGreyNexysVideo {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDispatch for EarlGreyNexysVideo {
+impl SyscallDriverLookup for EarlGreyNexysVideo {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -141,7 +141,7 @@ impl SyscallDispatch for EarlGreyNexysVideo {
 impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>>
     for EarlGreyNexysVideo
 {
-    type SyscallDispatch = Self;
+    type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = PrioritySched;
@@ -149,7 +149,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

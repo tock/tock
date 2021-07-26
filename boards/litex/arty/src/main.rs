@@ -13,7 +13,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::time::{Alarm, Frequency, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
-use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
@@ -140,7 +140,7 @@ struct LiteXArty {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls
-impl SyscallDispatch for LiteXArty {
+impl SyscallDriverLookup for LiteXArty {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -158,7 +158,7 @@ impl SyscallDispatch for LiteXArty {
 impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptablePeripherals>>
     for LiteXArty
 {
-    type SyscallDispatch = Self;
+    type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
@@ -175,7 +175,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     >;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

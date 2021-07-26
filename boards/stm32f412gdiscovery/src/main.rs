@@ -16,7 +16,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
-use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
@@ -69,7 +69,7 @@ struct STM32F412GDiscovery {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDispatch for STM32F412GDiscovery {
+impl SyscallDriverLookup for STM32F412GDiscovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -99,14 +99,14 @@ impl
         >,
     > for STM32F412GDiscovery
 {
-    type SyscallDispatch = Self;
+    type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

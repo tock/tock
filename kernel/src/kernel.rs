@@ -19,7 +19,7 @@ use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
 use crate::platform::platform::KernelResources;
-use crate::platform::platform::{ProcessFault, SyscallDispatch, SyscallFilter};
+use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;

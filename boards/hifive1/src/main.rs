@@ -18,7 +18,7 @@ use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
-use kernel::platform::{KernelResources, SyscallDispatch};
+use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
@@ -68,7 +68,7 @@ struct HiFive1 {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDispatch for HiFive1 {
+impl SyscallDriverLookup for HiFive1 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -84,7 +84,7 @@ impl SyscallDispatch for HiFive1 {
 }
 
 impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static>>> for HiFive1 {
-    type SyscallDispatch = Self;
+    type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
@@ -92,7 +92,7 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDispatch {
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

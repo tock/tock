@@ -17,7 +17,7 @@ use crate::platform::watchdog;
 pub trait KernelResources<C: Chip> {
     /// The implementation of the system call dispatch mechanism the kernel
     /// will use.
-    type SyscallDispatch: SyscallDispatch;
+    type SyscallDriverLookup: SyscallDriverLookup;
 
     /// The implementation of the system call filtering mechanism the kernel
     /// will use.
@@ -38,9 +38,9 @@ pub trait KernelResources<C: Chip> {
     /// of the kernel.
     type WatchDog: watchdog::WatchDog;
 
-    /// Returns a reference to the implementation of the SyscallDispatch this
+    /// Returns a reference to the implementation of the SyscallDriverLookup this
     /// platform will use to route syscalls.
-    fn syscall_dispatch(&self) -> &Self::SyscallDispatch;
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup;
 
     /// Returns a reference to the implementation of the SyscallFilter this
     /// platform wants the kernel to use.
@@ -78,7 +78,7 @@ pub trait KernelResources<C: Chip> {
 ///     dac: &'static capsules::dac::Dac<'static>,
 /// }
 ///
-/// impl SyscallDispatch for Hail {
+/// impl SyscallDriverLookup for Hail {
 ///     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
 ///     where
 ///         F: FnOnce(Option<&dyn kernel::SyscallDriver>) -> R,
@@ -93,7 +93,7 @@ pub trait KernelResources<C: Chip> {
 ///     }
 /// }
 /// ```
-pub trait SyscallDispatch {
+pub trait SyscallDriverLookup {
     /// Platform-specific mapping of syscall numbers to objects that implement
     /// the Driver methods for that syscall.
     ///
