@@ -1,11 +1,11 @@
 //! OTBN Control
 
 use core::cell::Cell;
-use kernel::common::dynamic_deferred_call::{
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,

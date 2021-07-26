@@ -1,10 +1,10 @@
 //! SHA256 HMAC (Hash-based Message Authentication Code).
 
 use core::cell::Cell;
-use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil;
 use kernel::hil::digest;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
