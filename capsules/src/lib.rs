@@ -60,6 +60,7 @@ pub mod panic_button;
 pub mod pca9544a;
 pub mod process_console;
 pub mod proximity;
+pub mod public_key_crypto;
 pub mod read_only_state;
 pub mod rf233;
 pub mod rf233_const;
