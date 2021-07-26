@@ -1,7 +1,7 @@
 //! Hardware-independent kernel interface for deferred calls
 //!
 //! This allows any struct in the kernel which implements
-//! [DynamicDeferredCallClient](crate::common::dynamic_deferred_call::DynamicDeferredCallClient)
+//! [DynamicDeferredCallClient](crate::dynamic_deferred_call::DynamicDeferredCallClient)
 //! to set and receive deferred calls.
 //!
 //! These can be used to implement long-running in-kernel algorithms
@@ -14,16 +14,16 @@
 //! -----
 //!
 //! The `dynamic_deferred_call_clients` array size determines how many
-//! [DeferredCallHandle](crate::common::dynamic_deferred_call::DeferredCallHandle)s
+//! [DeferredCallHandle](crate::dynamic_deferred_call::DeferredCallHandle)s
 //! may be registered with the instance.
 //! When no more slots are available,
 //! `dynamic_deferred_call.register(some_client)` will return `None`.
 //!
 //! ```
 //! # use core::cell::Cell;
-//! # use kernel::common::cells::OptionalCell;
+//! # use kernel::utilities::cells::OptionalCell;
 //! # use kernel::static_init;
-//! use kernel::common::dynamic_deferred_call::{
+//! use kernel::dynamic_deferred_call::{
 //!     DynamicDeferredCall,
 //!     DynamicDeferredCallClient,
 //!     DynamicDeferredCallClientState,
@@ -44,13 +44,13 @@
 //! #     pub fn new(_ddc: &'static DynamicDeferredCall) -> Self { SomeCapsule }
 //! #     pub fn set_deferred_call_handle(
 //! #         &self,
-//! #         _handle: kernel::common::dynamic_deferred_call::DeferredCallHandle,
+//! #         _handle: kernel::dynamic_deferred_call::DeferredCallHandle,
 //! #     ) { }
 //! # }
 //! # impl DynamicDeferredCallClient for SomeCapsule {
 //! #     fn call(
 //! #         &self,
-//! #         _handle: kernel::common::dynamic_deferred_call::DeferredCallHandle,
+//! #         _handle: kernel::dynamic_deferred_call::DeferredCallHandle,
 //! #     ) { }
 //! # }
 //! #
@@ -251,7 +251,7 @@ impl DynamicDeferredCall {
 }
 
 /// Client for the
-/// [DynamicDeferredCall](crate::common::dynamic_deferred_call::DynamicDeferredCall)
+/// [DynamicDeferredCall](crate::dynamic_deferred_call::DynamicDeferredCall)
 ///
 /// This trait needs to be implemented for some struct to receive
 /// deferred calls from a `DynamicDeferredCall`.
@@ -260,6 +260,6 @@ pub trait DynamicDeferredCallClient {
 }
 
 /// Unique identifier for a deferred call registered with a
-/// [DynamicDeferredCall](crate::common::dynamic_deferred_call::DynamicDeferredCall)
+/// [DynamicDeferredCall](crate::dynamic_deferred_call::DynamicDeferredCall)
 #[derive(Copy, Clone, Debug)]
 pub struct DeferredCallHandle(usize);

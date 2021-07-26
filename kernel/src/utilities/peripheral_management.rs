@@ -7,8 +7,8 @@
 //! Generally, Tock peripherals are modeled by two structures, such as:
 //!
 //! ```rust
-//! # use kernel::common::cells::VolatileCell;
-//! # use kernel::common::StaticRef;
+//! # use kernel::utilities::cells::VolatileCell;
+//! # use kernel::utilities::StaticRef;
 //! # struct ChipSpecificPeripheralClock {};
 //! /// The MMIO Structure.
 //! #[repr(C)]
@@ -32,9 +32,9 @@
 //! MMIO pointer safely, Tock provides the PeripheralManager interface:
 //!
 //! ```rust
-//! # use kernel::common::cells::VolatileCell;
-//! # use kernel::common::peripherals::PeripheralManager;
-//! # use kernel::common::StaticRef;
+//! # use kernel::utilities::cells::VolatileCell;
+//! # use kernel::utilities::peripheral_management::PeripheralManager;
+//! # use kernel::utilities::StaticRef;
 //! # use kernel::ErrorCode;
 //! # use kernel::hil;
 //! # struct PeripheralRegisters { control: VolatileCell<u32> };
@@ -47,15 +47,15 @@
 //!         Ok(())
 //!     }
 //! }
-//! # use kernel::common::peripherals::PeripheralManagement;
-//! # use kernel::NoClockControl;
+//! # use kernel::utilities::peripheral_management::PeripheralManagement;
+//! # use kernel::platform::chip::NoClockControl;
 //! # impl PeripheralManagement<NoClockControl> for PeripheralHardware {
 //! #     type RegisterType = PeripheralRegisters;
 //!
 //! #     fn get_registers(&self) -> &PeripheralRegisters {
 //! #         &*self.mmio_address
 //! #     }
-//! #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::NO_CLOCK_CONTROL } }
+//! #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL } }
 //! #     fn before_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 //! #     fn after_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 //! # }
@@ -64,19 +64,19 @@
 //! Each peripheral must tell the kernel where its registers live in memory:
 //!
 //! ```rust
-//! # use kernel::common::peripherals::PeripheralManagement;
-//! # use kernel::common::StaticRef;
+//! # use kernel::utilities::peripheral_management::PeripheralManagement;
+//! # use kernel::utilities::StaticRef;
 //! # pub struct PeripheralRegisters {};
 //! # pub struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 //! /// Teaching the kernel how to create PeripheralRegisters.
-//! use kernel::NoClockControl;
+//! use kernel::platform::chip::NoClockControl;
 //! impl PeripheralManagement<NoClockControl> for PeripheralHardware {
 //!     type RegisterType = PeripheralRegisters;
 //!
 //!     fn get_registers(&self) -> &PeripheralRegisters {
 //!         &*self.mmio_address
 //!     }
-//!     # fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::NO_CLOCK_CONTROL } }
+//!     # fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL } }
 //!     # fn before_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 //!     # fn after_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 //! }
@@ -101,9 +101,9 @@
 //! without enabling clocks if needed if they use hardware for bookkeeping.
 //!
 //! ```rust
-//! use kernel::common::peripherals::PeripheralManagement;
-//! use kernel::common::StaticRef;
-//! use kernel::ClockInterface;
+//! use kernel::utilities::peripheral_management::PeripheralManagement;
+//! use kernel::utilities::StaticRef;
+//! use kernel::platform::chip::ClockInterface;
 //! // A dummy clock for this example.
 //! // Real peripherals that do not have clocks should use NoClockControl from this module.
 //! struct ExampleClock {};
@@ -155,7 +155,7 @@ where
 
     /// Which clock feeds this peripheral.
     ///
-    /// For peripherals with no clock, use `&::kernel::platform::NO_CLOCK_CONTROL`.
+    /// For peripherals with no clock, use `&::kernel::platform::chip::NO_CLOCK_CONTROL`.
     fn get_clock(&self) -> &C;
 
     /// Called before peripheral access.
@@ -171,14 +171,14 @@ where
     fn after_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 }
 
-/// Structures encapsulating periphal hardware (those implementing the
+/// Structures encapsulating peripheral hardware (those implementing the
 /// PeripheralManagement trait) should instantiate an instance of this
-/// method to accesss memory mapped registers.
+/// method to access memory mapped registers.
 ///
 /// ```
-/// # use kernel::common::cells::VolatileCell;
-/// # use kernel::common::peripherals::PeripheralManager;
-/// # use kernel::common::StaticRef;
+/// # use kernel::utilities::cells::VolatileCell;
+/// # use kernel::utilities::peripheral_management::PeripheralManager;
+/// # use kernel::utilities::StaticRef;
 /// # pub struct PeripheralRegisters { control: VolatileCell<u32> };
 /// # pub struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 /// impl PeripheralHardware {
@@ -187,15 +187,15 @@ where
 ///         peripheral.registers.control.set(0x1);
 ///     }
 /// }
-/// # use kernel::common::peripherals::PeripheralManagement;
-/// # use kernel::NoClockControl;
+/// # use kernel::utilities::peripheral_management::PeripheralManagement;
+/// # use kernel::platform::chip::NoClockControl;
 /// # impl PeripheralManagement<NoClockControl> for PeripheralHardware {
 /// #     type RegisterType = PeripheralRegisters;
 ///
 /// #     fn get_registers(&self) -> &PeripheralRegisters {
 /// #         &*self.mmio_address
 /// #     }
-/// #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::NO_CLOCK_CONTROL } }
+/// #     fn get_clock(&self) -> &NoClockControl { unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL } }
 /// #     fn before_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 /// #     fn after_peripheral_access(&self, _c: &NoClockControl, _r: &Self::RegisterType) {}
 /// # }

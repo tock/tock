@@ -25,7 +25,7 @@ pub mod registers {
 ///
 /// To use `TakeCell`, for example, users should use:
 ///
-///     use kernel::common::cells::TakeCell;
+///     use kernel::utilities::cells::TakeCell;
 pub mod cells {
     pub use tock_cells::map_cell::MapCell;
     pub use tock_cells::numeric_cell_ext::NumericCellExt;
