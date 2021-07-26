@@ -3,7 +3,7 @@ use kernel::common::registers::{register_bitfields, register_structs, ReadWrite}
 use kernel::hil::time;    
 use kernel::ErrorCode;
 use kernel::debug;
-use kernel::common::registers::interfaces::{Readable, ReadWriteable};
+use kernel::common::registers::interfaces::{Readable, ReadWriteable, Writeable};
 use kernel::hil::time::RtcClient;
 use kernel::common::cells::OptionalCell;
 
@@ -162,11 +162,40 @@ impl<'a> Rtc<'a>{
     }
 
     fn date_time_setup(&self, datetime:time::DateTime) -> Result<(),ErrorCode>{
+
+        let month_val:u32 =
+            match datetime.month{
+                time::Month::January => 1,
+                time::Month::February => 2,
+                time::Month::March => 3,
+                time::Month::April => 4,
+                time::Month::May => 5,
+                time::Month::June => 6,
+                time::Month::July => 7,
+                time::Month::August => 8,
+                time::Month::September => 9,
+                time::Month::October => 10,
+                time::Month::November => 11,
+                time::Month::December => 12,
+            };
+
+        let day_val:u32 =
+            match datetime.day_of_week{
+                time::DayOfWeek::Sunday => 0,
+                time::DayOfWeek::Monday => 1,
+                time::DayOfWeek::Tuesday => 2,
+                time::DayOfWeek::Wednesday => 3,
+                time::DayOfWeek::Thursday => 4,
+                time::DayOfWeek::Friday => 5,
+                time::DayOfWeek::Saturday =>6,
+            };
+
+
         self.registers.setup_0.modify(SETUP_0::YEAR.val(datetime.year));
-        self.registers.setup_0.modify(SETUP_0::MONTH.val(datetime.year));
+        self.registers.setup_0.modify(SETUP_0::MONTH.val(month_val));
         self.registers.setup_0.modify(SETUP_0::DAY.val(datetime.day));
-        //self.registers.setup_1.modify(SETUP_1::YEAR.val(datetime.year));
-        self.registers.setup_1.modify(SETUP_1::DOTW.val(datetime.year));
+
+        self.registers.setup_1.modify(SETUP_1::DOTW.val(day_val));
         self.registers.setup_1.modify(SETUP_1::HOUR.val(datetime.hour));
         self.registers.setup_1.modify(SETUP_1::MIN.val(datetime.minute));
         self.registers.setup_1.modify(SETUP_1::SEC.val(datetime.seconds));
@@ -181,16 +210,16 @@ impl<'a> Rtc<'a>{
         self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
-        while (hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)>0){
+        while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)>0 {
             debug!("is running");
         }
 
         self.date_time_setup(datetime);
-        
-        self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
+        self.registers.ctrl.modify(CTRL::LOAD::SET);
+        self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(1));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
-        while (!((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE))>0)){
+        while !((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE))>0) {
             debug!("is NOT running");
         }
 
@@ -199,7 +228,7 @@ impl<'a> Rtc<'a>{
     }
 
 
-    pub fn get_leap_year(){}
+    //pub fn get_leap_year(){}
 
     
     pub fn rtc_init(&self){
@@ -247,8 +276,11 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
         };
 
 
-        debug!("year: {}   day:{}   \n hour:{}   minute:{}  seconds:{}",datetime.year,datetime.day,datetime.hour, datetime.minute, datetime.seconds);
+       // debug!("year: {}   day:{}   \n hour:{}   minute:{}  seconds:{}",datetime.year,datetime.day,datetime.hour, datetime.minute, datetime.seconds);
 
+
+
+        //self.client.map(|client| client.callback(Ok(datetime)));
         self.client.map(|client| client.callback(Ok(datetime)));
 
         Ok(

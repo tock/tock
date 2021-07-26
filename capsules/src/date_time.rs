@@ -3,6 +3,9 @@ use core::cell::Cell;
 use kernel::{debug};
 use kernel::hil::time::{DateTime as HilDateTime, DayOfWeek, Month, Rtc, RtcClient};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, LocalRegisterCopy};
+use kernel::common::registers::interfaces::{Writeable, ReadWriteable, Readable};
+use core::marker::PhantomData;
 
 pub const DRIVER_NUM: usize = NUM::Rtc as usize;
 
@@ -22,6 +25,30 @@ pub struct DateTime<'a> {
     in_progress: Cell<bool>,
 
 }
+
+
+
+
+register_bitfields![u32,
+    YEAR_MONTH_DOTM[
+        YEAR OFFSET(9) NUMBITS(12) [],
+
+        MONTH OFFSET(5) NUMBITS(4) [],
+
+        DAY OFFSET(0) NUMBITS(5) [],
+
+    ],
+    DOTW_HOUR_MIN_SEC[
+
+        DOTW OFFSET(17) NUMBITS(3) [],
+
+        HOUR OFFSET(12) NUMBITS(5) [],
+
+        MIN OFFSET(6) NUMBITS(6) [],
+
+        SEC OFFSET(0) NUMBITS(6) []
+    ]
+];
 
 impl<'a> DateTime<'a> {
     pub fn new(date_time: &'a dyn Rtc<'a>, grant: Grant<AppData, 1>) -> DateTime<'a> {
@@ -69,17 +96,8 @@ impl<'a> DateTime<'a> {
         command: DateTimeCommand,
         year_month_dotm: u32,
         dotw_hour_min_sec: u32,
-        appid: ProcessId,
+        _appid: ProcessId,
     ) -> CommandReturn {
-        /*
-        self.apps
-            .enter(appid, |app, _| {
-                debug!();
-
-            })
-            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
-
-         */
         if !self.in_progress.get() {
             //app.subscribed = true;
             self.in_progress.set(true);
@@ -96,10 +114,10 @@ impl<'a> DateTime<'a> {
 }
 
 impl RtcClient for DateTime<'_> {
-    fn callback(&self, datetime: Result<HilDateTime, ErrorCode>) {
+    fn callback(&self, datetime: Result< HilDateTime, ErrorCode>) {
         debug!("got called back");
         for cntr in self.apps.iter() {
-            let mut upcall_status: Option<()> = None;
+
             cntr.enter(|app, upcalls| {
                 app.subscribed = true;
                 if app.subscribed {
@@ -107,6 +125,7 @@ impl RtcClient for DateTime<'_> {
                     app.subscribed = false;
                     match datetime {
                         Result::Ok(date) => {
+
                             let month = match date.month {
                                 Month::January => 1,
                                 Month::February => 2,
@@ -121,10 +140,13 @@ impl RtcClient for DateTime<'_> {
                                 Month::November => 11,
                                 Month::December => 12,
                             };
-                            //let mut year_month_dotm = (date.year * 10000 + month)*100 + date.day;
-                            let mut year_month_dotm = date.year << 4; //bits monnth
+
+                            /*
+                            let mut year_month_dotm = date.year << 4; //bits month
                             year_month_dotm = year_month_dotm + month << 5; //bits dotm
                             year_month_dotm = year_month_dotm + date.day;
+
+                             */
 
                             let dotw: u32 = match date.day_of_week {
                                 DayOfWeek::Sunday => 0,
@@ -136,16 +158,32 @@ impl RtcClient for DateTime<'_> {
                                 DayOfWeek::Saturday => 6,
                             };
 
-                            // let mut dotw_hour_min_sec:u32 = ((dotw*10 + date.hour)*100 + date.minute)*100 + date.seconds;
+                            /*
                             let mut dotw_hour_min_sec: u32 = dotw << 5; //bits hour
                             dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 6; //bits minute
-                            dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6 + date.seconds; //6 bits seconds
+                            dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6; //6 bits seconds
+                            dotw_hour_min_sec = dotw_hour_min_sec + date.seconds;
+                            */
+
+                            let mut year_month_dotm:LocalRegisterCopy<u32, YEAR_MONTH_DOTM::Register>= LocalRegisterCopy::new(0);
+                            let mut dotw_hour_min_sec:LocalRegisterCopy<u32, DOTW_HOUR_MIN_SEC::Register>=LocalRegisterCopy::new(0);
+
+                            year_month_dotm.modify(YEAR_MONTH_DOTM::YEAR.val(date.year));
+                            year_month_dotm.modify(YEAR_MONTH_DOTM::MONTH.val(month));
+                            year_month_dotm.modify(YEAR_MONTH_DOTM::DAY.val(date.day));
+
+                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::DOTW.val(dotw));
+                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::HOUR.val(date.hour));
+                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::MIN.val(date.minute));
+                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::SEC.val(date.seconds));
+
+                            debug!("year: {}  month:{} day:{}   \n dotw:{} hour:{}   minute:{}  seconds:{}",date.year,month,date.day,dotw,date.hour, date.minute, date.seconds);
 
                             upcalls
                                 .schedule_upcall(
                                     0,
-                                    year_month_dotm as usize,
-                                    dotw_hour_min_sec as usize,
+                                    year_month_dotm.get() as usize,
+                                    dotw_hour_min_sec.get() as usize,
                                     0,
                                 )
                                 .ok();
@@ -156,10 +194,6 @@ impl RtcClient for DateTime<'_> {
                     }
                 }
             });
-
-
-            debug!("something is weird out here");
-
 
         }
     }

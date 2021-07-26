@@ -14,6 +14,7 @@
 use crate::ErrorCode;
 use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
+use crate::common::registers::ReadWrite;
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
@@ -760,6 +761,9 @@ pub struct DateTime {
 
 
 
+
+
+
 pub trait Rtc<'a> {
     fn get_date_time (&self) -> Result<Option<DateTime>, ErrorCode>;
     fn set_date_time (&self, date_time: DateTime) -> Result<(), ErrorCode>;
@@ -791,9 +795,8 @@ pub trait Rtc<'a> {
 pub trait RtcClient {
     /// Called when a date time reading has completed.
 
-    fn callback(&self, datetime: Result<DateTime,ErrorCode>);
+    fn callback(&self, datetime: Result< DateTime,ErrorCode>);
 }
-
 
 #[cfg(test)]
 mod tests {
