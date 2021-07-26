@@ -79,7 +79,7 @@
  - Phil: In short, basically stop non pre-approved 2.0 merges
  - Jett: Hoping my Copy/Clone can get in!
  - Phil/Branden: Yeah that one should go
- - Alexandru: There is also some issues with SPI that I have in a PR that should come through.
+ - Alexandru: There are also some issues with SPI that I have in a PR that should come through.
  - Phil: Yeah, that one is just missing CI
  - Alexandru: Right, don't remember what was wrong there, but I will look to fix that quickly
  - Phil: Right so we can pull that in; should we add a tag or organize anything?
