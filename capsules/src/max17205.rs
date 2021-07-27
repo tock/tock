@@ -1,4 +1,4 @@
-//! Driver for the Maxim MAX17205 fuel gauge.
+//! SyscallDriver for the Maxim MAX17205 fuel gauge.
 //!
 //! <https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html>
 //!
@@ -38,9 +38,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -411,7 +414,12 @@ impl MAX17205Client for MAX17205Driver<'_> {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(0, kernel::into_statuscode(error), status as usize, 0)
+                    .schedule_upcall(
+                        0,
+                        kernel::errorcode::into_statuscode(error),
+                        status as usize,
+                        0,
+                    )
                     .ok();
             });
         });
@@ -429,7 +437,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::into_statuscode(error),
+                        kernel::errorcode::into_statuscode(error),
                         percent as usize,
                         (capacity as usize) << 16 | (full_capacity as usize),
                     )
@@ -444,7 +452,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::into_statuscode(error),
+                        kernel::errorcode::into_statuscode(error),
                         voltage as usize,
                         current as usize,
                     )
@@ -457,7 +465,12 @@ impl MAX17205Client for MAX17205Driver<'_> {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(0, kernel::into_statuscode(error), coulomb as usize, 0)
+                    .schedule_upcall(
+                        0,
+                        kernel::errorcode::into_statuscode(error),
+                        coulomb as usize,
+                        0,
+                    )
                     .ok();
             });
         });
@@ -469,7 +482,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::into_statuscode(error),
+                        kernel::errorcode::into_statuscode(error),
                         (rid & 0xffffffff) as usize,
                         (rid >> 32) as usize,
                     )
@@ -479,7 +492,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 }
 
-impl Driver for MAX17205Driver<'_> {
+impl SyscallDriver for MAX17205Driver<'_> {
     // Setup callback.
     //
     // ### `subscribe_num`
@@ -543,7 +556,7 @@ impl Driver for MAX17205Driver<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

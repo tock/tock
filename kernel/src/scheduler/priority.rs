@@ -10,11 +10,12 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
-use crate::common::cells::OptionalCell;
-use crate::common::dynamic_deferred_call::DynamicDeferredCall;
-use crate::platform::Chip;
+use crate::dynamic_deferred_call::DynamicDeferredCall;
+use crate::kernel::{Kernel, StoppedExecutingReason};
+use crate::platform::chip::Chip;
 use crate::process::ProcessId;
-use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::utilities::cells::OptionalCell;
 
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
 pub struct PrioritySched {

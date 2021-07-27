@@ -28,9 +28,9 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::grant::Grant;
 use kernel::hil;
 use kernel::static_init;
-use kernel::Grant;
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,

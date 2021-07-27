@@ -7,10 +7,12 @@ use crate::gpio;
 use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.
 #[repr(C)]

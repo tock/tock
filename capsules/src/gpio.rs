@@ -51,9 +51,11 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
+use kernel::grant::Grant;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// ### `subscribe_num`
 ///
@@ -151,7 +153,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
     }
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     /// Query and control pin values and states.
     ///
     /// Each byte of the `data` argument is treated as its own field.
@@ -330,7 +332,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

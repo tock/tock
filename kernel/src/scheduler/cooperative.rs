@@ -11,10 +11,11 @@
 //! interrupt. However it then continues executing the same userspace process
 //! that was executing.
 
-use crate::common::list::{List, ListLink, ListNode};
-use crate::platform::Chip;
+use crate::collections::list::{List, ListLink, ListNode};
+use crate::kernel::{Kernel, StoppedExecutingReason};
+use crate::platform::chip::Chip;
 use crate::process::Process;
-use crate::sched::{Kernel, Scheduler, SchedulingDecision, StoppedExecutingReason};
+use crate::scheduler::{Scheduler, SchedulingDecision};
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {

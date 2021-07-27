@@ -21,7 +21,9 @@ impl<'a> Stm32f401ccDefaultPeripherals<'a> {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::InterruptService<DeferredCallTask> for Stm32f401ccDefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
+    for Stm32f401ccDefaultPeripherals<'a>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f401cc specific interrupts here

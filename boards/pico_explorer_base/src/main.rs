@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -18,7 +18,9 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::led::LedHigh;
-use kernel::{capabilities, create_capability, static_init, Kernel, Platform};
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::{capabilities, create_capability, static_init, Kernel};
 use rp2040;
 
 use rp2040::adc::{Adc, Channel};
@@ -50,13 +52,14 @@ static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 
@@ -75,12 +78,15 @@ pub struct PicoExplorerBase {
 
     button: &'static capsules::button::Button<'static, RPGpioPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm0p::systick::SysTick,
 }
 
-impl Platform for PicoExplorerBase {
+impl SyscallDriverLookup for PicoExplorerBase {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -96,6 +102,34 @@ impl Platform for PicoExplorerBase {
 
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for PicoExplorerBase {
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm0p::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -454,21 +488,27 @@ pub unsafe fn main() {
             .finalize(());
     let _ = process_console.start();
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let pico_explorer_base = PicoExplorerBase {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        alarm: alarm,
-        gpio: gpio,
-        led: led,
-        console: console,
+        alarm,
+        gpio,
+        led,
+        console,
         adc: adc_syscall,
         temperature: temp,
 
         button,
         screen,
+
+        scheduler,
+        systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
     };
 
     let platform_type = match peripherals.sysinfo.get_platform() {
@@ -495,7 +535,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -515,14 +555,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     board_kernel.kernel_loop(
         &pico_explorer_base,
         chip,
         Some(&pico_explorer_base.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }

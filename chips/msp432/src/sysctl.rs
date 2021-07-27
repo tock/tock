@@ -1,8 +1,8 @@
 //! System Controller (SYSCTL)
 
-use kernel::common::registers::interfaces::ReadWriteable;
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const SYSCTL_BASE: StaticRef<SysCtlRegisters> =
     unsafe { StaticRef::new(0xE004_3000 as *const SysCtlRegisters) };

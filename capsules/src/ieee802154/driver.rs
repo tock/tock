@@ -7,17 +7,20 @@
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
+
 use core::cell::Cell;
 use core::cmp::min;
 use core::mem;
-use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
-    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::grant::Grant;
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -470,7 +473,9 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
                 upcalls
                     .schedule_upcall(
                         1,
-                        kernel::into_statuscode(self.saved_result.expect("missing result")),
+                        kernel::errorcode::into_statuscode(
+                            self.saved_result.expect("missing result"),
+                        ),
                         0,
                         0,
                     )
@@ -509,7 +514,7 @@ impl framer::KeyProcedure for RadioDriver<'_> {
     }
 }
 
-impl Driver for RadioDriver<'_> {
+impl SyscallDriver for RadioDriver<'_> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -884,7 +889,7 @@ impl Driver for RadioDriver<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }
@@ -895,7 +900,12 @@ impl device::TxClient for RadioDriver<'_> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, kernel::into_statuscode(result), acked as usize, 0)
+                    .schedule_upcall(
+                        1,
+                        kernel::errorcode::into_statuscode(result),
+                        acked as usize,
+                        0,
+                    )
                     .ok();
             });
         });

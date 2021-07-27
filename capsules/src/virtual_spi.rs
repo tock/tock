@@ -1,9 +1,10 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have

@@ -90,62 +90,34 @@
 #![no_std]
 
 pub mod capabilities;
-pub mod common;
+pub mod collections;
 pub mod component;
 pub mod debug;
+pub mod deferred_call;
+pub mod dynamic_deferred_call;
+pub mod errorcode;
+pub mod grant;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod platform;
+pub mod process;
+pub mod processbuffer;
+pub mod scheduler;
 pub mod syscall;
+pub mod upcall;
+pub mod utilities;
 
 mod config;
-mod driver;
-mod errorcode;
-mod grant;
-mod mem;
+mod kernel;
 mod memop;
-mod platform;
-mod process;
 mod process_policies;
 mod process_standard;
 mod process_utilities;
-mod sched;
-mod upcall;
+mod syscall_driver;
 
-pub use crate::driver::{CommandReturn, Driver};
-pub use crate::errorcode::into_statuscode;
+// Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
-pub use crate::grant::{Grant, ProcessGrant};
-pub use crate::mem::{
-    ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer, ReadableProcessByte,
-    ReadableProcessSlice, WriteableProcessBuffer, WriteableProcessSlice,
-};
-pub use crate::platform::scheduler_timer::{SchedulerTimer, VirtualSchedulerTimer};
-pub use crate::platform::watchdog;
-pub use crate::platform::{mpu, Chip, InterruptService, Platform};
-pub use crate::platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
+pub use crate::kernel::Kernel;
 pub use crate::process::ProcessId;
-pub use crate::sched::cooperative::{CoopProcessNode, CooperativeSched};
-pub use crate::sched::mlfq::{MLFQProcessNode, MLFQSched};
-pub use crate::sched::priority::PrioritySched;
-pub use crate::sched::round_robin::{RoundRobinProcessNode, RoundRobinSched};
-pub use crate::sched::{Kernel, Scheduler};
-pub use crate::upcall::UpcallError;
-
-// Export only select items from the process module. To remove the name conflict
-// this cannot be called `process`, so we use a shortened version. These
-// functions and types are used by board files to setup the platform and setup
-// processes.
-/// Publicly available process-related objects.
-pub mod procs {
-    pub use crate::process::{
-        Error, FaultAction, FunctionCall, FunctionCallSource, Process, State, Task,
-    };
-    pub use crate::process_policies::{
-        PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
-        StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
-        ThresholdRestartThenPanicFaultPolicy,
-    };
-    pub use crate::process_standard::ProcessStandard;
-    pub use crate::process_utilities::{load_processes, ProcessLoadError};
-}
+pub use crate::scheduler::Scheduler;

@@ -81,10 +81,10 @@
 use crate::ieee802154::mac::Mac;
 use crate::net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, Ticks};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // Time the radio will remain awake listening for packets before sleeping.

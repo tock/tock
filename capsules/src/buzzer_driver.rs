@@ -40,10 +40,12 @@
 
 use core::cmp;
 
-use kernel::common::cells::OptionalCell;
+use kernel::grant::Grant;
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -182,7 +184,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
+impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
     // Setup callbacks.
     //
     // ### `subscribe_num`
@@ -228,7 +230,7 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

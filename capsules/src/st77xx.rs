@@ -36,12 +36,12 @@
 
 use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
 use kernel::hil::time::{self, Alarm};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;

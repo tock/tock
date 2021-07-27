@@ -1,13 +1,13 @@
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
     Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 register_structs! {

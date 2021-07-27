@@ -1,4 +1,4 @@
-//! Driver for the ST LPS25HB pressure sensor.
+//! SyscallDriver for the ST LPS25HB pressure sensor.
 //!
 //! <http://www.st.com/en/mems-and-sensors/lps25hb.html>
 //!
@@ -19,10 +19,13 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -241,7 +244,7 @@ impl gpio::Client for LPS25HB<'_> {
     }
 }
 
-impl Driver for LPS25HB<'_> {
+impl SyscallDriver for LPS25HB<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -277,7 +280,7 @@ impl Driver for LPS25HB<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

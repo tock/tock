@@ -70,12 +70,13 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
+use core::convert::TryFrom;
+
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::process;
 use crate::process::ProcessId;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::SyscallReturn;
-use core::convert::TryFrom;
 
 /// Possible return values of a `command` driver method, as specified
 /// in TRD104.
@@ -179,7 +180,7 @@ impl From<process::Error> for CommandReturn {
 /// kernel, and therefore there is no subscribe function for capsules to
 /// implement.
 #[allow(unused_variables)]
-pub trait Driver {
+pub trait SyscallDriver {
     /// System call for a process to perform a short synchronous operation
     /// or start a long-running split-phase operation (whose completion
     /// is signaled with an upcall). Command 0 is a reserved command to

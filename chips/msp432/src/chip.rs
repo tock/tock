@@ -1,16 +1,14 @@
 use core::fmt::Write;
 use cortexm4;
-use kernel::Chip;
+use kernel::platform::chip::Chip;
 
 use crate::nvic;
 use crate::wdt;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
 
 pub struct Msp432<'a, I: InterruptService<()> + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
-    watchdog: wdt::Wdt,
     interrupt_service: &'a I,
 }
 
@@ -26,6 +24,7 @@ pub struct Msp432DefaultPeripherals<'a> {
     pub timer_a3: crate::timer::TimerA<'a>,
     pub gpio: crate::gpio::GpioManager<'a>,
     pub i2c0: crate::i2c::I2c<'a>,
+    pub wdt: wdt::Wdt,
 }
 
 impl<'a> Msp432DefaultPeripherals<'a> {
@@ -42,6 +41,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
             timer_a3: crate::timer::TimerA::new(crate::timer::TIMER_A3_BASE),
             gpio: crate::gpio::GpioManager::new(),
             i2c0: crate::i2c::I2c::new(crate::usci::USCI_B0_BASE),
+            wdt: wdt::Wdt::new(),
         }
     }
 
@@ -64,7 +64,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> kernel::InterruptService<()> for Msp432DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<()> for Msp432DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::ADC => self.adc.handle_interrupt(),
@@ -98,8 +98,6 @@ impl<'a, I: InterruptService<()> + 'a> Msp432<'a, I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
-            watchdog: wdt::Wdt::new(),
             interrupt_service,
         }
     }
@@ -108,8 +106,6 @@ impl<'a, I: InterruptService<()> + 'a> Msp432<'a, I> {
 impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = wdt::Wdt;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -135,14 +131,6 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &self.watchdog
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

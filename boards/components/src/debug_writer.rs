@@ -20,7 +20,7 @@
 
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::uart;

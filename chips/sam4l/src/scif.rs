@@ -8,9 +8,11 @@
 //! - Date: Aug 2, 2015
 
 use crate::bscif;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 pub enum Register {
     IER = 0x00,

@@ -14,10 +14,10 @@ use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use capsules::net::udp::udp_port_table::UdpPortManager;
-use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
+use kernel::utilities::cells::TakeCell;
 
 pub struct MockUDPComponent2 {
     // TODO: consider putting bound_port_table in a TakeCell
@@ -98,7 +98,7 @@ impl Component for MockUDPComponent2 {
                 udp_send,
                 udp_recv,
                 self.bound_port_table,
-                kernel::common::leasable_buffer::LeasableBuffer::new(
+                kernel::utilities::leasable_buffer::LeasableBuffer::new(
                     self.udp_payload.take().expect("missing payload")
                 ),
                 self.dst_port,

@@ -26,9 +26,11 @@
 //!         usb_client, board_kernel.create_grant(&grant_cap)));
 //! ```
 
-use kernel::common::cells::OptionalCell;
+use kernel::grant::Grant;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
@@ -76,7 +78,12 @@ where
 
                             // Schedule a callback immediately
                             upcalls
-                                .schedule_upcall(0, kernel::into_statuscode(Ok(())), 0, 0)
+                                .schedule_upcall(
+                                    0,
+                                    kernel::errorcode::into_statuscode(Ok(())),
+                                    0,
+                                    0,
+                                )
                                 .ok();
                             app.awaiting = None;
                         }
@@ -99,7 +106,7 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<'a, C> Driver for UsbSyscallDriver<'a, C>
+impl<'a, C> SyscallDriver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client<'a>,
 {
@@ -142,7 +149,7 @@ where
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

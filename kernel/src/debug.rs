@@ -49,19 +49,19 @@
 //! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
 
-use crate::ErrorCode;
 use core::cell::Cell;
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::str;
 
-use crate::common::cells::NumericCellExt;
-use crate::common::cells::{MapCell, TakeCell};
-use crate::common::queue::Queue;
-use crate::common::ring_buffer::RingBuffer;
+use crate::collections::queue::Queue;
+use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
+use crate::platform::chip::Chip;
 use crate::process::Process;
-use crate::Chip;
+use crate::utilities::cells::NumericCellExt;
+use crate::utilities::cells::{MapCell, TakeCell};
+use crate::ErrorCode;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being

@@ -1,4 +1,4 @@
-//! Driver for sending 802.15.4 packets with an Atmel RF233.
+//! SyscallDriver for sending 802.15.4 packets with an Atmel RF233.
 //!
 //! This implementation is completely non-blocking. This means that the state
 //! machine is somewhat complex, as it must interleave interrupt handling with
@@ -15,10 +15,10 @@ use crate::rf233_const::{
     ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd,
 };
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 use crate::rf233_const::CSMA_SEED_1;

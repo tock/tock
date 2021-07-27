@@ -1,4 +1,4 @@
-//! Driver for the MX25R6435F flash chip.
+//! SyscallDriver for the MX25R6435F flash chip.
 //!
 //! <http://www.macronix.com/en-us/products/NOR-Flash/Serial-NOR-Flash/Pages/spec.aspx?p=MX25R6435F>
 //!
@@ -50,10 +50,10 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];

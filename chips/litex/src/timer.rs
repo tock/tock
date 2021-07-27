@@ -5,11 +5,11 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::OptionalCell;
-use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::event_manager::LiteXEventManager;

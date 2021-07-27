@@ -12,13 +12,15 @@
 use crate::dma::{DMAChannel, DMAClient, DMAPeripheral};
 use crate::pm;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

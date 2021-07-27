@@ -1,4 +1,4 @@
-//! Driver for the LSM303DLHC 3D accelerometer and 3D magnetometer sensor.
+//! SyscallDriver for the LSM303DLHC 3D accelerometer and 3D magnetometer sensor.
 //!
 //! May be used with NineDof and Temperature
 //!
@@ -79,12 +79,16 @@
 #![allow(non_camel_case_types)]
 
 use core::cell::Cell;
+
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::i2c;
 use kernel::hil::sensors;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -559,7 +563,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl Driver for Lsm303dlhcI2C<'_> {
+impl SyscallDriver for Lsm303dlhcI2C<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -684,7 +688,7 @@ impl Driver for Lsm303dlhcI2C<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

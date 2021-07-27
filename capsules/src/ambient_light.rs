@@ -14,8 +14,10 @@
 
 use core::cell::Cell;
 
+use kernel::grant::Grant;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +65,7 @@ impl<'a> AmbientLight<'a> {
     }
 }
 
-impl Driver for AmbientLight<'_> {
+impl SyscallDriver for AmbientLight<'_> {
     // Subscribe to light intensity readings
     //
     // ### `subscribe`
@@ -93,7 +95,7 @@ impl Driver for AmbientLight<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

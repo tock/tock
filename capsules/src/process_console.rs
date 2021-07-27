@@ -118,7 +118,7 @@ use core::fmt;
 use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
-use kernel::common::cells::TakeCell;
+use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
 use kernel::debug;

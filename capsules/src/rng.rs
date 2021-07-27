@@ -22,15 +22,16 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::common::cells::OptionalCell;
+
+use kernel::grant::Grant;
 use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWriteProcessBuffer,
-    WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -154,7 +155,7 @@ impl rng::Client for RngDriver<'_> {
     }
 }
 
-impl<'a> Driver for RngDriver<'a> {
+impl<'a> SyscallDriver for RngDriver<'a> {
     fn allow_readwrite(
         &self,
         appid: ProcessId,
@@ -213,7 +214,7 @@ impl<'a> Driver for RngDriver<'a> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

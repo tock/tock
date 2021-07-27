@@ -10,16 +10,16 @@ use crate::scif;
 use core::cell::Cell;
 use core::ptr;
 use core::slice;
-use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
-    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
-    WriteOnly,
-};
-use kernel::common::StaticRef;
 use kernel::debug as debugln;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
+    WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or

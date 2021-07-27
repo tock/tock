@@ -17,8 +17,8 @@
 
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::i2c;
 use kernel::static_init_half;
 

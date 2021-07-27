@@ -26,7 +26,7 @@
 //! - Channel priorities may come into play when preferring DMA channels. See the reference manual for more
 //!   information on channel priorities, and how the DMA controller use priorities for scheduling.
 
-use kernel::common::{
+use kernel::utilities::{
     cells::OptionalCell,
     registers::{
         self,
@@ -737,7 +737,7 @@ impl<'a> Dma<'a> {
     }
 
     /// Returns the interface that controls the DMA clock
-    pub fn clock(&self) -> &(impl kernel::ClockInterface + '_) {
+    pub fn clock(&self) -> &(impl kernel::platform::chip::ClockInterface + '_) {
         &self.clock_gate
     }
 

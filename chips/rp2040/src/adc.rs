@@ -1,11 +1,9 @@
 use core::cell::Cell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::{cells::OptionalCell, StaticRef};
 use kernel::hil;
-use kernel::{
-    common::registers::{register_bitfields, register_structs, ReadWrite},
-    ErrorCode,
-};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::{cells::OptionalCell, StaticRef};
+use kernel::ErrorCode;
 
 register_structs! {
     /// Control and data interface to SAR ADC

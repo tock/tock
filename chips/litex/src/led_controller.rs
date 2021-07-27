@@ -5,8 +5,8 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 

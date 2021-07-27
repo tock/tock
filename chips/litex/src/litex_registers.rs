@@ -318,7 +318,7 @@ where
 /// ```rust
 /// # // This is a dummy setup to make the doctests pass
 /// # use tock_registers::register_bitfields;
-/// # use kernel::common::StaticRef;
+/// # use kernel::utilities::StaticRef;
 /// # use litex::litex_registers::{
 /// #   LiteXSoCRegisterConfiguration,
 /// #   LiteXSoCRegistersC8B32,

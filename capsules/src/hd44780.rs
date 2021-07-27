@@ -1,4 +1,4 @@
-//! Driver for the HD44780 LCD screen.
+//! SyscallDriver for the HD44780 LCD screen.
 //!
 //! The LCD must be connected as shown here, because the pins of the LCD are
 //! already defined in the kernel, and modifying them means re-compiling the
@@ -49,10 +49,10 @@
 //! Author: Teona Severin <teona.severin9@gmail.com>
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::text_screen::{TextScreen, TextScreenClient};
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// commands

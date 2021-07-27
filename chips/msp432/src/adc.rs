@@ -3,13 +3,13 @@
 use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use core::{mem, slice};
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const ADC_BASE: StaticRef<AdcRegisters> =

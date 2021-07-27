@@ -1,13 +1,15 @@
 //! Virtualize the SHA interface to enable multiple users of an underlying
 //! SHA hardware peripheral.
 
-use crate::virtual_digest::{Mode, Operation};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, Client, Digest};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
+
+use crate::virtual_digest::{Mode, Operation};
 
 pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxSha<'a, A, L>,

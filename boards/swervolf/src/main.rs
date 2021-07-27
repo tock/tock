@@ -10,11 +10,12 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 use swervolf_eh1::chip::SweRVolfDefaultPeripherals;
@@ -26,13 +27,14 @@ const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static swervolf_eh1::chip::SweRVolf<SweRVolfDefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -47,19 +49,51 @@ struct SweRVolf {
         'static,
         VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon<'static>>,
     >,
+    scheduler: &'static CooperativeSched<'static>,
+    scheduler_timer: &'static swerv::eh1_timer::Timer<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for SweRVolf {
+impl SyscallDriverLookup for SweRVolf {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeripherals<'static>>>
+    for SweRVolf
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = CooperativeSched<'static>;
+    type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -177,9 +211,17 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let swervolf = SweRVolf { console, alarm };
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
 
-    kernel::procs::load_processes(
+    let swervolf = SweRVolf {
+        console,
+        alarm,
+        scheduler,
+        scheduler_timer: chip.get_scheduler_timer(),
+    };
+
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -199,13 +241,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(
         &swervolf,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler,
         &main_loop_cap,
     );
 }

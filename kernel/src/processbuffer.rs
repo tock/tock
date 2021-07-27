@@ -456,7 +456,7 @@ impl ReadWriteProcessBuffer {
     /// `Copy` as such:
     ///
     /// ```
-    /// use kernel::ReadWriteProcessBuffer;
+    /// use kernel::processbuffer::ReadWriteProcessBuffer;
     /// const DEFAULT_RWPROCBUF_VAL: ReadWriteProcessBuffer
     ///     = ReadWriteProcessBuffer::const_default();
     /// let my_array = [DEFAULT_RWPROCBUF_VAL; 12];

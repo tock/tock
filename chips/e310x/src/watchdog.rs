@@ -1,6 +1,6 @@
 //! Watchdog registers.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 
 use sifive::watchdog::WatchdogRegisters;
 

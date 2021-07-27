@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 register_bitfields![usize,
     pub mstatus [

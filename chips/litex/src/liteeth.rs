@@ -8,9 +8,9 @@ use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::StaticRef;
 use kernel::debug;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 // Both events have the same index since they are located on different

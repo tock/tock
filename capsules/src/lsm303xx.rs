@@ -1,9 +1,12 @@
 //! LSM303xx Sensors
 //!
+
 #![allow(non_camel_case_types)]
+
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::registers::register_bitfields;
+
+use kernel::utilities::registers::register_bitfields;
 
 pub const ACCELEROMETER_BASE_ADDRESS: u8 = 0x19;
 pub const MAGNETOMETER_BASE_ADDRESS: u8 = 0x1e;

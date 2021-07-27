@@ -1,4 +1,4 @@
-//! Utility macros including `static_init!`.
+//! Support for statically initializing objects in memory.
 
 /// Allocates a statically-sized global array of memory and initializes the
 /// memory for a particular data structure.
@@ -49,9 +49,9 @@ macro_rules! static_buf {
         // Statically allocate a read-write buffer for the value, write our
         // initial value into it (without dropping the initial zeros) and
         // return a reference to it.
-        static mut BUF: $crate::common::utils::UninitializedBuffer<$T> =
-            $crate::common::utils::UninitializedBuffer::new();
-        $crate::common::utils::StaticUninitializedBuffer::new(&mut BUF)
+        static mut BUF: $crate::utilities::static_init::UninitializedBuffer<$T> =
+            $crate::utilities::static_init::UninitializedBuffer::new();
+        $crate::utilities::static_init::StaticUninitializedBuffer::new(&mut BUF)
     }};
 }
 
@@ -147,69 +147,4 @@ macro_rules! static_init_half {
             &mut *buf.as_mut_ptr() as &'static mut $T
         }
     };
-}
-
-/// Allocates space in the kernel image for on-chip non-volatile storage.
-///
-/// Storage volumes are placed after the kernel code and before relocated
-/// variables (those copied into RAM on boot). They are placed in
-/// a section called `.storage`.
-///
-/// Non-volatile storage abstractions can then refer to the block of
-/// allocate flash in terms of the name of the volume. For example,
-///
-/// `storage_volume!(LOG, 32);`
-///
-/// will allocate 32kB of space in the flash and define a symbol LOG
-/// at the start address of that flash region. The intention is that
-/// storage abstractions can then be passed this address and size to
-/// initialize their state. The linker script kernel_layout.ld makes
-/// sure that the .storage section is aligned on a 512-byte boundary
-/// and the next section is aligned as well.
-#[macro_export]
-macro_rules! storage_volume {
-    ($N:ident, $kB:expr $(,)?) => {
-        #[link_section = ".storage"]
-        #[used]
-        #[no_mangle]
-        pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];
-    };
-}
-
-/// Create an object with the given capability.
-///
-/// ```ignore
-/// use kernel::capabilities::ProcessManagementCapability;
-/// use kernel;
-///
-/// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
-/// ```
-///
-/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
-/// and is used by trusted code to generate a capability that it can either use
-/// or pass to another module.
-#[macro_export]
-macro_rules! create_capability {
-    ($T:ty $(,)?) => {{
-        struct Cap;
-        #[allow(unsafe_code)]
-        unsafe impl $T for Cap {}
-        Cap
-    };};
-}
-
-/// Count the number of passed expressions.
-/// Useful for constructing variable sized arrays in other macros.
-/// Taken from the Little Book of Rust Macros
-///
-/// ```ignore
-/// use kernel:count_expressions;
-///
-/// let count: usize = count_expressions!(1+2, 3+4);
-/// ```
-#[macro_export]
-macro_rules! count_expressions {
-    () => (0usize);
-    ($head:expr $(,)?) => (1usize);
-    ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }

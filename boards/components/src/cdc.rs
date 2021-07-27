@@ -23,8 +23,8 @@
 use core::mem::MaybeUninit;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::time::Alarm;
 use kernel::static_init_half;

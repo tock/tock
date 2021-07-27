@@ -4,13 +4,14 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
+
 use kernel;
-use kernel::common::cells::OptionalCell;
-use kernel::common::math;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::mpu;
+use kernel::platform::mpu;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::math;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ProcessId;
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
@@ -359,7 +360,7 @@ impl CortexMRegion {
     }
 }
 
-impl<const NUM_REGIONS: usize> kernel::mpu::MPU for MPU<NUM_REGIONS> {
+impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
 
     fn clear_mpu(&self) {

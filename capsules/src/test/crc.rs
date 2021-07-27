@@ -1,9 +1,9 @@
 //! Test the CRC hardware.
 
-use kernel::common::cells::TakeCell;
-use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 pub struct TestCrc<'a, C: 'a> {

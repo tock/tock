@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::flash_ctrl::FlashCtrlRegisters;
 
 pub const FLASH_CTRL_BASE: StaticRef<FlashCtrlRegisters> =

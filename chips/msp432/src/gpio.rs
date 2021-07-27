@@ -2,11 +2,11 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const GPIO_BASES: [StaticRef<GpioRegisters>; 6] = [
     unsafe { StaticRef::new(0x4000_4C00u32 as *const GpioRegisters) }, // PORT 1&2

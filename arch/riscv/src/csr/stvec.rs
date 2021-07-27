@@ -1,4 +1,4 @@
-use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 
 // stvec contains the address(es) of the trap handler
 register_bitfields![usize,
