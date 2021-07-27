@@ -1,9 +1,9 @@
 //! Low Power Management driver.
 
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::watchdog::WatchDog;
+use kernel::platform::watchdog::WatchDog;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 pub const RTC_CNTL_BASE: StaticRef<RtcCntlRegisters> =
     unsafe { StaticRef::new(0x6000_8000 as *const RtcCntlRegisters) };

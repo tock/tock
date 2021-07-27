@@ -1,13 +1,13 @@
 //! GPIO driver.
 
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, Field, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil::gpio;
+use kernel::utilities::StaticRef;
 
 pub const GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x6000_4000 as *const GpioRegisters) };
