@@ -133,7 +133,7 @@ impl rng::Client for RngDriver<'_> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        upcalls.schedule_upcall(0, 0, newidx, 0).ok();
+                        upcalls.schedule_upcall(0, (0, newidx, 0)).ok();
                     }
                 }
             });

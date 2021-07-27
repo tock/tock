@@ -128,9 +128,11 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                         my_upcalls
                                             .schedule_upcall(
                                                 to_schedule,
-                                                called_from.id() + 1,
-                                                ReadableProcessBuffer::len(slice),
-                                                ReadableProcessBuffer::ptr(slice) as usize,
+                                                (
+                                                    called_from.id() + 1,
+                                                    ReadableProcessBuffer::len(slice),
+                                                    ReadableProcessBuffer::ptr(slice) as usize,
+                                                ),
                                             )
                                             .ok();
                                     }
@@ -138,9 +140,7 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
                                         my_upcalls
                                             .schedule_upcall(
                                                 to_schedule,
-                                                called_from.id() + 1,
-                                                0,
-                                                0,
+                                                (called_from.id() + 1, 0, 0),
                                             )
                                             .ok();
                                     }

@@ -268,9 +268,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                     upcalls
                         .schedule_upcall(
                             ALARM_CALLBACK_NUM,
-                            now.into_u32() as usize,
-                            reference.wrapping_add(dt) as usize,
-                            0,
+                            (
+                                now.into_u32() as usize,
+                                reference.wrapping_add(dt) as usize,
+                                0,
+                            ),
                         )
                         .ok();
                 }

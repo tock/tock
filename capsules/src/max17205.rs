@@ -416,9 +416,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::errorcode::into_statuscode(error),
-                        status as usize,
-                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            status as usize,
+                            0,
+                        ),
                     )
                     .ok();
             });
@@ -437,9 +439,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::errorcode::into_statuscode(error),
-                        percent as usize,
-                        (capacity as usize) << 16 | (full_capacity as usize),
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            percent as usize,
+                            (capacity as usize) << 16 | (full_capacity as usize),
+                        ),
                     )
                     .ok();
             });
@@ -452,9 +456,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::errorcode::into_statuscode(error),
-                        voltage as usize,
-                        current as usize,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            voltage as usize,
+                            current as usize,
+                        ),
                     )
                     .ok();
             });
@@ -467,9 +473,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::errorcode::into_statuscode(error),
-                        coulomb as usize,
-                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            coulomb as usize,
+                            0,
+                        ),
                     )
                     .ok();
             });
@@ -482,9 +490,11 @@ impl MAX17205Client for MAX17205Driver<'_> {
                 upcalls
                     .schedule_upcall(
                         0,
-                        kernel::errorcode::into_statuscode(error),
-                        (rid & 0xffffffff) as usize,
-                        (rid >> 32) as usize,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            (rid & 0xffffffff) as usize,
+                            (rid >> 32) as usize,
+                        ),
                     )
                     .ok();
             });

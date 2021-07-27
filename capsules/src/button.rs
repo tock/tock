@@ -230,7 +230,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
             if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 upcalls
-                    .schedule_upcall(UPCALL_NUM, pin_num as usize, button_state as usize, 0)
+                    .schedule_upcall(UPCALL_NUM, (pin_num as usize, button_state as usize, 0))
                     .ok();
             }
         });

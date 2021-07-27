@@ -154,7 +154,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
-                upcalls.schedule_upcall(0, arg1, arg2, arg3).ok();
+                upcalls.schedule_upcall(0, (arg1, arg2, arg3)).ok();
             });
         });
 
@@ -169,7 +169,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                     // Don't bother re-issuing this command, just use
                     // the existing result.
                     app.pending_command = false;
-                    upcalls.schedule_upcall(0, arg1, arg2, arg3).ok();
+                    upcalls.schedule_upcall(0, (arg1, arg2, arg3)).ok();
                     false
                 } else if app.pending_command {
                     app.pending_command = false;

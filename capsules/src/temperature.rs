@@ -114,7 +114,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    upcalls.schedule_upcall(0, temp_val, 0, 0).ok();
+                    upcalls.schedule_upcall(0, (temp_val, 0, 0)).ok();
                 }
             });
         }

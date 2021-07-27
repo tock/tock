@@ -173,7 +173,7 @@ impl<'a> UDPDriver<'a> {
         if result != Ok(()) {
             let _ = self.apps.enter(appid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, kernel::errorcode::into_statuscode(result), 0, 0)
+                    .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
                     .ok();
             });
         }
@@ -605,7 +605,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, kernel::errorcode::into_statuscode(result), 0, 0)
+                    .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
                     .ok();
             });
         });
@@ -650,7 +650,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                             addr: src_addr,
                             port: src_port,
                         };
-                        upcalls.schedule_upcall(0, len, 0, 0).ok();
+                        upcalls.schedule_upcall(0, (len, 0, 0)).ok();
                         const CFG_LEN: usize = 2 * size_of::<UDPEndpoint>();
                         let _ = app
                             .app_rx_cfg

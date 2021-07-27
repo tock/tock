@@ -142,7 +142,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
                         dest.copy_from_slice(buffer);
                     });
 
-                    upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                    upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                     app.can_receive.set(false);
                 })
                 .map_err(|err| {
@@ -164,7 +164,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         self.appid.map(|id| {
             self.app
                 .enter(*id, |_app, upcalls| {
-                    upcalls.schedule_upcall(0, 1, 0, 0).ok();
+                    upcalls.schedule_upcall(0, (1, 0, 0)).ok();
                 })
                 .map_err(|err| {
                     if err == kernel::process::Error::NoSuchApp

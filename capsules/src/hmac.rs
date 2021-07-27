@@ -277,14 +277,12 @@ impl<
                             upcalls
                                 .schedule_upcall(
                                     0,
-                                    kernel::errorcode::into_statuscode(e.into()),
-                                    0,
-                                    0,
+                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
                                 )
                                 .ok();
                         }
                     } else {
-                        upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                     }
                 })
                 .map_err(|err| {
@@ -318,12 +316,14 @@ impl<
                     });
 
                     match result {
-                        Ok(_) => upcalls.schedule_upcall(0, 0, pointer as usize, 0),
+                        Ok(_) => upcalls.schedule_upcall(0, (0, pointer as usize, 0)),
                         Err(e) => upcalls.schedule_upcall(
                             0,
-                            kernel::errorcode::into_statuscode(e.into()),
-                            pointer as usize,
-                            0,
+                            (
+                                kernel::errorcode::into_statuscode(e.into()),
+                                pointer as usize,
+                                0,
+                            ),
                         ),
                     }
                     .ok();
@@ -625,9 +625,7 @@ impl<
                                 upcalls
                                     .schedule_upcall(
                                         0,
-                                        kernel::errorcode::into_statuscode(e.into()),
-                                        0,
-                                        0,
+                                        (kernel::errorcode::into_statuscode(e.into()), 0, 0),
                                     )
                                     .ok();
                             }

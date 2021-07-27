@@ -420,7 +420,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        upcalls.schedule_upcall(0, length, 0, 0).ok();
+                        upcalls.schedule_upcall(0, (length, 0, 0)).ok();
                     });
                 }
             }
@@ -444,7 +444,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        upcalls.schedule_upcall(1, length, 0, 0).ok();
+                        upcalls.schedule_upcall(1, (length, 0, 0)).ok();
                     });
                 }
             }
