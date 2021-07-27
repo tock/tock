@@ -2,7 +2,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::digest;
+use kernel::hil::digest::{self, DigestHash};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -77,6 +77,8 @@ pub struct Hmac<'a> {
     data_len: Cell<usize>,
     data_index: Cell<usize>,
 
+    verify: Cell<bool>,
+
     digest: Cell<Option<&'static mut [u8; 32]>>,
 }
 
@@ -88,6 +90,7 @@ impl Hmac<'_> {
             data: Cell::new(None),
             data_len: Cell::new(0),
             data_index: Cell::new(0),
+            verify: Cell::new(false),
             digest: Cell::new(None),
         }
     }
@@ -150,20 +153,40 @@ impl Hmac<'_> {
             self.client.map(|client| {
                 let digest = self.digest.take().unwrap();
 
-                for i in 0..8 {
-                    let d = regs.digest[i].get().to_ne_bytes();
-
-                    let idx = i * 4;
-
-                    digest[idx + 0] = d[0];
-                    digest[idx + 1] = d[1];
-                    digest[idx + 2] = d[2];
-                    digest[idx + 3] = d[3];
-                }
-
                 regs.intr_state.modify(INTR_STATE::HMAC_DONE::SET);
 
-                client.hash_done(Ok(()), digest);
+                if self.verify.get() {
+                    let mut equal = true;
+
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        if digest[idx + 0] != d[0]
+                            || digest[idx + 1] != d[1]
+                            || digest[idx + 2] != d[2]
+                            || digest[idx + 3] != d[3]
+                        {
+                            equal = false;
+                        }
+                    }
+
+                    client.verification_done(Ok(equal), digest);
+                } else {
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        digest[idx + 0] = d[0];
+                        digest[idx + 1] = d[1];
+                        digest[idx + 2] = d[2];
+                        digest[idx + 3] = d[3];
+                    }
+
+                    client.hash_done(Ok(()), digest);
+                }
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
             // Clear the FIFO empty interrupt
@@ -187,7 +210,11 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                if self.verify.get() {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                } else {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                }
             });
         }
     }
@@ -262,7 +289,9 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
         &'a self,
         compare: &'static mut [u8; 32],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
-        Err((ErrorCode::NOSUPPORT, compare))
+        self.verify.set(true);
+
+        self.run(compare)
     }
 }
 
