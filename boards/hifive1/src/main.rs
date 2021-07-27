@@ -92,7 +92,7 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

@@ -120,7 +120,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

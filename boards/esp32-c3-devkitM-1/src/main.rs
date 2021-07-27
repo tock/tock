@@ -101,7 +101,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SchedulerTimer = VirtualSchedulerTimer<esp32::timg::TimG<'static>>;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

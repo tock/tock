@@ -92,7 +92,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SchedulerTimer = ();
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

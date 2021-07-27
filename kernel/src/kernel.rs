@@ -887,7 +887,7 @@ impl Kernel {
                                 // again after asking the capsule to allocate the
                                 // grant.
                                 resources
-                                .syscall_dispatch()
+                                .syscall_driver_lookup()
                                 .with_driver(driver_number, |driver| match driver {
                                     Some(d) => {
                                         // For debugging purposes, query the
@@ -1000,7 +1000,7 @@ impl Kernel {
                 arg1,
             } => {
                 let cres = resources
-                    .syscall_dispatch()
+                    .syscall_driver_lookup()
                     .with_driver(driver_number, |driver| match driver {
                         Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
                         None => CommandReturn::failure(ErrorCode::NODEVICE),
@@ -1028,7 +1028,7 @@ impl Kernel {
                 allow_size,
             } => {
                 let res = resources
-                    .syscall_dispatch()
+                    .syscall_driver_lookup()
                     .with_driver(driver_number, |driver| match driver {
                         Some(d) => {
                             // Try to create an appropriate [`ReadWriteProcessBuffer`].
@@ -1099,7 +1099,7 @@ impl Kernel {
                 allow_size,
             } => {
                 let res = resources
-                    .syscall_dispatch()
+                    .syscall_driver_lookup()
                     .with_driver(driver_number, |driver| match driver {
                         Some(d) => {
                             // Try to create an appropriate [`ReadOnlyProcessBuffer`].

@@ -105,7 +105,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

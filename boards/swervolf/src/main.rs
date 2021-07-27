@@ -77,7 +77,7 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

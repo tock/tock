@@ -95,7 +95,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

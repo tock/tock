@@ -175,7 +175,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     >;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

@@ -95,7 +95,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {

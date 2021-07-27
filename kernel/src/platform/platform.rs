@@ -40,7 +40,7 @@ pub trait KernelResources<C: Chip> {
 
     /// Returns a reference to the implementation of the SyscallDriverLookup this
     /// platform will use to route syscalls.
-    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup;
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup;
 
     /// Returns a reference to the implementation of the SyscallFilter this
     /// platform wants the kernel to use.
