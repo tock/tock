@@ -25,6 +25,7 @@ members = [
     "boards/nordic/nrf52dk",
     "boards/nucleo_f429zi",
     "boards/nucleo_f446re",
+    "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
     "boards/redboard_artemis_nano",
     "boards/stm32f3discovery",

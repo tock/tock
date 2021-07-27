@@ -23,6 +23,7 @@ that Tock supports.
 | [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         | No            |
 | [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         | No            |
 | [Teensy 4.0](teensy40/README.md)                                     | ARM Cortex-M7   | i.MX RT 1062   | custom     | custom         | No            |
+| [Pico Explorer Base](pico_explorer_base/README.md)                   | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [Raspberry Pi Pico](raspberry_pi_pico/README.md)                     | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | Yes (5.1)     |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No            |
