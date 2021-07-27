@@ -15,6 +15,7 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
+
 use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::{Configure, FloatingState};
@@ -530,10 +531,10 @@ pub unsafe fn main() {
         peripherals.sysinfo.get_revision(),
         platform_type
     );
-    // RTC DATE TIME
-    
 
-    ////////////////////////////////////////////////
+
+    // RTC DATE TIME
+
     peripherals.rtc.rtc_init();
 
 
@@ -547,74 +548,16 @@ pub unsafe fn main() {
         seconds: 1,
     };
 
-    peripherals.rtc.set_initial(dt);
-
-    /*
     match peripherals.rtc.set_date_time(dt){
-        Result::Ok(()) => {debug!("time set");},
-        Result::Err(e) => {debug!("Error setting time {:?}", e);},
+        Ok(_) => {debug!("rtc time set!");},
+        Err(e) => {debug!("error setting rtc time {:?}",e);}
     };
 
-    */
-    /////////////////////////////////////////////finished rtc setup
+
     debug!("finished rtc setup");
+    /////////////////////////////////////////////finished rtc setup
 
 
-/*
-    fn get_month_string(month:Month)-> &'static str{
-        match month{
-            Month::January => "January",
-            Month::February => "February",
-            Month::March => "March",
-            Month::April => "April",
-            Month::May => "May",
-            Month::June => "June",
-            Month::July => "July",
-            Month::August => "August",
-            Month::September => "September",
-            Month::October => "October",
-            Month::November => "November",
-            Month::December => "December",  
-        }
-    }
-
-    fn get_dotw_string(day:DayOfWeek)-> &'static str{
-        match day{
-            DayOfWeek::Sunday => "Sunday",
-            DayOfWeek::Monday => "Monday",
-            DayOfWeek::Tuesday => "Tuesday",
-            DayOfWeek::Wednesday => "Wednesday",
-            DayOfWeek::Thursday => "Thursday",
-            DayOfWeek::Friday => "Friday",
-            DayOfWeek::Saturday => "Saturday",
-        }
-    }
-
-    match peripherals.rtc.get_date_time(){
-        Result::Ok(d) => {
-            match d{
-                Some(v)=>{
-                    debug!("YEAR {}",v.year);
-                    debug!("MONTH {:?}",get_month_string(v.month));//match pe month
-                    debug!("DAY {}",v.day);
-                    debug!("DAY OF WEEK {:?}", get_dotw_string(v.day_of_week));//match pe dotw
-                    debug!("HOUR {}", v.hour);
-                    debug!("MINUTE {}", v.minute);
-                    debug!("SECONDS {}", v.seconds);
-                },
-                None =>{debug!("rtc data is received async");}
-            }
-        },
-        Result::Err(e) => {debug!("Error {:?}",e);},
-    };
-
-   
-*/
-
-
-    debug!("testing rtc");
-
-   ///////////////////////////////////////////////////////////////////
 
    
     debug!("Initialization complete. Enter main loop");

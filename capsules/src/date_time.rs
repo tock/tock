@@ -1,11 +1,9 @@
 use crate::driver::NUM;
 use core::cell::Cell;
-use kernel::{debug};
+use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::debug;
 use kernel::hil::time::{DateTime as HilDateTime, DayOfWeek, Month, Rtc, RtcClient};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, LocalRegisterCopy};
-use kernel::common::registers::interfaces::{Writeable, ReadWriteable, Readable};
-use core::marker::PhantomData;
 
 pub const DRIVER_NUM: usize = NUM::Rtc as usize;
 
@@ -23,11 +21,7 @@ pub struct DateTime<'a> {
     date_time: &'a dyn Rtc<'a>,
     apps: Grant<AppData, 1>,
     in_progress: Cell<bool>,
-
 }
-
-
-
 
 register_bitfields![u32,
     YEAR_MONTH_DOTM[
@@ -56,7 +50,6 @@ impl<'a> DateTime<'a> {
             date_time: date_time,
             apps: grant,
             in_progress: Cell::new(false),
-
         }
     }
 
@@ -76,14 +69,10 @@ impl<'a> DateTime<'a> {
                             }
 
                             //async
-                            None => {
-                                CommandReturn::success()
-                            }
+                            None => CommandReturn::success(),
                         }
                     }
-                    Result::Err(_e) => {
-                        CommandReturn::failure(ErrorCode::FAIL)
-                    }
+                    Result::Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
                 }
             }
 
@@ -105,19 +94,17 @@ impl<'a> DateTime<'a> {
                 command,
                 year_month_dotm as usize,
                 dotw_hour_min_sec as usize,
-            ).into()
-        }else{
+            )
+            .into()
+        } else {
             CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
-
     }
 }
 
 impl RtcClient for DateTime<'_> {
-    fn callback(&self, datetime: Result< HilDateTime, ErrorCode>) {
-        debug!("got called back");
+    fn callback(&self, datetime: Result<HilDateTime, ErrorCode>) {
         for cntr in self.apps.iter() {
-
             cntr.enter(|app, upcalls| {
                 app.subscribed = true;
                 if app.subscribed {
@@ -141,12 +128,7 @@ impl RtcClient for DateTime<'_> {
                                 Month::December => 12,
                             };
 
-                            /*
-                            let mut year_month_dotm = date.year << 4; //bits month
-                            year_month_dotm = year_month_dotm + month << 5; //bits dotm
-                            year_month_dotm = year_month_dotm + date.day;
 
-                             */
 
                             let dotw: u32 = match date.day_of_week {
                                 DayOfWeek::Sunday => 0,
@@ -158,12 +140,7 @@ impl RtcClient for DateTime<'_> {
                                 DayOfWeek::Saturday => 6,
                             };
 
-                            /*
-                            let mut dotw_hour_min_sec: u32 = dotw << 5; //bits hour
-                            dotw_hour_min_sec = (dotw_hour_min_sec + date.hour) << 6; //bits minute
-                            dotw_hour_min_sec = (dotw_hour_min_sec + date.minute) << 6; //6 bits seconds
-                            dotw_hour_min_sec = dotw_hour_min_sec + date.seconds;
-                            */
+
 
                             let mut year_month_dotm:LocalRegisterCopy<u32, YEAR_MONTH_DOTM::Register>= LocalRegisterCopy::new(0);
                             let mut dotw_hour_min_sec:LocalRegisterCopy<u32, DOTW_HOUR_MIN_SEC::Register>=LocalRegisterCopy::new(0);
@@ -177,7 +154,7 @@ impl RtcClient for DateTime<'_> {
                             dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::MIN.val(date.minute));
                             dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::SEC.val(date.seconds));
 
-                            debug!("year: {}  month:{} day:{}   \n dotw:{} hour:{}   minute:{}  seconds:{}",date.year,month,date.day,dotw,date.hour, date.minute, date.seconds);
+                            debug!("from capsule year: {}  month:{} day:{}   \n dotw:{} hour:{}   minute:{}  seconds:{}",date.year,month,date.day,dotw,date.hour, date.minute, date.seconds);
 
                             upcalls
                                 .schedule_upcall(
@@ -194,7 +171,6 @@ impl RtcClient for DateTime<'_> {
                     }
                 }
             });
-
         }
     }
 }
@@ -209,16 +185,12 @@ impl<'a> Driver for DateTime<'a> {
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
-            1 => {
-                self.enqueue_command(
-                    DateTimeCommand::ReadDateTime,
-                    r2 as u32,
-                    r3 as u32,
-                    process_id,
-                )
-
-                // CommandReturn::success()
-            }
+            1 => self.enqueue_command(
+                DateTimeCommand::ReadDateTime,
+                r2 as u32,
+                r3 as u32,
+                process_id,
+            ),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

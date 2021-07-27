@@ -14,7 +14,6 @@
 use crate::ErrorCode;
 use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
-use crate::common::registers::ReadWrite;
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
@@ -742,9 +741,6 @@ pub enum Month {
     December,
 }
 
-
-
-
 #[derive(Copy, Clone)]
 pub struct DateTime {
     pub year: u32,
@@ -754,40 +750,11 @@ pub struct DateTime {
     pub hour: u32,
     pub minute: u32,
     pub seconds: u32,
-
- 
 }
 
-
-
-
-
-
-
 pub trait Rtc<'a> {
-    fn get_date_time (&self) -> Result<Option<DateTime>, ErrorCode>;
-    fn set_date_time (&self, date_time: DateTime) -> Result<(), ErrorCode>;
-
-    fn get_year(&self) -> Result<u32, ErrorCode>;
-    fn set_year (&self, year:u32) -> Result<(), ErrorCode>;
-
-    fn get_month(&self) -> Result<Month, ErrorCode>;
-    fn set_month(&self, month: Month) -> Result<(), ErrorCode>;
-
-    fn get_day_of_month(&self) -> Result<u32, ErrorCode>;
-    fn set_day_of_month(&self, day:u32) -> Result<(), ErrorCode>;
-
-    fn get_day_of_week(&self) -> Result<DayOfWeek, ErrorCode>;
-    fn set_day_of_week(&self, day_of_week: DayOfWeek) -> Result<(), ErrorCode>;
-
-    fn get_hour(&self) -> Result<u32, ErrorCode>;
-    fn set_hour(&self, hour: u32) -> Result<(), ErrorCode>;
-
-    fn get_minute(&self) -> Result<u32, ErrorCode>;
-    fn set_minute(&self,minute: u32) -> Result<(), ErrorCode>;
-
-    fn get_seconds(&self) -> Result<u32, ErrorCode>;
-    fn set_seconds(&self, seconds: u32) -> Result<(), ErrorCode>;
+    fn get_date_time(&self) -> Result<Option<DateTime>, ErrorCode>;
+    fn set_date_time(&self, date_time: DateTime) -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn RtcClient);
 }
@@ -795,7 +762,8 @@ pub trait Rtc<'a> {
 pub trait RtcClient {
     /// Called when a date time reading has completed.
 
-    fn callback(&self, datetime: Result< DateTime,ErrorCode>);
+    fn callback(&self, datetime: Result<DateTime, ErrorCode>);
+
 }
 
 #[cfg(test)]
@@ -927,6 +895,7 @@ mod tests {
         assert_eq!(us, u32::MAX);
     }
 }
+
 
 
 
