@@ -12,10 +12,14 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
-use kernel::{create_capability, debug, hil, static_init, Platform};
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::priority::PrioritySched;
+use kernel::syscall::SyscallDriver;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::{create_capability, debug, hil, static_init};
 use rv32i::csr;
 
 pub mod io;
@@ -28,13 +32,14 @@ const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static esp32_c3::chip::Esp32C3<Esp32C3DefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Test access to the peripherals
 #[cfg(test)]
@@ -68,13 +73,16 @@ struct Esp32C3Board {
         'static,
         VirtualMuxAlarm<'static, esp32::timg::TimG<'static>>,
     >,
+
+    scheduler: &'static PrioritySched,
+    scheduler_timer: VirtualSchedulerTimer<esp32::timg::TimG<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for Esp32C3Board {
+impl SyscallDriverLookup for Esp32C3Board {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
@@ -82,6 +90,36 @@ impl Platform for Esp32C3Board {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>>
+    for Esp32C3Board
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = PrioritySched;
+    type SchedulerTimer = VirtualSchedulerTimer<esp32::timg::TimG<'static>>;
+    type WatchDog = ();
+
+    fn syscall_dispatch(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -206,16 +244,26 @@ unsafe fn setup() -> (
         static _eappmem: u8;
     }
 
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+
+    let timer1 = static_init!(
+        esp32::timg::TimG,
+        esp32::timg::TimG::new(esp32::timg::TIMG1_BASE)
+    );
+
     let esp32_c3_board = static_init!(
         Esp32C3Board,
         Esp32C3Board {
             console,
             alarm,
-            gpio
+            gpio,
+
+            scheduler,
+            scheduler_timer: VirtualSchedulerTimer::new(timer1),
         }
     );
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -251,15 +299,12 @@ pub unsafe fn main() {
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
 
-        let scheduler =
-            components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
         board_kernel.kernel_loop(
             esp32_c3_board,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-            scheduler,
             &main_loop_cap,
         );
     }

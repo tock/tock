@@ -1,11 +1,10 @@
 //! TimG Group driver.
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::register_bitfields;
-use kernel::common::registers::{register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
