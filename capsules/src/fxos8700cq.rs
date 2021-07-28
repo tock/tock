@@ -314,7 +314,7 @@ impl I2CClient for Fxos8700cq<'_> {
                     buffer[0] = Registers::OutXMsb as u8;
 
                     // The callback function has no error field,
-                    // we can safly ignore the error value
+                    // we can safely ignore the error value.
                     if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 6) {
                         self.state.set(State::Disabled);
                         self.buffer.replace(buffer);
