@@ -408,8 +408,8 @@ unsafe fn setup() -> (
         lowrisc::flash_ctrl::LowRiscPage::default()
     );
 
-    let mux_flash = components::tickv::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_user_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+    let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
+        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
     // TicKV
