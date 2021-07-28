@@ -1,4 +1,4 @@
-//! Tock kernel for the Raspberry Pi Pico.
+//! Tock kernel for the Arduino Nano RP2040 Connect.
 //!
 //! It is based on RP2040SoC SoC (Cortex M0+).
 

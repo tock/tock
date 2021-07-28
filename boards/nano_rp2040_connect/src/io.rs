@@ -74,7 +74,7 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Raspberry Pi Pico board.
+/// Default panic handler for the Arduino Nano RP2040 Connect board.
 ///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
