@@ -236,7 +236,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     fn toggle_index(&self, led_index: usize) -> Result<(), ErrorCode> {
         if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[led_index / 8] = bits[led_index % 8] ^ (1 << (led_index % 8)));
+                .map(|bits| bits[led_index / 8] = bits[led_index / 8] ^ (1 << (led_index % 8)));
             Ok(())
         } else {
             Err(ErrorCode::INVAL)
