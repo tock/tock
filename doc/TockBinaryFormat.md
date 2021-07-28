@@ -437,7 +437,7 @@ but the specific address is determined by the platform. Code in the binary
 should be able to execute successfully at any address, e.g. using position
 independent code.
 
-#### `8` Compatibility
+#### `8` Kernel Version
 
 The `compatibility` header is designed to prevent the kernel
 from running applications that are not compatible with it.
@@ -457,7 +457,7 @@ data between kernel and userspace and the the system call numbers.
 ```
 0             2             4             6             8
 +-------------+-------------+---------------------------+
-| Type (7)    | Length (4)  | Kernel major| Kernel minor|
+| Type (8)    | Length (4)  | Kernel major| Kernel minor|
 +-------------+-------------+---------------------------+
 ```
 

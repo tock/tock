@@ -105,7 +105,7 @@ pub enum TbfHeaderTypes {
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
     TbfHeaderFixedAddresses = 5,
-    TbfHeaderKernelVersion = 7,
+    TbfHeaderKernelVersion = 8,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -216,7 +216,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
-            7 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
+            8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
