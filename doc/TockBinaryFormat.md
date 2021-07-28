@@ -430,13 +430,6 @@ errors over the network, and once the reported errors are acked erases them
 from the log. In this case `access_ids` allow an app to erase multiple
 different regions.
 
-## Code
-
-The process code itself has no particular format. It will reside in flash,
-but the specific address is determined by the platform. Code in the binary
-should be able to execute successfully at any address, e.g. using position
-independent code.
-
 #### `8` Kernel Version
 
 The `compatibility` header is designed to prevent the kernel
