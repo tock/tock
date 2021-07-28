@@ -10,7 +10,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::hil::time::{Alarm, Frequency, Timer};
+use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -365,13 +365,10 @@ pub unsafe fn main() {
                 socc::CSR_UART_BASE
                     as *const litex_vexriscv::uart::LiteXUartRegisters<socc::SoCRegisterFmt>,
             ),
-            Some((
-                StaticRef::new(
-                    socc::CSR_UART_PHY_BASE
-                        as *const litex_vexriscv::uart::LiteXUartPhyRegisters<socc::SoCRegisterFmt>,
-                ),
-                socc::ClockFrequency::frequency()
-            )),
+            // No UART PHY CSR present, thus baudrate fixed in
+            // hardware. Change with --uart-baudrate during SoC
+            // generation. Fixed to 1MBd.
+            None,
             dynamic_deferred_caller,
         )
     );

@@ -14,8 +14,8 @@ pub const CONFIG_CPU_HAS_INTERRUPT: bool = true;
 pub const CONFIG_CPU_RESET_ADDR: usize = 0;
 
 pub const CONFIG_CPU_TYPE: &str = "vexriscv";
-pub const CONFIG_CPU_VARIANT: &str = "full";
-pub const CONFIG_CPU_HUMAN_NAME: &str = "VexRiscv_Full";
+pub const CONFIG_CPU_VARIANT: &str = "tock";
+pub const CONFIG_CPU_HUMAN_NAME: &str = "VexRiscv_TockSecureIMC";
 pub const CONFIG_CPU_NOP: &str = "nop";
 pub const CONFIG_L2_SIZE: usize = 8192;
 
@@ -37,12 +37,14 @@ pub const UART_INTERRUPT: usize = 0;
 
 pub const CSR_BASE: usize = 0xf0000000;
 pub const CSR_CTRL_BASE: usize = CSR_BASE + 0x0000;
-pub const CSR_UART_PHY_BASE: usize = CSR_BASE + 0x1800;
-pub const CSR_UART_BASE: usize = CSR_BASE + 0x2000;
-pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x2800;
-pub const CSR_ETHPHY_BASE: usize = CSR_BASE + 0x4000;
-pub const CSR_ETHMAC_BASE: usize = CSR_BASE + 0x4800;
-pub const CSR_LEDS_BASE: usize = CSR_BASE + 0x5000;
+pub const CSR_DDRPHY_BASE: usize = CSR_BASE + 0x0800;
+pub const CSR_ETHMAC_BASE: usize = CSR_BASE + 0x1000;
+pub const CSR_ETHPHY_BASE: usize = CSR_BASE + 0x1800;
+pub const CSR_IDENTIFIER_MEM_BASE: usize = CSR_BASE + 0x2000;
+pub const CSR_LEDS_BASE: usize = CSR_BASE + 0x2800;
+pub const CSR_SDRAM_BASE: usize = CSR_BASE + 0x3000;
+pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x3800;
+pub const CSR_UART_BASE: usize = CSR_BASE + 0x4000;
 
 // constants defined in `generated/mem.h`
 pub const MEM_ETHMAC_BASE: usize = 0x80000000;

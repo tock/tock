@@ -11,11 +11,12 @@ differ significantly depending on the LiteX release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  11f7416e36](https://github.com/enjoy-digital/litex/tree/11f7416e3603bf404a3c603902162cf02551e98c)
+  e0d5a7bff5](https://github.com/enjoy-digital/litex/tree/e0d5a7bff55923)
 - using the companion [target
-  file](https://github.com/litex-hub/litex-boards/blob/ef662035b13a65955e94b018621c327448f9105e/litex_boards/targets/arty.py) from `litex-boards`
+  file](https://github.com/litex-hub/litex-boards/blob/4b48f15265c902/litex_boards/targets/digilent_arty.py)
+  from `litex-boards`
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
-  compressed instruction support
+  compressed instruction support (named `TockSecureIMC`)
 - along with the following configuration options:
 
   ```
@@ -23,7 +24,6 @@ tested with
   --cpu-variant=tock+secure+imc
   --csr-data-width=32
   --timer-uptime
-  --integrated-rom-size=0xb000
   --with-ethernet
   ```
 
@@ -31,7 +31,7 @@ The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
 build infrastructure in
 [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv),
 using a
-[patch](https://github.com/lschuermann/tock-litex/blob/master/pkgs/pythondata-cpu-vexriscv/0001-Add-TockSecureIMC-cpu-variant.patch)
+[patch](https://github.com/lschuermann/tock-litex/blob/7fcbefac7f17c2/pkgs/pythondata-cpu-vexriscv/0001-Add-TockSecureIMC-cpu-variant.patch)
 to introduce a CPU with physical memory protection, hardware
 multiplication and compressed instruction support (such that it is
 compatible with the `rv32imc` arch).
@@ -41,14 +41,15 @@ Verilog files) can be obtained from the [Tock on LiteX companion
 repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2021031601](https://github.com/lschuermann/tock-litex/releases/tag/2021031601). The
-bitstream for this board is located in `arty_a7-35t.zip` under
-`gateware/arty.bit`.
+2021072001](https://github.com/lschuermann/tock-litex/releases/tag/2021072001). The
+bitstream for this board is located in `digilent_arty_a7-35t.zip`
+under `gateware/digilent_arty.bit`.
 
 Many bitstream customizations can be represented in the Tock board by
-simply changing the variables in `src/litex_generated.rs`. To support
-a different set of FPGA cores and perform further modifications, the
-`src/main.rs` file will have to be modified.
+simply changing the variables in
+`src/litex_generated_constants.rs`. To support a different set of FPGA
+cores and perform further modifications, the `src/main.rs` file will
+have to be modified.
 
 
 Please note
@@ -78,24 +79,24 @@ Once LiteX and Xilinx Vivado is installed, building a bitstream should
 be as simple as:
 
 ```
-$ cd $PATH_TO_LITEX/litex/boards/targets
-$ ./arty.py <configuration options> --build
+$ cd $PATH_TO_LITEX_BOARDS/litex_boards/targets
+$ ./digilent_arty.py <configuration options> --build
 ```
 
-This will produce a folder `build/arty/gateware` containing the
-generated bitstream for the FPGA (`arty.bin`).
+This will produce a folder `build/digilent_arty/gateware` containing
+the generated bitstream for the FPGA (`arty.bin`).
 
-In addition to that, a folder `build/arty/software` will be included
-containing support code and the SoC bios stored in ROM. The individual
-SoC configuration options, interrupt assignments, register (LiteX
-configuration status registers) addresses, etc. relevant for Tock can
-be found in
-`build/arty/software/include/generated/{csr.h,regions.ld,soc.h}`.
+In addition to that, a folder `build/digilent_arty/software` will be
+included containing support code and the SoC bios stored in ROM. The
+individual SoC configuration options, interrupt assignments, register
+(LiteX configuration status registers) addresses, etc. relevant for
+Tock can be found in
+`build/digilent_arty/software/include/generated/{csr.h,regions.ld,soc.h}`.
 
 The bitstream can be programmed either by using Xilinx Vivado or running:
 
 ```
-$ ./arty.py <configuration options> --load
+$ ./digilent_arty.py <configuration options> --load
 ```
 
 To persistently write the bitstream to the included SPI flash, use the
@@ -111,9 +112,9 @@ Programming
 
 By default, the LiteX SoC will feature an integrated BIOS in ROM,
 which acts as a bootloader. The Tock kernel binary can be loaded
-either using `litex_term.py` (available as `lxterm`) via serial, or
-using TFTP via Ethernet. The uploaded image will be placed into the
-`main_ram` section and executed.
+either using `litex_term.py` (sometimes available as `lxterm`) via
+serial, or using TFTP via Ethernet. The uploaded image will be placed
+into the `main_ram` section and executed.
 
 ### Serial boot
 
@@ -188,7 +189,7 @@ Debugging
 
 LiteX makes it easy to generate vastly different SoCs. Prior to
 creating an issue on GitHub, please verify that all variables in
-`src/litex_generated.rs` correspond to the values provided to LiteX or
+`src/litex_generated_constants.rs` correspond to the values provided to LiteX or
 generated by it. The respective file paths for the source of each
 value is included as a comment.
 
