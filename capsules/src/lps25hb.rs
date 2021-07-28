@@ -172,8 +172,8 @@ impl<'a> LPS25HB<'a> {
 }
 
 impl i2c::I2CClient for LPS25HB<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
-        if _status != Ok(()) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
+        if status != Ok(()) {
             self.state.set(State::Idle);
             self.buffer.replace(buffer);
             self.owning_process.map(|pid| {
