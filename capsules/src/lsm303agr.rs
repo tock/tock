@@ -196,7 +196,7 @@ impl<'a> Lsm303agrI2C<'a> {
         temperature: bool,
         mag_data_rate: Lsm303MagnetoDataRate,
         mag_range: Lsm303Range,
-    ) {
+    ) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.config_in_progress.set(true);
 
@@ -208,25 +208,41 @@ impl<'a> Lsm303agrI2C<'a> {
             self.accel_data_rate.set(accel_data_rate);
             self.low_power.set(low_power);
 
-            self.set_power_mode(accel_data_rate, low_power);
+            self.set_power_mode(accel_data_rate, low_power)
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn is_present(&self) {
-        self.state.set(State::IsPresent);
-        self.buffer.take().map(|buf| {
-            // turn on i2c to send commands
-            buf[0] = 0x0F;
-            self.i2c_magnetometer.enable();
-            // TODO verify errors
-            let _ = self.i2c_magnetometer.write_read(buf, 1, 1);
-        });
+    fn is_present(&self) -> Result<(), ErrorCode> {
+        if self.state.get() != State::Idle {
+            self.state.set(State::IsPresent);
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
+                // turn on i2c to send commands
+                buf[0] = 0x0F;
+                self.i2c_magnetometer.enable();
+                if let Err((error, buf)) = self.i2c_magnetometer.write_read(buf, 1, 1) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buf);
+                    self.i2c_magnetometer.disable();
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn set_power_mode(&self, data_rate: Lsm303AccelDataRate, low_power: bool) {
+    fn set_power_mode(
+        &self,
+        data_rate: Lsm303AccelDataRate,
+        low_power: bool,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetPowerMode);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = AccelerometerRegisters::CTRL_REG1 as u8;
                 buf[1] = (CTRL_REG1::ODR.val(data_rate as u8)
                     + CTRL_REG1::LPEN.val(low_power as u8)
@@ -235,93 +251,152 @@ impl<'a> Lsm303agrI2C<'a> {
                     + CTRL_REG1::XEN::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_accelerometer.write(buf, 2);
-            });
+                if let Err((error, buf)) = self.i2c_accelerometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn set_scale_and_resolution(&self, scale: Lsm303Scale, high_resolution: bool) {
+    fn set_scale_and_resolution(
+        &self,
+        scale: Lsm303Scale,
+        high_resolution: bool,
+    ) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetScaleAndResolution);
             // TODO move these in completed
             self.accel_scale.set(scale);
             self.accel_high_resolution.set(high_resolution);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = AccelerometerRegisters::CTRL_REG4 as u8;
                 buf[1] = (CTRL_REG4::FS.val(scale as u8)
                     + CTRL_REG4::HR.val(high_resolution as u8)
                     + CTRL_REG4::BDU::SET)
                     .value;
                 self.i2c_accelerometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_accelerometer.write(buf, 2);
-            });
+                if let Err((error, buf)) = self.i2c_accelerometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn read_acceleration_xyz(&self) {
+    fn read_acceleration_xyz(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadAccelerationXYZ);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = AccelerometerRegisters::OUT_X_L_A as u8 | REGISTER_AUTO_INCREMENT;
                 self.i2c_accelerometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_accelerometer.write_read(buf, 1, 6);
-            });
+                if let Err((error, buf)) = self.i2c_accelerometer.write_read(buf, 1, 6) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buf);
+                    self.i2c_accelerometer.disable();
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn set_magneto_data_rate(&self, data_rate: Lsm303MagnetoDataRate) {
+    fn set_magneto_data_rate(&self, data_rate: Lsm303MagnetoDataRate) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetDataRate);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = MagnetometerRegisters::CRA_REG_M as u8;
                 buf[1] = ((data_rate as u8) << 2) | 1 << 7;
                 self.i2c_magnetometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_magnetometer.write(buf, 2);
-            });
+                if let Err((error, buf)) = self.i2c_magnetometer.write(buf, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn set_range(&self, range: Lsm303Range) {
+    fn set_range(&self, range: Lsm303Range) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::SetRange);
-            // TODO move these in completed
             self.mag_range.set(range);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = MagnetometerRegisters::CRB_REG_M as u8;
                 buf[1] = (range as u8) << 5;
                 buf[2] = 0;
                 self.i2c_magnetometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_magnetometer.write(buf, 3);
-            });
+                if let Err((error, buf)) = self.i2c_magnetometer.write(buf, 3) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn read_temperature(&self) {
+    fn read_temperature(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadTemperature);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = AgrAccelerometerRegisters::TEMP_OUT_H_A as u8;
                 self.i2c_accelerometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_accelerometer.write_read(buf, 1, 2);
-            });
+                if let Err((error, buf)) = self.i2c_accelerometer.write_read(buf, 1, 2) {
+                    self.state.set(State::Idle);
+                    self.i2c_accelerometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 
-    fn read_magnetometer_xyz(&self) {
+    fn read_magnetometer_xyz(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Idle {
             self.state.set(State::ReadMagnetometerXYZ);
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 buf[0] = MagnetometerRegisters::OUT_X_H_M as u8;
                 self.i2c_magnetometer.enable();
-                // TODO verify errors
-                let _ = self.i2c_magnetometer.write_read(buf, 1, 6);
-            });
+                if let Err((error, buf)) = self.i2c_magnetometer.write_read(buf, 1, 6) {
+                    self.state.set(State::Idle);
+                    self.i2c_magnetometer.disable();
+                    self.buffer.replace(buf);
+                    Err(error.into())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 }
@@ -359,10 +434,12 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    self.set_scale_and_resolution(
+                    if let Err(_error) = self.set_scale_and_resolution(
                         self.accel_scale.get(),
                         self.accel_high_resolution.get(),
-                    );
+                    ) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::SetScaleAndResolution => {
@@ -378,7 +455,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    self.set_magneto_data_rate(self.mag_data_rate.get());
+                    if let Err(_error) = self.set_magneto_data_rate(self.mag_data_rate.get()) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::ReadAccelerationXYZ => {
@@ -440,7 +519,9 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
                 if self.config_in_progress.get() {
-                    self.set_range(self.mag_range.get());
+                    if let Err(_error) = self.set_range(self.mag_range.get()) {
+                        self.config_in_progress.set(false);
+                    }
                 }
             }
             State::SetRange => {
@@ -564,8 +645,10 @@ impl SyscallDriver for Lsm303agrI2C<'_> {
             // Check is sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
-                    self.is_present();
-                    CommandReturn::success()
+                    match self.is_present() {
+                        Ok(()) => CommandReturn::success(),
+                        Err(error) => CommandReturn::failure(error),
+                    }
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
@@ -574,8 +657,11 @@ impl SyscallDriver for Lsm303agrI2C<'_> {
             2 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303AccelDataRate::from_usize(data1) {
-                        self.set_power_mode(data_rate, if data2 != 0 { true } else { false });
-                        CommandReturn::success()
+                        match self.set_power_mode(data_rate, if data2 != 0 { true } else { false })
+                        {
+                            Ok(()) => CommandReturn::success(),
+                            Err(error) => CommandReturn::failure(error),
+                        }
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
@@ -587,8 +673,12 @@ impl SyscallDriver for Lsm303agrI2C<'_> {
             3 => {
                 if self.state.get() == State::Idle {
                     if let Some(scale) = Lsm303Scale::from_usize(data1) {
-                        self.set_scale_and_resolution(scale, if data2 != 0 { true } else { false });
-                        CommandReturn::success()
+                        match self
+                            .set_scale_and_resolution(scale, if data2 != 0 { true } else { false })
+                        {
+                            Ok(()) => CommandReturn::success(),
+                            Err(error) => CommandReturn::failure(error),
+                        }
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
@@ -600,8 +690,10 @@ impl SyscallDriver for Lsm303agrI2C<'_> {
             4 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303MagnetoDataRate::from_usize(data1) {
-                        self.set_magneto_data_rate(data_rate);
-                        CommandReturn::success()
+                        match self.set_magneto_data_rate(data_rate) {
+                            Ok(()) => CommandReturn::success(),
+                            Err(error) => CommandReturn::failure(error),
+                        }
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
@@ -613,38 +705,13 @@ impl SyscallDriver for Lsm303agrI2C<'_> {
             5 => {
                 if self.state.get() == State::Idle {
                     if let Some(range) = Lsm303Range::from_usize(data1) {
-                        self.set_range(range);
-                        CommandReturn::success()
+                        match self.set_range(range) {
+                            Ok(()) => CommandReturn::success(),
+                            Err(error) => CommandReturn::failure(error),
+                        }
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
-                } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
-                }
-            }
-            // Read Acceleration XYZ
-            6 => {
-                if self.state.get() == State::Idle {
-                    self.read_acceleration_xyz();
-                    CommandReturn::success()
-                } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
-                }
-            }
-            // Read Temperature
-            7 => {
-                if self.state.get() == State::Idle {
-                    self.read_temperature();
-                    CommandReturn::success()
-                } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
-                }
-            }
-            // Read Mangetometer XYZ
-            8 => {
-                if self.state.get() == State::Idle {
-                    self.read_magnetometer_xyz();
-                    CommandReturn::success()
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
@@ -665,21 +732,11 @@ impl<'a> sensors::NineDof<'a> for Lsm303agrI2C<'a> {
     }
 
     fn read_accelerometer(&self) -> Result<(), ErrorCode> {
-        if self.state.get() == State::Idle {
-            self.read_acceleration_xyz();
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+        self.read_acceleration_xyz()
     }
 
     fn read_magnetometer(&self) -> Result<(), ErrorCode> {
-        if self.state.get() == State::Idle {
-            self.read_magnetometer_xyz();
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+        self.read_magnetometer_xyz()
     }
 }
 
@@ -689,11 +746,6 @@ impl<'a> sensors::TemperatureDriver<'a> for Lsm303agrI2C<'a> {
     }
 
     fn read_temperature(&self) -> Result<(), ErrorCode> {
-        if self.state.get() == State::Idle {
-            self.read_temperature();
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+        self.read_temperature()
     }
 }
