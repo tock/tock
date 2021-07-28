@@ -345,7 +345,7 @@ impl I2CClient for Fxos8700cq<'_> {
                 buffer[1] = 0; // Set the active bit to 0.
 
                 // The callback function has no error field,
-                // we can safly ignore the error value
+                // we can safely ignore the error value.
                 if let Err((_error, buffer)) = self.i2c.write(buffer, 3) {
                     self.state.set(State::Disabled);
                     self.buffer.replace(buffer);
