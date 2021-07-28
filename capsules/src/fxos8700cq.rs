@@ -371,7 +371,7 @@ impl I2CClient for Fxos8700cq<'_> {
                 self.state.set(State::ReadMagValues);
 
                 // The callback function has no error field,
-                // we can safly ignore the error value
+                // we can safely ignore the error value.
                 if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 6) {
                     self.state.set(State::Disabled);
                     self.buffer.replace(buffer);
