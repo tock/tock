@@ -186,7 +186,7 @@ enum State {
 
 impl<'a> I2CClient for Hts221<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
-        if status != Ok(()) {
+        if status.is_err() {
             self.state.set(State::Idle(
                 CalibrationData {
                     temp_slope: 0.0,
