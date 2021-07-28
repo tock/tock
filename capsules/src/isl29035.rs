@@ -128,8 +128,8 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
 }
 
 impl<'a, A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), Error>) {
-        if _status != Ok(()) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
+        if status.is_err() {
             self.state.set(State::Disabled);
             self.buffer.replace(buffer);
             self.client.map(|client| client.callback(0));
