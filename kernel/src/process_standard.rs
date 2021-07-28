@@ -1411,7 +1411,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         } else {
             if enforce_kernel_version {
-                // If enforing the kernel version is requested, and the `KernelVersion` header is not present,
+                // If enforcing the kernel version is requested, and the `KernelVersion` header is not present,
                 // we prevent the process from loading.
                 if config::CONFIG.debug_load_processes {
                     debug!(
