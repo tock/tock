@@ -45,6 +45,14 @@ pub enum ProcessLoadError {
         expected_address: u32,
     },
 
+    /// A process might provide a KernelVersion TBF header stating the
+    /// compatible kernel version (^major.minor). If `load_processes_advanced` is
+    /// called with `enforce_kernel_version` set to true, kernel will stop loading
+    /// processes when it encounters either:
+    ///    - a process that does not provide the KernelVersion TBF header
+    ///    - a process that requested an incompatible version of the kernel
+    IncompatibleKernelVersion { version: Option<(u16, u16)> },
+
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
     InternalError,
@@ -97,6 +105,18 @@ impl fmt::Debug for ProcessLoadError {
                 "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
                 actual_address, expected_address
             ),
+
+            ProcessLoadError::IncompatibleKernelVersion { version } => match version {
+                Some((major, minor)) => write!(
+                    f,
+                    "App is incomatible with the kernel. Running: {}.{}, Requested: {}.{}",
+                    crate::MAJOR,
+                    crate::MINOR,
+                    major,
+                    minor
+                ),
+                None => write!(f, "App did not provide a TBF kernel version header"),
+            },
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }

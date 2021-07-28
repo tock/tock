@@ -1407,7 +1407,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 if config::CONFIG.debug_load_processes {
                     debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})", process_name.unwrap_or("(no name)"), major, minor, (major+1), crate::MAJOR, crate::MINOR);
                 }
-                return Ok((None, remaining_memory));
+                return Err(ProcessLoadError::IncompatibleKernelVersion {
+                    version: Some((major, minor)),
+                });
             }
         } else {
             if enforce_kernel_version {
@@ -1419,7 +1421,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                             process_name.unwrap_or ("(no name")
                         );
                 }
-                return Ok((None, remaining_memory));
+                return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
             }
         }
 
