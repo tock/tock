@@ -10,28 +10,31 @@ differ significantly depending on the release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  11f7416e36](https://github.com/enjoy-digital/litex/tree/11f7416e3603bf404a3c603902162cf02551e98c)
-- using the included [lxsim](https://github.com/enjoy-digital/litex/blob/11f7416e3603bf404a3c603902162cf02551e98c/litex/tools/litex_sim.py)
+  e0d5a7bff5](https://github.com/enjoy-digital/litex/tree/e0d5a7bff55923)
+- using the included
+  [lxsim](https://github.com/enjoy-digital/litex/blob/e0d5a7bff55923/litex/tools/litex_sim.py)
 - built around a VexRiscv-CPU
 - featuring a TIMER0 with 64-bit wide hardware uptime
 - along with the following configuration options:
 
   ```
   --csr-data-width=32
-  --integrated-rom-size=1048576
+  --integrated-rom-size=0x100000
   --cpu-variant=secure
   --with-ethernet
+  --timer-uptime
   --rom-init $PATH_TO_TOCK_BINARY
   ```
 
 Many bitstream customizations can be represented in the Tock board by
-simply changing the variables in `src/litex_generated.rs`. To support
-a different set of FPGA cores and perform further modifications, the
-`src/main.rs` file will have to be modified.
+simply changing the variables in
+`src/litex_generated_constants.rs`. To support a different set of FPGA
+cores and perform further modifications, the `src/main.rs` file will
+have to be modified.
 
 
-Building the SoC / Programming the FPGA
----------------------------------------
+Building the SoC / Running the simulation
+-----------------------------------------
 
 Please refer to the [LiteX
 documentation](https://github.com/enjoy-digital/litex/wiki/) for
