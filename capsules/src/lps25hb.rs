@@ -206,8 +206,8 @@ impl i2c::I2CClient for LPS25HB<'_> {
                         let _ = self.apps.enter(*pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(
-                                    kernel::into_statuscode(Err(error.into())),
                                     0,
+                                    kernel::into_statuscode(Err(error.into())),
                                     0,
                                     0,
                                 )
