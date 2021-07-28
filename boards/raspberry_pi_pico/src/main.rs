@@ -9,17 +9,17 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use rp2040;
@@ -32,10 +32,10 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
-use rp2040::timer::RPTimer;
-mod io;
-
 use rp2040::sysinfo;
+use rp2040::timer::RPTimer;
+
+mod io;
 
 mod flash_bootloader;
 
@@ -82,7 +82,7 @@ pub struct RaspberryPiPico {
 impl SyscallDriverLookup for RaspberryPiPico {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
+        F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),

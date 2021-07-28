@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the Raspberry Pi Pico board.
+# Makefile for building the tock kernel for the Arduino Nano RP2040 Connect board.
 
 TOCK_ARCH=cortex-m0p
 TARGET=thumbv6m-none-eabi
