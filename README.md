@@ -138,7 +138,7 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 </p>
 
 
-<p>This is the primary paper the describes the design consdierations of Tock.</p>
+<p>This is the primary paper that describes the design considerations of Tock.</p>
 
 <details>
   <summary>Other Tock-related papers</summary>
