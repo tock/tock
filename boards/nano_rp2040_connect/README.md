@@ -47,7 +47,7 @@ the device can be [forced into BOOTSEL mode using a jumper wire](https://docs.ar
 4. Wait for the flash drive to mount
 5. Disconnect the board from USB (*very important*)
 
-`cd` into `boards/nano_rp2040` directory and run:
+`cd` into `boards/nano_rp2040_connect` directory and run:
 
 ```bash
 $ make flash

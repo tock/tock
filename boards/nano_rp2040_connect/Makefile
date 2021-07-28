@@ -2,7 +2,7 @@
 
 TOCK_ARCH=cortex-m0p
 TARGET=thumbv6m-none-eabi
-PLATFORM=nano_rp2040
+PLATFORM=nano_rp2040_connect
 
 include ../Makefile.common
 

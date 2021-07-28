@@ -60,7 +60,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 
 /// Supported drivers by the platform
-pub struct RaspberryPiPico {
+pub struct NanoRP2040Connect {
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -73,7 +73,7 @@ pub struct RaspberryPiPico {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
 }
 
-impl Platform for RaspberryPiPico {
+impl Platform for NanoRP2040Connect {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
@@ -388,7 +388,7 @@ pub unsafe fn main() {
             .finalize(());
     let _ = process_console.start();
 
-    let raspberry_pi_pico = RaspberryPiPico {
+    let raspberry_pi_pico = NanoRP2040Connect {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
