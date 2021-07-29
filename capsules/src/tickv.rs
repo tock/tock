@@ -67,12 +67,12 @@ impl<'a, F: Flash> TickFSFlastCtrl<'a, F> {
     }
 }
 
-impl<'a, F: Flash> tickv::flash_controller::FlashController<512> for TickFSFlastCtrl<'a, F> {
+impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastCtrl<'a, F> {
     fn read_region(
         &self,
         region_number: usize,
         _offset: usize,
-        _buf: &mut [u8; 512],
+        _buf: &mut [u8; 64],
     ) -> Result<(), tickv::error_codes::ErrorCode> {
         if self
             .flash
@@ -92,12 +92,12 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<512> for TickFSFlast
         let data_buf = self.flash_read_buffer.take().unwrap();
 
         for (i, d) in buf.iter().enumerate() {
-            data_buf.as_mut()[i + (address % 512)] = *d;
+            data_buf.as_mut()[i + (address % 64)] = *d;
         }
 
         if self
             .flash
-            .write_page((0x20040000 + address) / 512, data_buf)
+            .write_page((0x20040000 + address) / 64, data_buf)
             .is_err()
         {
             return Err(tickv::error_codes::ErrorCode::WriteFail);
@@ -116,7 +116,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<512> for TickFSFlast
 pub type TicKVKeyType = [u8; 8];
 
 pub struct TicKVStore<'a, F: Flash + 'static> {
-    tickv: AsyncTicKV<'a, TickFSFlastCtrl<'a, F>, 512>,
+    tickv: AsyncTicKV<'a, TickFSFlastCtrl<'a, F>, 64>,
     operation: Cell<Operation>,
     next_operation: Cell<Operation>,
 
@@ -130,12 +130,12 @@ pub struct TicKVStore<'a, F: Flash + 'static> {
 impl<'a, F: Flash> TicKVStore<'a, F> {
     pub fn new(
         flash: &'a F,
-        tickfs_read_buf: &'static mut [u8; 512],
+        tickfs_read_buf: &'static mut [u8; 64],
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
     ) -> TicKVStore<'a, F> {
-        let tickv = AsyncTicKV::<TickFSFlastCtrl<F>, 512>::new(
+        let tickv = AsyncTicKV::<TickFSFlastCtrl<F>, 64>::new(
             TickFSFlastCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,
             flash_size,

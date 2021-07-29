@@ -1,7 +1,7 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
-use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::digest::{self, Digest};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::{debug, ErrorCode};
 
 static mut BUF: [u8; 32] = [0; 32];
