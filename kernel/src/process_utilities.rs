@@ -115,7 +115,7 @@ impl fmt::Debug for ProcessLoadError {
                     major,
                     minor
                 ),
-                None => write!(f, "App did not provide a TBF kernel version header"),
+                None => write!(f, "Process did not provide a TBF kernel version header"),
             },
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
