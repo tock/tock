@@ -35,8 +35,8 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 		@echo Please edit the BOOTSEL_FOLDER variable to point to you Nano RP2040 Flash Drive Folder
 	fi
 
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+.PHONY: flash-app
+flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 ifeq ($(APP),)
 	$(error Please define the APP variable with the TBF file to flash an application) 
 endif 
