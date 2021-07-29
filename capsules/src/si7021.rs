@@ -38,7 +38,7 @@
 
 use core::cell::Cell;
 use kernel::hil::i2c;
-use kernel::hil::time;
+use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -136,7 +136,7 @@ impl<'a, A: time::Alarm<'a>> SI7021<'a, A> {
     }
 
     fn init_measurement(&self, buffer: &'static mut [u8]) {
-        let delay = A::ticks_from_ms(20);
+        let delay = self.alarm.ticks_from_ms(20);
         self.alarm.set_alarm(self.alarm.now(), delay);
 
         // Now wait for timer to expire

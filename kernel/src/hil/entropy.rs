@@ -42,6 +42,7 @@
 //! use kernel::hil::entropy::Entropy32;
 //! use kernel::hil::entropy::Client32;
 //! use kernel::hil::time::Alarm;
+//! use kernel::hil::time::ConvertTicks;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::AlarmClient;
 //! use kernel::ErrorCode;
@@ -54,7 +55,7 @@
 //! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let now = self.alarm.now();
-//!         let dt = <A>::ticks_from_seconds(1);
+//!         let dt = self.alarm.ticks_from_seconds(1);
 //!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
@@ -73,7 +74,7 @@
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
 //!                 let now = self.alarm.now();
-//!                 let dt = <A>::ticks_from_seconds(1);
+//!                 let dt = self.alarm.ticks_from_seconds(1);
 //!                 self.alarm.set_alarm(now, dt);
 //!                 hil::entropy::Continue::Done
 //!             },

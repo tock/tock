@@ -1,7 +1,7 @@
 //! Internal Timer
 
 use kernel::hil::time;
-use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
+use kernel::hil::time::{Alarm, ConvertTicks, Counter, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::register_bitfields;
@@ -183,7 +183,7 @@ impl<'a> Alarm<'a> for Timer<'a> {
 impl kernel::platform::scheduler_timer::SchedulerTimer for Timer<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

@@ -1,6 +1,6 @@
 //! Create a timer using the Machine Timer registers.
 
-use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, ConvertTicks, Freq32KHz, Frequency, Ticks, Ticks64, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_structs, ReadWrite};
@@ -97,7 +97,7 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
 impl kernel::platform::scheduler_timer::SchedulerTimer for Clint<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

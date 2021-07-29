@@ -41,7 +41,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
 use kernel::ErrorCode;
 
@@ -233,7 +233,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delay = A::ticks_from_ms(TEST_DELAY_MS);
+        let delay = self.alarm.ticks_from_ms(TEST_DELAY_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delay);
     }
