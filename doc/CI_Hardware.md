@@ -311,6 +311,7 @@ If UART is properly setup, using the command `ls -l dev` you should see the imag
     ls -l dev
 ```
 ![UartSanity](images/ci-hardware/uartsanity.png)
+[Source](https://www.electronicwings.com/raspberry-pi/raspberry-pi-uart-communication-using-python-and-c)
 
 ### I2C Setup
 [Source of Guide](https://askubuntu.com/questions/1273700/enable-spi-and-i2c-on-ubuntu-20-04-raspberry-pi)
