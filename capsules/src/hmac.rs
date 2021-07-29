@@ -96,7 +96,7 @@ impl<
                             if let Some(op) = &app.sha_operation {
                                 let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
                                     [0; TMP_KEY_BUFFER_SIZE];
-                                let key_len = core::cmp::max(k.len(), TMP_KEY_BUFFER_SIZE);
+                                let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
                                 k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
 
                                 match op {
@@ -308,9 +308,13 @@ impl<
                     let pointer = digest[0] as *mut u8;
 
                     let _ = app.dest.mut_enter(|dest| {
-                        dest[0..L].copy_from_slice(&digest[0..L]);
+                        let len = dest.len();
 
-                        dest.copy_from_slice(digest.as_ref());
+                        if len < L {
+                            dest.copy_from_slice(&digest[0..len]);
+                        } else {
+                            dest[0..L].copy_from_slice(digest);
+                        }
                     });
 
                     match result {
