@@ -159,7 +159,7 @@ pub fn load_processes_advanced<C: Chip>(
     app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    enforce_kernel_version: bool,
+    require_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -246,7 +246,7 @@ pub fn load_processes_advanced<C: Chip>(
                     version,
                     remaining_memory,
                     fault_policy,
-                    enforce_kernel_version,
+                    require_kernel_version,
                     i,
                 )?
             };
@@ -281,7 +281,7 @@ pub fn load_processes_advanced<C: Chip>(
 /// the default arguments that mainstream boards should provide.
 ///
 /// Default arguments are:
-///  - `enforce_kernel_version`: prevent loading processes that do not provide a `KernelVersion`
+///  - `require_kernel_version`: prevent loading processes that do not provide a `KernelVersion`
 #[inline(always)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
