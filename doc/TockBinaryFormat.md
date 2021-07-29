@@ -435,7 +435,7 @@ different regions.
 The `compatibility` header is designed to prevent the kernel
 from running applications that are not compatible with it.
 
-It defins the following two items:
+It defines the following two items:
 * `Kernel major` or `V` is the kernel major number (for Tock 2.0, it is 2)
 * `Kernel minor` or `v` is the kernel minor number (for Tock 2.0, it is 0)
 
