@@ -45,12 +45,18 @@ pub enum ProcessLoadError {
         expected_address: u32,
     },
 
-    /// A process might provide a KernelVersion TBF header stating the
-    /// compatible kernel version (^major.minor). If `load_processes_advanced` is
-    /// called with `enforce_kernel_version` set to true, kernel will stop loading
-    /// processes when it encounters either:
-    ///    - a process that does not provide the KernelVersion TBF header
-    ///    - a process that requested an incompatible version of the kernel
+    /// A process requires a newer version of the kernel or did not specify
+    /// a required version. Processes can include the KernelVersion TBF header stating
+    /// their compatible kernel version (^major.minor).
+    ///
+    /// Boards may not require processes to include the KernelVersion TBF header, and
+    /// the kernel supports ignoring a missing KernelVersion TBF header. In that case,
+    /// this error will not be returned for a process missing a KernelVersion TBF
+    /// header.
+    ///
+    /// `version` is the `(major, minor)` kernel version the process indicates it
+    /// requires. If `version` is `None` then the process did not include the
+    /// KernelVersion TBF header.
     IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
