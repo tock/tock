@@ -463,6 +463,8 @@ impl TbfHeader {
         }
     }
 
+    /// Get the minimum compatible kernel version this process requires.
+    /// Returns `None` if the kernel compatibility header is not included.
     pub fn get_kernel_version(&self) -> Option<(u16, u16)> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.kernel_version {
