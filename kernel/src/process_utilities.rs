@@ -151,6 +151,7 @@ impl fmt::Debug for ProcessLoadError {
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
+#[inline(always)]
 pub fn load_processes_advanced<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
