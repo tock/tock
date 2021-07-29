@@ -20,6 +20,7 @@ The Tock core team maintains the following hardware CI instances:
   * [Configuration Files](#configuration-files)
   * [Configuring Uart/I2C/SPI on Raspberry Pi](#configuring-uart-i2c-spi-on-raspberry-pi)
     + [Uart setup](#uart-setup)
+    + [I2C setup](#i2c-setup)
   * [Looking in the Workflow](#looking-in-the-workflow)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
@@ -268,7 +269,15 @@ The Raspberry Pi does not have Uart, I2C, and SPI configured by default,so there
 
 Follow these commands to setup Uart on raspberry to transmit, and receive messages. This specifically allows the user to send data through port ttys0.
 
-1. Setup udev rules
+
+1. Add `enable_uart=1` to `/boot/firmware/config.txt`
+2. Remove `console=serial0,115200` from `/boot/firmware/cmdline.txt` on Ubuntu 
+3. Make sure you have `pyserial` installed if you're using the python serial library, not `python-serial` from `apt`.
+4. Setup udev rules
+    - Create file with this command.
+    ```bash
+        sudo nano /etc/udev/rules.d/10-local.rules
+    ```
     - put below content in new file
     ```bash
         KERNEL=="ttyS0", SYMLINK+="serial0" GROUP="tty" MODE="0660"
@@ -278,21 +287,84 @@ Follow these commands to setup Uart on raspberry to transmit, and receive messag
         ```bash
         sudo udevadm control --reload-rules && sudo udevadm trigger
         ```
-3. Remove the console setting **console=serial0,115200** from **/boot/firmware/cmdline.txt**
-4. Disable the Serial Service which used the miniUART
+5. Disable the Serial Service which used the miniUART
     ```bash
-    sudo systemctl stop serial-getty@ttyS0.service
-    sudo systemctl disable serial-getty@ttyS0.service
-    sudo systemctl mask serial-getty@ttyS0.service
+        sudo systemctl stop serial-getty@ttyS0.service
+        sudo systemctl disable serial-getty@ttyS0.service
+        sudo systemctl mask serial-getty@ttyS0.service
     ```
-5. Add the user which will use the miniUART to **tty** and **dialout** group
+6. Add the user which will use the miniUART to `tty` and `dialout` group
     ```bash
-    sudo adduser ${USER} tty
-    sudo adduser ${USER} dialout
+        sudo adduser ${USER} tty
+        sudo adduser ${USER} dialout
     ```
-6. Finally, reboot Ubuntu 20.04, then both **hci0** and **/dev/ttyS0** can work at the same time 
+7. Update the permissions for group read on the devices
+    ```bash
+        sudo chmod g+r /dev/ttyS0
+        sudo chmod g+r /dev/ttyAMA0
+    ```
+6. Finally, reboot Ubuntu 20.04, then both `hci0` and `/dev/ttyS0` can work at the same time 
 
-### I2C Set up
+**Sanity Check**
+If UART is properly setup, using the command `ls -l dev` you should see the image below.
+```bash
+    ls -l dev
+```
+![UartSanity](images/ci-hardware/uartsanity.png)
+
+### I2C Setup
+[Source of Guide](https://askubuntu.com/questions/1273700/enable-spi-and-i2c-on-ubuntu-20-04-raspberry-pi)
+
+Again, I2C is disabled by default on the Raspberry Pi, and since we are using ubuntu server, we have to manually setup the config file to enable this communication protocal. Follow the steps below to enable I2C. There's also a sanity check I have provided for you to double check if the set up is correct.
+
+1. Access the config file
+    ```bash
+        sudo nano /boot/firmware/config.txt
+    ```
+    - Then, add the following two lines at the bottom of the text:
+    `dtparam=i2c1=on` and `dtparam=i2c_arm=on` respectively.
+2. Install relevant packages. You'll want `i2c-tools` at least, but I'd recommend getting `libi2c-dev` as well and `python3-smbus` if that's your language of choice.
+3. Try probing the bus as user and root:
+    ```bash
+        sudo i2cdetect -y 1 # (or 0, I2C bus number is hardware-dependent)
+    ```
+    - If this gives you an address matrix, I2C is on and working.
+    ```bash
+        i2cdetect -y 1 (or 0)
+    ```
+    - If this gives you a permission error, perform the next step. Otherwise, skip it.
+4. Create an I2C usergroup, apply it to the bus and add your user to this group:
+    ```bash
+        sudo groupadd i2c (group may exist already)
+
+        sudo chown :i2c /dev/i2c-1 (or i2c-0)
+
+        sudo chmod g+rw /dev/i2c-1
+
+        sudo usermod -aG i2c *INSERT YOUR USERNAME*
+    ```
+    - Reboot:
+    ```bash
+        sudo reboot
+        # Log back in
+        i2cdetect -y 1
+    ```
+
+**Sanity Check**
+Using the command `i2cdetect -y 1`, if you see the matrix below then I2C is properly set up.
+```bash
+    ubuntu@ubuntu:~/$ i2cdetect -y 1
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:          -- -- -- -- -- -- -- -- -- -- -- -- --
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+70: -- -- -- -- -- -- -- --
+
+```
 
 ## Looking in the Workflow 
 
