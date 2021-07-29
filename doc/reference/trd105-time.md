@@ -4,13 +4,9 @@ Kernel Time HIL
 **TRD:** 105<br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
-**Status:** Draft <br/>
+**Status:** Final <br/>
 **Obsoletes:** 101 <br/>
 **Author:** Guillaume Endignoux, Amit Levy, Philip Levis, and Jett Rink <br/>
-**Draft-Created:** 2021/07/23 <br/>
-**Draft-Modified:** 2021/07/23 <br/>
-**Draft-Version:** 1.0 <br/>
-**Draft-Discuss:** Github PR <br/>
 
 Abstract
 -------------------------------
