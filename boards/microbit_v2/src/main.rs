@@ -496,15 +496,23 @@ pub unsafe fn main() {
     // STORAGE
     //--------------------------------------------------------------------------
 
+    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
+        components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+    );
+
     // App Flash
+
+    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+    );
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
         board_kernel,
         capsules::app_flash_driver::DRIVER_NUM,
-        &base_peripherals.nvmc,
+        virtual_app_flash,
     )
     .finalize(components::app_flash_component_helper!(
-        nrf52833::nvmc::Nvmc,
+        capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
 
