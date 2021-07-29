@@ -109,7 +109,7 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::IncompatibleKernelVersion { version } => match version {
                 Some((major, minor)) => write!(
                     f,
-                    "App is incomatible with the kernel. Running: {}.{}, Requested: {}.{}",
+                    "Process is incompatible with the kernel. Running: {}.{}, Requested: {}.{}",
                     crate::MAJOR,
                     crate::MINOR,
                     major,
