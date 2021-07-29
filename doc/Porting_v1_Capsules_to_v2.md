@@ -311,7 +311,7 @@ replaced with code like:
 
 ```rust
 self.apps.enter(appid, |app, upcalls| {
-    upcalls.schedule_upcall(upcall_number,(r0, r1, r2));
+    upcalls.schedule_upcall(upcall_number, (r0, r1, r2));
 });
 ```
 
