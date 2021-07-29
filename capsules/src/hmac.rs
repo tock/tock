@@ -308,9 +308,13 @@ impl<
                     let pointer = digest[0] as *mut u8;
 
                     let _ = app.dest.mut_enter(|dest| {
-                        dest[0..L].copy_from_slice(&digest[0..L]);
+                        let len = dest.len();
 
-                        dest.copy_from_slice(digest.as_ref());
+                        if len < L {
+                            dest.copy_from_slice(&digest[0..len]);
+                        } else {
+                            dest[0..L].copy_from_slice(digest);
+                        }
                     });
 
                     match result {
