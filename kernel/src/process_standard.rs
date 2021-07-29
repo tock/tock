@@ -1340,7 +1340,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         app_version: u16,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        enforce_kernel_version: bool,
+        require_kernel_version: bool,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
