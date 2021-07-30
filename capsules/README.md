@@ -28,9 +28,11 @@ The list of Tock capsules and a brief description.
 
 These implement a driver to setup and read various physical sensors.
 
+- **[ADC Microphone](src/adc_microphone.rs)**: Single ADC pin microphone.
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[APDS9960](src/apds9960.rs)**: Proximity sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
+- **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature
   sensor.
@@ -41,6 +43,8 @@ These implement a driver to setup and read various physical sensors.
     sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
+- **[RP2040 Temperature](src/temperature_rp2040.rs)**: Analog RP2040 temperature
+  sensor.
 - **[SHT3x](src/sht3x.rs)**: SHT3x temperature and humidity sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
@@ -117,7 +121,10 @@ These provide common and better abstractions for userspace.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[Screen](src/screen.rs)**: Displays and screens.
+- **[SHA](src/sha.rs)**: SHA hashes.
+- **[Sound Pressure](src/sound_pressure.rs)**: Query sound pressure levels.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
+- **[Text Screen](src/text_screen.rs)**: Text-based displays.
 - **[Touch](src/touch.rs)**: User touch panels.
 
 
@@ -147,6 +154,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual RNG](src/virtual_rng.rs)**: Shared random number generator.
+- **[Virtual SHA](src/virtual_sha.rs)**: Shared SHA hashes.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 - **[Virtual Timer](src/virtual_timer.rs)**: Shared timer.
 - **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
@@ -163,6 +171,7 @@ Other capsules that implement reusable logic.
 - **[Log Storage](src/log.rs)**: Log storage abstraction on top of flash
   devices.
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
+- **[TicKV](src/tickv.rs)**: Key-value storage.
 
 
 ### Debugging Capsules
