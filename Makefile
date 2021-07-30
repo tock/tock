@@ -40,7 +40,6 @@ usage:
 	@echo "To run these, run 'make {target}' from the board directory for any of the"
 	@echo "following targets:"
 	@echo "        cargobloat: Runs the cargo-bloat tool for attributing binary size"
-	@echo "        stack-analysis: Prints the 5 largest stack frames for the board"
 	@echo
 	@echo "This root Makefile has a few useful targets as well:"
 	@echo "        allaudit: Audit Cargo dependencies for all kernel sources"
