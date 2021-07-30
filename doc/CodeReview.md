@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This document describes how the Tock [core working group](../wg/core/README.md)
+This document describes how the Tock [core working group](./wg/core/README.md)
 merges pull requests for and makes releases of the main Tock repository.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->

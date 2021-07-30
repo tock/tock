@@ -103,7 +103,7 @@ arguments in registers `r0` - `r3`:
 
 A process invokes a system call by triggering a software interrupt that
 transitions the microcontroller to supervisor/kernel mode. The exact
-mechanism for this is architecture-specific. [TRD104](reference/trd-syscalls.md)
+mechanism for this is architecture-specific. [TRD104](reference/trd104-syscalls.md)
 specifies how userspace and the kernel pass values to each other for
 CortexM and RISCV32I platforms.
 
@@ -210,11 +210,11 @@ as the return address (`ra`) register.
 ## How System Calls Connect to Drivers
 
 After a system call is made, the call is handled and routed by the Tock kernel
-in [`sched.rs`](../kernel/src/sched.rs) through a series of steps.
+in [`sched.rs`](../kernel/src/kernel.rs) through a series of steps.
 
 1. For Command, Subscribe, Allow Read-Write and Allow Read-Only system
 call classes, the kernel calls a platform-defined system call filter
-function. This function deterimes if the kernel should handle the
+function. This function determines if the kernel should handle the
 system call or not. Yield, Exit, and Memop system calls are not
 filtered. This filter function allows the kernel to impose security
 policies that limit which system calls a process might invoke. The

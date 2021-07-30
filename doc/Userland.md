@@ -100,7 +100,7 @@ command(uint32_t driver, uint32_t command, int data) {
 ```
 
 A detailed description of Tock's system call API and ABI can be found in
-[TRD104](reference/trd-syscalls.md). The [system call
+[TRD104](reference/trd104-syscalls.md). The [system call
 documentation](./Syscalls.md) describes how the are implemented in the
 kernel.
 
@@ -110,7 +110,7 @@ kernel.
 The Tock kernel is completely non-blocking, and it pushes this 
 asynchronous behavior to userspace code. This means that system calls
 (with one exception) do not block. Instead, they always return very quickly.
-Long-running operations (e.g., sending data over a bus, samping a sensor)
+Long-running operations (e.g., sending data over a bus, sampling a sensor)
 signal their completion to userspace through upcalls. An upcall is a function 
 call the kernel makes on userspace code.
 
@@ -131,7 +131,7 @@ until the timer upcall executes. The kernel pushes a stack frame onto
 the process to execute the upcall; this function call returns to the
 instruction after yield was invoked.
 
-When a process registers an upcall with a call to a Subcribe system call,
+When a process registers an upcall with a call to a Subscribe system call,
 it may pass a pointer `userdata`. The kernel does not access or use this
 data: it simply passes it back on each invocation of the upcall. This
 allows a process to register the same function as multiple upcalls, and
@@ -191,7 +191,7 @@ The Tock kernel tries to impart no restrictions on the stack and heap layout of
 application processes. As such, a process starts in a very minimal environment,
 with an initial stack sufficient to support a syscall, but not much more.
 Application startup routines should first
-[move their program break](/doc/syscalls/memop.md#operation-type-0-brk) to accomodate
+[move their program break](/doc/syscalls/memop.md#operation-type-0-brk) to accommodate
 their desired layout, and then setup local stack and heap tracking in accordance
 with their runtime.
 
@@ -213,7 +213,7 @@ will crash (see the [Debugging](#debugging) section for an example).
 
 If an application crashes, Tock provides a very detailed stack dump.
 By default, when an application crashes Tock prints a crash dump over the
-platform's default console interface. When your application crases,
+platform's default console interface. When your application crashes,
 we recommend looking at this output very carefully: often we have spent 
 hours trying to track down a bug which in retrospect was quite obviously
 indicated in the dump, if we had just looked at the right fields.

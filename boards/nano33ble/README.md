@@ -29,7 +29,7 @@ source](https://github.com/arduino/ArduinoCore-nRF528x-mbedos/issues/23) (at
 least as of December 2020).
 
 For Tock development we need to replace the bootloader with the [Tock
-Bootloader](htttps://github.com/tock/tock-bootloader). The Tock bootloader
+Bootloader](https://github.com/tock/tock-bootloader). The Tock bootloader
 allows a lot more flexibility with reading and writing the board, and is also
 implemented on top of Tock itself.
 
