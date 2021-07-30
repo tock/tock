@@ -127,33 +127,33 @@ endef
 ##
 
 ## Aggregate targets
-.PHONY: allaudit
-allaudit:
+.PHONY: allaudit audit
+allaudit audit:
 	@for f in `./tools/list_lock.sh`;\
 		do echo "$$(tput bold)Auditing $$f";\
 		(cd "$$f" && cargo audit || exit 1);\
 		done
 
-.PHONY: allboards
-allboards:
+.PHONY: allboards boards
+allboards boards:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Build $$f";\
 		$(MAKE) -C "boards/$$f" || exit 1;\
 		done
 
-.PHONY: allcheck
-allcheck:
+.PHONY: allcheck check
+allcheck check:
 	@cargo check
 
-.PHONY: alldoc
-alldoc:
+.PHONY: alldoc doc
+alldoc doc:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Documenting $$f";\
 		$(MAKE) -C "boards/$$f" doc || exit 1;\
 		done
 
-.PHONY: allstack
-allstack:
+.PHONY: allstack stack stack-analysis
+allstack stack stack-analysis:
 	@for f in $(ALL_BOARDS);\
 		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
