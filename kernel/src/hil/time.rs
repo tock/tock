@@ -48,6 +48,9 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self;
 
+    /// Returns the half the maximum value of this type, which should be (2^width-1).
+    fn half_max_value() -> Self;
+
     /// Coverts the specified val into this type if it fits otherwise the
     /// `max_value()` is returned
     fn from_or_max(val: u64) -> Self;
@@ -403,6 +406,11 @@ impl Ticks for Ticks32 {
         Ticks32(0xFFFFFFFF)
     }
 
+    /// Returns the half the maximum value of this type, which should be (2^width-1).
+    fn half_max_value() -> Self {
+        Self(1 + (Self::max_value().0 / 2))
+    }
+
     #[inline]
     fn from_or_max(val: u64) -> Self {
         if val < Self::max_value().0 as u64 {
@@ -477,6 +485,11 @@ impl Ticks for Ticks24 {
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
         Ticks24(0x00FFFFFF)
+    }
+
+    /// Returns the half the maximum value of this type, which should be (2^width-1).
+    fn half_max_value() -> Self {
+        Self(1 + (Self::max_value().0 / 2))
     }
 
     #[inline]
@@ -567,6 +580,11 @@ impl Ticks for Ticks16 {
         Ticks16(0xFFFF)
     }
 
+    /// Returns the half the maximum value of this type, which should be (2^width-1).
+    fn half_max_value() -> Self {
+        Self(1 + (Self::max_value().0 / 2))
+    }
+
     #[inline]
     fn from_or_max(val: u64) -> Self {
         if val < Self::max_value().0 as u64 {
@@ -653,6 +671,11 @@ impl Ticks for Ticks64 {
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
         Ticks64(!0u64)
+    }
+
+    /// Returns the half the maximum value of this type, which should be (2^width-1).
+    fn half_max_value() -> Self {
+        Self(1 + (Self::max_value().0 / 2))
     }
 
     #[inline]
