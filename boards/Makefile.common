@@ -247,7 +247,7 @@ ifneq ($(V),)
   $(info )
   $(info cargo --version               = $(shell $(CARGO) --version))
   $(info rustc --version               = $(shell rustc --version))
-  $(info rustup --version              = $(shell $(RUSTUP) --version))
+  $(info rustup --version              = $(shell $(RUSTUP) --version 2>/dev/null))
   $(info *******************************************************)
   $(info )
 endif
