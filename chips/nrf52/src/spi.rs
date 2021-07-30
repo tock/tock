@@ -16,8 +16,8 @@
 //! * ✓ specify_chip_select
 //! * ✓ set_rate
 //! * ✓ get_rate
-//! * ✓ set_clock
-//! * ✓ get_clock
+//! * ✓ set_polarity
+//! * ✓ get_polarity
 //! * ✓ set_phase
 //! * ✓ get_phase
 //! * hold_low
@@ -438,7 +438,7 @@ impl hil::spi::SpiMaster for SPIM {
         f.into_spi_rate()
     }
 
-    fn set_clock(&self, polarity: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
+    fn set_polarity(&self, polarity: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         debug_assert!(self.initialized.get());
         let new_polarity = match polarity {
@@ -449,7 +449,7 @@ impl hil::spi::SpiMaster for SPIM {
         Ok(())
     }
 
-    fn get_clock(&self) -> hil::spi::ClockPolarity {
+    fn get_polarity(&self) -> hil::spi::ClockPolarity {
         debug_assert!(self.initialized.get());
         match self.registers.config.read(CONFIG::CPOL) {
             0 => hil::spi::ClockPolarity::IdleLow,

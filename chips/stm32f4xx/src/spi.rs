@@ -438,12 +438,12 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         1_000_000
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
         self.set_polarity(polarity);
         Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
+    fn get_polarity(&self) -> ClockPolarity {
         self.get_polarity()
     }
 

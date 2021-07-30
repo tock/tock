@@ -105,8 +105,8 @@ pub trait SpiMaster {
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
     fn get_rate(&self) -> u32;
-    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
-    fn get_clock(&self) -> ClockPolarity;
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
+    fn get_polarity(&self) -> ClockPolarity;
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode>;
     fn get_phase(&self) -> ClockPhase;
 
@@ -188,8 +188,8 @@ pub trait SpiSlave {
         ),
     >;
 
-    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
-    fn get_clock(&self) -> ClockPolarity;
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode>;
+    fn get_polarity(&self) -> ClockPolarity;
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode>;
     fn get_phase(&self) -> ClockPhase;
 }

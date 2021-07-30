@@ -1165,7 +1165,7 @@ impl spi::SpiMaster for USART<'_> {
         system_frequency / cd
     }
 
-    fn set_clock(&self, polarity: spi::ClockPolarity) -> Result<(), ErrorCode> {
+    fn set_polarity(&self, polarity: spi::ClockPolarity) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         // Note that in SPI mode MSBF bit is clock polarity (CPOL)
         match polarity {
@@ -1179,7 +1179,7 @@ impl spi::SpiMaster for USART<'_> {
         Ok(())
     }
 
-    fn get_clock(&self) -> spi::ClockPolarity {
+    fn get_polarity(&self) -> spi::ClockPolarity {
         let usart = &USARTRegManager::new(&self);
 
         // Note that in SPI mode MSBF bit is clock polarity (CPOL)

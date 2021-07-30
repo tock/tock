@@ -56,49 +56,40 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
-                // TODO verify SPI return value
-                let _ = self.spi.specify_chip_select(node.chip_select.get());
+                let configuration = node.configuration.get();
+		let cs = configuration.chip_select;
+                let _ = self.spi.specify_chip_select(cs);
+		
                 let op = node.operation.get();
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
-                    Op::Configure(cpol, cpal, rate) => {
-                        // The `chip_select` type will be correct based on
-                        // what implemented `SpiMaster`.
-                        // TODO verify SPI return value
-                        let _ = self.spi.set_clock(cpol);
-                        let _ = self.spi.set_phase(cpal);
-                        let _ = self.spi.set_rate(rate);
-                    }
                     Op::ReadWriteBytes(len) => {
                         // Only async operations want to block by setting
                         // the devices as inflight.
                         self.inflight.set(node);
                         node.txbuffer.take().map(|txbuffer| {
-                            let rxbuffer = node.rxbuffer.take();
-                            if let Err((e, write_buffer, read_buffer)) =
-                                self.spi.read_write_bytes(txbuffer, rxbuffer, len)
-                            {
-                                node.txbuffer.replace(write_buffer);
-                                read_buffer.map(|buffer| {
-                                    node.rxbuffer.replace(buffer);
-                                });
-                                node.operation.set(Op::ReadWriteDone(Err(e), len));
-                                self.do_next_op_async();
-                            }
+			    let rresult = self.spi.set_rate(configuration.rate);
+			    let polresult = self.spi.set_polarity(configuration.polarity);
+   			    let phaseresult = self.spi.set_phase(configuration.phase);
+                            if rresult.is_err() || polresult.is_err() || phaseresult.is_err() {
+			        node.txbuffer.replace(txbuffer);
+                                node.operation.set(Op::ReadWriteDone(Err(ErrorCode::INVAL), len));				  self.do_next_op_async();
+				
+			    }
+			    else {
+                              let rxbuffer = node.rxbuffer.take();
+    			      if let Err((e, write_buffer, read_buffer)) =
+			      self.spi.read_write_bytes(txbuffer, rxbuffer, len) {
+                                  node.txbuffer.replace(write_buffer);
+                                  read_buffer.map(|buffer| {
+                                      node.rxbuffer.replace(buffer);
+                                  });
+                                  node.operation.set(Op::ReadWriteDone(Err(e), len));
+                                  self.do_next_op_async();
+                              }
+   			    }
                         });
-                    }
-                    Op::SetPolarity(pol) => {
-                        // TODO verify SPI return value
-                        let _ = self.spi.set_clock(pol);
-                    }
-                    Op::SetPhase(pal) => {
-                        // TODO verify SPI return value
-                        let _ = self.spi.set_phase(pal);
-                    }
-                    Op::SetRate(rate) => {
-                        // TODO verify SPI return value
-                        let _ = self.spi.set_rate(rate);
                     }
                     Op::ReadWriteDone(status, len) => {
                         node.txbuffer.take().map(|write_buffer| {
@@ -138,17 +129,33 @@ impl<'a, Spi: hil::spi::SpiMaster> DynamicDeferredCallClient for MuxSpiMaster<'a
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
-    Configure(hil::spi::ClockPolarity, hil::spi::ClockPhase, u32),
     ReadWriteBytes(usize),
-    SetPolarity(hil::spi::ClockPolarity),
-    SetPhase(hil::spi::ClockPhase),
-    SetRate(u32),
     ReadWriteDone(Result<(), ErrorCode>, usize),
+}
+
+
+// Structure used to store the SPI configuration of a client/virtual device,
+// so it can restored on each operation.
+struct SpiConfiguration<Spi: hil::spi::SpiMaster> {
+    chip_select: Spi::ChipSelect,
+    polarity: hil::spi::ClockPolarity,
+    phase: hil::spi::ClockPhase,
+    rate: u32,
+}
+
+// Have to do this manually because otherwise the Copy and Clone are parameterized
+// by Spi::ChipSelect and don't work for Cells.
+// https://stackoverflow.com/questions/63132174/how-do-i-fix-the-method-clone-exists-but-the-following-trait-bounds-were-not
+impl<Spi: hil::spi::SpiMaster> Copy for SpiConfiguration<Spi> {}
+impl<Spi: hil::spi::SpiMaster> Clone for SpiConfiguration<Spi> {
+   fn clone(&self) -> SpiConfiguration<Spi> {
+        *self
+    }
 }
 
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     mux: &'a MuxSpiMaster<'a, Spi>,
-    chip_select: Cell<Spi::ChipSelect>,
+    configuration: Cell<SpiConfiguration<Spi>>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
@@ -163,7 +170,11 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
     ) -> VirtualSpiMasterDevice<'a, Spi> {
         VirtualSpiMasterDevice {
             mux: mux,
-            chip_select: Cell::new(chip_select),
+	    configuration: Cell::new(SpiConfiguration {
+	      chip_select: chip_select,
+	      polarity: hil::spi::ClockPolarity::IdleLow,
+	      phase: hil::spi::ClockPhase::SampleLeading,
+	      rate: 100_000}),  
             txbuffer: TakeCell::empty(),
             rxbuffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -208,8 +219,11 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
         rate: u32,
     ) -> Result<(), ErrorCode> {
         if self.operation.get() == Op::Idle {
-            self.operation.set(Op::Configure(cpol, cpal, rate));
-            self.mux.do_next_op();
+	    let mut configuration = self.configuration.get();
+	    configuration.polarity = cpol;
+    	    configuration.phase = cpal;
+	    configuration.rate = rate;
+            self.configuration.set(configuration);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -235,8 +249,9 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
 
     fn set_polarity(&self, cpol: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
         if self.operation.get() == Op::Idle {
-            self.operation.set(Op::SetPolarity(cpol));
-            self.mux.do_next_op();
+	    let mut configuration = self.configuration.get();
+	    configuration.polarity = cpol;
+	    self.configuration.set(configuration);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -245,8 +260,9 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
 
     fn set_phase(&self, cpal: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
         if self.operation.get() == Op::Idle {
-            self.operation.set(Op::SetPhase(cpal));
-            self.mux.do_next_op();
+ 	    let mut configuration = self.configuration.get();
+	    configuration.phase = cpal;	
+	    self.configuration.set(configuration);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -255,8 +271,9 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
 
     fn set_rate(&self, rate: u32) -> Result<(), ErrorCode> {
         if self.operation.get() == Op::Idle {
-            self.operation.set(Op::SetRate(rate));
-            self.mux.do_next_op();
+ 	    let mut configuration = self.configuration.get();
+	    configuration.rate = rate;	
+	    self.configuration.set(configuration);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -264,15 +281,15 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
     }
 
     fn get_polarity(&self) -> hil::spi::ClockPolarity {
-        self.mux.spi.get_clock()
+        self.configuration.get().polarity
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        self.mux.spi.get_phase()
+        self.configuration.get().phase
     }
 
     fn get_rate(&self) -> u32 {
-        self.mux.spi.get_rate()
+        self.configuration.get().rate
     }
 }
 
@@ -320,7 +337,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
         cpol: hil::spi::ClockPolarity,
         cpal: hil::spi::ClockPhase,
     ) -> Result<(), ErrorCode> {
-        self.spi.set_clock(cpol)?;
+        self.spi.set_polarity(cpol)?;
         self.spi.set_phase(cpal)
     }
 
@@ -341,7 +358,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
     }
 
     fn set_polarity(&self, cpol: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
-        self.spi.set_clock(cpol)
+        self.spi.set_polarity(cpol)
     }
 
     fn set_phase(&self, cpal: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
@@ -349,7 +366,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Sp
     }
 
     fn get_polarity(&self) -> hil::spi::ClockPolarity {
-        self.spi.get_clock()
+        self.spi.get_polarity()
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {

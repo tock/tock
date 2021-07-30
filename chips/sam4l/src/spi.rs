@@ -333,7 +333,7 @@ impl SpiHw {
         clock / scbr
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_polarity(&self, polarity: ClockPolarity) {
         let spi = &SpiRegisterManager::new(&self);
         let csr = self.get_active_csr(spi);
         match polarity {
@@ -342,7 +342,7 @@ impl SpiHw {
         };
     }
 
-    fn get_clock(&self) -> ClockPolarity {
+    fn get_polarity(&self) -> ClockPolarity {
         let spi = &SpiRegisterManager::new(&self);
         let csr = self.get_active_csr(spi);
         if csr.matches_all(ChipSelectParams::CPOL::InactiveLow) {
@@ -607,13 +607,13 @@ impl spi::SpiMaster for SpiHw {
         self.get_baud_rate()
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
-        self.set_clock(polarity);
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity);
         Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
-        self.get_clock()
+    fn get_polarity(&self) -> ClockPolarity {
+        self.get_polarity()
     }
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
@@ -698,13 +698,13 @@ impl spi::SpiSlave for SpiHw {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
-        self.set_clock(polarity);
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity);
         Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
-        self.get_clock()
+    fn get_polarity(&self) -> ClockPolarity {
+        self.get_polarity()
     }
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
