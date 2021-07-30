@@ -192,18 +192,26 @@ impl<'a> Uart<'a> {
 
             // Read from the transmit buffer and send bytes to the UART hardware
             // until either the buffer is empty or the UART hardware is full.
-            self.tx_buffer.map(|tx_buf| {
+            if self.tx_buffer.map_or(false, |tx_buf| {
                 let tx_len = len - idx;
 
                 for i in 0..tx_len {
                     if regs.status.is_set(status::txfull) {
-                        break;
+                        return false;
                     }
                     let tx_idx = idx + i;
                     regs.wdata.write(wdata::data.val(tx_buf[tx_idx] as u32));
                     self.tx_index.set(tx_idx + 1)
                 }
-            });
+                true
+            }) {
+                // We sent everything to the UART hardware
+                self.tx_client.map(|client| {
+                    self.tx_buffer.take().map(|tx_buf| {
+                        client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
+                    });
+                });
+            }
         }
     }
 
@@ -213,19 +221,7 @@ impl<'a> Uart<'a> {
 
         if intrs.is_set(intr::tx_empty) {
             self.disable_tx_interrupt();
-
-            if self.tx_index.get() == self.tx_len.get() {
-                // We sent everything to the UART hardware, now from an
-                // interrupt callback we can issue the callback.
-                self.tx_client.map(|client| {
-                    self.tx_buffer.take().map(|tx_buf| {
-                        client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
-                    });
-                });
-            } else {
-                // We have more to transmit, so continue in tx_progress().
-                self.tx_progress();
-            }
+            self.tx_progress();
         } else if intrs.is_set(intr::rx_watermark) {
             self.disable_rx_interrupt();
 
