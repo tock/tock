@@ -16,6 +16,7 @@
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
     + [`7` Persistent ACL](#7-persistent-acl)
+    + [`8` Kernel Version](#8-kernel-version)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -167,6 +168,12 @@ struct TbfHeaderV2PersistentAcl {
     read_ids: [u32],
     access_length: u16,
     access_ids: [u32],
+
+// Kernel Version
+struct TbfHeaderV2KernelVersion {
+    base: TbfHeaderTlv,
+    major: u16,
+    minor: u16
 }
 ```
 
@@ -423,10 +430,34 @@ errors over the network, and once the reported errors are acked erases them
 from the log. In this case `access_ids` allow an app to erase multiple
 different regions.
 
+#### `8` Kernel Version
+
+The `compatibility` header is designed to prevent the kernel
+from running applications that are not compatible with it.
+
+It defines the following two items:
+* `Kernel major` or `V` is the kernel major number (for Tock 2.0, it is 2)
+* `Kernel minor` or `v` is the kernel minor number (for Tock 2.0, it is 0)
+
+Apps defining this header are compatible with kernel version ^V.v (>= V.v and < (V+1).0)
+
+The kernel version header refers only to the ABI and API exposed by the kernel 
+itself, it does not cover API changes within drivers. 
+
+A kernel major and minor version guarantees the ABI for exchanging 
+data between kernel and userspace and the the system call numbers.
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (8)    | Length (4)  | Kernel major| Kernel minor|
++-------------+-------------+---------------------------+
+```
+
+
 ## Code
 
 The process code itself has no particular format. It will reside in flash,
 but the specific address is determined by the platform. Code in the binary
 should be able to execute successfully at any address, e.g. using position
 independent code.
-

@@ -1340,6 +1340,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         app_version: u16,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        require_kernel_version: bool,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
@@ -1386,12 +1387,42 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                         "Process not enabled flash={:#010X}-{:#010X} process={:?}",
                         app_flash.as_ptr() as usize,
                         app_flash.as_ptr() as usize + app_flash.len() - 1,
-                        process_name
+                        process_name.unwrap_or("(no name)")
                     );
                 }
             }
             // Return no process and the full memory slice we were given.
             return Ok((None, remaining_memory));
+        }
+
+        if let Some((major, minor)) = tbf_header.get_kernel_version() {
+            // If the `KernelVersion` header is present, we read the requested kernel version and compare it to
+            // the running kernel version.
+            if crate::MAJOR != major || crate::MINOR < minor {
+                // If the kernel major version is different, we prevent the process from being loaded.
+                //
+                // If the kernel major version is the same, we compare the kernel minor version. The current
+                // running kernel minor version has to be greater or equal to the one that the process
+                // has requested. If not, we prevent the process from loading.
+                if config::CONFIG.debug_load_processes {
+                    debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})", process_name.unwrap_or("(no name)"), major, minor, (major+1), crate::MAJOR, crate::MINOR);
+                }
+                return Err(ProcessLoadError::IncompatibleKernelVersion {
+                    version: Some((major, minor)),
+                });
+            }
+        } else {
+            if require_kernel_version {
+                // If enforcing the kernel version is requested, and the `KernelVersion` header is not present,
+                // we prevent the process from loading.
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                            "WARN process {:?} not loaded as it has no kernel version header, please upgrade to elf2tab >= 0.8.0",
+                            process_name.unwrap_or ("(no name")
+                        );
+                }
+                return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
+            }
         }
 
         // Otherwise, actually load the app.

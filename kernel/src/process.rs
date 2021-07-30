@@ -21,7 +21,7 @@ pub use crate::process_policies::{
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
 };
 pub use crate::process_standard::ProcessStandard;
-pub use crate::process_utilities::{load_processes, ProcessLoadError};
+pub use crate::process_utilities::{load_processes, load_processes_advanced, ProcessLoadError};
 
 /// Userspace process identifier.
 ///
