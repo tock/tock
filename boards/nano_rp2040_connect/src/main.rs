@@ -1,4 +1,4 @@
-//! Tock kernel for the Raspberry Pi Pico.
+//! Tock kernel for the Arduino Nano RP2040 Connect.
 //!
 //! It is based on RP2040SoC SoC (Cortex M0+).
 
@@ -21,8 +21,8 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
-
 use rp2040;
+
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -32,10 +32,10 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::resets::Peripheral;
-use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
-
 mod io;
+
+use rp2040::sysinfo;
 
 mod flash_bootloader;
 
@@ -63,7 +63,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 
 /// Supported drivers by the platform
-pub struct RaspberryPiPico {
+pub struct NanoRP2040Connect {
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -79,7 +79,7 @@ pub struct RaspberryPiPico {
     systick: cortexm0p::systick::SysTick,
 }
 
-impl SyscallDriverLookup for RaspberryPiPico {
+impl SyscallDriverLookup for NanoRP2040Connect {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
@@ -97,7 +97,7 @@ impl SyscallDriverLookup for RaspberryPiPico {
     }
 }
 
-impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for RaspberryPiPico {
+impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for NanoRP2040Connect {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -127,7 +127,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
 
 /// Entry point used for debuger
 ///
-/// When loaded using gdb, the Raspberry Pi Pico is not reset
+/// When loaded using gdb, the Arduino Nano RP2040 Connect is not reset
 /// by default. Without this function, gdb sets the PC to the
 /// beginning of the flash. This is not correct, as the RP2040
 /// has a more complex boot process.
@@ -333,16 +333,16 @@ pub unsafe fn main() {
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
             3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
+            // 4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
             5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
-            6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
-            7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
+            // 6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
+            // 7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
             8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
             9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
             10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
             11 => &peripherals.pins.get_pin(RPGpio::GPIO11),
-            12 => &peripherals.pins.get_pin(RPGpio::GPIO12),
-            13 => &peripherals.pins.get_pin(RPGpio::GPIO13),
+            // 12 => &peripherals.pins.get_pin(RPGpio::GPIO12),
+            // 13 => &peripherals.pins.get_pin(RPGpio::GPIO13),
             14 => &peripherals.pins.get_pin(RPGpio::GPIO14),
             15 => &peripherals.pins.get_pin(RPGpio::GPIO15),
             16 => &peripherals.pins.get_pin(RPGpio::GPIO16),
@@ -368,7 +368,7 @@ pub unsafe fn main() {
 
     let led = LedsComponent::new(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
+        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO6))
     ))
     .finalize(components::led_component_buf!(
         LedHigh<'static, RPGpioPin<'static>>
@@ -425,16 +425,16 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    let raspberry_pi_pico = RaspberryPiPico {
+    let nano_rp2040_connect = NanoRP2040Connect {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        alarm,
-        gpio,
-        led,
-        console,
+        alarm: alarm,
+        gpio: gpio,
+        led: led,
+        console: console,
         adc: adc_syscall,
         temperature: temp,
 
@@ -487,9 +487,9 @@ pub unsafe fn main() {
     });
 
     board_kernel.kernel_loop(
-        &raspberry_pi_pico,
+        &nano_rp2040_connect,
         chip,
-        Some(&raspberry_pi_pico.ipc),
+        Some(&nano_rp2040_connect.ipc),
         &main_loop_capability,
     );
 }

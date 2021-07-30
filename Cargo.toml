@@ -9,6 +9,7 @@ members = [
     "arch/riscv",
     "arch/rv32i",
     "boards/acd52832",
+    "boards/nano_rp2040_connect",
     "boards/arty_e21",
     "boards/earlgrey-nexysvideo",
     "boards/esp32-c3-devkitM-1",
