@@ -11,13 +11,14 @@ use crate::process::Process;
 ///
 /// Implementations can use the `Process` reference to decide which action to
 /// take. Implementations can also use `debug!()` to print messages if desired.
-pub trait ProcessFaultPolicy {
+pub trait ProcessFaultPolicy: Copy {
     /// Decide which action the kernel should take in response to `process`
     /// faulting.
     fn action(&self, process: &dyn Process) -> process::FaultAction;
 }
 
 /// Simply panic the entire board if a process faults.
+#[derive(Copy, Clone)]
 pub struct PanicFaultPolicy {}
 
 impl ProcessFaultPolicy for PanicFaultPolicy {
@@ -27,6 +28,7 @@ impl ProcessFaultPolicy for PanicFaultPolicy {
 }
 
 /// Simply stop the process and no longer schedule it if a process faults.
+#[derive(Copy, Clone)]
 pub struct StopFaultPolicy {}
 
 impl ProcessFaultPolicy for StopFaultPolicy {
@@ -38,6 +40,7 @@ impl ProcessFaultPolicy for StopFaultPolicy {
 /// Stop the process and no longer schedule it if a process faults, but also
 /// print a debug message notifying the user that the process faulted and
 /// stopped.
+#[derive(Copy, Clone)]
 pub struct StopWithDebugFaultPolicy {}
 
 impl ProcessFaultPolicy for StopWithDebugFaultPolicy {
@@ -51,6 +54,7 @@ impl ProcessFaultPolicy for StopWithDebugFaultPolicy {
 }
 
 /// Always restart the process if it faults.
+#[derive(Copy, Clone)]
 pub struct RestartFaultPolicy {}
 
 impl ProcessFaultPolicy for RestartFaultPolicy {
@@ -63,6 +67,7 @@ impl ProcessFaultPolicy for RestartFaultPolicy {
 /// whether to restart a process when it faults. If the process has been
 /// restarted more times than the threshold then the process will be stopped
 /// and no longer scheduled.
+#[derive(Copy, Clone)]
 pub struct ThresholdRestartFaultPolicy {
     threshold: usize,
 }
@@ -86,6 +91,7 @@ impl ProcessFaultPolicy for ThresholdRestartFaultPolicy {
 /// Implementation of `ProcessFaultPolicy` that uses a threshold to decide
 /// whether to restart a process when it faults. If the process has been
 /// restarted more times than the threshold then the board will panic.
+#[derive(Copy, Clone)]
 pub struct ThresholdRestartThenPanicFaultPolicy {
     threshold: usize,
 }

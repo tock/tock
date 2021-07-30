@@ -92,7 +92,7 @@ struct GrantPointerEntry {
 }
 
 /// A type for userspace processes in Tock.
-pub struct ProcessStandard<'a, C: 'static + Chip> {
+pub struct ProcessStandard<'a, C: 'static + Chip, PF: ProcessFaultPolicy> {
     /// Identifier of this process and the index of the process in the process
     /// table.
     process_id: Cell<ProcessId>,
@@ -185,7 +185,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     state: ProcessStateCell<'static>,
 
     /// How to respond if this process faults.
-    fault_policy: &'a dyn ProcessFaultPolicy,
+    fault_policy: PF,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -209,7 +209,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     debug: MapCell<ProcessStandardDebug>,
 }
 
-impl<C: Chip> Process for ProcessStandard<'_, C> {
+impl<C: Chip, PF: 'static + ProcessFaultPolicy> Process for ProcessStandard<'_, C, PF> {
     fn processid(&self) -> ProcessId {
         self.process_id.get()
     }
@@ -1324,13 +1324,13 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-impl<C: 'static + Chip> ProcessStandard<'_, C> {
+impl<C: 'static + Chip, PF: 'static + ProcessFaultPolicy> ProcessStandard<'_, C, PF> {
     // Memory offset for upcall ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
     const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
 
     // Memory offset to make room for this process's metadata.
-    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
+    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<Self>();
 
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
@@ -1339,7 +1339,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         header_length: usize,
         app_version: u16,
         remaining_memory: &'a mut [u8],
-        fault_policy: &'static dyn ProcessFaultPolicy,
+        fault_policy: PF,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
@@ -1628,8 +1628,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let process_struct_memory_location = kernel_memory_break;
 
         // Create the Process struct in the app grant region.
-        let mut process: &mut ProcessStandard<C> =
-            &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
+        let mut process: &mut ProcessStandard<C, PF> =
+            &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C, PF>);
 
         // Ask the kernel for a unique identifier for this process that is being
         // created.

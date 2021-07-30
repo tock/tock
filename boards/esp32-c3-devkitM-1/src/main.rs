@@ -278,7 +278,7 @@ unsafe fn setup() -> (
             &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
         ),
         &mut PROCESSES,
-        &FAULT_RESPONSE,
+        FAULT_RESPONSE,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {
