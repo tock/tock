@@ -573,7 +573,7 @@ call, an driver implementation MUST return address 0 and size 0.
 
 Note that these requirements are typically on capsule code, and are not
 enforced by the core kernel. Because capsules may have bugs or not be fully
-trust, userspace SHOULD NOT rely on the fact that drivers follow these rules as
+trusted, userspace SHOULD NOT rely on the fact that drivers follow these rules as
 described, especially if the capsule code is not independently checked and tested.
 Instead, userspace SHOULD employ additional checks to ensure that
 drivers behave as specified, and implement proper error handling as needed.
