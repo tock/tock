@@ -15,9 +15,8 @@ use components::spi::SpiComponent;
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::ErrorCode;
 use kernel::hil::spi::{self, SpiMasterDevice};
-
+use kernel::ErrorCode;
 
 #[allow(unused_variables, dead_code)]
 pub struct SpiLoopback {
@@ -36,9 +35,9 @@ impl SpiLoopback {
     }
 }
 
-pub static mut WBUF: [u8; 256] = [0; 256]; 
+pub static mut WBUF: [u8; 256] = [0; 256];
 pub static mut RBUF: [u8; 256] = [0; 256];
-pub static mut WBUF2: [u8; 256] = [0; 256]; 
+pub static mut WBUF2: [u8; 256] = [0; 256];
 pub static mut RBUF2: [u8; 256] = [0; 256];
 
 impl spi::SpiMasterClient for SpiLoopback {
@@ -54,7 +53,10 @@ impl spi::SpiMasterClient for SpiLoopback {
         let read = read.unwrap();
         for (c, v) in write.iter().enumerate() {
             if read[c] != *v {
-                debug!("SPI test error at index {}: wrote {} but read {}", c, v, read[c]);
+                debug!(
+                    "SPI test error at index {}: wrote {} but read {}",
+                    c, v, read[c]
+                );
                 good = false;
             }
         }
@@ -69,7 +71,10 @@ impl spi::SpiMasterClient for SpiLoopback {
         }
 
         if let Err((e, _, _)) = self.spi.read_write_bytes(write, Some(read), len) {
-            panic!("Could not continue SPI test, error on read_write_bytes is {:?}", e);
+            panic!(
+                "Could not continue SPI test, error on read_write_bytes is {:?}",
+                e
+            );
         }
     }
 }
@@ -79,36 +84,50 @@ impl spi::SpiMasterClient for SpiLoopback {
 pub unsafe fn spi_loopback_test(spi: &'static dyn SpiMasterDevice, counter: u8, speed: u32) {
     let spicb = kernel::static_init!(SpiLoopback, SpiLoopback::new(spi, 0, counter));
     spi.set_client(spicb);
-    spi.set_rate(speed).expect("Failed to set SPI speed in SPI loopback test.");
+    spi.set_rate(speed)
+        .expect("Failed to set SPI speed in SPI loopback test.");
 
     let len = WBUF.len();
-    if let Err((e, _, _))  = spi.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
-        panic!("Could not start SPI test, error on read_write_bytes is {:?}", e);
+    if let Err((e, _, _)) = spi.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
+        panic!(
+            "Could not start SPI test, error on read_write_bytes is {:?}",
+            e
+        );
     }
 }
 
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
 pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>) {
-    let spi_fast = SpiComponent::new(mux, 0)
-        .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
-    let spi_slow = SpiComponent::new(mux, 1)
-        .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
+    let spi_fast =
+        SpiComponent::new(mux, 0).finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
+    let spi_slow =
+        SpiComponent::new(mux, 1).finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
 
     let spicb_fast = kernel::static_init!(SpiLoopback, SpiLoopback::new(spi_fast, 0, 0x80));
     let spicb_slow = kernel::static_init!(SpiLoopback, SpiLoopback::new(spi_slow, 1, 0x00));
-    spi_fast.set_rate(1000000).expect("Failed to set SPI speed in SPI loopback test.");
-    spi_slow.set_rate(250000).expect("Failed to set SPI speed in SPI loopback test.");
+    spi_fast
+        .set_rate(1000000)
+        .expect("Failed to set SPI speed in SPI loopback test.");
+    spi_slow
+        .set_rate(250000)
+        .expect("Failed to set SPI speed in SPI loopback test.");
     spi_fast.set_client(spicb_fast);
     spi_slow.set_client(spicb_slow);
 
     let len = WBUF.len();
-    if let Err((e, _, _))  = spi_fast.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
-        panic!("Could not start SPI test, error on read_write_bytes is {:?}", e);
+    if let Err((e, _, _)) = spi_fast.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
+        panic!(
+            "Could not start SPI test, error on read_write_bytes is {:?}",
+            e
+        );
     }
 
     let len = WBUF2.len();
-    if let Err((e, _, _))  = spi_slow.read_write_bytes(&mut WBUF2, Some(&mut RBUF2), len) {
-        panic!("Could not start SPI test, error on read_write_bytes is {:?}", e);
+    if let Err((e, _, _)) = spi_slow.read_write_bytes(&mut WBUF2, Some(&mut RBUF2), len) {
+        panic!(
+            "Could not start SPI test, error on read_write_bytes is {:?}",
+            e
+        );
     }
 }
