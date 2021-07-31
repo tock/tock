@@ -31,11 +31,13 @@ use core::mem::MaybeUninit;
 
 use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use capsules::spi_peripheral::SpiPeripheral;
-use capsules::virtual_spi::{MuxSpiMaster, SpiSlaveDevice, VirtualSpiMasterDevice};
+use capsules::virtual_spi;
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::hil::spi;
+use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 use kernel::{create_capability, static_init, static_init_half};
 
 // Setup static space for the objects.
@@ -202,8 +204,8 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
         );
 
         spi_syscalls.config_buffers(spi_read_buf, spi_write_buf);
+        syscall_spi_device.setup();
         syscall_spi_device.set_client(spi_syscalls);
-
         spi_syscalls
     }
 }
@@ -224,23 +226,23 @@ impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
 
 impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
     type StaticInput = (
-        &'static mut MaybeUninit<SpiSlaveDevice<'static, S>>,
-        &'static mut MaybeUninit<SpiPeripheral<'static, SpiSlaveDevice<'static, S>>>,
+        &'static mut MaybeUninit<virtual_spi::SpiSlaveDevice<'static, S>>,
+        &'static mut MaybeUninit<SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>>,
     );
-    type Output = &'static SpiPeripheral<'static, SpiSlaveDevice<'static, S>>;
+    type Output = &'static SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let syscallp_spi_device = static_init_half!(
             static_buffer.0,
-            SpiSlaveDevice<'static, S>,
-            SpiSlaveDevice::new(self.spi_slave)
+            virtual_spi::SpiSlaveDevice<'static, S>,
+            virtual_spi::SpiSlaveDevice::new(self.spi_slave)
         );
 
         let spi_syscallsp = static_init_half!(
             static_buffer.1,
-            SpiPeripheral<'static, SpiSlaveDevice<'static, S>>,
+            SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>,
             SpiPeripheral::new(
                 syscallp_spi_device,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap)
@@ -281,7 +283,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
             VirtualSpiMasterDevice<'static, S>,
             VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select)
         );
-
+        spi_device.setup();
         spi_device
     }
 }

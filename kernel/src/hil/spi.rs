@@ -127,6 +127,9 @@ pub trait SpiMaster {
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
 pub trait SpiMasterDevice {
+    /// Set the callback for read_write operations.
+    fn set_client(&self, client: &'static dyn SpiMasterClient);
+
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32) -> Result<(), ErrorCode>;
 
@@ -198,6 +201,9 @@ pub trait SpiSlave {
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
 pub trait SpiSlaveDevice {
+    /// Specify the callback of read_write operations:
+    fn set_client(&self, client: &'static dyn SpiSlaveClient);
+
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase) -> Result<(), ErrorCode>;
 

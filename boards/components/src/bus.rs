@@ -35,6 +35,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::bus8080;
 use kernel::hil::spi;
+use kernel::hil::spi::SpiMasterDevice;
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -127,6 +128,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
             SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>,
             SpiMasterBus::new(static_buffer.0, static_buffer.2)
         );
+        static_buffer.0.setup();
         static_buffer.0.set_client(bus);
 
         bus

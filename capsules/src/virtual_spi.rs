@@ -28,10 +28,15 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Sp
         len: usize,
         status: Result<(), ErrorCode>,
     ) {
-        self.inflight.take().map(move |device| {
+        let dev = self.inflight.take();
+        // Need to do next op before signaling so we get some kind of
+        // sharing. Otherwise a call to read_write in the callback
+        // can allow this client to never relinquish the device.
+        // -pal 7/30/21
+        self.do_next_op();
+        dev.map(move |device| {
             device.read_write_done(write_buffer, read_buffer, len, status);
         });
-        self.do_next_op();
     }
 }
 
@@ -183,9 +188,9 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a dyn hil::spi::SpiMasterClient) {
+    /// Must be called right after `static_init!()`.
+    pub fn setup(&'a self) {
         self.mux.devices.push_head(self);
-        self.client.set(client);
     }
 }
 
@@ -211,7 +216,11 @@ impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
     }
 }
 
-impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'_, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'a, Spi> {
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
+        self.client.set(client);
+    }
+
     fn configure(
         &self,
         cpol: hil::spi::ClockPolarity,
@@ -305,10 +314,6 @@ impl<'a, Spi: hil::spi::SpiSlave> SpiSlaveDevice<'a, Spi> {
             client: OptionalCell::empty(),
         }
     }
-
-    pub fn set_client(&'a self, client: &'a dyn hil::spi::SpiSlaveClient) {
-        self.client.set(client);
-    }
 }
 
 impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Spi> {
@@ -331,7 +336,11 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Sp
     }
 }
 
-impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'_, Spi> {
+impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'a, Spi> {
+    fn set_client(&self, client: &'a dyn hil::spi::SpiSlaveClient) {
+        self.client.set(client);
+    }
+
     fn configure(
         &self,
         cpol: hil::spi::ClockPolarity,
