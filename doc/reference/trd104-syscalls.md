@@ -511,18 +511,6 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 The Read-Write Allow system call class is how a userspace process
 shares a buffer with the kernel that the kernel can read and write.
 
-The standard access model for allowed buffers is that userspace does
-not read or write a buffer that has been allowed: access to the memory
-is intended to be exclusive either to userspace or to the kernel. To
-regain access to a passed buffer, the process calls the same
-Read-Write Allow system call again, which, if successful, returns the
-buffer. It can do so with a zero-length buffer if it wishes to pass no
-memory to the kernel. Once a buffer has been returned to userspace as
-part of a Read-Write Allow system call, it is guaranteed for the
-kernel to no longer have access to the described memory region, unless
-it is currently shared with the kernel as part of the passed in buffer
-or another Allow mechanism.
-
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
@@ -541,6 +529,31 @@ buffer must be readable and writeable by the process. Zero-length
 buffers may therefore have arbitrary addresses. If the passed buffer is
 not complete within the calling process's writeable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
+The buffer number specifies which buffer this is. A driver may
+support multiple allowed buffers.
+
+The return variants for Read-Write Allow system calls are `Failure
+with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
+contains an address and `Argument 1` contains a length. When a driver
+implementing the Read-Write Allow system call returns a failure
+result, it MUST return the same address and length as those that were passed 
+in the call. When a driver implementing the Read-Write Allow system call
+returns a success result, the returned address and length MUST be those
+that were passed in the previous call, unless this is the first call.
+On the first successful invocation of a particular Read-Write Allow system 
+call, an driver implementation MUST return address 0 and size 0.
+
+The standard access model for allowed buffers is that userspace does
+not read or write a buffer that has been allowed: access to the memory
+is intended to be exclusive either to userspace or to the kernel. To
+regain access to a passed buffer B, the process calls the same
+Read-Write Allow system call again. If this call returns a success
+result, the result contains buffer B. The process can call with a zero-length 
+buffer if it wishes to pass no memory to the kernel. Once a buffer has been returned to userspace as
+part of a Read-Write Allow system call, it is guaranteed for the
+kernel to no longer have access to the described memory region, unless
+it is currently shared with the kernel as part of the passed in buffer
+or another Allow mechanism.
 
 Note that buffers held by the kernel are still considered part of a
 process address space, even if conceptually the process should not
@@ -560,17 +573,6 @@ userspace needs to read or write to a buffer held by the kernel, it
 MUST first regain access to it by calling the corresponding Read-Write
 Allow.
 
-The return variants for Read-Write Allow system calls are `Failure
-with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
-contains an address and `Argument 1` contains a length. When a driver
-implementing the Read-Write Allow system call returns a failure
-result, it MUST return the same address and length as those that were passed 
-in the call. When a driver implementing the Read-Write Allow system call
-returns a success result, the returned address and length MUST be those
-that were passed in the previous call, unless this is the first call.
-On the first successful invocation of a particular Read-Write Allow system 
-call, an driver implementation MUST return address 0 and size 0.
-
 Note that these requirements are typically on capsule code, and are not
 enforced by the core kernel. Because capsules may have bugs or not be fully
 trusted, userspace SHOULD NOT rely on the fact that drivers follow these rules as
@@ -580,8 +582,6 @@ drivers behave as specified, and implement proper error handling as needed.
 The core kernel MAY enforce a subset of these
 specified rules in the future.
 
-The buffer number specifies which buffer this is. A driver may
-support multiple allowed buffers.
 4.4.1 Buffers Can Change
 ---------------------------------
 The standard use of Read-Write Allow requires that userspace does not
