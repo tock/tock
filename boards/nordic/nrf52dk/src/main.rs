@@ -67,10 +67,12 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52832::gpio::Pin;
@@ -112,13 +114,13 @@ mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52832::chip::NRF52<Nrf52832DefaultPeripherals>> = None;
@@ -157,12 +159,14 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
     >,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
-impl kernel::Platform for Platform {
+impl SyscallDriverLookup for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -177,6 +181,36 @@ impl kernel::Platform for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>>>
+    for Platform
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -384,6 +418,9 @@ pub unsafe fn main() {
 
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let platform = Platform {
         button,
         ble_radio,
@@ -400,6 +437,8 @@ pub unsafe fn main() {
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
+        scheduler,
+        systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
     let _ = platform.pconsole.start();
@@ -418,7 +457,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -438,13 +477,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        Some(&platform.ipc),
-        scheduler,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

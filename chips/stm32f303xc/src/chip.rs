@@ -2,19 +2,16 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::common::deferred_call;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::deferred_call;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::nvic;
-use crate::wdt;
 
 pub struct Stm32f3xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
-    watchdog: wdt::WindoWdg<'a>,
     interrupt_service: &'a I,
 }
 
@@ -30,6 +27,7 @@ pub struct Stm32f3xxDefaultPeripherals<'a> {
     pub usart2: crate::usart::Usart<'a>,
     pub usart3: crate::usart::Usart<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
+    pub watchdog: crate::wdt::WindoWdg<'a>,
 }
 
 impl<'a> Stm32f3xxDefaultPeripherals<'a> {
@@ -46,6 +44,7 @@ impl<'a> Stm32f3xxDefaultPeripherals<'a> {
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
             gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
+            watchdog: crate::wdt::WindoWdg::new(rcc),
         }
     }
 
@@ -90,26 +89,18 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f3xx<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I, rcc: &'a crate::rcc::Rcc) -> Self {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new(),
-            watchdog: wdt::WindoWdg::new(rcc),
             interrupt_service,
         }
-    }
-
-    pub fn enable_watchdog(&self) {
-        self.watchdog.enable();
     }
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = wdt::WindoWdg<'a>;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -138,14 +129,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &self.watchdog
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

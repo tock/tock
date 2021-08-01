@@ -1,15 +1,15 @@
 //! I2C Master Driver
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
-};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::i2c;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 register_structs! {
     pub I2cRegisters {

@@ -1,11 +1,11 @@
 // use core::cell::Cell;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::rcc;

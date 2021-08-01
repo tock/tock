@@ -9,11 +9,19 @@ use core::str;
 use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::kernel::Kernel;
 use crate::platform::mpu::{self};
-use crate::sched::Kernel;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+
+// Export all process related types via `kernel::process::`.
+pub use crate::process_policies::{
+    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
+    StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
+};
+pub use crate::process_standard::ProcessStandard;
+pub use crate::process_utilities::{load_processes, ProcessLoadError};
 
 /// Userspace process identifier.
 ///

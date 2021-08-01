@@ -2,10 +2,9 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::hil::time::Alarm;
-use kernel::{Chip, InterruptService};
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::platform::chip::{Chip, InterruptService};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
@@ -15,11 +14,10 @@ use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 
-pub struct EarlGrey<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
+pub struct EarlGrey<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     plic: &'a Plic,
-    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'static crate::timer::RvTimer<'static>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
     plic_interrupt_service: &'a I,
@@ -90,9 +88,8 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a, A, I> {
+impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
     pub unsafe fn new(
-        virtual_alarm: &'static A,
         plic_interrupt_service: &'a I,
         timer: &'static crate::timer::RvTimer,
     ) -> Self {
@@ -100,7 +97,6 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMP::new(),
             plic: &PLIC,
-            scheduler_timer: kernel::VirtualSchedulerTimer::new(virtual_alarm),
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
             plic_interrupt_service,
@@ -197,24 +193,12 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> EarlGrey<'a,
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
-    for EarlGrey<'a, A, I>
-{
+impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey<'a, I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
-    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
-    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &SysCall {

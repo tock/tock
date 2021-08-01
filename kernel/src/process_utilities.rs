@@ -6,11 +6,11 @@ use core::fmt;
 use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::debug;
-use crate::platform::Chip;
+use crate::kernel::Kernel;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
-use crate::sched::Kernel;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {

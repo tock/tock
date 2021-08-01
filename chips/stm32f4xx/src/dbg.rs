@@ -1,6 +1,6 @@
-use kernel::common::registers::interfaces::ReadWriteable;
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 /// Debug support
 #[repr(C)]

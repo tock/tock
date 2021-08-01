@@ -1,12 +1,12 @@
 //! Clock System (CS)
 
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::platform::chip::NoClockControl;
+use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::NoClockControl;
+use kernel::utilities::StaticRef;
 
 pub const MCLK_HZ: u32 = 48_000_000;
 pub const HSMCLK_HZ: u32 = 12_000_000;
@@ -325,7 +325,7 @@ impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
     }
 
     fn get_clock(&self) -> &NoClockControl {
-        unsafe { &kernel::NO_CLOCK_CONTROL }
+        unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL }
     }
 
     fn before_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {

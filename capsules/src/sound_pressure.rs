@@ -54,8 +54,10 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
+use kernel::grant::Grant;
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -137,7 +139,7 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
     }
 }
 
-impl Driver for SoundPressureSensor<'_> {
+impl SyscallDriver for SoundPressureSensor<'_> {
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
@@ -183,7 +185,7 @@ impl Driver for SoundPressureSensor<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

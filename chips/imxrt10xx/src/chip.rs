@@ -3,14 +3,13 @@
 use core::fmt::Write;
 use cortexm7;
 use kernel::debug;
-use kernel::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService};
 
 use crate::nvic;
 
 pub struct Imxrt10xx<I: InterruptService<()> + 'static> {
     mpu: cortexm7::mpu::MPU,
     userspace_kernel_boundary: cortexm7::syscall::SysCall,
-    scheduler_timer: cortexm7::systick::SysTick,
     interrupt_service: &'static I,
 }
 
@@ -19,7 +18,6 @@ impl<I: InterruptService<()> + 'static> Imxrt10xx<I> {
         Imxrt10xx {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
-            scheduler_timer: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
             interrupt_service,
         }
     }
@@ -107,8 +105,6 @@ impl InterruptService<()> for Imxrt10xxDefaultPeripherals {
 impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
-    type SchedulerTimer = cortexm7::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -132,14 +128,6 @@ impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm7::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm7::syscall::SysCall {

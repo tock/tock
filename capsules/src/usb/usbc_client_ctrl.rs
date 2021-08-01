@@ -29,8 +29,10 @@ use super::descriptors::SetupData;
 use super::descriptors::StandardRequest;
 use super::descriptors::StringDescriptor;
 use super::descriptors::TransferDirection;
+
 use core::cell::Cell;
 use core::cmp::min;
+
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 

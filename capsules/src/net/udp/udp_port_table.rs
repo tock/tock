@@ -33,9 +33,11 @@
 //! exclusive access to ports between userspace apps and capsules is still enforced.
 
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
+
 use core::fmt;
+
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number

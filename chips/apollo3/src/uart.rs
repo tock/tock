@@ -3,12 +3,12 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4001_C000 as *const UartRegisters) };

@@ -1,4 +1,4 @@
-use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 
 register_bitfields![usize,
     pub mcause [

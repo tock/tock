@@ -1,0 +1,11 @@
+[package]
+name = "esp32-c3"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2018"
+
+[dependencies]
+esp32 = { path = "../esp32" }
+rv32i = { path = "../../arch/rv32i" }
+kernel = { path = "../../kernel" }
+

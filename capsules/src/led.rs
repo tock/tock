@@ -50,9 +50,10 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
-use kernel::common::cells::TakeCell;
 use kernel::hil::led;
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::TakeCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -78,7 +79,7 @@ impl<'a, L: led::Led> LedDriver<'a, L> {
     }
 }
 
-impl<L: led::Led> Driver for LedDriver<'_, L> {
+impl<L: led::Led> SyscallDriver for LedDriver<'_, L> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -134,7 +135,7 @@ impl<L: led::Led> Driver for LedDriver<'_, L> {
             .expect("LEDs slice taken")
     }
 
-    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
         Ok(())
     }
 }

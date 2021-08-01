@@ -34,7 +34,7 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // just create a new pin reference here instead of using global
     let led_pin = &mut apollo3::gpio::GpioPin::new(
-        kernel::common::StaticRef::new(
+        kernel::utilities::StaticRef::new(
             apollo3::gpio::GPIO_BASE_RAW as *const apollo3::gpio::GpioRegisters,
         ),
         apollo3::gpio::Pin::Pin19,

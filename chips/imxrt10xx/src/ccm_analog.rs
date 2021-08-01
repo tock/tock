@@ -7,11 +7,11 @@
 //    a Groups struct.
 // 3. Remove unused
 
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadWrite, RegisterLongName, WriteOnly,
 };
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 
 /// Many CCM_ANALOG registers are laid out with additional set, clear, and toggle
 /// registers. This groups them together into an extended register.

@@ -12,17 +12,17 @@ use crate::dma::DMAPeripheral;
 use crate::pm;
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::OptionalCell;
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 #[repr(C)]

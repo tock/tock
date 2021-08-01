@@ -1,7 +1,7 @@
-use kernel::common::registers::interfaces::Readable;
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::StaticRef;
 
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 
 register_structs! {
 

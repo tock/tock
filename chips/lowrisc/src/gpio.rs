@@ -1,13 +1,13 @@
 //! General Purpose Input/Output driver.
 
 use crate::padctrl;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, Field, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil::gpio;
+use kernel::utilities::StaticRef;
 
 register_structs! {
     pub GpioRegisters {

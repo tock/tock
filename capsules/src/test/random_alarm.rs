@@ -4,7 +4,9 @@
 //!
 //! Author: Philip Levis <plevis@google.com>
 //! Last Modified: 6/17/2020
+
 use core::cell::Cell;
+
 use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 
 pub struct TestRandomAlarm<'a, A: Alarm<'a>> {

@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 // Default to 32 bit if compiling for debug/testing.
 #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]

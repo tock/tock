@@ -2,10 +2,9 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::debug;
-use kernel::hil::time::Alarm;
-use kernel::Chip;
+use kernel::platform::chip::Chip;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
@@ -13,13 +12,12 @@ use rv32i::pmp::PMP;
 use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
 
-pub struct E310x<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> {
+pub struct E310x<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP<4>,
     plic: &'a Plic,
-    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     timer: &'a sifive::clint::Clint<'a>,
     plic_interrupt_service: &'a I,
 }
@@ -69,17 +67,12 @@ impl<'a> InterruptService<()> for E310xDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A, I> {
-    pub unsafe fn new(
-        alarm: &'static A,
-        plic_interrupt_service: &'a I,
-        timer: &'a sifive::clint::Clint<'a>,
-    ) -> Self {
+impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
+    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),
             plic: &PLIC,
-            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
             timer,
             plic_interrupt_service,
         }
@@ -103,24 +96,12 @@ impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> E310x<'a, A,
     }
 }
 
-impl<'a, A: 'static + Alarm<'static>, I: InterruptService<()> + 'a> kernel::Chip
-    for E310x<'a, A, I>
-{
+impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
     type MPU = PMP<4>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
-    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {

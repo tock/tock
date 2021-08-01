@@ -29,13 +29,15 @@ pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 
 use core::cell::Cell;
 use core::mem;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
+
+use kernel::grant::Grant;
 use kernel::hil::digest;
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadOnlyProcessBuffer,
-    ReadWriteProcessBuffer, ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
     Sha256,
@@ -253,7 +255,12 @@ impl<
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
                             upcalls
-                                .schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0)
+                                .schedule_upcall(
+                                    0,
+                                    kernel::errorcode::into_statuscode(e.into()),
+                                    0,
+                                    0,
+                                )
                                 .ok();
                         }
                     } else {
@@ -261,8 +268,8 @@ impl<
                     }
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp
-                        || err == kernel::procs::Error::InactiveApp
+                    if err == kernel::process::Error::NoSuchApp
+                        || err == kernel::process::Error::InactiveApp
                     {
                         self.appid.clear();
                     }
@@ -281,7 +288,13 @@ impl<
                     let pointer = digest.as_ref()[0] as *mut u8;
 
                     let _ = app.dest.mut_enter(|dest| {
-                        dest.copy_from_slice(digest);
+                        let len = dest.len();
+
+                        if len < L {
+                            dest.copy_from_slice(&digest[0..len]);
+                        } else {
+                            dest[0..L].copy_from_slice(digest);
+                        }
                     });
 
                     match result {
@@ -289,7 +302,7 @@ impl<
                         Err(e) => upcalls
                             .schedule_upcall(
                                 0,
-                                kernel::into_statuscode(e.into()),
+                                kernel::errorcode::into_statuscode(e.into()),
                                 pointer as usize,
                                 0,
                             )
@@ -300,8 +313,8 @@ impl<
                     self.appid.clear();
                 })
                 .map_err(|err| {
-                    if err == kernel::procs::Error::NoSuchApp
-                        || err == kernel::procs::Error::InactiveApp
+                    if err == kernel::process::Error::NoSuchApp
+                        || err == kernel::process::Error::InactiveApp
                     {
                         self.appid.clear();
                     }
@@ -317,7 +330,7 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > Driver for ShaDriver<'a, H, L>
+    > SyscallDriver for ShaDriver<'a, H, L>
 {
     fn allow_readwrite(
         &self,
@@ -560,7 +573,12 @@ impl<
                         .enter(appid, |_app, upcalls| {
                             if let Err(e) = self.calculate_digest() {
                                 upcalls
-                                    .schedule_upcall(0, kernel::into_statuscode(e.into()), 0, 0)
+                                    .schedule_upcall(
+                                        0,
+                                        kernel::errorcode::into_statuscode(e.into()),
+                                        0,
+                                        0,
+                                    )
                                     .ok();
                             }
                         })
@@ -578,7 +596,7 @@ impl<
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

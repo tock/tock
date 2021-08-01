@@ -24,11 +24,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::bus8080::{self, Bus8080};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMasterClient, SpiMasterDevice};
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// Bus width used for address width and data width

@@ -2,15 +2,17 @@
 //!
 //! It responds to standard device requests and can be enumerated.
 
+use core::cell::Cell;
+
 use super::descriptors::{
     self, Buffer8, DeviceDescriptor, EndpointAddress, EndpointDescriptor, TransferDirection,
 };
 use super::usbc_client_ctrl::ClientCtrl;
-use core::cell::Cell;
-use kernel::common::cells::VolatileCell;
+
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::VolatileCell;
 
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;

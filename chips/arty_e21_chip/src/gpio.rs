@@ -1,6 +1,6 @@
 use core::ops::{Index, IndexMut};
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 pub use sifive::gpio::GpioPin;
 use sifive::gpio::{pins, GpioRegisters};
 

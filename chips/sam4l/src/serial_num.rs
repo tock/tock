@@ -1,7 +1,7 @@
 //! Provides a struct that enables access to the unique 120 bit serial number stored in read-only
 //! flash on the sam4l.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 
 // The sam4l stores a unique 120 bit serial number readable from address 0x0080020C to 0x0080021A
 // This value cannot be written to normally, and instead requires special instructions to overwrite,

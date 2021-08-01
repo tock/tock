@@ -9,21 +9,22 @@ use core::fmt::Write;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
 
-use crate::common::cells::{MapCell, NumericCellExt};
-use crate::common::{Queue, RingBuffer};
+use crate::collections::queue::Queue;
+use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
-use crate::mem::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::kernel::Kernel;
+use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
-use crate::platform::Chip;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
-use crate::sched::Kernel;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
+use crate::utilities::cells::{MapCell, NumericCellExt};
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;

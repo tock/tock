@@ -34,7 +34,7 @@ use capsules::spi_peripheral::SpiPeripheral;
 use capsules::virtual_spi;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};

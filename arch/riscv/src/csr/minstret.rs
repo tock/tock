@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 // minstret is the lower XLEN bits of the number of elapsed instructions
 register_bitfields![usize,

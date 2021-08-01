@@ -2,8 +2,11 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
+
+use kernel::grant::Grant;
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -144,7 +147,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
+impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     /// Setup and read the alarm.
     ///
     /// ### `command_num`
@@ -244,7 +247,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
             )
     }
 
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, appid: ProcessId) -> Result<(), kernel::process::Error> {
         self.app_alarms.enter(appid, |_, _| {})
     }
 }

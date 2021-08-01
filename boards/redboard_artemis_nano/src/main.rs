@@ -11,13 +11,14 @@
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 pub mod ble;
@@ -32,13 +33,13 @@ const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; 4];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None; 4];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -64,13 +65,15 @@ struct RedboardArtemisNano {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for RedboardArtemisNano {
+impl SyscallDriverLookup for RedboardArtemisNano {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -81,6 +84,34 @@ impl Platform for RedboardArtemisNano {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for RedboardArtemisNano {
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -237,6 +268,11 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
+
     let artemis_nano = static_init!(
         RedboardArtemisNano,
         RedboardArtemisNano {
@@ -246,6 +282,8 @@ pub unsafe fn main() {
             led,
             i2c_master,
             ble_radio,
+            scheduler,
+            systick,
         }
     );
 
@@ -255,7 +293,7 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -275,14 +313,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     board_kernel.kernel_loop(
         artemis_nano,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler,
         &main_loop_cap,
     );
 }

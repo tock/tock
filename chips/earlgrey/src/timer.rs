@@ -1,11 +1,11 @@
 //! Timer driver.
 
 use crate::chip_config::CONFIG;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks64};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 

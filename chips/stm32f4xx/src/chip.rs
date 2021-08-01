@@ -2,9 +2,9 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::common::deferred_call;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::deferred_call;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 use crate::dma1;
 use crate::nvic;
@@ -14,7 +14,6 @@ use crate::deferred_calls::DeferredCallTask;
 pub struct Stm32f4xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
     interrupt_service: &'a I,
 }
 
@@ -132,7 +131,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f4xx<'a, I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new(),
             interrupt_service,
         }
     }
@@ -141,8 +139,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f4xx<'a, I> {
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f4xx<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -172,14 +168,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f4xx<'a, I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

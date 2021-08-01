@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 // mcycle is the lower XLEN bits of the number of elapsed cycles
 register_bitfields![usize,

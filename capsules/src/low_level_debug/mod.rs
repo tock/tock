@@ -4,8 +4,11 @@
 mod fmt;
 
 use core::cell::Cell;
+
+use kernel::grant::Grant;
 use kernel::hil::uart::{Transmit, TransmitClient};
-use kernel::{CommandReturn, ErrorCode, Grant, ProcessId};
+use kernel::syscall::CommandReturn;
+use kernel::{ErrorCode, ProcessId};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
@@ -40,7 +43,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     }
 }
 
-impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
+impl<'u, U: Transmit<'u>> kernel::syscall::SyscallDriver for LowLevelDebug<'u, U> {
     fn command(
         &self,
         minor_num: usize,
@@ -58,7 +61,7 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
         CommandReturn::success()
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grant.enter(processid, |_, _| {})
     }
 }

@@ -1,6 +1,6 @@
 //! Interface for CRC computation.
 
-use crate::common::leasable_buffer::LeasableBuffer;
+use crate::utilities::leasable_buffer::LeasableBuffer;
 use crate::ErrorCode;
 
 /// Client for CRC algorithm implementations

@@ -104,15 +104,17 @@
 use core::cell::Cell;
 use core::cmp;
 use core::mem;
-use kernel::common::cells::OptionalCell;
+
 use kernel::debug;
+use kernel::grant::Grant;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::{
-    CommandReturn, ErrorCode, ProcessId, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
-    ReadableProcessBuffer, WriteableProcessBuffer,
-};
+use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -312,8 +314,8 @@ where
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: kernel::Grant<App, 1>,
-    kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
+    app: Grant<App, 1>,
+    kernel_tx: kernel::utilities::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::ProcessId>,
     receiving_app: OptionalCell<kernel::ProcessId>,
@@ -326,7 +328,7 @@ where
 {
     pub fn new(
         radio: &'a B,
-        container: kernel::Grant<App, 1>,
+        container: Grant<App, 1>,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
@@ -334,7 +336,7 @@ where
             radio: radio,
             busy: Cell::new(false),
             app: container,
-            kernel_tx: kernel::common::cells::TakeCell::new(tx_buf),
+            kernel_tx: kernel::utilities::cells::TakeCell::new(tx_buf),
             alarm: alarm,
             sending_app: OptionalCell::empty(),
             receiving_app: OptionalCell::empty(),
@@ -471,7 +473,12 @@ where
 
                     if success {
                         upcalls
-                            .schedule_upcall(0, kernel::into_statuscode(result), len as usize, 0)
+                            .schedule_upcall(
+                                0,
+                                kernel::errorcode::into_statuscode(result),
+                                len as usize,
+                                0,
+                            )
                             .ok();
                     }
                 }
@@ -549,7 +556,7 @@ where
 }
 
 // System Call implementation
-impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
+impl<'a, B, A> SyscallDriver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
     A: kernel::hil::time::Alarm<'a>,
@@ -727,7 +734,7 @@ where
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.app.enter(processid, |_, _| {})
     }
 }

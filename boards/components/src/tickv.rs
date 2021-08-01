@@ -45,38 +45,6 @@ use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! flash_user_component_helper {
-    ($F:ty) => {{
-        use capsules::virtual_flash::MuxFlash;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<MuxFlash<'static, $F>> = MaybeUninit::uninit();
-        &mut BUF1
-    };};
-}
-
-pub struct FlashMuxComponent<F: 'static + hil::flash::Flash> {
-    flash: &'static F,
-}
-
-impl<F: 'static + hil::flash::Flash> FlashMuxComponent<F> {
-    pub fn new(flash: &'static F) -> FlashMuxComponent<F> {
-        FlashMuxComponent { flash }
-    }
-}
-
-impl<F: 'static + hil::flash::Flash> Component for FlashMuxComponent<F> {
-    type StaticInput = &'static mut MaybeUninit<MuxFlash<'static, F>>;
-    type Output = &'static MuxFlash<'static, F>;
-
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let mux_flash = static_init_half!(s, MuxFlash<'static, F>, MuxFlash::new(self.flash));
-
-        mux_flash
-    }
-}
-
-// Setup static space for the objects.
-#[macro_export]
 macro_rules! tickv_component_helper {
     ($F:ty) => {{
         use capsules::tickv::TicKVStore;
@@ -90,7 +58,9 @@ macro_rules! tickv_component_helper {
     };};
 }
 
-pub struct TicKVComponent<F: 'static + hil::flash::Flash> {
+pub struct TicKVComponent<
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+> {
     mux_flash: &'static MuxFlash<'static, F>,
     region_offset: usize,
     flash_size: usize,
@@ -98,7 +68,9 @@ pub struct TicKVComponent<F: 'static + hil::flash::Flash> {
     flash_read_buffer: &'static mut F::Page,
 }
 
-impl<F: 'static + hil::flash::Flash> TicKVComponent<F> {
+impl<F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>>
+    TicKVComponent<F>
+{
     pub fn new(
         mux_flash: &'static MuxFlash<'static, F>,
         region_offset: usize,
@@ -116,7 +88,9 @@ impl<F: 'static + hil::flash::Flash> TicKVComponent<F> {
     }
 }
 
-impl<F: 'static + hil::flash::Flash> Component for TicKVComponent<F> {
+impl<F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>>
+    Component for TicKVComponent<F>
+{
     type StaticInput = (
         &'static mut MaybeUninit<FlashUser<'static, F>>,
         &'static mut MaybeUninit<TicKVStore<'static, FlashUser<'static, F>>>,

@@ -27,11 +27,11 @@
 
 use crate::pm;
 use core::cell::Cell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil::analog_comparator;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 /// Representation of an AC channel on the SAM4L.

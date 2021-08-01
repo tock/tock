@@ -9,10 +9,11 @@
 #![deny(missing_docs)]
 
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::Counter;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -59,13 +60,14 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>> = None;
 
@@ -107,12 +109,15 @@ pub struct MicroBit {
     >,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
-impl Platform for MicroBit {
+impl SyscallDriverLookup for MicroBit {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -132,6 +137,36 @@ impl Platform for MicroBit {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>>
+    for MicroBit
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -366,7 +401,7 @@ pub unsafe fn main() {
     )
     .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
 
-    lsm303agr.configure(
+    if let Err(error) = lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
         false,
         capsules::lsm303xx::Lsm303Scale::Scale2G,
@@ -374,7 +409,9 @@ pub unsafe fn main() {
         true,
         capsules::lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
         capsules::lsm303xx::Lsm303Range::Range1_9G,
-    );
+    ) {
+        debug!("Failed to configure LSM303AGR sensor ({:?})", error);
+    }
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
@@ -459,15 +496,23 @@ pub unsafe fn main() {
     // STORAGE
     //--------------------------------------------------------------------------
 
+    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
+        components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+    );
+
     // App Flash
+
+    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+    );
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
         board_kernel,
         capsules::app_flash_driver::DRIVER_NUM,
-        &base_peripherals.nvmc,
+        virtual_app_flash,
     )
     .finalize(components::app_flash_component_helper!(
-        nrf52833::nvmc::Nvmc,
+        capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
 
@@ -531,26 +576,32 @@ pub unsafe fn main() {
     while !base_peripherals.clock.low_started() {}
     while !base_peripherals.clock.high_started() {}
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let microbit = MicroBit {
-        ble_radio: ble_radio,
-        console: console,
-        gpio: gpio,
-        button: button,
-        led: led,
-        rng: rng,
-        temperature: temperature,
-        lsm303agr: lsm303agr,
-        ninedof: ninedof,
-        buzzer: buzzer,
-        sound_pressure: sound_pressure,
+        ble_radio,
+        console,
+        gpio,
+        button,
+        led,
+        rng,
+        temperature,
+        lsm303agr,
+        ninedof,
+        buzzer,
+        sound_pressure,
         adc: adc_syscall,
-        alarm: alarm,
-        app_flash: app_flash,
+        alarm,
+        app_flash,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
     let chip = static_init!(
@@ -577,7 +628,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -597,13 +648,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(
-        &microbit,
-        chip,
-        Some(&microbit.ipc),
-        scheduler,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
 }

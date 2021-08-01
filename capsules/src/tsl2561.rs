@@ -1,4 +1,4 @@
-//! Driver for the Taos TSL2561 light sensor.
+//! SyscallDriver for the Taos TSL2561 light sensor.
 //!
 //! <http://www.digikey.com/product-detail/en/ams-taos-usa-inc/TSL2561FN/TSL2561-FNCT-ND/3095298>
 //!
@@ -14,10 +14,13 @@
 //! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::Grant;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -458,7 +461,7 @@ impl gpio::Client for TSL2561<'_> {
     }
 }
 
-impl Driver for TSL2561<'_> {
+impl SyscallDriver for TSL2561<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -494,7 +497,7 @@ impl Driver for TSL2561<'_> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

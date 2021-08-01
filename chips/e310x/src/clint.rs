@@ -1,6 +1,6 @@
 //! Machine Timer instantiation.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use sifive::clint::ClintRegisters;
 
 pub const CLINT_BASE: StaticRef<ClintRegisters> =

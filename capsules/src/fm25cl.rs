@@ -1,4 +1,4 @@
-//! Driver for the FM25CL FRAM chip.
+//! SyscallDriver for the FM25CL FRAM chip.
 //!
 //! <http://www.cypress.com/part/fm25cl64b-dg>
 //!
@@ -42,8 +42,8 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];

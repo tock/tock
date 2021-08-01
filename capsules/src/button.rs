@@ -52,9 +52,12 @@
 //!   of the button.
 
 use core::cell::Cell;
+
+use kernel::grant::Grant;
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -120,7 +123,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
 ///   button.
 const UPCALL_NUM: usize = 0;
 
-impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
     /// Configure interrupts and read state for buttons.
     ///
     /// `data` is the index of the button in the button array as passed to
@@ -211,7 +214,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Driver for Button<'a, P> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

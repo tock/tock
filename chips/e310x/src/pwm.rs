@@ -1,6 +1,6 @@
 //! PWM instantiation.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use sifive::pwm::PwmRegisters;
 
 pub const PWM0_BASE: StaticRef<PwmRegisters> =

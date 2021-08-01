@@ -1,4 +1,4 @@
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use lowrisc::otbn::OtbnRegisters;
 
 pub const OTBN_BASE: StaticRef<OtbnRegisters> =

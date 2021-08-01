@@ -10,9 +10,9 @@
 //! through each frame for transmission.
 
 use crate::net::ieee802154::{Header, MacAddress};
-use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::radio;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub trait Mac {

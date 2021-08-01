@@ -1,9 +1,10 @@
 //! Virtual ADC Capsule
-//! Support Single Sample for now
+//!
+//! Support Single Sample for now.
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::{List, ListLink, ListNode};
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// ADC Mux

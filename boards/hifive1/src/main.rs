@@ -12,14 +12,15 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310x::chip::E310xDefaultPeripherals;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::common::registers::interfaces::ReadWriteable;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Alarm;
-use kernel::Chip;
-use kernel::Platform;
+use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
@@ -33,18 +34,14 @@ const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<
-    &'static e310x::chip::E310x<
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
-        E310xDefaultPeripherals,
-    >,
-> = None;
+static mut CHIP: Option<&'static e310x::chip::E310x<E310xDefaultPeripherals>> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -65,13 +62,16 @@ struct HiFive1 {
         'static,
         VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
     >,
+    scheduler: &'static CooperativeSched<'static>,
+    scheduler_timer:
+        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for HiFive1 {
+impl SyscallDriverLookup for HiFive1 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -80,6 +80,35 @@ impl Platform for HiFive1 {
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static>>> for HiFive1 {
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = CooperativeSched<'static>;
+    type SchedulerTimer =
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -182,10 +211,9 @@ pub unsafe fn main() {
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
-        e310x::chip::E310x<VirtualMuxAlarm<'static, sifive::clint::Clint>, E310xDefaultPeripherals>,
-        e310x::chip::E310x::new(systick_virtual_alarm, peripherals, hardware_timer)
+        e310x::chip::E310x<E310xDefaultPeripherals>,
+        e310x::chip::E310x::new(peripherals, hardware_timer)
     );
-    systick_virtual_alarm.set_alarm_client(chip.scheduler_timer());
     CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
@@ -231,14 +259,25 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
+
+    let scheduler_timer = static_init!(
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+        VirtualSchedulerTimer::new(systick_virtual_alarm)
+    );
+    systick_virtual_alarm.set_alarm_client(scheduler_timer);
+
     let hifive1 = HiFive1 {
         console: console,
         alarm: alarm,
         lldb: lldb,
         led,
+        scheduler,
+        scheduler_timer,
     };
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -258,13 +297,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
     board_kernel.kernel_loop(
         &hifive1,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        scheduler,
         &main_loop_cap,
     );
 }

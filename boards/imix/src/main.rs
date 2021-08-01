@@ -19,13 +19,15 @@ use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 //use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
@@ -92,9 +94,10 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 
@@ -137,6 +140,8 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -152,10 +157,10 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
-impl kernel::Platform for Imix {
+impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -179,6 +184,34 @@ impl kernel::Platform for Imix {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
     }
 }
 
@@ -569,6 +602,9 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let imix = Imix {
         pconsole,
         console,
@@ -590,6 +626,8 @@ pub unsafe fn main() {
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage,
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // Need to initialize the UART for the nRF51 serialization.
@@ -662,7 +700,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -682,7 +720,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), scheduler, &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

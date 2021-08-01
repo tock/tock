@@ -21,7 +21,9 @@ impl<'a> Nrf52832DefaultPeripherals<'a> {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::InterruptService<DeferredCallTask> for Nrf52832DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
+    for Nrf52832DefaultPeripherals<'a>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),

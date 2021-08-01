@@ -127,8 +127,8 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 use core::slice;
 
+use crate::kernel::Kernel;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
-use crate::sched::Kernel;
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
 

@@ -1,4 +1,4 @@
-//! Driver for the FXOS8700CQ accelerometer.
+//! SyscallDriver for the FXOS8700CQ accelerometer.
 //!
 //! <http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf>
 //!
@@ -22,10 +22,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
@@ -199,33 +199,51 @@ impl<'a> Fxos8700cq<'a> {
         }
     }
 
-    fn start_read_accel(&self) {
-        // Need an interrupt pin
-        self.interrupt_pin1.make_input();
-        self.buffer.take().map(|buf| {
-            self.i2c.enable();
-            // Configure the data ready interrupt.
-            buf[0] = Registers::CtrlReg4 as u8;
-            buf[1] = 1; // CtrlReg4 data ready interrupt
-            buf[2] = 1; // CtrlReg5 drdy on pin 1
+    fn start_read_accel(&self) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Disabled {
+            self.interrupt_pin1.make_input(); // Need an interrupt pin
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
+                self.i2c.enable();
+                // Configure the data ready interrupt.
+                buf[0] = Registers::CtrlReg4 as u8;
+                buf[1] = 1; // CtrlReg4 data ready interrupt
+                buf[2] = 1; // CtrlReg5 drdy on pin 1
 
-            // TODO verify errors
-            let _ = self.i2c.write(buf, 3);
-            self.state.set(State::ReadAccelSetup);
-        });
+                if let Err((error, buf)) = self.i2c.write(buf, 3) {
+                    self.buffer.replace(buf);
+                    self.i2c.disable();
+                    Err(error.into())
+                } else {
+                    self.state.set(State::ReadAccelSetup);
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
-    fn start_read_magnetometer(&self) {
-        self.buffer.take().map(|buf| {
-            self.i2c.enable();
-            // Configure the magnetometer.
-            buf[0] = Registers::MCtrlReg1 as u8;
-            // Enable both accelerometer and magnetometer, and set one-shot read.
-            buf[1] = 0b00100011;
-            // TODO verify errors
-            let _ = self.i2c.write(buf, 2);
-            self.state.set(State::ReadMagStart);
-        });
+    fn start_read_magnetometer(&self) -> Result<(), ErrorCode> {
+        if self.state.get() == State::Disabled {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
+                self.i2c.enable();
+                // Configure the magnetometer.
+                buf[0] = Registers::MCtrlReg1 as u8;
+                // Enable both accelerometer and magnetometer, and set one-shot read.
+                buf[1] = 0b00100011;
+
+                if let Err((error, buf)) = self.i2c.write(buf, 2) {
+                    self.buffer.replace(buf);
+                    self.i2c.disable();
+                    Err(error.into())
+                } else {
+                    self.state.set(State::ReadMagStart);
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 }
 
@@ -237,9 +255,17 @@ impl gpio::Client for Fxos8700cq<'_> {
             // When we get this interrupt we can read the sample.
             self.i2c.enable();
             buffer[0] = Registers::OutXMsb as u8;
-            // TODO verify errors
-            let _ = self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
-            self.state.set(State::ReadAccelReading);
+
+            // Upon success, this will trigger an upcall.
+            // As this particular upcall does not have any field
+            // for the status, we can ignore the error, as this
+            // yields to not scheduling the upcall.
+            if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 6) {
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+            } else {
+                self.state.set(State::ReadAccelReading);
+            }
         });
     }
 }
@@ -268,18 +294,36 @@ impl I2CClient for Fxos8700cq<'_> {
                 // Enable the accelerometer.
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 1;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::ReadAccelWait);
+
+                // The callback function has no error field,
+                // we can safely ignore the error value.
+                if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Disabled);
+                    self.buffer.replace(buffer);
+                    self.callback.map(|cb| {
+                        cb.callback(0, 0, 0);
+                    });
+                } else {
+                    self.state.set(State::ReadAccelWait);
+                }
             }
             State::ReadAccelWait => {
                 if self.interrupt_pin1.read() == false {
                     // Sample is already ready.
                     self.interrupt_pin1.disable_interrupts();
                     buffer[0] = Registers::OutXMsb as u8;
-                    // TODO verify errors
-                    let _ = self.i2c.write_read(buffer, 1, 6); // read 6 accel registers for xyz
-                    self.state.set(State::ReadAccelReading);
+
+                    // The callback function has no error field,
+                    // we can safely ignore the error value.
+                    if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 6) {
+                        self.state.set(State::Disabled);
+                        self.buffer.replace(buffer);
+                        self.callback.map(|cb| {
+                            cb.callback(0, 0, 0);
+                        });
+                    } else {
+                        self.state.set(State::ReadAccelReading);
+                    }
                 } else {
                     // Wait for the interrupt to trigger
                     self.buffer.replace(buffer);
@@ -300,10 +344,18 @@ impl I2CClient for Fxos8700cq<'_> {
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0; // Set the active bit to 0.
 
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state
-                    .set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
+                // The callback function has no error field,
+                // we can safely ignore the error value.
+                if let Err((_error, buffer)) = self.i2c.write(buffer, 3) {
+                    self.state.set(State::Disabled);
+                    self.buffer.replace(buffer);
+                    self.callback.map(|cb| {
+                        cb.callback(0, 0, 0);
+                    });
+                } else {
+                    self.state
+                        .set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
+                }
             }
             State::ReadAccelDeactivating(x, y, z) => {
                 self.i2c.disable();
@@ -317,8 +369,16 @@ impl I2CClient for Fxos8700cq<'_> {
                 // One shot measurement taken, now read result.
                 buffer[0] = Registers::MOutXMsb as u8;
                 self.state.set(State::ReadMagValues);
-                // TODO verify errors
-                let _ = self.i2c.write_read(buffer, 1, 6);
+
+                // The callback function has no error field,
+                // we can safely ignore the error value.
+                if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 6) {
+                    self.state.set(State::Disabled);
+                    self.buffer.replace(buffer);
+                    self.callback.map(|cb| {
+                        cb.callback(0, 0, 0);
+                    });
+                }
             }
             State::ReadMagValues => {
                 let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
@@ -345,12 +405,10 @@ impl<'a> hil::sensors::NineDof<'a> for Fxos8700cq<'a> {
     }
 
     fn read_accelerometer(&self) -> Result<(), ErrorCode> {
-        self.start_read_accel();
-        Ok(())
+        self.start_read_accel()
     }
 
     fn read_magnetometer(&self) -> Result<(), ErrorCode> {
-        self.start_read_magnetometer();
-        Ok(())
+        self.start_read_magnetometer()
     }
 }

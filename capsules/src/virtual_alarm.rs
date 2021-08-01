@@ -2,9 +2,10 @@
 //! alarm hardware peripheral.
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A

@@ -57,7 +57,9 @@
 //!      // Setup the UART bus for nRF51 serialization..
 //!     ```
 
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::grant::Grant;
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0xF001;
@@ -78,7 +80,7 @@ impl TestGrantDoubleEntry {
     }
 }
 
-impl Driver for TestGrantDoubleEntry {
+impl SyscallDriver for TestGrantDoubleEntry {
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
@@ -184,7 +186,7 @@ impl Driver for TestGrantDoubleEntry {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.grant.enter(processid, |_, _| {})
     }
 }

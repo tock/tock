@@ -2,14 +2,14 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::ErrorCode;
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 use crate::dma1;
 use crate::dma1::Dma1Peripheral;
