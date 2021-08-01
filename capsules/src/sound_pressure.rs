@@ -131,7 +131,7 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
                     self.busy.set(false);
                     app.subscribed = false;
                     if ret == Ok(()) {
-                        upcalls.schedule_upcall(0, sound_val.into(), 0, 0).ok();
+                        upcalls.schedule_upcall(0, (sound_val.into(), 0, 0)).ok();
                     }
                 }
             });

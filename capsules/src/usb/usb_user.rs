@@ -80,9 +80,7 @@ where
                             upcalls
                                 .schedule_upcall(
                                     0,
-                                    kernel::errorcode::into_statuscode(Ok(())),
-                                    0,
-                                    0,
+                                    (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
                                 )
                                 .ok();
                             app.awaiting = None;

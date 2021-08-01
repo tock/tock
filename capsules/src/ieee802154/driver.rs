@@ -473,11 +473,13 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
                 upcalls
                     .schedule_upcall(
                         1,
-                        kernel::errorcode::into_statuscode(
-                            self.saved_result.expect("missing result"),
+                        (
+                            kernel::errorcode::into_statuscode(
+                                self.saved_result.expect("missing result"),
+                            ),
+                            0,
+                            0,
                         ),
-                        0,
-                        0,
                     )
                     .ok();
             });
@@ -902,9 +904,11 @@ impl device::TxClient for RadioDriver<'_> {
                 upcalls
                     .schedule_upcall(
                         1,
-                        kernel::errorcode::into_statuscode(result),
-                        acked as usize,
-                        0,
+                        (
+                            kernel::errorcode::into_statuscode(result),
+                            acked as usize,
+                            0,
+                        ),
                     )
                     .ok();
             });
@@ -949,7 +953,7 @@ impl device::RxClient for RadioDriver<'_> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                upcalls.schedule_upcall(0, pans, dst_addr, src_addr).ok();
+                upcalls.schedule_upcall(0, (pans, dst_addr, src_addr)).ok();
             }
         });
     }

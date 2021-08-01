@@ -424,7 +424,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         upcalls
-                            .schedule_upcall(0, 1, if present { 1 } else { 0 }, 0)
+                            .schedule_upcall(0, (1, if present { 1 } else { 0 }, 0))
                             .ok();
                         L3gd20Status::Idle
                     }
@@ -472,9 +472,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         if values {
-                            upcalls.schedule_upcall(0, x, y, z).ok();
+                            upcalls.schedule_upcall(0, (x, y, z)).ok();
                         } else {
-                            upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                            upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         }
                         L3gd20Status::Idle
                     }
@@ -498,15 +498,15 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         if value {
-                            upcalls.schedule_upcall(0, temperature, 0, 0).ok();
+                            upcalls.schedule_upcall(0, (temperature, 0, 0)).ok();
                         } else {
-                            upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                            upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         }
                         L3gd20Status::Idle
                     }
 
                     _ => {
-                        upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         L3gd20Status::Idle
                     }
                 });

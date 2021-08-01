@@ -143,12 +143,8 @@ impl<'a> TextScreen<'a> {
                     TextScreenCommand::GetResolution => {
                         let (x, y) = self.text_screen.get_size();
                         app.pending_command = false;
-                        let _ = upcalls.schedule_upcall(
-                            0,
-                            kernel::errorcode::into_statuscode(Ok(())),
-                            x,
-                            y,
-                        );
+                        let _ = upcalls
+                            .schedule_upcall(0, (kernel::errorcode::into_statuscode(Ok(())), x, y));
                         run_next = true;
                         Ok(())
                     }
@@ -230,7 +226,7 @@ impl<'a> TextScreen<'a> {
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
-                upcalls.schedule_upcall(0, data1, data2, data3).ok();
+                upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
             });
         });
     }

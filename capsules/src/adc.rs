@@ -708,9 +708,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                         upcalls
                             .schedule_upcall(
                                 0,
-                                AdcMode::SingleSample as usize,
-                                self.channel.get(),
-                                sample as usize,
+                                (
+                                    AdcMode::SingleSample as usize,
+                                    self.channel.get(),
+                                    sample as usize,
+                                ),
                             )
                             .ok();
                     })
@@ -733,9 +735,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                         upcalls
                             .schedule_upcall(
                                 0,
-                                AdcMode::ContinuousSample as usize,
-                                self.channel.get(),
-                                sample as usize,
+                                (
+                                    AdcMode::ContinuousSample as usize,
+                                    self.channel.get(),
+                                    sample as usize,
+                                ),
                             )
                             .ok();
                     })
@@ -1004,9 +1008,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             upcalls
                                 .schedule_upcall(
                                     0,
-                                    self.mode.get() as usize,
-                                    len_chan,
-                                    buf_ptr as usize,
+                                    (self.mode.get() as usize, len_chan, buf_ptr as usize),
                                 )
                                 .ok();
 
@@ -1358,7 +1360,10 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
                 app.pending_command = false;
                 let channel = app.channel;
                 upcalls
-                    .schedule_upcall(0, AdcMode::SingleSample as usize, channel, sample as usize)
+                    .schedule_upcall(
+                        0,
+                        (AdcMode::SingleSample as usize, channel, sample as usize),
+                    )
                     .ok();
             });
         });

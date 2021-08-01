@@ -328,7 +328,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    upcalls.schedule_upcall(0, len, 0, 0).ok();
+                    upcalls.schedule_upcall(0, (len, 0, 0)).ok();
                 } else {
                     self.do_next_read_write(app);
                 }

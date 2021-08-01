@@ -106,7 +106,7 @@ impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
         self.apps.each(|_, app, upcalls| {
             if app.pending {
                 app.pending = false;
-                upcalls.schedule_upcall(0, lux, 0, 0).ok();
+                upcalls.schedule_upcall(0, (lux, 0, 0)).ok();
             }
         });
     }

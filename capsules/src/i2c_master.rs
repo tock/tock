@@ -199,7 +199,7 @@ impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, 
                 }
 
                 // signal to driver that tx complete
-                upcalls.schedule_upcall(0, 0, 0, 0).ok();
+                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             })
         });
 

@@ -309,7 +309,7 @@ impl uart::TransmitClient for Console<'_> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            upcalls.schedule_upcall(1, written, 0, 0).ok();
+                            upcalls.schedule_upcall(1, (written, 0, 0)).ok();
                         }
                     }
                     Err(return_code) => {
@@ -320,9 +320,7 @@ impl uart::TransmitClient for Console<'_> {
                         upcalls
                             .schedule_upcall(
                                 1,
-                                kernel::errorcode::into_statuscode(return_code),
-                                0,
-                                0,
+                                (kernel::errorcode::into_statuscode(return_code), 0, 0),
                             )
                             .ok();
                     }
@@ -348,9 +346,7 @@ impl uart::TransmitClient for Console<'_> {
                                 upcalls
                                     .schedule_upcall(
                                         1,
-                                        kernel::errorcode::into_statuscode(return_code),
-                                        0,
-                                        0,
+                                        (kernel::errorcode::into_statuscode(return_code), 0, 0),
                                     )
                                     .ok();
                                 false
@@ -435,9 +431,11 @@ impl uart::ReceiveClient for Console<'_> {
                                 upcalls
                                     .schedule_upcall(
                                         2,
-                                        kernel::errorcode::into_statuscode(ret),
-                                        received_length,
-                                        0,
+                                        (
+                                            kernel::errorcode::into_statuscode(ret),
+                                            received_length,
+                                            0,
+                                        ),
                                     )
                                     .ok();
                             }
@@ -446,9 +444,13 @@ impl uart::ReceiveClient for Console<'_> {
                                 upcalls
                                     .schedule_upcall(
                                         2,
-                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
-                                        0,
-                                        0,
+                                        (
+                                            kernel::errorcode::into_statuscode(Err(
+                                                ErrorCode::FAIL,
+                                            )),
+                                            0,
+                                            0,
+                                        ),
                                     )
                                     .ok();
                             }
