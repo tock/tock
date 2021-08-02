@@ -280,6 +280,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         }
     }
 
+    /// Start the process console listening for user commands.
     pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
@@ -287,25 +288,36 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 let _ = self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
             });
-
-            // Starts the process console while printing base information about
-            // the kernel version installed.
-            let mut console_writer = ConsoleWriter::new();
-            let _ = write(
-                &mut console_writer,
-                format_args!(
-                    "Kernel version: {}\r\n",
-                    option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
-                ),
-            );
-            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-
-            let _ = self.write_bytes(b"Welcome to the process console.\n");
-            let _ = self.write_bytes(
-                b"Valid commands are: help status list stop start fault process kernel\n",
-            );
         }
         Ok(())
+    }
+
+    /// Print base information about the kernel version installed and the help
+    /// message.
+    pub fn display_welcome(&self) {
+        // Start if not already started.
+        if self.running.get() == false {
+            self.rx_buffer.take().map(|buffer| {
+                self.rx_in_progress.set(true);
+                let _ = self.uart.receive_buffer(buffer, 1);
+                self.running.set(true);
+            });
+        }
+
+        // Display pconsole info.
+        let mut console_writer = ConsoleWriter::new();
+        let _ = write(
+            &mut console_writer,
+            format_args!(
+                "Kernel version: {}\r\n",
+                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+            ),
+        );
+        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+
+        let _ = self.write_bytes(b"Welcome to the process console.\n");
+        let _ = self
+            .write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
     }
 
     /// Simple state machine helper function that identifies the next state for
