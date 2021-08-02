@@ -461,15 +461,10 @@ impl<'a> spi::SpiMaster for Spi<'a> {
     }
 
     fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        match self.write_byte(val) {
-            Ok(_) => {
-                // loop till RXNE becomes 1
-                while !self.registers.sr.is_set(SR::RXNE) {}
-
-                Ok(self.registers.dr.read(DR::DR) as u8)
-            }
-            Err(err) => Err(err),
-        }
+        self.write_byte(val)?;
+        // loop till RXNE becomes 1
+        while !self.registers.sr.is_set(SR::RXNE) {}
+        Ok(self.registers.dr.read(DR::DR) as u8)
     }
 
     fn read_write_bytes(

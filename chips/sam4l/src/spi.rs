@@ -558,15 +558,9 @@ impl spi::SpiMaster for SpiHw {
     fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
 
-        match self.write_byte(val) {
-            Ok(_) => {
-                // Wait for receive data register full
-                while !spi.registers.sr.is_set(Status::RDRF) {}
-                // Return read value
-                Ok(spi.registers.rdr.get() as u8)
-            }
-            Err(err) => Err(err),
-        }
+        self.write_byte(val)?;
+        while !spi.registers.sr.is_set(Status::RDRF) {}
+        Ok(spi.registers.rdr.get() as u8)
     }
 
     /// Asynchronous buffer read/write of SPI. `write_buffer` must be present;
