@@ -9,7 +9,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::Grant;
-use kernel::hil::asymmetric_encryption::{self, CryptoBuffers, Operation, PubPrivKey};
+use kernel::hil::public_key_crypto::{self, Operation, RsaCryptoBuffers, RsaKey};
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -29,7 +29,7 @@ enum UserSpaceOp {
     Sign,
 }
 
-pub struct RsaDriver<'a, E: asymmetric_encryption::AsymCrypto<'a>> {
+pub struct RsaDriver<'a, E: public_key_crypto::RsaCrypto<'a>> {
     rsa: &'a E,
 
     active: Cell<bool>,
@@ -40,12 +40,10 @@ pub struct RsaDriver<'a, E: asymmetric_encryption::AsymCrypto<'a>> {
     source_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
     dest_buffer: TakeCell<'static, [u8]>,
-    rsa_keys: TakeCell<'static, dyn PubPrivKey<'static>>,
+    rsa_keys: TakeCell<'static, dyn RsaKey<'static>>,
 }
 
-impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPKCS1v15>
-    RsaDriver<'a, E>
-{
+impl<'a, E: public_key_crypto::RsaCrypto<'a> + public_key_crypto::RSAPKCS1v15> RsaDriver<'a, E> {
     pub fn new(
         rsa: &'a E,
         source_buffer: &'static mut [u8],
@@ -108,11 +106,13 @@ impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPK
 
                                     // Add the data from the static buffer to the RSA
                                     let ret = match app.op.get().unwrap() {
-                                        UserSpaceOp::Encrypt => self.rsa.encrypt(CryptoBuffers {
-                                            source: self.source_buffer.take().unwrap(),
-                                            dest: self.dest_buffer.take().unwrap(),
-                                            key: self.rsa_keys.take().unwrap(),
-                                        }),
+                                        UserSpaceOp::Encrypt => {
+                                            self.rsa.encrypt(RsaCryptoBuffers {
+                                                source: self.source_buffer.take().unwrap(),
+                                                dest: self.dest_buffer.take().unwrap(),
+                                                key: self.rsa_keys.take().unwrap(),
+                                            })
+                                        }
                                         UserSpaceOp::Verify => {
                                             app.dest.enter(|dest| {
                                                 let mut static_buffer_len = 0;
@@ -133,18 +133,20 @@ impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPK
                                                 });
                                             })?;
 
-                                            self.rsa.verify(CryptoBuffers {
+                                            self.rsa.verify(RsaCryptoBuffers {
                                                 source: self.source_buffer.take().unwrap(),
                                                 dest: self.dest_buffer.take().unwrap(),
                                                 key: self.rsa_keys.take().unwrap(),
                                             })
                                         }
-                                        UserSpaceOp::Decrypt => self.rsa.decrypt(CryptoBuffers {
-                                            source: self.source_buffer.take().unwrap(),
-                                            dest: self.dest_buffer.take().unwrap(),
-                                            key: self.rsa_keys.take().unwrap(),
-                                        }),
-                                        UserSpaceOp::Sign => self.rsa.sign(CryptoBuffers {
+                                        UserSpaceOp::Decrypt => {
+                                            self.rsa.decrypt(RsaCryptoBuffers {
+                                                source: self.source_buffer.take().unwrap(),
+                                                dest: self.dest_buffer.take().unwrap(),
+                                                key: self.rsa_keys.take().unwrap(),
+                                            })
+                                        }
+                                        UserSpaceOp::Sign => self.rsa.sign(RsaCryptoBuffers {
                                             source: self.source_buffer.take().unwrap(),
                                             dest: self.dest_buffer.take().unwrap(),
                                             key: self.rsa_keys.take().unwrap(),
@@ -192,14 +194,14 @@ impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPK
     }
 }
 
-impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPKCS1v15>
-    asymmetric_encryption::AsymClient<'a> for RsaDriver<'a, E>
+impl<'a, E: public_key_crypto::RsaCrypto<'a> + public_key_crypto::RSAPKCS1v15>
+    public_key_crypto::Client<'a, RsaCryptoBuffers> for RsaDriver<'a, E>
 {
     fn operation_done(
         &'a self,
         result: Result<bool, ErrorCode>,
         op: Operation,
-        buffers: CryptoBuffers,
+        buffers: RsaCryptoBuffers,
     ) {
         self.appid.map(|id| {
             self.apps
@@ -246,8 +248,8 @@ impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPK
     }
 }
 
-impl<'a, E: asymmetric_encryption::AsymCrypto<'a> + asymmetric_encryption::RSAPKCS1v15>
-    SyscallDriver for RsaDriver<'a, E>
+impl<'a, E: public_key_crypto::RsaCrypto<'a> + public_key_crypto::RSAPKCS1v15> SyscallDriver
+    for RsaDriver<'a, E>
 {
     fn allow_readwrite(
         &self,
