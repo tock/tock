@@ -3,7 +3,7 @@
 use crate::ErrorCode;
 use core::option::Option;
 
-/// Data order defines the order of bits sent over the wire: most 
+/// Data order defines the order of bits sent over the wire: most
 /// significant first, or least significant first.
 #[derive(Copy, Clone, Debug)]
 pub enum DataOrder {
@@ -11,8 +11,8 @@ pub enum DataOrder {
     LSBFirst,
 }
 
-/// Clock polarity (CPOL) defines whether the SPI clock is high 
-/// or low when idle. 
+/// Clock polarity (CPOL) defines whether the SPI clock is high
+/// or low when idle.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
@@ -57,7 +57,7 @@ pub trait SpiMasterClient {
 /// 3b. Call set_chip_select to choose another peripheral,
 ///     go to step 1b or 2.
 ///
-/// The SPI configuration for a particular peripheral persists across 
+/// The SPI configuration for a particular peripheral persists across
 /// changes to the chip select. For example, this set of calls
 ///
 ///   specify_chip_select(1);
@@ -110,9 +110,9 @@ pub trait SpiMaster {
     /// completion is signaled by invoking SpiMasterClient on
     /// the client. Write-only operations may pass `None` for
     /// `read_buffer`, while read-write operations pass `Some`
-    /// for `read_buffer`. 
+    /// for `read_buffer`.
     ///
-    /// If `read_buffer` is `None`, the 
+    /// If `read_buffer` is `None`, the
     /// number of bytes written will be the mimumum of the length of
     /// `write_buffer` and the `len` argument. If `read_buffer`
     /// is `Some`, the number of bytes read/written will be the
@@ -145,7 +145,7 @@ pub trait SpiMaster {
     ///   - Err(FAIL): other failure
     fn write_byte(&self, val: u8) -> Result<(), ErrorCode>;
 
-    /// Synchronously write a 0 and read a single byte from the bus. 
+    /// Synchronously write a 0 and read a single byte from the bus.
     /// Not for general use because it is blocking: intended for debugging.
     /// Return values:
     ///   - Ok((u8)): the read byte
@@ -190,7 +190,7 @@ pub trait SpiMaster {
     /// Return the current bus polarity.
     fn get_polarity(&self) -> ClockPolarity;
 
-    /// Set the bus phase for the current chip select (whether data is 
+    /// Set the bus phase for the current chip select (whether data is
     /// sent/received on leading or trailing edges).
     ///   - Ok(()): the phase was set.
     ///   - Err(BUSY): the SPI bus is busy with a `read_write_bytes`
@@ -210,7 +210,7 @@ pub trait SpiMaster {
     // allow an application to manually control when the
     // CS line is high or low, such that it can issue longer
     // read/writes with multiple read_write_bytes calls.
-    
+
     /// Hold the chip select line low after a read_write_bytes completes.
     /// This allows a client to make one long SPI read/write with
     /// multiple calls to `read_write_bytes`.
@@ -220,7 +220,7 @@ pub trait SpiMaster {
     fn release_low(&self);
 }
 
-/// SPIMasterDevice provides a chip-select-specific interface to the SPI 
+/// SPIMasterDevice provides a chip-select-specific interface to the SPI
 /// Master hardware, such that a client cannot changethe chip select line.
 pub trait SpiMasterDevice {
     /// Set the callback for read_write operations.
