@@ -151,15 +151,15 @@ enum WriterState {
     KernelStack,
     KernelRoData,
     KernelText,
-    ProcessStart,
-    ProcessGrant,
-    ProcessHeap,
-    ProcessHeapUnused,
-    ProcessData,
-    ProcessStack,
-    ProcessStackUnused,
-    ProcessFlash,
-    ProcessProtected,
+    ProcessStart { process_id: ProcessId },
+    ProcessGrant { process_id: ProcessId },
+    ProcessHeap { process_id: ProcessId },
+    ProcessHeapUnused { process_id: ProcessId },
+    ProcessData { process_id: ProcessId },
+    ProcessStack { process_id: ProcessId },
+    ProcessStackUnused { process_id: ProcessId },
+    ProcessFlash { process_id: ProcessId },
+    ProcessProtected { process_id: ProcessId },
 }
 
 impl Default for WriterState {
@@ -192,7 +192,6 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     queue_buffer: TakeCell<'static, [u8]>,
     queue_size: Cell<usize>,
     writer_state: Cell<WriterState>,
-    writer_process: Cell<Option<ProcessId>>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
@@ -267,7 +266,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             queue_buffer: TakeCell::new(queue_buffer),
             queue_size: Cell::new(0),
             writer_state: Cell::new(WriterState::Empty),
-            writer_process: Cell::new(None),
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
@@ -318,15 +316,25 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             WriterState::KernelStack => WriterState::KernelRoData,
             WriterState::KernelRoData => WriterState::KernelText,
             WriterState::KernelText => WriterState::Empty,
-            WriterState::ProcessStart => WriterState::ProcessGrant,
-            WriterState::ProcessGrant => WriterState::ProcessHeapUnused,
-            WriterState::ProcessHeapUnused => WriterState::ProcessHeap,
-            WriterState::ProcessHeap => WriterState::ProcessData,
-            WriterState::ProcessData => WriterState::ProcessStack,
-            WriterState::ProcessStack => WriterState::ProcessStackUnused,
-            WriterState::ProcessStackUnused => WriterState::ProcessFlash,
-            WriterState::ProcessFlash => WriterState::ProcessProtected,
-            WriterState::ProcessProtected => WriterState::Empty,
+            WriterState::ProcessStart { process_id } => WriterState::ProcessGrant { process_id },
+            WriterState::ProcessGrant { process_id } => {
+                WriterState::ProcessHeapUnused { process_id }
+            }
+            WriterState::ProcessHeapUnused { process_id } => {
+                WriterState::ProcessHeap { process_id }
+            }
+            WriterState::ProcessHeap { process_id } => WriterState::ProcessData { process_id },
+            WriterState::ProcessData { process_id } => WriterState::ProcessStack { process_id },
+            WriterState::ProcessStack { process_id } => {
+                WriterState::ProcessStackUnused { process_id }
+            }
+            WriterState::ProcessStackUnused { process_id } => {
+                WriterState::ProcessFlash { process_id }
+            }
+            WriterState::ProcessFlash { process_id } => {
+                WriterState::ProcessProtected { process_id }
+            }
+            WriterState::ProcessProtected { process_id: _ } => WriterState::Empty,
             WriterState::Empty => WriterState::Empty,
         }
     }
@@ -468,7 +476,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 
     /// Create the debug message for each state in the state machine.
-    fn create_state_buffer(&self, state: WriterState, process_id: Option<ProcessId>) {
+    fn create_state_buffer(&self, state: WriterState) {
         match state {
             WriterState::KernelBss => {
                 let mut console_writer = ConsoleWriter::new();
@@ -566,208 +574,189 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 );
                 let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
             }
-            WriterState::ProcessGrant => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let mut console_writer = ConsoleWriter::new();
-                                // SRAM addresses
-                                let sram_end = process.mem_end() as usize;
-                                let sram_grant_start = process.kernel_memory_break() as usize;
+            WriterState::ProcessGrant { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let mut console_writer = ConsoleWriter::new();
+                            // SRAM addresses
+                            let sram_end = process.mem_end() as usize;
+                            let sram_grant_start = process.kernel_memory_break() as usize;
 
-                                // SRAM sizes
-                                let sram_grant_size = sram_end - sram_grant_start;
-                                let sram_grant_allocated = sram_end - sram_grant_start;
+                            // SRAM sizes
+                            let sram_grant_size = sram_end - sram_grant_start;
+                            let sram_grant_allocated = sram_end - sram_grant_start;
 
-                                let _ = write(
-                                    &mut console_writer,
-                                    format_args!(
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
                                     "\r\n ╔═══════════╤══════════════════════════════════════════╗\
                                     \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
                                     \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
                                     \r\n             │ ▼ Grant      {:6} | {:6}{}",
-                                        sram_end,
-                                        sram_grant_size,
-                                        sram_grant_allocated,
-                                        exceeded_check(sram_grant_size, sram_grant_allocated),
-                                    ),
-                                );
-                                let _ =
-                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            }
-                        });
-                }
+                                    sram_end,
+                                    sram_grant_size,
+                                    sram_grant_allocated,
+                                    exceeded_check(sram_grant_size, sram_grant_allocated),
+                                ),
+                            );
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                        }
+                    });
             }
-            WriterState::ProcessHeapUnused => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let mut console_writer = ConsoleWriter::new();
-                                // SRAM addresses
-                                let sram_grant_start = process.kernel_memory_break() as usize;
-                                let sram_heap_end = process.app_memory_break() as usize;
+            WriterState::ProcessHeapUnused { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let mut console_writer = ConsoleWriter::new();
+                            // SRAM addresses
+                            let sram_grant_start = process.kernel_memory_break() as usize;
+                            let sram_heap_end = process.app_memory_break() as usize;
 
-                                let _ = write(
-                                    &mut console_writer,
-                                    format_args!(
-                                        "\
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "\
                                     \r\n  {:#010X} ┼───────────────────────────────────────────\
                                     \r\n             │ Unused\
                                     \r\n  {:#010X} ┼───────────────────────────────────────────",
-                                        sram_grant_start, sram_heap_end,
-                                    ),
+                                    sram_grant_start, sram_heap_end,
+                                ),
+                            );
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                        }
+                    });
+            }
+            WriterState::ProcessHeap { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let sram_grant_start = process.kernel_memory_break() as usize;
+                            let sram_heap_end = process.app_memory_break() as usize;
+                            let sram_heap_start = process.debug_heap_start();
+
+                            if let Some(sram_heap_start) = sram_heap_start {
+                                let sram_heap_size =
+                                    sram_heap_end as usize - sram_heap_start as usize;
+                                let sram_heap_allocated =
+                                    sram_grant_start as usize - sram_heap_start as usize;
+                                self.print_process_heap_populated(
+                                    sram_heap_size,
+                                    sram_heap_allocated,
+                                    sram_heap_start as usize,
                                 );
-                                let _ =
-                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                            } else {
+                                self.print_process_heap_unknown();
                             }
-                        });
-                }
+                        }
+                    });
             }
-            WriterState::ProcessHeap => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let sram_grant_start = process.kernel_memory_break() as usize;
-                                let sram_heap_end = process.app_memory_break() as usize;
-                                let sram_heap_start = process.debug_heap_start();
+            WriterState::ProcessData { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let sram_heap_start = process.debug_heap_start();
+                            let sram_stack_start = process.debug_stack_start();
 
-                                if let Some(sram_heap_start) = sram_heap_start {
-                                    let sram_heap_size =
-                                        sram_heap_end as usize - sram_heap_start as usize;
-                                    let sram_heap_allocated =
-                                        sram_grant_start as usize - sram_heap_start as usize;
-                                    self.print_process_heap_populated(
-                                        sram_heap_size,
-                                        sram_heap_allocated,
-                                        sram_heap_start as usize,
-                                    );
-                                } else {
-                                    self.print_process_heap_unknown();
-                                }
+                            if let (Some(sram_heap_start), Some(sram_stack_start)) =
+                                (sram_heap_start, sram_stack_start)
+                            {
+                                let sram_data_size =
+                                    sram_heap_start as usize - sram_stack_start as usize;
+                                let sram_data_allocated = sram_data_size as usize;
+
+                                self.print_process_data_populated(
+                                    sram_data_size,
+                                    sram_data_allocated,
+                                );
+                            } else {
+                                self.print_process_data_unknown();
                             }
-                        });
-                }
+                        }
+                    });
             }
-            WriterState::ProcessData => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let sram_heap_start = process.debug_heap_start();
-                                let sram_stack_start = process.debug_stack_start();
+            WriterState::ProcessStack { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let sram_stack_start = process.debug_stack_start();
+                            let sram_stack_bottom = process.debug_stack_end();
+                            let sram_start = process.mem_start() as usize;
 
-                                if let (Some(sram_heap_start), Some(sram_stack_start)) =
-                                    (sram_heap_start, sram_stack_start)
-                                {
-                                    let sram_data_size =
-                                        sram_heap_start as usize - sram_stack_start as usize;
-                                    let sram_data_allocated = sram_data_size as usize;
+                            if let (Some(sram_stack_start), Some(sram_stack_bottom)) =
+                                (sram_stack_start, sram_stack_bottom)
+                            {
+                                let sram_stack_size =
+                                    sram_stack_start as usize - sram_stack_bottom as usize;
+                                let sram_stack_allocated =
+                                    sram_stack_start as usize - sram_start as usize;
 
-                                    self.print_process_data_populated(
-                                        sram_data_size,
-                                        sram_data_allocated,
-                                    );
-                                } else {
-                                    self.print_process_data_unknown();
-                                }
+                                self.print_process_stack_populated(
+                                    sram_stack_start as usize,
+                                    sram_stack_size,
+                                    sram_stack_allocated,
+                                );
+                            } else {
+                                self.print_process_stack_unknown();
                             }
-                        });
-                }
-            }
-            WriterState::ProcessStack => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let sram_stack_start = process.debug_stack_start();
-                                let sram_stack_bottom = process.debug_stack_end();
-                                let sram_start = process.mem_start() as usize;
-
-                                if let (Some(sram_stack_start), Some(sram_stack_bottom)) =
-                                    (sram_stack_start, sram_stack_bottom)
-                                {
-                                    let sram_stack_size =
-                                        sram_stack_start as usize - sram_stack_bottom as usize;
-                                    let sram_stack_allocated =
-                                        sram_stack_start as usize - sram_start as usize;
-
-                                    self.print_process_stack_populated(
-                                        sram_stack_start as usize,
-                                        sram_stack_size,
-                                        sram_stack_allocated,
-                                    );
-                                } else {
-                                    self.print_process_stack_unknown();
-                                }
-                            }
-                        });
-                }
+                        }
+                    });
             }
 
-            WriterState::ProcessStackUnused => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                let mut console_writer = ConsoleWriter::new();
+            WriterState::ProcessStackUnused { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            let mut console_writer = ConsoleWriter::new();
 
-                                let sram_stack_bottom =
-                                    process.debug_stack_end().map_or_else(|| 0, |p| p as usize);
-                                let sram_start = process.mem_start() as usize;
+                            let sram_stack_bottom =
+                                process.debug_stack_end().map_or_else(|| 0, |p| p as usize);
+                            let sram_start = process.mem_start() as usize;
 
-                                let _ = write(
-                                    &mut console_writer,
-                                    format_args!(
-                                        "\
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "\
                                     \r\n  {:#010X} ┼───────────────────────────────────────────\
                                     \r\n             │ Unused\
                                     \r\n  {:#010X} ┴───────────────────────────────────────────\
                                     \r\n             .....",
-                                        sram_stack_bottom, sram_start
-                                    ),
-                                );
-                                let _ =
-                                    self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                            }
-                        });
-                }
+                                    sram_stack_bottom, sram_start
+                                ),
+                            );
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                        }
+                    });
             }
-            WriterState::ProcessFlash => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                // Flash
-                                let flash_end = process.flash_end() as usize;
-                                let flash_app_start = process.flash_non_protected_start() as usize;
-                                let flash_app_size = flash_end - flash_app_start;
+            WriterState::ProcessFlash { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            // Flash
+                            let flash_end = process.flash_end() as usize;
+                            let flash_app_start = process.flash_non_protected_start() as usize;
+                            let flash_app_size = flash_end - flash_app_start;
 
-                                self.print_process_flash(flash_end, flash_app_size);
-                            }
-                        });
-                }
+                            self.print_process_flash(flash_end, flash_app_size);
+                        }
+                    });
             }
-            WriterState::ProcessProtected => {
-                if let Some(proc_id) = process_id {
-                    self.kernel
-                        .process_each_capability(&self.capability, |process| {
-                            if proc_id == process.processid() {
-                                // Flash
-                                let flash_start = process.flash_start() as usize;
-                                let flash_app_start = process.flash_non_protected_start() as usize;
-                                let flash_protected_size = flash_app_start - flash_start;
+            WriterState::ProcessProtected { process_id } => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process_id == process.processid() {
+                            // Flash
+                            let flash_start = process.flash_start() as usize;
+                            let flash_app_start = process.flash_non_protected_start() as usize;
+                            let flash_protected_size = flash_app_start - flash_start;
 
-                                self.print_process_protected(
-                                    flash_app_start,
-                                    flash_protected_size,
-                                    flash_start,
-                                );
-                            }
-                        });
-                }
+                            self.print_process_protected(
+                                flash_app_start,
+                                flash_protected_size,
+                                flash_start,
+                            );
+                        }
+                    });
             }
             _ => {}
         }
@@ -864,6 +853,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Dropped Callbacks  ");
                             let _ = self.write_bytes(b"Restarts    State  Grants\n");
+                            // self.write_state(WriterState::ProcessStart {
+                            //     process_id: proc.processid(),
+                            // });
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
                                     let info: KernelInfo = KernelInfo::new(self.kernel);
@@ -929,10 +921,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             //prints process memory by moving the writer to the start state
-                                            self.write_state(
-                                                WriterState::ProcessStart,
-                                                Some(proc.processid()),
-                                            );
+                                            self.write_state(WriterState::ProcessStart {
+                                                process_id: proc.processid(),
+                                            });
                                         }
                                     });
                             });
@@ -950,7 +941,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
                             // Prints kernel memory by moving the writer to the
                             // start state.
-                            self.write_state(WriterState::KernelStart, None);
+                            self.write_state(WriterState::KernelStart);
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self
@@ -974,17 +965,11 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         self.command_index.set(0);
     }
 
-    fn write_state(&self, state: WriterState, process: Option<ProcessId>) {
-        if self.writer_state.get() == WriterState::Empty {
-            self.writer_state.replace(state);
-            self.writer_process.replace(process);
-        }
-
-        if !self.tx_in_progress.get() {
-            self.writer_state
-                .replace(self.next_state(self.writer_state.take()));
-            self.create_state_buffer(self.writer_state.get(), self.writer_process.get());
-        }
+    /// Start or iterate the state machine for an asynchronous write operation
+    /// spread across multiple callback cycles.
+    fn write_state(&self, state: WriterState) {
+        self.writer_state.replace(self.next_state(state));
+        self.create_state_buffer(self.writer_state.get());
     }
 
     fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
@@ -1024,6 +1009,51 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             Ok(())
         }
     }
+
+    /// If there is anything in the queue, copy it to the TX buffer and send
+    /// it to the UART.
+    ///
+    /// Returns Ok(usize) with the number of bytes sent from the queue. If Ok(0)
+    /// is returned, nothing was sent and the UART is free.
+    fn handle_queue(&self) -> Result<usize, ErrorCode> {
+        if self.tx_in_progress.get() {
+            // This shouldn't happen because we should only try to handle the
+            // queue when nothing else is happening, but still have the check
+            // for safety.
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.queue_buffer.map_or(Err(ErrorCode::FAIL), |qbuf| {
+            let qlen = self.queue_size.get();
+
+            if qlen > 0 {
+                self.tx_buffer.take().map_or(Err(ErrorCode::FAIL), |txbuf| {
+                    let txlen = cmp::min(qlen, txbuf.len());
+
+                    // Copy elements of the queue into the TX buffer.
+                    (&mut txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
+
+                    // TODO: If the queue needs to print over multiple TX
+                    // buffers, we need to shift the remaining contents of the
+                    // queue back to index 0.
+                    // if qlen > txlen {
+                    //     (&mut qbuf[txlen..qlen]).copy_from_slice(&qbuf[txlen..qlen]);
+                    // }
+
+                    // Mark that we sent at least some of the queue.
+                    let remaining = qlen - txlen;
+                    self.queue_size.set(remaining);
+
+                    self.tx_in_progress.set(true);
+                    let _ = self.uart.transmit_buffer(txbuf, txlen);
+                    Ok(txlen)
+                })
+            } else {
+                // Queue was empty, nothing to do.
+                Ok(0)
+            }
+        })
+    }
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
@@ -1033,37 +1063,29 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
+        // Reset state now that we no longer have an active transmission on the
+        // UART.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
 
-        // If in the middle of an active state, finish the state machine.
-        if self.writer_state.get() != WriterState::Empty
-            && self.writer_state.get() != WriterState::KernelStart
-            && self.writer_state.get() != WriterState::ProcessStart
-        {
-            self.write_state(WriterState::Empty, None);
-        }
+        // Check if we have anything queued up. If we do, let the queue
+        // empty.
+        let ret = self.handle_queue();
+        if ret.ok() == Some(0) || ret.is_err() {
+            // The queue was empty or we couldn't print the queue.
 
-        // Check the queue for data.
-        self.queue_buffer.map(|buf| {
-            let len = self.queue_size.get();
-            if len != 0 {
-                let _ = self.write_bytes(&buf[..len]);
+            let current_state = self.writer_state.get();
+            if current_state != WriterState::Empty {
+                self.write_state(current_state);
+                return;
             }
-            self.queue_size.set(0);
-        });
 
-        // When queue is empty then we can start the state machine
-        // for a new input.
-        if self.writer_state.get() != WriterState::Empty {
-            self.write_state(WriterState::Empty, None);
-        }
-
-        // Check if we just received and echoed a newline character, and
-        // therefore need to process the received message.
-        if self.execute.get() {
-            self.execute.set(false);
-            self.read_command();
+            // Check if we just received and echoed a newline character, and
+            // therefore need to process the received message.
+            if self.execute.get() {
+                self.execute.set(false);
+                self.read_command();
+            }
         }
     }
 }
