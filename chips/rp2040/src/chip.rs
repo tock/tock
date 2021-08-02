@@ -144,6 +144,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
 
     pub fn set_clocks(&'a self) {
         self.spi0.set_clocks(&self.clocks);
+        self.uart0.set_clocks(&self.clocks);
     }
 }
 
