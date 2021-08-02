@@ -333,7 +333,7 @@ impl SpiHw {
         clock / scbr
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_polarity(&self, polarity: ClockPolarity) {
         let spi = &SpiRegisterManager::new(&self);
         let csr = self.get_active_csr(spi);
         match polarity {
@@ -342,7 +342,7 @@ impl SpiHw {
         };
     }
 
-    fn get_clock(&self) -> ClockPolarity {
+    fn get_polarity(&self) -> ClockPolarity {
         let spi = &SpiRegisterManager::new(&self);
         let csr = self.get_active_csr(spi);
         if csr.matches_all(ChipSelectParams::CPOL::InactiveLow) {
@@ -450,9 +450,16 @@ impl SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         // Start by enabling the SPI driver.
@@ -517,9 +524,10 @@ impl spi::SpiMaster for SpiHw {
 
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
         self.init_as_role(spi, SpiRole::SpiMaster);
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -528,7 +536,7 @@ impl spi::SpiMaster for SpiHw {
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn write_byte(&self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
 
         let tdr = (out_byte as u32) & spi_consts::tdr::TD;
@@ -536,24 +544,23 @@ impl spi::SpiMaster for SpiHw {
         // for this next byte
         while !spi.registers.sr.is_set(Status::TDRE) {}
         spi.registers.tdr.set(tdr);
+        Ok(())
     }
 
     /// Write 0 to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
-    fn read_write_byte(&self, val: u8) -> u8 {
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
 
-        self.write_byte(val);
-        // Wait for receive data register full
+        self.write_byte(val)?;
         while !spi.registers.sr.is_set(Status::RDRF) {}
-        // Return read value
-        spi.registers.rdr.get() as u8
+        Ok(spi.registers.rdr.get() as u8)
     }
 
     /// Asynchronous buffer read/write of SPI. `write_buffer` must be present;
@@ -571,33 +578,41 @@ impl spi::SpiMaster for SpiHw {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         // If busy, don't start.
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        if let Err((err, write_buffer, read_buffer)) =
+            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        {
+            Err((err, write_buffer.unwrap(), read_buffer))
+        } else {
+            Ok(())
+        }
     }
 
-    fn set_rate(&self, rate: u32) -> u32 {
-        self.set_baud_rate(rate)
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        Ok(self.set_baud_rate(rate))
     }
 
     fn get_rate(&self) -> u32 {
         self.get_baud_rate()
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
-        self.set_clock(polarity);
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity);
+        Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
-        self.get_clock()
+    fn get_polarity(&self) -> ClockPolarity {
+        self.get_polarity()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -616,15 +631,20 @@ impl spi::SpiMaster for SpiHw {
         csr.modify(ChipSelectParams::CSAAT::InactiveAfterTransfer);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        let peripheral_number = match cs {
-            0 => Peripheral::Peripheral0,
-            1 => Peripheral::Peripheral1,
-            2 => Peripheral::Peripheral2,
-            3 => Peripheral::Peripheral3,
-            _ => Peripheral::Peripheral0,
-        };
-        self.set_active_peripheral(peripheral_number);
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+        match match cs {
+            0 => Some(Peripheral::Peripheral0),
+            1 => Some(Peripheral::Peripheral1),
+            2 => Some(Peripheral::Peripheral2),
+            3 => Some(Peripheral::Peripheral3),
+            _ => None,
+        } {
+            Some(peripheral_number) => {
+                self.set_active_peripheral(peripheral_number);
+                Ok(())
+            }
+            None => Err(ErrorCode::INVAL),
+        }
     }
 }
 
@@ -638,9 +658,10 @@ impl spi::SpiSlave for SpiHw {
         self.slave_client.is_some()
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         let spi = &SpiRegisterManager::new(&self);
         self.init_as_role(spi, SpiRole::SpiSlave);
+        Ok(())
     }
 
     /// This sets the value in the TDR register, to be sent as soon as the
@@ -660,20 +681,29 @@ impl spi::SpiSlave for SpiHw {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
-        self.set_clock(polarity);
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity);
+        Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
-        self.get_clock()
+    fn get_polarity(&self) -> ClockPolarity {
+        self.get_polarity()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -713,13 +743,13 @@ impl DMAClient for SpiHw {
                 SpiRole::SpiMaster => {
                     self.client.map(|cb| {
                         txbuf.map(|txbuf| {
-                            cb.read_write_done(txbuf, rxbuf, len);
+                            cb.read_write_done(txbuf, rxbuf, len, Ok(()));
                         });
                     });
                 }
                 SpiRole::SpiSlave => {
                     self.slave_client.map(|cb| {
-                        cb.read_write_done(txbuf, rxbuf, len);
+                        cb.read_write_done(txbuf, rxbuf, len, Ok(()));
                     });
                 }
             }

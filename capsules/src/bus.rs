@@ -134,8 +134,13 @@ impl<'a, S: SpiMasterDevice> SpiMasterBus<'a, S> {
         self.read_write_buffer.replace(buffer);
     }
 
-    pub fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32) {
-        self.spi.configure(cpol, cpal, rate);
+    pub fn configure(
+        &self,
+        cpol: ClockPolarity,
+        cpal: ClockPhase,
+        rate: u32,
+    ) -> Result<(), ErrorCode> {
+        self.spi.configure(cpol, cpal, rate)
     }
 }
 
@@ -148,6 +153,7 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                 .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.status.set(BusStatus::SetAddress);
                     buffer[0] = addr as u8;
+                    // TODO verify SPI return value
                     let _ = self.spi.read_write_bytes(buffer, None, 1);
                     Ok(())
                 }),
@@ -167,6 +173,7 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
         self.bus_width.set(bytes);
         if buffer.len() >= len * bytes {
             self.status.set(BusStatus::Write);
+            // TODO verify SPI return value
             let _ = self.spi.read_write_bytes(buffer, None, len * bytes);
             Ok(())
         } else {
@@ -213,6 +220,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for SpiMasterBus<'a, S> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         // debug!("write done {}", len);
         match self.status.get() {

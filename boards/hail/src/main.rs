@@ -247,7 +247,7 @@ pub unsafe fn main() {
     );
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -355,7 +355,7 @@ pub unsafe fn main() {
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
     // Create the SPI system call capsule.
     let spi_syscalls = components::spi::SpiSyscallComponent::new(

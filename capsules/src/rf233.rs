@@ -285,6 +285,7 @@ impl<'a, S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
         mut _write: &'static mut [u8],
         mut read: Option<&'static mut [u8]>,
         _len: usize,
+        _spi_status: Result<(), ErrorCode>,
     ) {
         self.spi_busy.set(false);
         let rbuf = read.take().unwrap();
@@ -1105,6 +1106,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let rbuf = self.spi_rx.take().unwrap();
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_WRITE as u8;
         wbuf[1] = val;
+        // TODO verify SPI return value
         let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
@@ -1120,6 +1122,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let rbuf = self.spi_rx.take().unwrap();
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_READ as u8;
         wbuf[1] = 0;
+        // TODO verify SPI return value
         let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
         self.spi_busy.set(true);
 
@@ -1133,6 +1136,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         buf[0] = RF233BusCommand::FRAME_WRITE as u8;
+        // TODO verify SPI return value
         let _ = self.spi.read_write_bytes(buf, self.spi_buf.take(), buf_len);
         self.spi_busy.set(true);
         Ok(())
@@ -1146,6 +1150,7 @@ impl<'a, S: spi::SpiMasterDevice> RF233<'a, S> {
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         let wbuf = self.spi_buf.take().unwrap();
         wbuf[0] = RF233BusCommand::FRAME_READ as u8;
+        // TODO verify SPI return value
         let _ = self.spi.read_write_bytes(wbuf, Some(buf), buf_len);
         self.spi_busy.set(true);
         Ok(())
@@ -1183,7 +1188,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'_, S> {
             spi::ClockPolarity::IdleLow,
             spi::ClockPhase::SampleLeading,
             100000,
-        );
+        )?;
         self.reset_pin.make_output();
         self.sleep_pin.make_output();
         for _i in 0..10000 {

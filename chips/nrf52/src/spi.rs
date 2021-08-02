@@ -16,8 +16,8 @@
 //! * ✓ specify_chip_select
 //! * ✓ set_rate
 //! * ✓ get_rate
-//! * ✓ set_clock
-//! * ✓ get_clock
+//! * ✓ set_polarity
+//! * ✓ get_polarity
 //! * ✓ set_phase
 //! * ✓ get_phase
 //! * hold_low
@@ -275,9 +275,12 @@ impl SPIM {
 
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
-                Some(tx_buf) => {
-                    client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
-                }
+                Some(tx_buf) => client.read_write_done(
+                    tx_buf,
+                    self.rx_buf.take(),
+                    self.transfer_len.take(),
+                    Ok(()),
+                ),
             });
         }
 
@@ -336,9 +339,10 @@ impl hil::spi::SpiMaster for SPIM {
         self.client.set(client);
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         self.registers.intenset.write(INTE::END::Enable);
         self.initialized.set(true);
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
@@ -350,7 +354,7 @@ impl hil::spi::SpiMaster for SPIM {
         tx_buf: &'static mut [u8],
         rx_buf: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
@@ -358,7 +362,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
-            return Err(ErrorCode::NODEVICE);
+            return Err((ErrorCode::NODEVICE, tx_buf, rx_buf));
         }
         self.chip_select.map(|cs| cs.clear());
 
@@ -391,17 +395,17 @@ impl hil::spi::SpiMaster for SPIM {
         Ok(())
     }
 
-    fn write_byte(&self, _val: u8) {
+    fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
-    fn read_write_byte(&self, _val: u8) -> u8 {
+    fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
         debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
@@ -409,18 +413,19 @@ impl hil::spi::SpiMaster for SPIM {
     // Tell the SPI peripheral what to use as a chip select pin.
     // The type of the argument is based on what makes sense for the
     // peripheral when this trait is implemented.
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         cs.make_output();
         cs.set();
         self.chip_select.set(cs);
+        Ok(())
     }
 
     // Returns the actual rate set
-    fn set_rate(&self, rate: u32) -> u32 {
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         debug_assert!(self.initialized.get());
         let f = Frequency::from_spi_rate(rate);
         self.registers.frequency.set(f as u32);
-        f.into_spi_rate()
+        Ok(f.into_spi_rate())
     }
 
     fn get_rate(&self) -> u32 {
@@ -433,7 +438,7 @@ impl hil::spi::SpiMaster for SPIM {
         f.into_spi_rate()
     }
 
-    fn set_clock(&self, polarity: hil::spi::ClockPolarity) {
+    fn set_polarity(&self, polarity: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         debug_assert!(self.initialized.get());
         let new_polarity = match polarity {
@@ -441,9 +446,10 @@ impl hil::spi::SpiMaster for SPIM {
             hil::spi::ClockPolarity::IdleHigh => CONFIG::CPOL::ActiveLow,
         };
         self.registers.config.modify(new_polarity);
+        Ok(())
     }
 
-    fn get_clock(&self) -> hil::spi::ClockPolarity {
+    fn get_polarity(&self) -> hil::spi::ClockPolarity {
         debug_assert!(self.initialized.get());
         match self.registers.config.read(CONFIG::CPOL) {
             0 => hil::spi::ClockPolarity::IdleLow,
@@ -452,13 +458,14 @@ impl hil::spi::SpiMaster for SPIM {
         }
     }
 
-    fn set_phase(&self, phase: hil::spi::ClockPhase) {
+    fn set_phase(&self, phase: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
         debug_assert!(self.initialized.get());
         let new_phase = match phase {
             hil::spi::ClockPhase::SampleLeading => CONFIG::CPHA::SampleOnLeadingEdge,
             hil::spi::ClockPhase::SampleTrailing => CONFIG::CPHA::SampleOnTrailingEdge,
         };
         self.registers.config.modify(new_phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {

@@ -683,7 +683,7 @@ impl<'a> USART<'a> {
                         // state.
                         let len = self.tx_len.get();
                         self.tx_len.set(0);
-                        client.read_write_done(txbuffer.unwrap(), rxbuf, len);
+                        client.read_write_done(txbuffer.unwrap(), rxbuf, len, Ok(()));
                     }
                 }
             });
@@ -1011,7 +1011,7 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
 impl spi::SpiMaster for USART<'_> {
     type ChipSelect = Option<&'static dyn hil::gpio::Pin>;
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
 
         self.usart_mode.set(UsartMode::Spi);
@@ -1030,6 +1030,7 @@ impl spi::SpiMaster for USART<'_> {
         // Set four bit periods of guard time before RTS/CTS toggle after a
         // message.
         usart.registers.ttgr.write(TxTimeGuard::TG.val(4));
+        Ok(())
     }
 
     fn set_client(&self, client: &'static dyn spi::SpiMasterClient) {
@@ -1046,7 +1047,7 @@ impl spi::SpiMaster for USART<'_> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         let usart = &USARTRegManager::new(&self);
 
         self.enable_tx(usart);
@@ -1107,7 +1108,7 @@ impl spi::SpiMaster for USART<'_> {
         Ok(())
     }
 
-    fn write_byte(&self, val: u8) {
+    fn write_byte(&self, val: u8) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         usart
             .registers
@@ -1117,14 +1118,15 @@ impl spi::SpiMaster for USART<'_> {
             .registers
             .thr
             .write(TransmitHold::TXCHR.val(val as u32));
+        Ok(())
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         let usart = &USARTRegManager::new(&self);
-        usart.registers.rhr.read(ReceiverHold::RXCHR) as u8
+        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         usart
             .registers
@@ -1136,23 +1138,24 @@ impl spi::SpiMaster for USART<'_> {
             .thr
             .write(TransmitHold::TXCHR.val(val as u32));
         while !usart.registers.csr.is_set(ChannelStatus::RXRDY) {}
-        usart.registers.rhr.read(ReceiverHold::RXCHR) as u8
+        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
     }
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         self.spi_chip_select.insert(cs);
+        Ok(())
     }
 
     /// Returns the actual rate set
-    fn set_rate(&self, rate: u32) -> u32 {
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         self.set_baud_rate(usart, rate);
 
         // Calculate what rate will actually be
         let system_frequency = self.pm.get_system_frequency();
         let cd = system_frequency / rate;
-        system_frequency / cd
+        Ok(system_frequency / cd)
     }
 
     fn get_rate(&self) -> u32 {
@@ -1162,7 +1165,7 @@ impl spi::SpiMaster for USART<'_> {
         system_frequency / cd
     }
 
-    fn set_clock(&self, polarity: spi::ClockPolarity) {
+    fn set_polarity(&self, polarity: spi::ClockPolarity) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
         // Note that in SPI mode MSBF bit is clock polarity (CPOL)
         match polarity {
@@ -1173,9 +1176,10 @@ impl spi::SpiMaster for USART<'_> {
                 usart.registers.mr.modify(Mode::MSBF::SET);
             }
         }
+        Ok(())
     }
 
-    fn get_clock(&self) -> spi::ClockPolarity {
+    fn get_polarity(&self) -> spi::ClockPolarity {
         let usart = &USARTRegManager::new(&self);
 
         // Note that in SPI mode MSBF bit is clock polarity (CPOL)
@@ -1186,7 +1190,7 @@ impl spi::SpiMaster for USART<'_> {
         }
     }
 
-    fn set_phase(&self, phase: spi::ClockPhase) {
+    fn set_phase(&self, phase: spi::ClockPhase) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(&self);
 
         // Note that in SPI mode SYNC bit is clock phase
@@ -1198,6 +1202,7 @@ impl spi::SpiMaster for USART<'_> {
                 usart.registers.mr.modify(Mode::SYNC::CLEAR);
             }
         }
+        Ok(())
     }
 
     fn get_phase(&self) -> spi::ClockPhase {

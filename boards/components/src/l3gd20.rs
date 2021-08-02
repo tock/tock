@@ -23,6 +23,7 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::spi;
+use kernel::hil::spi::SpiMasterDevice;
 use kernel::{create_capability, static_init_half};
 
 // Setup static space for the objects.
@@ -77,8 +78,11 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20SpiComponent<S> {
                 grant
             )
         );
+        static_buffer.0.setup();
         static_buffer.0.set_client(l3gd20);
-        l3gd20.configure();
+
+        // TODO verify SPI return value
+        let _ = l3gd20.configure();
 
         l3gd20
     }

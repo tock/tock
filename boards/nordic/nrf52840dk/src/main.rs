@@ -403,7 +403,7 @@ pub unsafe fn main() {
     .finalize(());
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -519,8 +519,9 @@ pub unsafe fn main() {
     .finalize(());
 
     // SPI
-    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+    let mux_spi =
+        components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
     // Create the SPI system call capsule.
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,

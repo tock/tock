@@ -394,7 +394,7 @@ pub unsafe fn main() {
     spi_clk.set_function(GpioFunction::SPI);
     spi_csn.set_function(GpioFunction::SPI);
     spi_mosi.set_function(GpioFunction::SPI);
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(Spi));
 
     let bus = components::bus::SpiMasterBusComponent::new().finalize(

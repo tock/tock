@@ -90,6 +90,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
+        // TODO verify SPI return value
         let _ = self.spi_master.read_write_bytes(
             self.kernel_write.take().unwrap(),
             self.kernel_read.take(),
@@ -246,28 +247,35 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             5 /* set baud rate */ => {
-                self.spi_master.set_rate(arg1 as u32);
-                CommandReturn::success()
+                match self.spi_master.set_rate(arg1 as u32) {
+                    Ok(()) => CommandReturn::success(),
+                    Err (error) => CommandReturn::failure(error.into())
+                }
             }
             6 /* get baud rate */ => {
                 CommandReturn::success_u32(self.spi_master.get_rate() as u32)
             }
             7 /* set phase */ => {
-                match arg1 {
+                match match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
-                };
-                CommandReturn::success()
+                } {
+                    Ok(()) => CommandReturn::success(),
+                    Err(error) => CommandReturn::failure(error.into())
+                }
             }
             8 /* get phase */ => {
                 CommandReturn::success_u32(self.spi_master.get_phase() as u32)
             }
             9 /* set polarity */ => {
-                match arg1 {
+                match match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
-                };
-                CommandReturn::success()
+                }
+                {
+                    Ok(()) => CommandReturn::success(),
+                    Err(error) => CommandReturn::failure(error.into())
+                }
             }
             10 /* get polarity */ => {
                 CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
@@ -287,6 +295,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
         writebuf: &'static mut [u8],
         readbuf: Option<&'static mut [u8]>,
         length: usize,
+        _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(*process_id, move |app, upcalls| {
