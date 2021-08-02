@@ -943,14 +943,21 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         } else if clean_str.starts_with("process") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
+                                // If two processes have the same name, only
+                                // print the first one we find.
+                                let mut found = false;
                                 self.kernel
                                     .process_each_capability(&self.capability, |proc| {
+                                        if found {
+                                            return;
+                                        }
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             //prints process memory by moving the writer to the start state
                                             self.write_state(WriterState::ProcessStart {
                                                 process_id: proc.processid(),
                                             });
+                                            found = true;
                                         }
                                     });
                             });
