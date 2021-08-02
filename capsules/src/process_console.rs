@@ -772,36 +772,36 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     });
             }
             WriterState::List { index, total: _ } => {
-                let mut local_index = 0;
+                let mut local_index = -1;
                 self.kernel
                     .process_each_capability(&self.capability, |process| {
-                        // local_index += 1;
-                        // if local_index == index {
-                        let info: KernelInfo = KernelInfo::new(self.kernel);
+                        local_index += 1;
+                        if local_index == index {
+                            let info: KernelInfo = KernelInfo::new(self.kernel);
 
-                        let pname = process.get_process_name();
-                        let process_id = process.processid();
-                        let (grants_used, grants_total) =
-                            info.number_app_grant_uses(process_id, &self.capability);
-                        let mut console_writer = ConsoleWriter::new();
-                        let _ = write(
-                            &mut console_writer,
-                            format_args!(
-                                "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
-                                process_id,
-                                pname,
-                                process.debug_timeslice_expiration_count(),
-                                process.debug_syscall_count(),
-                                process.debug_dropped_upcall_count(),
-                                process.get_restart_count(),
-                                process.get_state(),
-                                grants_used,
-                                grants_total
-                            ),
-                        );
+                            let pname = process.get_process_name();
+                            let process_id = process.processid();
+                            let (grants_used, grants_total) =
+                                info.number_app_grant_uses(process_id, &self.capability);
+                            let mut console_writer = ConsoleWriter::new();
+                            let _ = write(
+                                &mut console_writer,
+                                format_args!(
+                                    "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
+                                    process_id,
+                                    pname,
+                                    process.debug_timeslice_expiration_count(),
+                                    process.debug_syscall_count(),
+                                    process.debug_dropped_upcall_count(),
+                                    process.get_restart_count(),
+                                    process.get_state(),
+                                    grants_used,
+                                    grants_total
+                                ),
+                            );
 
-                        let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
-                        // }
+                            let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
+                        }
                     });
             }
             _ => {}
@@ -899,9 +899,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Dropped Callbacks  ");
                             let _ = self.write_bytes(b"Restarts    State  Grants\n");
+
+                            // Count the number of current processes.
+                            let mut count = 0;
+                            self.kernel.process_each_capability(&self.capability, |_| {
+                                count += 1;
+                            });
+
+                            // Start the state machine to print each separately.
                             self.write_state(WriterState::List {
                                 index: -1,
-                                total: 3,
+                                total: count,
                             });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
