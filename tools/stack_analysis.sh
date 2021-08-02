@@ -27,5 +27,8 @@ largest_ret_val=$?
 # If it is, print a warning.
 if [ $largest_ret_val -eq 0 ]; then
     echo "   ${bold}WARNING! main is the largest stack frame!${normal}"
+    echo "   See https://github.com/tock/tock/issues/2425 for an explanation of"
+    echo "   why this is an issue, and https://github.com/tock/tock/pull/2715 for"
+    echo "   an example of how to fix it."
     printf "\n"
 fi
