@@ -147,8 +147,10 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
         );
 
         self.spi.set_client(mux_spi);
-        // TODO verify SPI return value
-        let _ = self.spi.init();
+
+        if let Err(error) = self.spi.init() {
+            panic!("SPI init failed ({:?})", error);
+        }
 
         mux_spi
     }

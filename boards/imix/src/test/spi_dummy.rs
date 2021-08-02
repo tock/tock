@@ -77,8 +77,8 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
     let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
     spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
     spi.set_client(spicb);
-    // TODO verify SPI return value
-    let _ = spi.init();
+
+    spi.init().unwrap();
     spi.set_baud_rate(200000);
 
     let len = BUF2.len();
