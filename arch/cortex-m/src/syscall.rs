@@ -105,7 +105,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // First, we need to validate that this location is inside of the
         // process's accessible memory.
         if state.psp < accessible_memory_start as usize
-            || (state.psp + (mem::size_of::<u32>() * 4)) > app_brk as usize
+            || state.psp.saturating_add(mem::size_of::<u32>() * 4) > app_brk as usize
+            || state.psp % 4 != 0
         {
             return Err(());
         }
@@ -158,7 +159,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is
         // within process-accessible memory.
         if state.psp < accessible_memory_start as usize
-            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
+            || state.psp % 4 != 0
         {
             return Err(());
         }
@@ -191,16 +193,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory.
-        let invalid_stack_pointer = if state.psp < accessible_memory_start as usize
-            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
-        {
-            // Process corrupted its stack pointer, we can't continue and must
-            // fault.
-            true
-        } else {
-            // Everything looks good.
-            false
-        };
+        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
+            || state.psp % 4 != 0;
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -266,22 +261,32 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
-        // Validate the stored stack pointer is valid.
-        if state.psp < accessible_memory_start as usize
-            || (state.psp + SVC_FRAME_SIZE) > app_brk as usize
-        {
-            return;
-        }
+        // Check if the stored stack pointer is valid.
+        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
+            || state.psp % 4 != 0;
 
         let stack_pointer = state.psp as *const usize;
-        let r0 = read_volatile(stack_pointer.offset(0));
-        let r1 = read_volatile(stack_pointer.offset(1));
-        let r2 = read_volatile(stack_pointer.offset(2));
-        let r3 = read_volatile(stack_pointer.offset(3));
-        let r12 = read_volatile(stack_pointer.offset(4));
-        let lr = read_volatile(stack_pointer.offset(5));
-        let pc = read_volatile(stack_pointer.offset(6));
-        let xpsr = read_volatile(stack_pointer.offset(7));
+
+        // If we cannot use the stack pointer, generate default bad looking
+        // values we can use for the printout. Otherwise, read the correct
+        // values.
+        let (r0, r1, r2, r3, r12, lr, pc, xpsr) = if invalid_stack_pointer {
+            (
+                0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD,
+                0xBAD00BAD,
+            )
+        } else {
+            let r0 = read_volatile(stack_pointer.offset(0));
+            let r1 = read_volatile(stack_pointer.offset(1));
+            let r2 = read_volatile(stack_pointer.offset(2));
+            let r3 = read_volatile(stack_pointer.offset(3));
+            let r12 = read_volatile(stack_pointer.offset(4));
+            let lr = read_volatile(stack_pointer.offset(5));
+            let pc = read_volatile(stack_pointer.offset(6));
+            let xpsr = read_volatile(stack_pointer.offset(7));
+            (r0, r1, r2, r3, r12, lr, pc, xpsr)
+        };
 
         let _ = writer.write_fmt(format_args!(
             "\
