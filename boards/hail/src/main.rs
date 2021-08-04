@@ -207,7 +207,7 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 #[inline(never)]
 unsafe fn get_peripherals(
     pm: &'static sam4l::pm::PowerManager,
-) -> &'static mut Sam4lDefaultPeripherals {
+) -> &'static Sam4lDefaultPeripherals {
     static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
 }
 
