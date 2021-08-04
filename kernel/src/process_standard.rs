@@ -482,6 +482,28 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         })
     }
 
+    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
+        self.mpu_config.map_or(Err(ErrorCode::INVAL), |mut config| {
+            // Find the existing mpu region that we are removing; it needs to match exactly.
+            if let Some(internal_region) = self
+                .mpu_regions
+                .iter()
+                .find(|r| r.get().map_or(false, |r| r == region))
+            {
+                self.chip
+                    .mpu()
+                    .remove_memory_region(region, &mut config)
+                    .or(Err(ErrorCode::FAIL))?;
+
+                // Remove this region from the tracking cache of mpu_regions
+                internal_region.set(None);
+                Ok(())
+            } else {
+                Err(ErrorCode::INVAL)
+            }
+        })
+    }
+
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
         // Do not modify an inactive process.
         if !self.is_active() {
