@@ -1,4 +1,4 @@
-//! Interfaces for SPI controller (master) and peripheral (slave) 
+//! Interfaces for SPI controller (master) and peripheral (slave)
 //! communication. We use the terms master/slave in some situations
 //! because the term peripheral can also refer to a hardware peripheral
 //! (e.g., memory-mapped I/O devices in ARM are called peripherals).
@@ -268,12 +268,12 @@ pub trait SpiMasterDevice {
     ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)>;
 
     /// Set the clock/data rate for this chip select. Return values:
-    ///   - Ok(u32): the actual data rate set (limited by clock precision)
+    ///   - Ok(): set successfully. Note actual rate may differ, check with get_rate.
     ///   - Err(INVAL): a rate outside the bounds of the bus was passed
     ///   - Err(BUSY): the SPI bus is busy with a read_write_bytes
     ///     operation whose callback hasn't been called yet.
     ///   - Err(FAIL): other failure
-    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
+    fn set_rate(&self, rate: u32) -> Result<(), ErrorCode>;
     /// Return the current chip select's clock rate.
     fn get_rate(&self) -> u32;
 
@@ -307,14 +307,14 @@ pub trait SpiMasterDevice {
 /// of them fills, at which point a `SpiSlaveClient::read_write_done`
 /// callback is called. If the client needs to read/write more it
 /// can call `SpiSlave::read_write_bytes` again. Note that there is
-/// no notification when the chip select line goes high. 
+/// no notification when the chip select line goes high.
 pub trait SpiSlaveClient {
     /// Notification that the chip select has been brought low.
     fn chip_selected(&self);
 
     /// Callback issued when the controller completes an SPI operation
     /// to this peripheral. `write_buffer` and `read_buffer` are
-    /// the values passed in the previous call to 
+    /// the values passed in the previous call to
     /// `SpiSlave::read_write_bytes`. The `len` parameter specifies
     /// how many bytes were written from/read into `Some` values of
     /// these buffers. `len` may be shorter than the size of these
@@ -366,7 +366,7 @@ pub trait SpiSlave {
     /// Return values:
     ///   - Ok(()): the SPI bus will read/write the provided buffers on
     ///     the next SPI operation requested by the controller.
-    ///   - Err(BUSY): the device is busy with an existing 
+    ///   - Err(BUSY): the device is busy with an existing
     ///     `read_write_bytes` operation.
     ///   - Err(INVAL): the `len` parameter is 0
     ///
@@ -393,7 +393,7 @@ pub trait SpiSlave {
     /// Return the current bus polarity.
     fn get_polarity(&self) -> ClockPolarity;
 
-    /// Set the bus phase (whether data is sent/received on leading or 
+    /// Set the bus phase (whether data is sent/received on leading or
     /// trailing edges).
     ///   - Ok(()): the phase was set.
     ///   - Err(BUSY): the SPI bus is busy with a `read_write_bytes`
