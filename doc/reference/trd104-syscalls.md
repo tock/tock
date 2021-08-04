@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** May 27, 2021<br/>
-**Draft-Version:** 5<br/>
+**Draft-Modified:** July 25, 2021<br/>
+**Draft-Version:** 6<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -23,10 +23,10 @@ and RISC-V RV32I platforms.
 
 The Tock operating system can run multiple independent userspace applications.
 Each application image is a separate process: it has its own address space
-and thread stack.  Because applications are untrusted, the kernel uses hardware 
-memory protection to isolate the kernel from processes. This allows applications 
-written in C (or even assembly) to safely run on Tock.  Applications invoke 
-operations on and receive upcalls from the Tock kernel through the system call 
+and thread stack.  Because applications are untrusted, the kernel uses hardware
+memory protection to isolate the kernel from processes. This allows applications
+written in C (or even assembly) to safely run on Tock.  Applications invoke
+operations on and receive upcalls from the Tock kernel through the system call
 programming interface.
 
 This document describes Tock's system call programming interface (API)
@@ -43,7 +43,7 @@ Three design considerations guide the design of Tock's system call API and
 ABI.
 
   1. Tock is currently supported on the ARM CortexM and RISCV architectures.
-  It may support others in the future. Its ABI must support both architectures 
+  It may support others in the future. Its ABI must support both architectures
   and be flexible enough to support future ones.
   2. Tock userspace applications can be written in any language. The system
   call API must support their calling semantics in a safe way. Rust is
@@ -85,9 +85,9 @@ call will need to move the C arguments into those registers.
 =================================
 
 This section describes the ABI for Tock on 32-bit platforms, including
-the exact register mappings for the CortexM and 32-bit RISC-V architectures. 
-The ABI for 64-bit platforms is currently undefined but may be specified in 
-a future TRD. The register mappings for future 32-bit architectures can be 
+the exact register mappings for the CortexM and 32-bit RISC-V architectures.
+The ABI for 64-bit platforms is currently undefined but may be specified in
+a future TRD. The register mappings for future 32-bit architectures can be
 specified in supplemental TRDs.
 
 3.1 Registers
@@ -177,16 +177,16 @@ overloaded. The requirement of a single failure and a single success
 variant also fits well with Rust's `Result` type.
 
 If userspace tries to invoke a system call that the kernel does not
-support, the system call will return a Failure result with an error 
+support, the system call will return a Failure result with an error
 code of `NODEVICE` or `NOSUPPORT` (Section 4). As the Allow and
 Subscribe system call classes have defined Failure types, the kernel can
 produce the expected type with known failure variants. Command, however,
 can return any variant. This means that Commands can appear to have
-two failure variants: the one expected (e.g., Failure with u32) as well 
-as Failure. To avoid this ambiguity for `NODEVICE`, userspace can use the 
-reserved "exists" command (Command Identifier 0), described in Section 
-4.3.1. If this command returns Success, the driver is installed and will 
-not return a Failure with `NODEVICE` for Commands. The driver may still 
+two failure variants: the one expected (e.g., Failure with u32) as well
+as Failure. To avoid this ambiguity for `NODEVICE`, userspace can use the
+reserved "exists" command (Command Identifier 0), described in Section
+4.3.1. If this command returns Success, the driver is installed and will
+not return a Failure with `NODEVICE` for Commands. The driver may still
 return `NOSUPPORT`, however. Because this implies a misunderstanding of
 the system call API by userspace (it is invoking system calls that do not
 exist), userspace is responsible for handling this case.
@@ -196,7 +196,7 @@ For all Failure types, the passed Error code MUST be placed in `r1`.
 All 32-bit values not specified for `r0` in the above table are reserved.
 Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
 kernel unless specified in a TRD. Therefore, for future compatibility, userspace
-code MUST handle `r0` values that it does not recognize. 
+code MUST handle `r0` values that it does not recognize.
 
 3.3 Error Codes
 ---------------------------------
@@ -232,7 +232,7 @@ specified in a TRD.
 
 Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
-variant than the userspace library expects. 
+variant than the userspace library expects.
 
 4 System Call API
 =================================
@@ -277,12 +277,12 @@ and a syscall number. The driver number specifies which system
 call driver to invoke. The syscall number (which is different than
 the Syscall Class Number in the table above) specifies which instance of
 that system call on that driver to invoke. Both arguments are unsigned
-32-bit integers. For example, by convention the Console system call driver 
+32-bit integers. For example, by convention the Console system call driver
 has driver number `0x1` and a Command to the console driver with
 syscall number `0x2` starts receiving console data into a buffer.
 
-If userspace invokes a system call on a peripheral driver that is not 
-installed in the kernel, the kernel MUST return a Failure result with 
+If userspace invokes a system call on a peripheral driver that is not
+installed in the kernel, the kernel MUST return a Failure result with
 an error of `NODEVICE`. If userspace invokes an unrecognized system call
 on a peripheral driver, the peripheral driver MUST return a Failure
 result with an error of `NOSUPPORT`.
@@ -293,7 +293,7 @@ result with an error of `NOSUPPORT`.
 The Yield system call class is how a userspace process handles
 upcalls, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system call in Tock that returns, 
+class implements the only blocking system call in Tock that returns,
 `yield-wait`.
 
 When a process calls a Yield system call, the kernel schedules one
@@ -307,16 +307,16 @@ There are two Yield system calls:
   - `yield-wait`
   - `yield-no-wait`
 
-The first call, `yield-wait`, blocks until an upcall executes. It is 
+The first call, `yield-wait`, blocks until an upcall executes. It is
 commonly used to provide a blocking I/O interface to userspace or to
 indicate to the kernel that the process has no work to do so the system
-can be put into a sleep state. A userspace library starts a long-running 
-operation that has an upcall, then calls `yield-wait` to wait for an upcall. 
-When the `yield-wait` returns, the process checks if the resuming upcall was 
-the one it was expecting, and if not calls `yield-wait` again. 
+can be put into a sleep state. A userspace library starts a long-running
+operation that has an upcall, then calls `yield-wait` to wait for an upcall.
+When the `yield-wait` returns, the process checks if the resuming upcall was
+the one it was expecting, and if not calls `yield-wait` again.
 
 The second call, `yield-no-wait`, executes a single upcall if any is pending.
-If no upcalls are pending it returns immediately. 
+If no upcalls are pending it returns immediately.
 
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -447,8 +447,8 @@ the kernel needs to return upcall and application pointers indicating
 the current configuration; in this case, the kernel returns the Null
 Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
 
-The Null Upcall upcall pointer MUST be 0x0. This means it is not possible 
-for userspace to pass address 0x0 as a valid code entry point. Unlike 
+The Null Upcall upcall pointer MUST be 0x0. This means it is not possible
+for userspace to pass address 0x0 as a valid code entry point. Unlike
 systems with virtual memory, where 0x0 can be reserved a special meaning, in
 microcontrollers with only physical memory 0x0 is a valid memory location.
 It is possible that a Tock kernel is configured so its applications
@@ -509,19 +509,7 @@ kernel returns `Failure` with an error code of `NODEVICE`.
 ---------------------------------
 
 The Read-Write Allow system call class is how a userspace process
-shares a buffer with the kernel that the kernel can read and write. 
-
-Calling a Read-Write Allow system call returns a buffer (address and
-length).  On the first call to a Read-Write Allow system call, the
-kernel returns a zero-length buffer. Subsequent successful calls to
-Read-Write Allow return the previous buffer passed.  The standard
-access model for allowed buffers is that userspace does not read or
-write a buffer that has been allowed: access to the memory is intended
-to be exclusive either to userspace or to the kernel. To regain access
-to a passed buffer, the process calls the same Read-Write Allow system
-call again, which, if successful, returns the buffer. It can do so
-with a zero-length buffer if it wishes to pass no memory to the
-kernel. 
+shares a buffer with the kernel that the kernel can read and write.
 
 The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
@@ -534,17 +522,6 @@ on RISC-V.
 | Address          | r2       |
 | Size             | r3       |
 
-The return variants for Read-Write Allow system calls are `Failure
-with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
-contains an address and `Argument 1` contains a length.  In the case
-of failure, the address and length MUST be those that were passed in the
-call.  In the case of success, the address and length MUST be those that
-were passed in the previous call. On the first successful invocation
-of a particular Read-Write Allow system call, the kernel MUST return
-address 0 and size 0.
-
-The buffer number specifies which buffer this is. A driver may
-support multiple allowed buffers.
 
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's writeable address space. Every byte of a passed
@@ -552,6 +529,31 @@ buffer must be readable and writeable by the process. Zero-length
 buffers may therefore have arbitrary addresses. If the passed buffer is
 not complete within the calling process's writeable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
+The buffer number specifies which buffer this is. A driver may
+support multiple allowed buffers.
+
+The return variants for Read-Write Allow system calls are `Failure
+with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
+contains an address and `Argument 1` contains a length. When a driver
+implementing the Read-Write Allow system call returns a failure
+result, it MUST return the same address and length as those that were passed 
+in the call. When a driver implementing the Read-Write Allow system call
+returns a success result, the returned address and length MUST be those
+that were passed in the previous call, unless this is the first call.
+On the first successful invocation of a particular Read-Write Allow system 
+call, an driver implementation MUST return address 0 and size 0.
+
+The standard access model for allowed buffers is that userspace does
+not read or write a buffer that has been allowed: access to the memory
+is intended to be exclusive either to userspace or to the kernel. To
+regain access to a passed buffer B, the process calls the same
+Read-Write Allow system call again. If this call returns a success
+result, the result contains buffer B. The process can call with a zero-length 
+buffer if it wishes to pass no memory to the kernel. Once a buffer has been returned to userspace as
+part of a Read-Write Allow system call, it is guaranteed for the
+kernel to no longer have access to the described memory region, unless
+it is currently shared with the kernel as part of the passed in buffer
+or another Allow mechanism.
 
 Note that buffers held by the kernel are still considered part of a
 process address space, even if conceptually the process should not
@@ -560,7 +562,7 @@ a buffer by calling allow with the same pointer and a longer length
 and such a call is not required to return an error code of `INVALID`.
 Similarly, it is possible for userspace to allow the same buffer
 multiple times to the kernel. This means, in practice, that the kernel
-may have multiple writeable references to the same memory and must
+may have multiple writeable references to the same memory and MUST take
 take precautions to ensure this does not violate safety within the
 kernel.
 
@@ -570,6 +572,15 @@ MUST NOT assume or rely on a process accessing an allowed buffer. If
 userspace needs to read or write to a buffer held by the kernel, it
 MUST first regain access to it by calling the corresponding Read-Write
 Allow.
+
+Note that these requirements are typically on capsule code, and are not
+enforced by the core kernel. Because capsules may have bugs or not be fully
+trusted, userspace SHOULD NOT rely on the fact that drivers follow these rules as
+described, especially if the capsule code is not independently checked and tested.
+Instead, userspace SHOULD employ additional checks to ensure that
+drivers behave as specified, and implement proper error handling as needed.
+The core kernel MAY enforce a subset of these
+specified rules in the future.
 
 4.4.1 Buffers Can Change
 ---------------------------------
@@ -598,7 +609,7 @@ if mlen >= arg1 && arg1 > 0 {
     self.busy.set(true);
     self.do_next_read_write(app);
     CommandReturn::success()
-} 
+}
 ```
 
 Checking that the length fits within the allowed buffer when the
@@ -610,7 +621,7 @@ where in the buffer the next write should occur: the capsule breaks up
 long writes into multiple, smaller writes to bound the size of its
 static kernel buffer. If capsule code blindly copies the number of
 bytes specified in the command, without re-checking buffer length,
-then it can cause the kernel to panic for an out-of-bounds error. 
+then it can cause the kernel to panic for an out-of-bounds error.
 
 Therefore, in the `read_write_done` callback, the capsule checks the
 length of the buffer that userspace wants to read data into. The third
@@ -641,12 +652,12 @@ the buffer).
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow
-class.  It differs in two ways:
+class. It differs in two ways:
 
-  1. The buffer it passes to the kernel is read-only, and the process MAY 
-  freely read the buffer.
-  2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow. 
-  
+1. The buffer it passes to the kernel is read-only, and the process MAY
+   freely read the buffer.
+2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow.
+
 The semantics and calling conventions of Read-Only Allow are otherwise
 identical to Read-Write Allow: a userspace API MUST NOT depend on
 writing to a shared buffer and the kernel MUST NOT assume the buffer
@@ -731,7 +742,7 @@ specified in the table above. All Memop class system calls have a
 4.7 Exit (Class ID: 6)
 --------------------------------
 
-The Exit system call class is how a userspace process terminates. 
+The Exit system call class is how a userspace process terminates.
 Successful calls to Exit system calls do not return.
 
 There are two Exit system calls:
@@ -741,10 +752,10 @@ There are two Exit system calls:
 The first call, `exit-terminate`, terminates the process and tells the
 kernel that it may reclaim and reallocate the process as well as all of its
 resources. Usually this indicates that the process has completed
-its work. 
+its work.
 
 The second call, `exit-restart`, terminates the process and tells the kernel
-that the application would like to restart if possible. If the kernel 
+that the application would like to restart if possible. If the kernel
 restarts the application, it MUST assign it a new process identifier. The
 kernel MAY reuse existing process resources (e.g., RAM regions) or MAY
 allocate new ones.
@@ -768,7 +779,7 @@ The difference between `exit-terminate` and `exit-restart` is what behavior
 the application asks from the kernel. With `exit-terminate`, the application
 tells the kernel that it considers itself completed and does not need to run
 again. With `exit-restart`, it tells the kernel that it would like to be
-rebooted and run again. For example, `exit-terminate` might be used by a 
+rebooted and run again. For example, `exit-terminate` might be used by a
 process that stores some one-time data on flash, while `exit-restart` might
 be used if the process runs out of memory.
 
@@ -777,8 +788,8 @@ information can be stored in the kernel and used in management or policy decisio
 The definition of these status codes is outside the scope of this document.
 
 If an exit syscall is successful, it does not return. Therefore, the return
-value of an exit syscall is always `Failure`. `exit-restart` and 
-`exit-terminate` MUST always succeed and so never return. 
+value of an exit syscall is always `Failure`. `exit-restart` and
+`exit-terminate` MUST always succeed and so never return.
 
 5 libtock-c Userspace Library Methods
 =================================
@@ -939,7 +950,7 @@ Guillaume Endignoux <guillaumee@google.com>
 Jon Flatley <jflat@google.com>
 
 Philip Levis
-414 Gates Hall 
+414 Gates Hall
 Stanford University
 Stanford, CA 94305
 
