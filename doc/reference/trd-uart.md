@@ -30,10 +30,10 @@ between the two sides can cause bits to be read incorrectly.
 The UART HIL is in the kernel crate, in module `hil::uart`. It provides five
 main traits:
 
-
-  * `kernel::hil::uart:Configure`: allows a client to configure a UART, setting its speed, data width, parity, and stop bit configuration.
+  * `kernel::hil::uart::Configuration`: allows a client to query how a UART is configured.
+  * `kernel::hil::uart::Configure`: allows a client to configure a UART, setting its speed, data width, parity, and stop bit configuration.
   * `kernel::hil::uart::Transmit`: is for transmitting data.
-  * `kernel::hil::uart:TransmitClient`: is for handling callbacks indicating a data transmission is complete.
+  * `kernel::hil::uart::TransmitClient`: is for handling callbacks indicating a data transmission is complete.
   * `kernel::hil::uart::Receive`: is for receiving data.
   * `kernel::hil::time::ReceiveClient`: handles a callback when data is received.
 
@@ -54,12 +54,21 @@ framing: [Wikipedia's article on asynchronous serial
 communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication)
 is a good reference.
 
-2 `Configure` 
+2 `Configuration` and `Configure` 
 ===============================
 
-The `Configure` trait allows a client to configure a UART, by setting
-is baud date, data width, parity, stop bits, and whether hardware flow
-control is enabled.
+The `Configuration` trait allows a client to query how a UART is
+configured. The `Configure` trait allows a client to configure a UART,
+by setting is baud date, data width, parity, stop bits, and whether
+hardware flow control is enabled.
+
+These two traits are separate because there are cases when clients
+need to know the configuration but cannot set it. For example, when a UART
+is virtualized across multiple clients (e.g., so multiple sources can 
+write to the console), individual clients may want to check the baud rate.
+However, they cannot set the baud rate, because that is fixed and shared
+across all of them. Similarly, some services may need to be able to set
+the UART configuration but do not need to check it.
 
 Most devices using serial ports today use 8-bit data, but some older
 devices use more or fewer bits, and hardware implementations support
@@ -96,16 +105,42 @@ pub struct Parameters {
     pub hw_flow_control: bool,
 }
 
+pub trait Configuration {
+	fn get_baud_rate(&self) -> u32;
+    fn get_width(&self) -> Width;
+	fn get_parity(&self) -> Parity;
+    fn get_stop_bits(&self) -> StopBits;	
+    fn get_flow_control(&self) -> bool;
+	fn get_configuration(&self) -> Configuration;
+}
+
 pub trait Configure {
-    /// Returns Ok(()), or
-    /// - OFF: The underlying hardware is currently not available, perhaps
-    ///         because it has not been initialized or in the case of a shared
-    ///         hardware USART controller because it is set up for SPI.
-    /// - INVAL: Impossible parameters (e.g. a `baud_rate` of 0)
-    /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
-    fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
+	fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode);
+    fn set_width(&self, width: Width) -> Result<(), ErrorCode);
+    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode);
+    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode);
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode);
+	fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 ```
+
+Methods in `Configure` can return the following error conditions:
+- OFF: The underlying hardware is currently not available, perhaps
+  because it has not been initialized or in the case of a shared
+  hardware USART controller because it is set up for SPI.
+- INVAL: Baud rate was set to 0.
+- ENOSUPPORT: The underlying UART cannot satisfy this configuration.
+- FAIL: Other failure condition.
+
+
+The UART may be unable to set the precise baud rate specified. For
+example, the UART may be driven off a fixed clock with integer
+prescalar. A call to `configure` MUST set the baud rate to the closest
+possible value to the `baud_rate` field of the `params` argument and a
+call to `set_baud_rate` MUST set the baud rate to the closest possible
+value to the `rate` argument. The `Ok` result of `set_baud_rate`
+includes the actual rate set, while an `Err(INVAL)` result means the
+requested rate is well outside the operating speed of the UART (e.g., 4MHz).
 
 
 3 `Transmit` and `TransmitClient`
@@ -115,9 +150,68 @@ The `Transmit` and `TransmitClient` traits
 
 ```rust
 pub trait Transmit<'a> {
-    /// Set the transmit client, which will be called when transmissions
-    /// complete.
     fn set_transmit_client(&self, client: &'a dyn TransmitClient);
+
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> Result<(), ErrorCode>;
+}
+
+pub trait TransmitClient {
+    fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+        rval: Result<(), ErrorCode>,
+    );
+}
+```
+
+The `Transmit` trait has two data paths: `transmit_word` and `transmit_buffer`.
+The `transmit_word` method is used in narrow use cases where the cost and complexity
+of buffer management is not needed. Generally, software should use the `transmit_buffer`
+method. Most software implementations use DMA, such that a call to `transmit_buffer` triggers
+a single interrupt when the transfer completes; this saves energy and CPU cycles over per-byte
+transfers and also improves transfer speeds because hardware can keep the UART busy.
+
+
+    /// A call to `Transmit::transmit_word` completed. The `Result<(), ErrorCode>`
+    /// indicates whether the word was successfully transmitted. A call
+    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// `rval` is Ok(()) if the word was successfully transmitted, or
+    ///   - CANCEL if the call to `transmit_word` was cancelled and
+    ///     the word was not transmitted.
+    ///   - FAIL if the transmission failed in some way.
+	
+    /// A call to `Transmit::transmit_buffer` completed. The `Result<(), ErrorCode>`
+    /// indicates whether the buffer was successfully transmitted. A call
+    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// The `tx_len` argument specifies how many words were transmitted.
+    /// An `rval` of Ok(()) indicates that every requested word was
+    /// transmitted: `tx_len` in the callback should be the same as
+    /// `tx_len` in the initiating call.
+    ///
+    /// `rval` is Ok(()) if the full buffer was successfully transmitted, or
+    ///   - CANCEL if the call to `transmit_buffer` was cancelled and
+    ///     the buffer was not fully transmitted. `tx_len` contains
+    ///     how many words were transmitted.
+    ///   - SIZE if the buffer could only be partially transmitted. `tx_len`
+    ///     contains how many words were transmitted.
+    ///   - FAIL if the transmission failed in some way.
+
+
 
     /// Transmit a buffer of data. On completion, `transmitted_buffer`
     /// in the `TransmitClient` will be called.  If the `Result<(), ErrorCode>`
@@ -142,11 +236,6 @@ pub trait Transmit<'a> {
     ///
     /// Calling `transmit_buffer` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return BUSY.
-    fn transmit_buffer(
-        &self,
-        tx_buffer: &'static mut [u8],
-        tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -163,9 +252,8 @@ pub trait Transmit<'a> {
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
     /// BUSY.
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
-
-    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
+	
+	    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
     /// The return code indicates whether the call has fully terminated or
     /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
     /// always make a callback, to return the passed buffer back to the caller.
@@ -186,56 +274,9 @@ pub trait Transmit<'a> {
     ///  - FAIL if the outstanding call to either transmit operation could
     ///    not be synchronously cancelled. A callback will be made on the
     ///    client indicating whether the call was successfully cancelled.
-    fn transmit_abort(&self) -> Result<(), ErrorCode>;
-}
-```
 
-The `Counter` trait is the abstraction of a free-running counter that
-can be started and stopped. This trait derives from the `Time` trait, so
-it has associated `Frequency` and `Tick` types. The `Counter` trait
-allows a client to register for callbacks when the counter overflows.
 
-```rust
-pub trait OverflowClient {
-  fn overflow(&self);
-}
 
-pub trait Counter<'a>: Time {
-  fn start(&self) -> Result<(), ErrorCode>;
-  fn stop(&self) -> Result<(), ErrorCode>;
-  fn reset(&self) -> Result<(), ErrorCode>;
-  fn is_running(&self) -> bool;
-  fn set_overflow_client(&'a self, &'a dyn OverflowClient);
-}
-```
-
-The `OverflowClient` trait is separated from the `AlarmClient` trait
-because there are cases when software simply wants a free-running
-counter to keep track of time, but does not need triggers at a
-particular time. For hardware that has a limited number of
-compare registers, allocating one of them when the compare itself
-isn't needed would be wasteful.
-
-Note that Tock's concurrency model means interrupt bottom halves
-can be delayed until the current bottom half (or syscall
-invocation) completes. This means that an overflow callback can
-seem to occur *after* an overflow. For example, suppose there is
-an 8-bit counter. The following execution is possible:
-
-  1. Client code calls Time::now, which returns 250.
-  1. An overflow happens, marking an interrupt as pending but the bottom half doesn't execute yet.
-  1. Client code calls Time::now, which returns 12.
-  1. The main event loop runs, invoking the bottom half.
-  1. The Counter calls OverflowClient::overflow, notifying the client of the overflow.
-
-A `Counter` implementation MUST NOT provide a `Frequency` of a higher
-resolution than an underlying hardware counter. For example, if the
-underlying hardware counter has a frequency of 32 kHz, then a `Counter`
-cannot say it has a frequency of 1MHz by multiplying the underlying
-counter by 32. A `Counter` implementation MAY provide a `Frequency` of
-a lower resolution (e.g., by stripping bits).
-
-The `reset` method of `Counter` resets the counter to 0.
 
 4 `Alarm` and `AlarmClient` traits
 ===============================
