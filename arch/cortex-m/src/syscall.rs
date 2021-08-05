@@ -103,10 +103,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // bottom the SVC structure on the stack)
 
         // First, we need to validate that this location is inside of the
-        // process's accessible memory.
+        // process's accessible memory. Alignment is guaranteed by hardware.
         if state.psp < accessible_memory_start as usize
             || state.psp.saturating_add(mem::size_of::<u32>() * 4) > app_brk as usize
-            || state.psp % 4 != 0
         {
             return Err(());
         }
@@ -156,11 +155,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &mut CortexMStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
-        // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is
-        // within process-accessible memory.
+        // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is within
+        // process-accessible memory. Alignment is guaranteed by hardware.
         if state.psp < accessible_memory_start as usize
             || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
-            || state.psp % 4 != 0
         {
             return Err(());
         }
@@ -192,10 +190,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.psp = new_stack_pointer as usize;
 
         // We need to validate that the stack pointer and the SVC frame are
-        // within process accessible memory.
+        // within process accessible memory. Alignment is guaranteed by
+        // hardware.
         let invalid_stack_pointer = state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
-            || state.psp % 4 != 0;
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -261,10 +259,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
-        // Check if the stored stack pointer is valid.
+        // Check if the stored stack pointer is valid. Alignment is guaranteed
+        // by hardware.
         let invalid_stack_pointer = state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
-            || state.psp % 4 != 0;
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
 
         let stack_pointer = state.psp as *const usize;
 
