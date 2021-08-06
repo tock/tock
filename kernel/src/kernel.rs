@@ -942,7 +942,7 @@ impl Kernel {
                                                                 if currently_allocated_grants_count
                                                                     > allocated_grants_count
                                                                 {
-                                                                    debug!("[{:?}] ERROR driver {:x} allocated wrong grant for upcalls",
+                                                                    debug!("[{:?}] ERROR driver {#:x} allocated wrong grant for upcalls",
                                                                            process.processid(), driver_number);
                                                                 } else {
                                                                     debug!("[{:?}] WARN driver {#:x} did not allocate grant for upcalls",
