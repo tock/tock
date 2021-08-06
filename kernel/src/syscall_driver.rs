@@ -234,7 +234,7 @@ pub trait SyscallDriver {
     ///
     /// The typical implementation will look like:
     /// ```rust, ignore
-    /// fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    /// fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
     ///    self.apps.enter(processid, |_, _| {})
     /// }
     /// ```
