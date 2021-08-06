@@ -64,10 +64,15 @@ enum State {
     /// The host has enumerated this USB device. Things should be functional at
     /// this point.
     Enumerated,
-    /// We have seen the CDC messages that we expect to signal that a CDC client
-    /// has connected. We stay in the "connecting" state until the USB transfer
-    /// has completed.
-    Connecting,
+    /// We are seeing the CDC messages that we expect to signal that a CDC
+    /// client has connected. We want to see that both line coding and line
+    /// state ctrl messages have been received. We stay in the "connecting"
+    /// state until the USB transfers for both ctrl messages have completed.
+    Connecting { line_coding: bool, line_state: bool },
+    /// We have seen the necessary setup messages in the `Connecting` state, now
+    /// we delay just to ensure the host has enough time to receive _and
+    /// display_ messages.
+    ConnectingDelay,
     /// A CDC client is connected. We can safely send data.
     Connected,
 }
@@ -79,6 +84,8 @@ enum CtrlState {
     Idle,
     /// Host has sent a SET_LINE_CODING configuration request.
     SetLineCoding,
+    /// Host has send a SET_CONTROL_LINE_STATE configuration request.
+    SetControlLineState,
 }
 
 #[derive(PartialEq)]
@@ -336,6 +343,33 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
             });
         });
     }
+
+    /// Helper function to update the connecting state variable as we progress
+    /// through various setup steps that indicate a host is actually connecting
+    /// to our serial port.
+    ///
+    /// - `line_coding`: if true, set. if false, leave to previous value.
+    /// - `line_state`:  if true, set. if false, leave to previous value.
+    fn set_connecting_state(&self, line_coding: bool, line_state: bool) {
+        match self.state.get() {
+            State::Enumerated => {
+                self.state.set(State::Connecting {
+                    line_coding: line_coding,
+                    line_state: line_state,
+                });
+            }
+            State::Connecting {
+                line_coding: old_lc,
+                line_state: old_ls,
+            } => {
+                self.state.set(State::Connecting {
+                    line_coding: if line_coding { true } else { old_lc },
+                    line_state: if line_state { true } else { old_ls },
+                });
+            }
+            _ => {}
+        }
+    }
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
@@ -394,7 +428,13 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // D1: Carrier control for half duplex modems.
                     //     - 0 -> Deactivate carrier
                     //     - 1 -> Activate carrier
-                    // Currently we don't care about the value
+                    //
+                    // Currently we don't care about the value, just that this
+                    // event has occurred. If it has happened, update the flag
+                    // in `State::Connecting`.
+                    self.set_connecting_state(false, true);
+
+                    self.ctrl_state.set(CtrlState::SetControlLineState);
                 }
                 CDCCntrlMessage::SendBreak => {
                     // On Mac, we seem to get the SEND_BREAK to signal that a
@@ -416,29 +456,30 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
     /// Handle a Control Out transaction
     fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> hil::usb::CtrlOutResult {
         // Check what state our Ctrl endpoint is in.
-        if self.ctrl_state.get() == CtrlState::SetLineCoding {
-            // We got a Ctrl SET_LINE_CODING setup, now we are getting the data.
-            // We can parse the data we got.
-            descriptors::CdcAcmSetLineCodingData::get(&self.client_ctrl.ctrl_buffer.buf).map(
-                |line_coding| {
-                    // Check if we should switch our main state machine to
-                    // connecting meaning that the host is connecting to the virtual
-                    // serial port. We decide this based on if the host is
-                    // configuring the baud rate to what we expect.
-                    if self.state.get() == State::Enumerated && line_coding.baud_rate == 115200 {
-                        self.state.set(State::Connecting);
-                    }
+        match self.ctrl_state.get() {
+            CtrlState::SetLineCoding => {
+                // We got a Ctrl SET_LINE_CODING setup, now we are getting the data.
+                // We can parse the data we got.
+                descriptors::CdcAcmSetLineCodingData::get(&self.client_ctrl.ctrl_buffer.buf).map(
+                    |line_coding| {
+                        // If the device is configuring the baud rate to what we
+                        // expect, we continue with the connecting process.
+                        if line_coding.baud_rate == 115200 {
+                            self.set_connecting_state(true, false);
+                        }
 
-                    // Check if the baud rate we got matches the special flag
-                    // value (1200 baud). If so, we run an optional function
-                    // provided when the CDC stack was configured.
-                    if line_coding.baud_rate == 1200 {
-                        self.host_initiated_function.map(|f| {
-                            f();
-                        });
-                    }
-                },
-            );
+                        // Check if the baud rate we got matches the special flag
+                        // value (1200 baud). If so, we run an optional function
+                        // provided when the CDC stack was configured.
+                        if line_coding.baud_rate == 1200 {
+                            self.host_initiated_function.map(|f| {
+                                f();
+                            });
+                        }
+                    },
+                );
+            }
+            _ => {}
         }
 
         self.client_ctrl.ctrl_out(endpoint, packet_bytes)
@@ -453,12 +494,23 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
         self.ctrl_state.set(CtrlState::Idle);
 
         // Here we check to see if we just got connected to a CDC client. If so,
-        // we can begin transmitting if needed.
-        if self.state.get() == State::Connecting {
-            self.state.set(State::Connected);
-            if self.tx_buffer.is_some() {
-                self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+        // we do a delay before transmitting if needed.
+        match self.state.get() {
+            State::Connecting {
+                line_coding,
+                line_state,
+            } => {
+                if line_coding && line_state {
+                    self.state.set(State::ConnectingDelay);
+
+                    // Wait a 100 ms before sending data.
+                    self.timeout_alarm.set_alarm(
+                        self.timeout_alarm.now(),
+                        self.timeout_alarm.ticks_from_ms(100),
+                    );
+                }
             }
+            _ => {}
         }
 
         self.client_ctrl.ctrl_status_complete(endpoint)
@@ -711,9 +763,18 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> AlarmClient for CdcAcm<'a, U, A> {
     fn alarm(&self) {
         self.boot_period.set(false);
-        if self.state.get() == State::Connected {
-            // we are already connected, so any queued messages are going to be sent.
-            // do nothing.
+
+        // This alarm is used in two cases. The main is when we first start to
+        // delay outgoing messages until a host has a chance to connect. The
+        // second is to delay after a host does connect to help ensure messages
+        // actually get printed. If this timer goes off, then either no host
+        // connected, and we want to start dropping messages, or something did
+        // connect and we just executed the delay.
+        if self.state.get() == State::ConnectingDelay {
+            self.state.set(State::Connected);
+            if self.tx_buffer.is_some() {
+                self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
+            }
         } else {
             // no client has connected, but we do not want to block indefinitely, so go ahead
             // and deliver a callback.
