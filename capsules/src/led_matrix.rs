@@ -310,7 +310,7 @@ pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
 impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
     pub fn new(matrix: &'a LedMatrixDriver<'a, L, A>, col: usize, row: usize) -> Self {
         if col >= matrix.cols_len() || row >= matrix.rows_len() {
-            panic!("LET at position ({}, {}) does not exist", col, row);
+            panic!("LED at position ({}, {}) does not exist", col, row);
         }
         LedMatrixLed { matrix, col, row }
     }
