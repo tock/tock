@@ -11,14 +11,14 @@ gives code examples.
 
 - [Overview](#overview)
 - [Tock 2.0 System Call API](#tock-20-system-call-api)
-  * [`Driver`](#driver)
+  * [`SyscallDriver`](#syscalldriver)
 - [Porting Capsules and Example Code](#porting-capsules-and-example-code)
   * [Examples of command and `CommandResult`](#examples-of-command-and-commandresult)
     + [ReturnCode versus ErrorCode](#returncode-versus-errorcode)
   * [Examples of `allow_readwrite` and `allow_readonly`](#examples-of-allow_readwrite-and-allow_readonly)
   * [The new subscription mechanism](#the-new-subscription-mechanism)
-  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`](#using-readonlyappslice-and-readwriteappslice-console)
-  * [Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`](#using-readonlyappslice-and-readwriteappslice-spi_controller)
+  * [Using `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`: `console`](#using-readonlyprocessbuffer-and-readwriteprocessbuffer-console)
+  * [Using `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`: `spi_controller`](#using-readonlyprocessbuffer-and-readwriteprocessbuffer-spi_controller)
 
 <!-- tocstop -->
 
@@ -37,31 +37,31 @@ The Tock system call API is implemented in the `Driver` trait. Tock
 2.0 updates this trait to be more precise and correctly support Rust's
 memory semantics.
 
-### `Driver`
+### `SyscallDriver`
 
 This is the signature for the 2.0 `Driver` trait:
 
 ```rust
-pub trait Driver {
-    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: AppId) -> CommandResult {
+pub trait SyscallDriver {
+    fn command(&self, which: usize, r2: usize, r3: usize, caller_id: ProcessId) -> CommandResult {
         CommandResult::failure(ErrorCode::NOSUPPORT)
     }
 
     fn allow_readwrite(
         &self,
-        app: AppId,
-        which: usize,
-        slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
+        process_id: ProcessId,
+        allow_num: usize,
+        buffer: ReadWriteProcessBuffer,
+    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 
     fn allow_readonly(
         &self,
-        app: AppId,
-        which: usize,
-        slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        process_id: ProcessId,
+        allow_num: usize,
+        buffer: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 
@@ -123,7 +123,7 @@ The LED capsule implements only commands, so it provides a very simple
 example of what commands look like.
 
 ```rust
- fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> CommandResult {
+ fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandResult {
         self.leds
             .map(|leds| {
                 match command_num {
@@ -154,7 +154,7 @@ Here is a slightly more complex implementation of `command`, from the
 `console` capsule.
 
 ```rust
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> CommandResult{
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandResult{
         let res = match cmd_num {
             0 => Ok(Ok(())),
             1 => { // putstr
@@ -229,31 +229,31 @@ but may be deprecated in time.
 
 ### Examples of `allow_readwrite` and `allow_readonly`
 
-Because `ReadWriteAppSlice` and `ReadOnlyAppSlice` represent access to
+Because `ReadWriteProcessBuffer` and `ReadOnlyProcessBuffer` represent access to
 userspace memory, the kernel tightly constrains how these objects
 are constructed and passed. They do not implement `Copy` or `Clone`,
 so only one instance of these objects exists in the kernel at any
 time.
 
-Note that `console` has one `ReadOnlyAppSlice` for printing/`putnstr`
-and one `ReadWriteAppSlice` for reading/`getnstr`.  Here is a
+Note that `console` has one `ReadOnlyProcessBuffer` for printing/`putnstr`
+and one `ReadWriteProcessBuffer` for reading/`getnstr`.  Here is a
 sample implementation of `allow_readwrite` for the `console` capsule:
 
 ```rust
 pub struct App {
-    write_buffer: ReadOnlyAppSlice,
+    write_buffer: ReadOnlyProcessBuffer,
 ...
 	fn allow_readonly(
         &self,
-        appid: AppId,
+        process_id: ProcessId,
         allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
+        mut buffer: ReadOnlyProcessBuffer,
+    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.write_buffer, &mut slice);
+                .enter(appid, |process_id, _| {
+                    mem::swap(&mut process_id.write_buffer, &mut buffer);
                 })
                 .map_err(ErrorCode::from),
             _ => Err(ErrorCode::NOSUPPORT),
@@ -269,7 +269,7 @@ pub struct App {
 
 
 The implementation is quite simple: if there is a valid grant region, the
-method swaps the passed `ReadOnlyAppSlice` and the one in the `App` region,
+method swaps the passed `ReadOnlyProcessBuffer` and the one in the `App` region,
 returning the one that was in the app region. It then returns `slice`,
 which is either the passed slice or the swapped out one.
 
@@ -321,23 +321,23 @@ the subscribe syscall.
 
 
 
-### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `console`
+### Using `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`: `console`
 
 One key change in the Tock 2.0 API is explicitly acknowledging that
 application slices may disappear at any time. For example, if a process
 passes a slice into the kernel, it can later swap it out with a later
 allow call. Similarly, application grants may disappear at any time.
 
-This means that `ReadWriteAppSlice` and `ReadOnlyAppSlice` now
+This means that `ReadWriteProcessBuffer` and `ReadOnlyProcessBuffer` now
 do not allow you to obtain their pointers and lengths. Instead,
 they provide a `map_or` method. This is how `console` uses this,
 for example, to copy process data into its write buffer and
 call the underlying `transmit_buffer`:
 
 ```rust
-  fn send(&self, app_id: AppId, app: &mut App) {
+  fn send(&self, process_id: ProcessId, app: &mut App) {
         if self.tx_in_progress.is_none() {
-            self.tx_in_progress.set(app_id);
+            self.tx_in_progress.set(process_id);
             self.tx_buffer.take().map(|buffer| {
                 let len = app.write_buffer.map_or(0, |data| data.len());
                 if app.write_remaining > len {
@@ -371,7 +371,7 @@ Note that the implementation looks at the length of the slice: it doesn't copy
 it out into grant state. If a slice was suddenly truncated, it checks and
 adjust the amount it has written.
 
-### Using `ReadOnlyAppSlice` and `ReadWriteAppSlice`: `spi_controller`
+### Using `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`: `spi_controller`
 
 This is a second example, taken from `spi_controller`. Because SPI transfers
 are bidirectional, there is an RX buffer and a TX buffer. However, a client
