@@ -315,29 +315,35 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> SyscallDriver
         if target_id == 0 {
             Err((buffer, ErrorCode::NOSUPPORT))
         } else {
-            match self.data.enter(appid, |data, _upcalls| {
-                // Lookup the index of the app based on the passed in
-                // identifier. This also let's us check that the other app is
-                // actually valid.
-                let app_identifier = target_id - 1;
-                let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
-                if let Some(oa) = otherapp {
-                    if let Some(i) = oa.index() {
-                        if let Some(smem) = data.shared_memory.get_mut(i) {
-                            core::mem::swap(smem, &mut buffer);
-                            Ok(())
+            // due to MPU restrictions, the buffer length should be either 0 (unallow)
+            // or a power of two
+            if buffer.len() == 0 || ((buffer.len() & (buffer.len() - 1)) == 0) {
+                match self.data.enter(appid, |data, _upcalls| {
+                    // Lookup the index of the app based on the passed in
+                    // identifier. This also let's us check that the other app is
+                    // actually valid.
+                    let app_identifier = target_id - 1;
+                    let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
+                    if let Some(oa) = otherapp {
+                        if let Some(i) = oa.index() {
+                            if let Some(smem) = data.shared_memory.get_mut(i) {
+                                core::mem::swap(smem, &mut buffer);
+                                Ok(())
+                            } else {
+                                Err(ErrorCode::INVAL)
+                            }
                         } else {
                             Err(ErrorCode::INVAL)
                         }
                     } else {
-                        Err(ErrorCode::INVAL)
+                        Err(ErrorCode::BUSY)
                     }
-                } else {
-                    Err(ErrorCode::BUSY)
+                }) {
+                    Ok(_) => Ok(buffer),
+                    Err(e) => Err((buffer, e.into())),
                 }
-            }) {
-                Ok(_) => Ok(buffer),
-                Err(e) => Err((buffer, e.into())),
+            } else {
+                Err((buffer, ErrorCode::INVAL))
             }
         }
     }
