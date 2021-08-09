@@ -365,7 +365,7 @@ pub trait Bus<'a>: PeripheralDevice<'a> + ControllerBus<'a> {
 ```
 
 If software invokes a `Peripheral` operation while the bus is in controller mode,
-the method MUST return OFF. If software invokes a Controller operation while the
+the method MUST return OFF. If software invokes a `Controller` operation while the
 bus is in peripheral mode, the method MUST return off. Changing the controller
 chip select while the device is in peripheral mode changes the chip select configuration
 of the controller but MUST NOT have an effect on peripheral mode.
