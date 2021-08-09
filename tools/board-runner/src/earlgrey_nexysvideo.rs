@@ -431,6 +431,7 @@ pub fn all_earlgrey_nexysvideo_tests() {
     println!("Tock board-runner starting...");
     println!();
     println!("Running earlgrey_nexysvideo tests...");
+
     earlgrey_nexysvideo_c_hello()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_c_hello job failed with {}", e));
     earlgrey_nexysvideo_blink()
@@ -462,40 +463,20 @@ pub fn all_earlgrey_nexysvideo_tests() {
     earlgrey_nexysvideo_console_timeout()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_console_timeout job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_malloc_test1()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_malloc_test1 job failed with {}", e));
+    earlgrey_nexysvideo_malloc_test1()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_malloc_test1 job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test1()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test1 job failed with {}", e));
+    earlgrey_nexysvideo_stack_size_test1()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test1 job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test2()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test2 job failed with {}", e));
+    earlgrey_nexysvideo_stack_size_test2()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test2 job failed with {}", e));
 
     earlgrey_nexysvideo_mpu_stack_growth()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_stack_growth job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
     // earlgrey_nexysvideo_mpu_walk_region()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_walk_region job failed with {}", e));
+    //     .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_walk_region job failed with {}", e));
 
     earlgrey_nexysvideo_multi_alarm_test()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_multi_alarm_test job failed with {}", e));
