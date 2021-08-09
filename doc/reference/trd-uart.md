@@ -37,7 +37,7 @@ main traits:
   * `kernel::hil::uart::Receive`: is for receiving data.
   * `kernel::hil::time::ReceiveClient`: handles a callback when data is received.
 
-There are also a collection of traits that combine these into more
+There are also collections of traits that combine these into more
 complete abstractions. For example, the `Uart` trait represents a
 complete UART, extending `Transmit`, `Receive`, and `Configure`.
 
@@ -146,7 +146,8 @@ requested rate is well outside the operating speed of the UART (e.g., 4MHz).
 3 `Transmit` and `TransmitClient`
 ===============================
 
-The `Transmit` and `TransmitClient` traits 
+The `Transmit` and `TransmitClient` traits allow a client to transmit
+bytes over the UART.
 
 ```rust
 pub trait Transmit<'a> {
@@ -180,103 +181,98 @@ method. Most software implementations use DMA, such that a call to `transmit_buf
 a single interrupt when the transfer completes; this saves energy and CPU cycles over per-byte
 transfers and also improves transfer speeds because hardware can keep the UART busy.
 
+Each byte transmitted is a data word for the UART. If the UART is using 8-bit data words,
+each data word is a byte. If the UART is using smaller data words,
+it MUST ignore the high order bits of the data values. For example, if the UART is using
+6-bit data words and is told to transmit `0xff`, it will transmit `0x3f`, ignoring the first
+two bits. If a client needs to transmit data words larger than 8 bits, it should use `transmit_word`,
+as `transmit_buffer` is a buffer of 8-bit bytes and cannot store 9-bit values.
 
-    /// A call to `Transmit::transmit_word` completed. The `Result<(), ErrorCode>`
-    /// indicates whether the word was successfully transmitted. A call
-    /// to `transmit_word` or `transmit_buffer` made within this callback
-    /// SHOULD NOT return BUSY: when this callback is made the UART should
-    /// be ready to receive another call.
-    ///
-    /// `rval` is Ok(()) if the word was successfully transmitted, or
-    ///   - CANCEL if the call to `transmit_word` was cancelled and
-    ///     the word was not transmitted.
-    ///   - FAIL if the transmission failed in some way.
-	
-    /// A call to `Transmit::transmit_buffer` completed. The `Result<(), ErrorCode>`
-    /// indicates whether the buffer was successfully transmitted. A call
-    /// to `transmit_word` or `transmit_buffer` made within this callback
-    /// SHOULD NOT return BUSY: when this callback is made the UART should
-    /// be ready to receive another call.
-    ///
-    /// The `tx_len` argument specifies how many words were transmitted.
-    /// An `rval` of Ok(()) indicates that every requested word was
-    /// transmitted: `tx_len` in the callback should be the same as
-    /// `tx_len` in the initiating call.
-    ///
-    /// `rval` is Ok(()) if the full buffer was successfully transmitted, or
-    ///   - CANCEL if the call to `transmit_buffer` was cancelled and
-    ///     the buffer was not fully transmitted. `tx_len` contains
-    ///     how many words were transmitted.
-    ///   - SIZE if the buffer could only be partially transmitted. `tx_len`
-    ///     contains how many words were transmitted.
-    ///   - FAIL if the transmission failed in some way.
+3.1 `transmit_buffer` and `transmitted_buffer`
+===============================
 
+`Transmit::transmit_buffer` sends a buffer of data. The result returned by `transmit_buffer` 
+indicates whether there will be a callback in the future. If `transmit_buffer` returns `Ok(())`,
+implementation MUST call the `TransmitClient::transmitted_buffer` callback in the future 
+when the transmission completes or fails. If `transmit_buffer` returns `Err` it MUST NOT 
+issue a callback in the future in response to this call. If the error is `BUSY`, this is because
+there is an outstanding call to `transmit_buffer` or `transmit_word`: the implementation
+handles these calls normally and issues a callback for them. However, it does not issue a callback
+for the call to `transmit_buffer` that returned `Err`.
 
+The valid error codes for `transmit_buffer` are:
+  - OFF: the underlying hardware is not available, perhaps because it has
+    not been initialized or has been initialized into a different mode
+    (e.g., a USART has been configured to be a SPI).
+  - BUSY: the UART is already transmitting and has not made a transmission
+    callback yet.
+  - SIZE: `tx_len` is larger than the passed slice.
+  - FAIL: some other failure.
 
-    /// Transmit a buffer of data. On completion, `transmitted_buffer`
-    /// in the `TransmitClient` will be called.  If the `Result<(), ErrorCode>`
-    /// returned by `transmit` is an `Ok(())`, the struct will issue a `transmitted_buffer`
-    /// callback in the future. If the value of the `Result<(), ErrorCode>` is
-    /// `Err(), then the `tx_buffer` argument is returned in the
-    /// `Err()`, along with the `ErrorCode`.
-    ///  Valid `ErrorCode` values are:
-    ///  - OFF: The underlying hardware is not available, perhaps because
-    ///          it has not been initialized or in the case of a shared
-    ///          hardware USART controller because it is set up for SPI.
-    ///  - BUSY: the UART is already transmitting and has not made a
-    ///           transmission callback yet.
-    ///  - SIZE : `tx_len` is larger than the passed slice.
-    ///  - FAIL: some other error.
-    ///
-    /// Each byte in `tx_buffer` is a UART transfer word of 8 or fewer
-    /// bits.  The word width is determined by the UART configuration,
-    /// truncating any more significant bits. E.g., 0x18f transmitted in
-    /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
-    /// that need to transfer 9-bit words should use `transmit_word`.
-    ///
-    /// Calling `transmit_buffer` while there is an outstanding
-    /// `transmit_buffer` or `transmit_word` operation will return BUSY.
+Calling `transmit_buffer` while there is an outstanding transmit_buffer` or `transmit_word` 
+operation MUST BUSY.
 
-    /// Transmit a single word of data asynchronously. The word length is
-    /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
-    /// If the `Result<(), ErrorCode>` is Ok(()), on completion,
-    /// `transmitted_word` will be called on the `TransmitClient`.
-    /// Other valid `Result<(), ErrorCode>` values are:
-    ///  - OFF: The underlying hardware is not available, perhaps because
-    ///          it has not been initialized or in the case of a shared
-    ///          hardware USART controller because it is set up for SPI.
-    ///  - BUSY: the UART is already transmitting and has not made a
-    ///           transmission callback yet.
-    ///  - FAIL: not supported, or some other error.
-    /// If the `Result<(), ErrorCode>` is not Ok(()), no callback will be made.
-    /// Calling `transmit_word` while there is an outstanding
-    /// `transmit_buffer` or `transmit_word` operation will return
-    /// BUSY.
-	
-	    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
-    /// The return code indicates whether the call has fully terminated or
-    /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
-    /// always make a callback, to return the passed buffer back to the caller.
-    ///
-    /// If abort_transmit returns Ok(()), there will be no future
-    /// callback and the client may retransmit immediately. If
-    /// abort_transmit returns any other `Result<(), ErrorCode>` there will be a
-    /// callback. This means that if there is no outstanding call to
-    /// `transmit_word` or `transmit_buffer` then a call to
-    /// `abort_transmit` returns Ok(()). If there was a `transmit`
-    /// outstanding and is cancelled successfully then `BUSY` will
-    /// be returned and there will be a callback with a `Result<(), ErrorCode>`
-    /// of `CANCEL`. If there was a reception outstanding, which is
-    /// not cancelled successfully, then `FAIL` will be returned and
-    /// there will be a later callback.
-    ///
-    /// Returns Ok(()) or
-    ///  - FAIL if the outstanding call to either transmit operation could
-    ///    not be synchronously cancelled. A callback will be made on the
-    ///    client indicating whether the call was successfully cancelled.
+The `TransmitClient::transmitted_buffer` callback indicates completion of a buffer transmission.
+The `Result` indicates whether the buffer was successsfully transmitted. 
+The `tx_len` argument specifies how many data words (defined by `Configure`) were
+transmitted. If the `rval` of `transmitted_buffer` is `Ok(())`, `tx_len` MUST be
+equal to the size of the transmission started by `transmit_buffer`, defined above.
+A call to `transmit_word` or `transmit_buffer` made within this callback MUST NOT return BUSY
+unless it is because this is not the first call to one of these methods in the callback. 
+When this callback is made, the UART MUST be ready to receive another call. The valid `ErrorCode`
+values for `transmitted_buffer` are all of those returned by `transmit_buffer` plus:
+  - `CANCEL` if the call to `transmit_buffer` was cancelled by a call to `abort` and
+  the entire buffer was not transmitted.
+  - `SIZE` if the buffer could only be partially transmitted. 
 
+3.2 `transmit_word` and `transmitted_word``
+===============================
 
+The `transmit_word` method transmits a single data word of data asynchronously.
+The word length is determined by the UART configuration.  If `transmit_word`
+returns `Ok(())`, the implementation MUST call the `transmitted_word` 
+callback in the future. If a call to `transmit_word` returns `Err`, the
+implementation MUST NOT issue a callback for this call, although if
+the it is `Err(BUSY)` is will issue a callback for the oustanding
+operation. Valid `ErrorCode` results for `transmit_word` are:
+  - OFF: The underlying hardware is not available, perhaps because
+    it has not been initialized or in the case of a shared
+    hardware USART controller because it is set up for SPI.
+ - BUSY: the UART is already transmitting and has not made a
+   transmission callback yet.
+ - FAIL: not supported, or some other error.
 
+The `TransmitClient::transmitted_word` method indicates that a single word transmission completed.
+The `Result` indicates whether the word was successsfully transmitted. A call to
+`transmit_word` or `transmit_buffer` made within this callback MUST NOT return BUSY
+unless it is because this is not the first call to one of these methods in the callback. 
+When this callback is made, the UART MUST be ready to receive another call. The valid `ErrorCode`
+values for `transmitted_word` are all of those returned by `transmit_word` plus:
+  - `CANCEL` if the call to `transmit_word` was cancelled by a call to `abort` and
+  the word was not transmitted.
+
+3.3 `abort`
+===============================
+
+The `abort_transmit` method allows a UART implementation to terminate an outstanding
+call to `transmit_word` or `transmit_buffer` early. The result of
+`abort_transmit` indicates whether the abort was successful. Cancelled
+calls to `transmit_buffer` MUST always make a callback, to return the transmit
+buffer to the caller. Cancelled calls to `transmit_word` MAY issue a callback.
+
+If `abort_transmit` returns `Ok(())`, there will be no future callback and the
+client may immediately call `transmit_buffer` or `transmit_word`. If
+`abort_transmit` returns `Err`, there will be a callback. If there is no
+outstanding call to `transmit_word` or `transmit_buffer`, `abort_transmit`
+MUST return `Ok(())`.
+
+The valid `ErrorCode` results for `abort_transmit` are:
+   - BUSY: there was an oustanding operation, which has been cancelled.
+   A callback will be made for that operation with an `ErrorCode` of
+   `CANCEL`.
+   - FAIL: there was an outstanding operation, which will not be cancelled.
+   A callback will be made for that operation with a result other than
+   `Err(CANCEL)`.
 
 4 `Alarm` and `AlarmClient` traits
 ===============================
