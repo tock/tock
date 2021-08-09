@@ -45,10 +45,14 @@ traits:
   * `kernel::hil::spi::Controller`: allows a client for a SPI in controller mode to send and receive data.
   * `kernel::hil::spi::ControllerDevice`: combines `Configure` and `Controller` to provide an abstraction of a SPI bus in controller mode for a client that is bound to a specific chip select (e.g., a sensor driver). It allows a client to send and receive data as well as configure the bus for (only) its own operations.
   * `kernel::hil::spi::ChipSelect`: allows a client to change which chip select is active on a SPI bus in controller mode.
-  * `kernel::hil::spi::ControllerBus`: combines `ControllerDevice` and `ChipSelect` to allow a client to issue SPI operations on any chip select. It also supports initializing the bus hardware. This trait is intended to be implemented by a chip peripheral implementation.
+  * `kernel::hil::spi::ControllerBus`: combines `ControllerDevice` and `ChipSelect` to allow a client to issue SPI operations on any chip select. It also supports initializing the bus hardware. This trait is intended to be implemented by a chip implementation.
   * `kernel::hil::spi::PeripheralDevice`: extends `Configure` and provides an abstraction of a SPI bus in peripheral mode. It allows a client to learn when it is selected, to send and receive data, and  configure the bus for its own operations.
   * `kernel::hil::spi::PeripheralBus`: extends `PeripheralDevice` to support initializing the bus hardware. This trait is intended to be implemented by a chip peripheral implementation.
+  * `kernel::hil::spi::Bus`: represents a SPI bus that can be dynamically changed between controller and peripheral modes. This trait is intended to be implemented by a chip implementation.
 
+A given board MUST NOT include an implementation of more than one of the 
+`ControllerBus`, `PeripheralBus`, and `Bus` traits for a given SPI bus. these
+traits are mutually exclusive.
 
 This document describes these traits and their semantics.
 
@@ -115,6 +119,8 @@ The relationship of phase and polarity follows the standard SPI specification[1]
 |  IdleHigh  |  SampleTrailing  |     High    |  Falling Edge  |  Falling Edge  |
 +------------+------------------+-------------+----------------+----------------+
 
+If the SPI bus is in the middle an outstanding operation (`Controller::read_write_bytes`
+or `Peripheral::read_write_bytes`), calls to `Configure` to set values MUST return BUSY.
 
 3 `Controller`, `ControllerDevice`, and `ControllerClient` traits
 ===============================
@@ -336,16 +342,46 @@ The `Err` result of `init` can return the following `ErrorCode` values:
   - OFF: not currently powered so can't be initialized.
   - FAIL: other failure condition.
 
+7 `Bus` trait
+===============================
 
-7 Capsules
+The `ControllerBus` and `PeripheralBus` traits are intended for use cases when
+a given SPI block is always used as either or a controller or always used as a
+peripheral. Some systems, however, require the bus to change between these roles.
+For example, a board might export the bus over an expansion header, and whether it
+behaves as a peripheral or controller depends on what it's plugged into and which
+userspace processes run.
+
+The `Bus` trait allows software to dynamically change a SPI bus between controller
+and peripheral mode.
+
+```rust
+pub trait Bus<'a>: PeripheralDevice<'a> + ControllerBus<'a> {
+    fn make_controller(&self) -> Result<(), ErrorCode>;
+    fn make_peripheral(&self) -> Result<(), ErrorCode>;
+    fn is_controller(&self) -> bool;
+    fn is_peripheral(&self) -> bool;
+}
+```
+
+If software invokes a `Peripheral` operation while the bus is in controller mode,
+the method MUST return OFF. If software invokes a Controller operation while the
+bus is in peripheral mode, the method MUST return off. Changing the controller
+chip select while the device is in peripheral mode changes the chip select configuration
+of the controller but MUST NOT have an effect on peripheral mode.
+
+When a `Bus` first starts and is initialized, it MUST be in controller mode, as
+the `init()` method is part of the `ControllerBus` trait.
+
+8 Capsules
 ===============================
 
 This section describes the standard Tock capsules for SPI communication.
 
-8 Implementation Considerations
+9 Implementation Considerations
 ===============================
 
-9 Authors' Address
+10 Authors' Address
 =================================
 ```
 Philip Levis
