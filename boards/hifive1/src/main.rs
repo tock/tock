@@ -26,9 +26,6 @@ use rv32i::csr;
 
 pub mod io;
 
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 pub const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //

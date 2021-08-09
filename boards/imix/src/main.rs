@@ -69,9 +69,6 @@ mod power;
 mod alarm_test;
 
 #[allow(dead_code)]
-mod multi_alarm_test;
-
-#[allow(dead_code)]
 mod multi_timer_test;
 
 // State for loading apps.
@@ -694,7 +691,9 @@ pub unsafe fn main() {
     );*/
     //virtual_alarm_timer.set_alarm_client(mux_timer);
 
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(sam4l::ast::Ast))
+    .run();*/
 
     debug!("Initialization complete. Entering main loop");
 

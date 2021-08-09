@@ -29,8 +29,6 @@ pub mod io;
 
 // Unit Tests for drivers.
 #[allow(dead_code)]
-mod multi_alarm_test;
-#[allow(dead_code)]
 mod virtual_uart_rx_test;
 
 // Number of concurrent processes this platform supports.
@@ -846,7 +844,9 @@ pub unsafe fn main() {
     peripherals.watchdog.enable();
 
     //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(stm32f303xc::tim2::Tim2))
+    .run();*/
     board_kernel.kernel_loop(
         &stm32f3discovery,
         chip,
