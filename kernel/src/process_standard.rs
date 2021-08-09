@@ -1135,9 +1135,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
              \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
              \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
              \r\n             │ Grant Ptrs   {:6}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ Upcalls      {:6}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ Process      {:6}\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ ▼ Grant      {:6} | {:6}{}\
@@ -1146,9 +1144,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
              \r\n  {:#010X} ┼───────────────────────────────────────────",
             sram_end,
             sram_grant_pointers_size,
-            sram_grant_pointers_start,
             sram_upcall_list_size,
-            sram_upcall_list_start,
             sram_process_struct_size,
             process_struct_memory_location,
             sram_grant_size,
