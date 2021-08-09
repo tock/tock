@@ -321,7 +321,7 @@ impl<A: Alarm<'static>> LogTest<A> {
                     if self.read_val.get() == self.write_val.get() {
                         assert_eq!(error, ErrorCode::FAIL);
                     } else {
-                        assert_eq!(error, ErrorCode::SIZE);
+                        assert_eq!(error, ErrorCode::FAIL);
                     }
                 }
             })
