@@ -219,7 +219,7 @@ fn earlgrey_nexysvideo_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/buttons/build/rv32imc/rv32imc.0x20033080.0x1000B000.tbf"
+            "examples/buttons/build/rv32imc/rv32imc.0x20034080.0x1000B000.tbf"
         ))
         .stdout(app)
         .spawn()
