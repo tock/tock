@@ -204,9 +204,9 @@ pub trait SyscallDriver {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        slice: ReadWriteProcessBuffer,
+        buffer: ReadWriteProcessBuffer,
     ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        Err((slice, ErrorCode::NOSUPPORT))
+        Err((buffer, ErrorCode::NOSUPPORT))
     }
 
     /// System call for a process to pass a read-only buffer (a
@@ -219,9 +219,9 @@ pub trait SyscallDriver {
         &self,
         process_id: ProcessId,
         allow_num: usize,
-        slice: ReadOnlyProcessBuffer,
+        buffer: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        Err((slice, ErrorCode::NOSUPPORT))
+        Err((buffer, ErrorCode::NOSUPPORT))
     }
 
     /// Request to allocate a capsule's grant for a specific process.
