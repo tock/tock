@@ -17,22 +17,20 @@ protection units to isolate applications from each other and the kernel.
 
 [tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
-Tock 2.0: Breaking Changes!
----------------------------
+Tock 2.0!
+---------
 
-Note! Tock is currently switching from version 1.6 to 2.0 which includes
-breaking changes in the syscall interface. This means applications (for example
-from libtock-c) need to match the updated syscall interface. If the application
-does not match the kernel interface the app will likely fault very quickly.
+Tock is now on its second major release! Here are some 2.0 highlights, and see
+the [release notes](https://github.com/tock/tock/releases/tag/release-2.0) for
+more detail.
 
-The following combinations between kernel and userspace should work:
-- Tock on master, with libtock-c on master.
-- Tock on release v1.6, libtock-c on v1.6.
-- Tock on release v1.6, libtock-rs on master.
+- Revamped system call interface.
+- other
 
-Note, libtock-rs does not currently support Tock 2.0, but will before 2.0 is released.
-
-Tock will continue to make this easier as we work towards the 2.0 release.
+As 2.0 includes many breaking changes, to use the new kernel you will need to
+ensure you have updated versions of userspace apps and the various Tock tools.
+We recommend if you are using git that you do a `git pull`, and if you are using
+tagged releases be sure to update to the 2.0 release.
 
 
 Learn More
