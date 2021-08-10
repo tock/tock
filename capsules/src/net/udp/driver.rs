@@ -358,10 +358,10 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             _ => Err(ErrorCode::NOSUPPORT),
         };
 
-        if let Err(e) = res {
-            Err((slice, e))
-        } else {
-            Ok(slice)
+        match res {
+            Err(e) => Err((slice, e)),
+            Ok(Err(e)) => Err((slice, e)),
+            Ok(Ok(())) => Ok(slice),
         }
     }
 
