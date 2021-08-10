@@ -342,15 +342,15 @@ impl<'a> RPPins<'a> {
             for pin in 0..8 {
                 let l_low_reg_no = pin * 4;
                 if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 1)) != 0 {
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 2)) != 0 {
                     self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 2));
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 3)) != 0 {
                     self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 3));
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 }
             }
         }
