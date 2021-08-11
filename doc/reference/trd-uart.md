@@ -30,12 +30,16 @@ between the two sides can cause bits to be read incorrectly.
 The UART HIL is in the kernel crate, in module `hil::uart`. It provides five
 main traits:
 
-  * `kernel::hil::uart::Configuration`: allows a client to query how a UART is configured.
-  * `kernel::hil::uart::Configure`: allows a client to configure a UART, setting its speed, data width, parity, and stop bit configuration.
+  * `kernel::hil::uart::Configuration`: allows a client to query how a 
+  UART is configured.
+  * `kernel::hil::uart::Configure`: allows a client to configure a UART, 
+  setting its speed, data width, parity, and stop bit configuration.
   * `kernel::hil::uart::Transmit`: is for transmitting data.
-  * `kernel::hil::uart::TransmitClient`: is for handling callbacks indicating a data transmission is complete.
+  * `kernel::hil::uart::TransmitClient`: is for handling callbacks 
+  when a data transmission is complete.
   * `kernel::hil::uart::Receive`: is for receiving data.
-  * `kernel::hil::time::ReceiveClient`: handles a callback when data is received.
+  * `kernel::hil::time::ReceiveClient`: handles callbacks when data is 
+  received.
 
 There are also collections of traits that combine these into more
 complete abstractions. For example, the `Uart` trait represents a
@@ -174,103 +178,131 @@ pub trait TransmitClient {
 }
 ```
 
-The `Transmit` trait has two data paths: `transmit_word` and `transmit_buffer`.
-The `transmit_word` method is used in narrow use cases where the cost and complexity
-of buffer management is not needed. Generally, software should use the `transmit_buffer`
-method. Most software implementations use DMA, such that a call to `transmit_buffer` triggers
-a single interrupt when the transfer completes; this saves energy and CPU cycles over per-byte
-transfers and also improves transfer speeds because hardware can keep the UART busy.
+The `Transmit` trait has two data paths: `transmit_word` and
+`transmit_buffer`.  The `transmit_word` method is used in narrow use
+cases where the cost and complexity of buffer management is not
+needed. Generally, software should use the `transmit_buffer`
+method. Most software implementations use DMA, such that a call to
+`transmit_buffer` triggers a single interrupt when the transfer
+completes; this saves energy and CPU cycles over per-byte transfers
+and also improves transfer speeds because hardware can keep the UART
+busy.
 
-Each byte transmitted is a data word for the UART. If the UART is using 8-bit data words,
-each data word is a byte. If the UART is using smaller data words,
-it MUST ignore the high order bits of the data values. For example, if the UART is using
-6-bit data words and is told to transmit `0xff`, it will transmit `0x3f`, ignoring the first
-two bits. If a client needs to transmit data words larger than 8 bits, it should use `transmit_word`,
-as `transmit_buffer` is a buffer of 8-bit bytes and cannot store 9-bit values.
+Each byte transmitted is a data word for the UART. If the UART is
+using 8-bit data words, each data word is a byte. If the UART is using
+smaller data words, it MUST ignore the high order bits of the data
+values. For example, if the UART is using 6-bit data words and is told
+to transmit `0xff`, it will transmit `0x3f`, ignoring the first two
+bits. If a client needs to transmit data words larger than 8 bits, it
+should use `transmit_word`, as `transmit_buffer` is a buffer of 8-bit
+bytes and cannot store 9-bit values.
+
+There can be a single transmit operation ongoing at any
+time. Successfully calling= either `transmit_buffer` or
+`transmit_word` causes the UART to become busy until it issues the
+callback corresponding to the oustanding operation.
 
 3.1 `transmit_buffer` and `transmitted_buffer`
 ===============================
 
-`Transmit::transmit_buffer` sends a buffer of data. The result returned by `transmit_buffer` 
-indicates whether there will be a callback in the future. If `transmit_buffer` returns `Ok(())`,
-implementation MUST call the `TransmitClient::transmitted_buffer` callback in the future 
-when the transmission completes or fails. If `transmit_buffer` returns `Err` it MUST NOT 
-issue a callback in the future in response to this call. If the error is `BUSY`, this is because
-there is an outstanding call to `transmit_buffer` or `transmit_word`: the implementation
-handles these calls normally and issues a callback for them. However, it does not issue a callback
-for the call to `transmit_buffer` that returned `Err`.
+`Transmit::transmit_buffer` sends a buffer of data. The result
+returned by `transmit_buffer` indicates whether there will be a
+callback in the future. If `transmit_buffer` returns `Ok(())`,
+implementation MUST call the `TransmitClient::transmitted_buffer`
+callback in the future when the transmission completes or fails. If
+`transmit_buffer` returns `Err` it MUST NOT issue a callback in the
+future in response to this call. If the error is `BUSY`, this is
+because there is an outstanding call to `transmit_buffer` or
+`transmit_word`: the implementation handles these calls normally and
+issues a callback for them. However, it does not issue a callback for
+the call to `transmit_buffer` that returned `Err`.
 
 The valid error codes for `transmit_buffer` are:
-  - OFF: the underlying hardware is not available, perhaps because it has
+  - `OFF`: the underlying hardware is not available, perhaps because it has
     not been initialized or has been initialized into a different mode
     (e.g., a USART has been configured to be a SPI).
-  - BUSY: the UART is already transmitting and has not made a transmission
+  - `BUSY`: the UART is already transmitting and has not made a transmission
     callback yet.
-  - SIZE: `tx_len` is larger than the passed slice.
-  - FAIL: some other failure.
+  - `SIZE`: `tx_len` is larger than the passed slice.
+  - `FAIL`: some other failure.
 
-Calling `transmit_buffer` while there is an outstanding transmit_buffer` or `transmit_word` 
-operation MUST BUSY.
+Calling `transmit_buffer` while there is an outstanding
+transmit_buffer` or `transmit_word` operation MUST return `Err(BUSY)`.
 
-The `TransmitClient::transmitted_buffer` callback indicates completion of a buffer transmission.
-The `Result` indicates whether the buffer was successsfully transmitted. 
-The `tx_len` argument specifies how many data words (defined by `Configure`) were
-transmitted. If the `rval` of `transmitted_buffer` is `Ok(())`, `tx_len` MUST be
-equal to the size of the transmission started by `transmit_buffer`, defined above.
-A call to `transmit_word` or `transmit_buffer` made within this callback MUST NOT return BUSY
-unless it is because this is not the first call to one of these methods in the callback. 
-When this callback is made, the UART MUST be ready to receive another call. The valid `ErrorCode`
-values for `transmitted_buffer` are all of those returned by `transmit_buffer` plus:
-  - `CANCEL` if the call to `transmit_buffer` was cancelled by a call to `abort` and
-  the entire buffer was not transmitted.
+The `TransmitClient::transmitted_buffer` callback indicates completion
+of a buffer transmission.  The `Result` indicates whether the buffer
+was successsfully transmitted.  The `tx_len` argument specifies how
+many data words (defined by `Configure`) were transmitted. If the
+`rval` of `transmitted_buffer` is `Ok(())`, `tx_len` MUST be equal to
+the size of the transmission started by `transmit_buffer`, defined
+above.  A call to `transmit_word` or `transmit_buffer` made within
+this callback MUST NOT return `Err(BUSY)` unless it is because this is
+not the first call to one of these methods in the callback.  When this
+callback is made, the UART MUST be ready to receive another call. The
+valid `ErrorCode` values for `transmitted_buffer` are all of those
+returned by `transmit_buffer` plus:
+  - `CANCEL` if the call to `transmit_buffer` was cancelled by a call
+  to `abort` and the entire buffer was not transmitted.
   - `SIZE` if the buffer could only be partially transmitted. 
 
 3.2 `transmit_word` and `transmitted_word``
 ===============================
 
-The `transmit_word` method transmits a single data word of data asynchronously.
-The word length is determined by the UART configuration.  If `transmit_word`
-returns `Ok(())`, the implementation MUST call the `transmitted_word` 
-callback in the future. If a call to `transmit_word` returns `Err`, the
-implementation MUST NOT issue a callback for this call, although if
-the it is `Err(BUSY)` is will issue a callback for the oustanding
-operation. Valid `ErrorCode` results for `transmit_word` are:
-  - OFF: The underlying hardware is not available, perhaps because
-    it has not been initialized or in the case of a shared
-    hardware USART controller because it is set up for SPI.
- - BUSY: the UART is already transmitting and has not made a
-   transmission callback yet.
- - FAIL: not supported, or some other error.
+The `transmit_word` method transmits a single data word of data
+asynchronously.  The word length is determined by the UART
+configuration.  A UART implementation MAY choose to not implement
+`transmit_word` and `transmitted_word`.  There is a default
+implementation of `transmitted_word` so clients that do not use
+`receive_word` do not have to implement a callback.
 
-The `TransmitClient::transmitted_word` method indicates that a single word transmission completed.
-The `Result` indicates whether the word was successsfully transmitted. A call to
-`transmit_word` or `transmit_buffer` made within this callback MUST NOT return BUSY
-unless it is because this is not the first call to one of these methods in the callback. 
-When this callback is made, the UART MUST be ready to receive another call. The valid `ErrorCode`
-values for `transmitted_word` are all of those returned by `transmit_word` plus:
-  - `CANCEL` if the call to `transmit_word` was cancelled by a call to `abort` and
-  the word was not transmitted.
+
+If `transmit_word` returns `Ok(())`, the implementation MUST call the
+`transmitted_word` callback in the future. If a call to
+`transmit_word` returns `Err`, the implementation MUST NOT issue a
+callback for this call, although if the it is `Err(BUSY)` is will
+issue a callback for the oustanding operation.  Valid `ErrorCode`
+results for `transmit_word` are:
+   - `OFF`: The underlying hardware is not available, perhaps because
+     it has not been initialized or in the case of a shared
+     hardware USART controller because it is set up for SPI.
+  - `BUSY`: the UART is already transmitting and has not made a
+    transmission callback yet.
+  - `NOSUPPORT`: the implementation does not support `transmit_word`
+  operations.
+  - `FAIL`: some other error.
+
+The `TransmitClient::transmitted_word` method indicates that a single
+word transmission completed.  The `Result` indicates whether the word
+was successsfully transmitted. A call to `transmit_word` or
+`transmit_buffer` made within this callback MUST NOT return BUSY
+unless it is because this is not the first call to one of these
+methods in the callback.  When this callback is made, the UART MUST be
+ready to receive another call. The valid `ErrorCode` values for
+`transmitted_word` are all of those returned by `transmit_word` plus:
+  - `CANCEL` if the call to `transmit_word` was cancelled by a call to 
+  `abort` and the word was not transmitted.
 
 3.3 `abort`
 ===============================
 
-The `abort_transmit` method allows a UART implementation to terminate an outstanding
-call to `transmit_word` or `transmit_buffer` early. The result of
-`abort_transmit` indicates whether the abort was successful. Cancelled
-calls to `transmit_buffer` MUST always make a callback, to return the transmit
-buffer to the caller. Cancelled calls to `transmit_word` MAY issue a callback.
+The `abort_transmit` method allows a UART implementation to terminate
+an outstanding call to `transmit_word` or `transmit_buffer` early. The
+result of `abort_transmit` indicates whether the abort was
+successful. Cancelled calls to `transmit_buffer` MUST always make a
+callback, to return the transmit buffer to the caller. Cancelled calls
+to `transmit_word` MAY issue a callback.
 
-If `abort_transmit` returns `Ok(())`, there will be no future callback and the
-client may immediately call `transmit_buffer` or `transmit_word`. If
-`abort_transmit` returns `Err`, there will be a callback. If there is no
-outstanding call to `transmit_word` or `transmit_buffer`, `abort_transmit`
-MUST return `Ok(())`.
+If `abort_transmit` returns `Ok(())`, there will be no future callback
+and the client may immediately call `transmit_buffer` or
+`transmit_word`. If `abort_transmit` returns `Err`, there will be a
+callback. If there is no outstanding call to `transmit_word` or
+`transmit_buffer`, `abort_transmit` MUST return `Ok(())`.
 
 The valid `ErrorCode` results for `abort_transmit` are:
-   - BUSY: there was an oustanding operation, which has been cancelled.
+   - `BUSY`: there was an oustanding operation, which has been cancelled.
    A callback will be made for that operation with an `ErrorCode` of
    `CANCEL`.
-   - FAIL: there was an outstanding operation, which will not be cancelled.
+   - `FAIL`: there was an outstanding operation, which will not be cancelled.
    A callback will be made for that operation with a result other than
    `Err(CANCEL)`.
 
@@ -284,12 +316,28 @@ interrupt for many data words. However, buffer-based reception only supports
 data words of 6, 7, and 8 bits, so clients using 9-bit words need to use
 word operations.
 
-Each byte received is a data word for the UART. If the UART is using 8-bit data words,
-each data word is a byte. If the UART is using smaller data words,
-it MUST zero the high order bits of the data values. For example, if the UART is using
-6-bit data words and receives `0x1f`, it must store `0x1f` in a byte and not set
-high order bits.  If the UART is using 9-bit words and receives `0x1ea`, it stores
-this in a 32-bit value for `receive_word` as `0x000001ea`.
+Each byte received is a data word for the UART. If the UART is using
+8-bit data words, each data word is a byte. If the UART is using
+smaller data words, it MUST zero the high order bits of the data
+values. For example, if the UART is using 6-bit data words and
+receives `0x1f`, it must store `0x1f` in a byte and not set high order
+bits.  If the UART is using 9-bit words and receives `0x1ea`, it
+stores this in a 32-bit value for `receive_word` as `0x000001ea`.
+
+`Receive` supports a single outstanding receive request. A successful
+call to `receive_buffer` or `receive_word` causes the UART to be busy
+` until the callback for the outstanding operation is issued.
+
+If the UART returns `Ok` to a call to `receive_buffer` or
+`receive_word`, it MUST return `Err(BUSY)` to subsequent calls to
+those methods until it issues the callback corresponding to the
+outstanding operation. The first call to `receive_buffer` or
+`receive_word` from within a receive callback MUST NOT return
+`Err(BUSY)`: when it makes a callback, a UART must be ready to handle
+another reception request.
+
+
+
 
 ```rust 
 pub trait Receive<'a> {
@@ -319,320 +367,130 @@ pub trait ReceiveClient {
 4.1 `receive_buffer`, `received_buffer` and `receive_abort` 
 ===============================
 
-The `receive_buffer` method receives from the UART into the passed buffer.
-It receives up to `rx_len` bytes. When `rx_len` bytes has been received,
-the implementation MUST call the `received_buffer` callback to signal 
-reception completion with an `rval` of `Ok(())`. The implementation MAY 
-call the `received_buffer` callback before all `rx_len` bytes have been received.
-If it calls the `received_buffer` callback before all `rx_len` bytes
-have been received, `rval` MUST be `Err`. Valid return values for
+The `receive_buffer` method receives from the UART into the passed
+buffer.  It receives up to `rx_len` bytes. When `rx_len` bytes has
+been received, the implementation MUST call the `received_buffer`
+callback to signal reception completion with an `rval` of
+`Ok(())`. The implementation MAY call the `received_buffer` callback
+before all `rx_len` bytes have been received.  If it calls the
+`received_buffer` callback before all `rx_len` bytes have been
+received, `rval` MUST be `Err`. Valid return values for
 `receive_buffer` are:
-  - OFF: the underlying hardware is not available, because it has not
+  - `OFF`: the underlying hardware is not available, because it has not
     been initialized or is configured in a way that does not allow
     UART communication (e.g., a USART is configured to be SPI).
-  - BUSY: the UART is already receiving (a buffer or a word)
+  - `BUSY`: the UART is already receiving (a buffer or a word)
     and has not made a reception `received` callback yet.
-  - SIZE: `rx_len` is larger than the passed slice.
+  - `SIZE`: `rx_len` is larger than the passed slice.
 
-The `receive_abort` method can be used to cancel an outstanding buffer reception
-call. If there is an outstanding buffer reception, calling `receive_abort`
-MUST terminate the reception as early as possible, possibly completing it
-before all of the requested bytes have been read. In this case, the
-implementation MUST issue a `received_buffer` callback reporting the number
-of bytes actually read and with an `rval` of `Err(CANCEL)`.
 
-Reception early termination is necessary for UART virtualization. For example,
-suppose there are two UART clients. The first issues a read of 80 bytes.
-After 20 bytes have been read, the second client issues a read of 40 bytes.
-At this point, the virtualizer has to reduce the length of its outstanding
-read, from 60 (80-20) to 40 bytes. It needs to copy the 20 bytes read
-into the first client's buffer, the next 40 bytes into both of their buffers,
-and the last 20 bytes read into the first client's buffer. It accomplishes
-this by calling `receive_abort` to terminate the 100-byte read, copying the 
-bytes read from the resulting callback, then issuing a `receive_buffer` of
-40 bytes.
+The `receive_abort` method can be used to cancel an outstanding buffer
+reception call. If there is an outstanding buffer reception, calling
+`receive_abort` MUST terminate the reception as early as possible,
+possibly completing it before all of the requested bytes have been
+read. In this case, the implementation MUST issue a `received_buffer`
+callback reporting the number of bytes actually read and with an
+`rval` of `Err(CANCEL)`.
+
+Reception early termination is necessary for UART virtualization. For
+example, suppose there are two UART clients. The first issues a read
+of 80 bytes.  After 20 bytes have been read, the second client issues
+a read of 40 bytes.  At this point, the virtualizer has to reduce the
+length of its outstanding read, from 60 (80-20) to 40 bytes. It needs
+to copy the 20 bytes read into the first client's buffer, the next 40
+bytes into both of their buffers, and the last 20 bytes read into the
+first client's buffer. It accomplishes this by calling `receive_abort`
+to terminate the 100-byte read, copying the bytes read from the
+resulting callback, then issuing a `receive_buffer` of 40 bytes.
 
 The valid return values for `receive_abort` are:
-  - Ok(()): there was no reception outstanding and the implementation will
+  - `Ok(())`: there was no reception outstanding and the implementation will
     not issue a callback.
-  - Err(BUSY): there was a reception outstanding and it has been cancelled.
+  - `Err(BUSY)`: there was a reception outstanding and it has been cancelled.
     A callbback with `Err(CANCEL)` will be called.
-  - Err(FAIL): there was a reception outstanding but it was not cancelled.
+  - `Err(FAIL)`: there was a reception outstanding but it was not cancelled.
     A callback will be called with an `rval` other than `Err(CANCEL)`.
 
-4.1 `receive_word` and `received_word`
+4.2 `receive_word` and `received_word`
 ===============================
 
-    /// `Err(BUSY).
+The `receive_word` method and `received_word` callback allow a client
+to perform data word operations without buffer management. They
+receive a single UART data word, where the word length is defined by
+the UART configuration and can be wider than 8 bits. 
 
-    /// Abort any ongoing receive transfers and return what is in the
-    /// receive buffer with the `receive_complete` callback. If
-    /// Ok(()) is returned, there will be no callback (no call to
-    /// `receive` was outstanding). If there was a `receive`
-    /// outstanding, which is cancelled successfully then `BUSY` will
-    /// be returned and there will be a callback with a `Result<(), ErrorCode>`
-    /// of `CANCEL`.  If there was a reception outstanding, which is
-    /// not cancelled successfully, then `FAIL` will be returned and
-    /// there will be a later callback.
+A UART implementation MAY choose to not implement `receive_word` and
+`received_word`.  There is a default implementation of `received_word`
+so clients that do not use `receive_word` do not have to implement a
+callback.
 
-    /// A call to `Receive::receive_word` completed. The `Result<(), ErrorCode>`
-    /// indicates whether the word was successfully received. A call
-    /// to `receive_word` or `receive_buffer` made within this callback
-    /// SHOULD NOT return BUSY: when this callback is made the UART should
-    /// be ready to receive another call.
-    ///
-    /// `rval` Ok(()) if the word was successfully received, or
-    ///   - CANCEL if the call to `receive_word` was cancelled and
-    ///     the word was not received: `word` should be ignored.
-    ///   - FAIL if the reception failed in some way and `word`
-    ///     should be ignored. `error` may contain further information
-    ///     on the sort of error.
+If the UART returns `Ok(())` to a call to `receive_word`, it MUST make
+a `received_word` callback in the future, when it receives a data word
+or some error occurs. Valid `Err` values of `receive_word` are:
+  - `BUSY`: the UART is busy with an outstanding call to
+  `receive_buffer` or `receive_word`.
+  - `OFF`: the UART is powered down or in a configuration that does
+  not allow UART reception (e.g., it is a USART in SPI mode).
+  - `NOSUPPORT: `receive_word` operations are not supported.
+  - `FAIL`: some other error.
 
-    /// A call to `Receive::receive_buffer` completed. The `Result<(), ErrorCode>`
-    /// indicates whether the buffer was successfully received. A call
-    /// to `receive_word` or `receive_buffer` made within this callback
-    /// SHOULD NOT return BUSY: when this callback is made the UART should
-    /// be ready to receive another call.
-    ///
-    /// The `rx_len` argument specifies how many words were received.
-    /// An `rval` of Ok(()) indicates that every requested word was
-    /// received: `rx_len` in the callback should be the same as
-    /// `rx_len` in the initiating call.
-    ///
-    /// `rval` is Ok(()) if the full buffer was successfully received, or
-    ///   - CANCEL if the call to `received_buffer` was cancelled and
-    ///     the buffer was not fully received. `rx_len` contains
-    ///     how many words were received.
-    ///   - SIZE if the buffer could only be partially received. `rx_len`
-    ///     contains how many words were received.
-    ///   - FAIL if reception failed in some way: `error` may contain further
-    ///     information.
+5 Composite Traits
+===============================
 
-
-Instances of the `Alarm` trait track an incrementing clock and can
-trigger callbacks when the clock reaches a specific value as well as
-when it overflows. The trait is derived from `Time` trait and
-therefore has associated `Time::Frequency` and `Ticks` types.
-
-The `AlarmClient` trait handles callbacks from an instance of `Alarm`.
-The trait derives from `OverflowClient` and adds an additional callback
-denoting that the time specified to the `Alarm` has been reached.
-
-`Alarm` and `Timer` (presented below) differ in their level of
-abstraction. An `Alarm` presents the abstraction of receiving a
-callback when a point in time is reached or on an overflow. In
-contrast, `Timer` allows one to request callbacks at some interval in
-the future, either once or periodically. `Alarm` requests a callback
-at an absolute moment while `Timer` requests a callback at a point
-relative to now.
+In addition to the 6 basic traits, the UART HIL defines several traits
+that use these basic traits as supertraits. These composite traits allow
+structures to refer to multiple pieces of UART functionality with a
+single reference and ensure that their implementations are coupled.
 
 ```rust
-pub trait AlarmClient {
-  fn alarm(&self);
-}
-
-pub trait Alarm: Time {
-  fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
-  fn get_alarm(&self) -> Self::Ticks;
-  fn disarm(&self) -> Result<(), ErrorCode>;
-  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
-}
+pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
+pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
+pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
+pub trait Client: ReceiveClient + TransmitClient {}
 ```
 
-`Alarm` has a `disable` in order to cancel an existing alarm. Calling
-`set_alarm` enables an alarm. If there is currently no alarm set, this
-sets a new alarm. If there is an alarm set, calling `set_alarm` cancels
-the previous alarm and replaces the it with the new one. It cancels the
-previous alarm so a client does not have to disambiguate which alarm it
-is handling, the previous or current one.
+The HIL provides blanket implementations of these four traits: any
+structure that implements the supertraits of a composite trait will
+automatically implement the composite trait.
 
-The `reference` parameter of `set_alarm` is typically a sample of
-`Time::now` just before `set_alarm` is called, but it can also be a
-stored value from a previous call. The `reference` parameter follows
-the invariant that it is in the past: its value is by definition equal
-to or less than a call to `Time::now`.
-
-The `set_alarm` method takes a `reference` and a `dt` parameter to
-handle edge cases in which it can be impossible distinguish between
-alarms for the very near past and alarms for the very far future. The
-edge case occurs when the underlying counter increments past the
-compare value between when the call was made and the compare register
-is actually set. Because the counter has moved past the intended
-compare value, it will have to wrap around before the alarm will
-fire. However, one cannot assume that the counter has moved past the
-intended compare and issue a callback: the software may have requested
-an alarm very far in the future, close to the width of the counter.
-
-Having a `reference` and `dt` parameters disambiguates these two
-cases. Suppose the current counter value is `current`.  If `current`
-is not within the range [`reference`, `reference + dt`) (considering
-unsigned wraparound), then this means the requested firing time has
-passed and the callback should be issued immediately (e.g., with a
-deferred procedure call, or setting the alarm very short in the
-future).
-
-
-5 `Timer` and `TimerClient` traits
+6 Capsules
 ===============================
 
-The `Timer` trait presents the abstraction of a timer. The
-timer can either be one-shot or periodic with a fixed
-interval. `Timer` derives from `Time`, therefore has associated
-`Time::Frequency` and `Ticks` types.
+The Tock kernel provides two standard capsules for UARTs:
 
-The `TimerClient` trait handles callbacks from an instance of `Timer`.
-The trait has a single callback, denoting that the timer has fired.
+  * `capsules::console::Console` provides a userspace abstraction of a console.
+  It allows userspace to print to and read from a serial port through a
+  system call API. 
+  * `capsules::virtual_uart` provides a set of abstractions for virtualizing
+  a single UART into many UARTs.
+  
 
-```rust
-pub trait TimerClient {
-  fn timer(&self);
-}
+The structures in `capsules::virtual_uart` allow multiple clients to
+read from and write to a serial port. Write operations are interleaved
+at the granularity of `transmit_buffer` calls: each client's
+`transmit_buffer` call is printed contiguously, but consecutive calls
+to `transmit_buffer` from a single client may have other data inserted
+between them. When a client calls `receive_buffer`, it starts reading
+data from the serial port at that point in time, for the length of its
+request. If multiple clients make `receive_buffer` calls that overlap
+with one another, they each receive copies of the received data.
 
-pub trait Timer<'a>: Time {
-  fn set_timer_client(&'a self, &'a dyn TimerClient);
-  fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
-  fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
-
-  fn interval(&self) -> Option<Self::Ticks>;
-  fn is_oneshot(&self) -> bool;
-  fn is_repeating(&self) -> bool;
-
-  fn time_remaining(&self) -> Option<Self::Ticks>;
-  fn is_enabled(&self) -> bool;
-
-  fn cancel(&self) -> Result<(), ErrorCode>;
-}
-```
-
-The `oneshot` method causes the timer to issue the `TimerClient`'s
-`fired` method exactly once when `interval` clock ticks have elapsed.
-Calling `oneshot` MUST invalidate and replace any previous calls to
-`oneshot` or `repeating`. The method returns the actual number of
-ticks in the future that the callback will execute. This value MAY be
-greater than `interval` to prevent certain timer race conditions
-(e.g., that require a compare be set at least N ticks in the future)
-but MUST NOT be less than `interval`.
-
-The `repeating` method causes the timer to call the `Client`'s `fired`
-method periodically, every `interval` clock ticks. Calling `oneshot`
-MUST invalidate and replace any previous calls to `oneshot` or
-`repeat`. The method returns the actual number of ticks in the future
-that the first callback will execute. This value MAY be greater than
-`interval` to prevent certain timer race conditions (e.g., that
-require a compare be set at least N ticks in the future) but MUST NOT
-be less than `interval`.
+Suppose, for example, that there are two clients. One of them calls
+`receive_buffer` for 8 bytes. A user starts typing "1234567890"
+at the console. After the third byte, another client calls `receive_buffer`
+for 4 bytes. After the user types "7", the second client will
+receive a `received_buffer` callback with a buffer containing "4567".
+After the user types "8", the first client will receive a callback
+with a buffer containing "12345678".
 
 
-6 `Frequency` and `Ticks` Implementations
-=================================
-
-The time HIL provides four standard implementations of `Frequency`:
-
-```rust
-pub struct Freq16MHz;
-pub struct Freq1MHz;
-pub struct Freq32KHz;
-pub struct Freq16KHz;
-pub struct Freq1KHz;
-```
-
-The time HIL provides three standard implementaitons of `Ticks`:
-
-```rust
-pub struct Ticks24Bits(u32);
-pub struct Ticks32Bits(u32);
-pub struct Ticks64Bits(u64);
-```
-
-The 24 bits implementation is to support some Nordic Semiconductor
-nRF platforms (e.g. nRF52840) that only support a 24-bit counter.
-
-
-7 Capsules
-===============================
-
-The Tock kernel provides three standard capsules:
-
-  * `capsules::alarm::AlarmDriver` provides a system call driver for
-    an `Alarm`.
-  * `capsules::virtual_alarm` provides a set of
-    abstractions for virtualizing a single `Alarm` into many.
-  * `capsules::virtual_timer` provides a set of abstractions for
-    virtualizing a single `Alarm` into many `Timer` instances.
-
-8 Required Modules
-===============================
-
-A chip MUST provide an instance of `Alarm` with a `Frequency` of `Freq32KHz`
-and a `Ticks` of `Ticks32Bits`.
-
-A chip MUST provide an instance of `Time` with a `Frequency` of `Freq32KHz` and
-a `Ticks` of `Ticks64Bits`.
-
-A chip SHOULD provide an Alarm with a `Frequency` of `Freq1MHz` and a `Ticks`
-of `Ticks32Bits`.
-
-
-9 Implementation Considerations
-===============================
-
-This section describes implementation considerations for hardware
-implementations.
-
-The trickiest aspects of implementing the traits in this document relate
-to the `Alarm` trait and the semantics of how and when callbacks
-are triggered. In particular, if `set_alarm` indicates a time that has
-already passed, then the implementation should adjust it so that it
-will trigger very soon (rather than wait for a wrap-around).
-
-This is complicated by the fact that as the code is executing, the
-underlying counter continues to tick. Therefore an implementation must
-also be careful that this "very soon" time does not fall into the
-past. Furthermore, many instances of timer hardware requires that a
-compare value be some minimum number of ticks in the future. In
-practice, this means setting "very soon" to be a safe number of ticks
-in the future is a better implementation approach than trying to be
-extremely precise and inadvertently choosing too soon and then waiting
-for a wraparound.
-
-Pseudocode to handle these cases is as follows:
-
-```
-set_alarm(self, reference, dt):
-  now = now()
-  expires = reference.wrapping_add(dt)
-  if !now.within_range(reference, expired):
-    expires = now
-
-  if expires.wrapping_sub(now) < MIN_DELAY:
-    expires = now.wrapping_add(MIN_DELAY)
-
-  clear_alarm()
-  set_compare(expires)
-  enable_alarm()
-```
-
-10 Acknowledgements
-===============================
-
-The traits and abstractions in this document draw from contributions
-and ideas from Patrick Mooney and Guillaume Endignoux as well as
-others.
-
-
-11 Authors' Address
+7 Authors' Address
 =================================
 ```
-Amit Levy
-amit@amitlevy.com
-
 Philip Levis
 409 Gates Hall
 Stanford University
 Stanford, CA 94305
 USA
 pal@cs.stanford.edu
-
-Guillaume Endignoux
-guillaumee@google.com
 ```
