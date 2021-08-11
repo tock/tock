@@ -434,7 +434,13 @@ or some error occurs. Valid `Err` values of `receive_word` are:
   - `NOSUPPORT: `receive_word` operations are not supported.
   - `FAIL`: some other error.
 
-5 Composite Traits
+5 `ReceiveXXX` trait
+===============================
+
+This is the section for what's currently called `ReceiveAdvanced`.
+
+
+6 Composite Traits
 ===============================
 
 In addition to the 6 basic traits, the UART HIL defines several traits
@@ -443,17 +449,17 @@ structures to refer to multiple pieces of UART functionality with a
 single reference and ensure that their implementations are coupled.
 
 ```rust
-pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
-pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
-pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
-pub trait Client: ReceiveClient + TransmitClient {}
+pub trait Uart<'a>: Configure + Configuration + Transmit<'a> + Receive<'a> {}
+pub trait UartData<'a>: Configuration + Transmit<'a> + Receive<'a> {}
+pub trait UartAdvanced<'a>: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a> {}
+pub trait Client: Configuration+ ReceiveClient + TransmitClient {}
 ```
 
 The HIL provides blanket implementations of these four traits: any
 structure that implements the supertraits of a composite trait will
 automatically implement the composite trait.
 
-6 Capsules
+7 Capsules
 ===============================
 
 The Tock kernel provides two standard capsules for UARTs:
@@ -484,7 +490,7 @@ After the user types "8", the first client will receive a callback
 with a buffer containing "12345678".
 
 
-7 Authors' Address
+8 Authors' Address
 =================================
 ```
 Philip Levis
