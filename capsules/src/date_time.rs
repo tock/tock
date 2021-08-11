@@ -2,14 +2,16 @@ use crate::driver::NUM;
 use core::cell::Cell;
 use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::debug;
-use kernel::hil::time::{DateTime as HilDateTime, DayOfWeek, Month, Rtc, RtcClient};
+use kernel::hil::time::{DateTime as HilDateTime, Rtc, RtcClient, DayOfWeek as HilDayOfWeek, Month as HilMonth};
 use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use core::convert::{TryInto, TryFrom};
 
 pub const DRIVER_NUM: usize = NUM::Rtc as usize;
 
 pub enum DateTimeCommand {
     Exists,
     ReadDateTime,
+    SetDateTime,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -47,13 +49,13 @@ register_bitfields![u32,
 impl<'a> DateTime<'a> {
     pub fn new(date_time: &'a dyn Rtc<'a>, grant: Grant<AppData, 1>) -> DateTime<'a> {
         DateTime {
-            date_time: date_time,
+            date_time,
             apps: grant,
             in_progress: Cell::new(false),
         }
     }
 
-    fn call_driver(&self, command: DateTimeCommand, _: usize, _: usize) -> CommandReturn {
+    fn call_driver(&self, command: DateTimeCommand, r2: usize, r3: usize) -> CommandReturn {
         match command {
             DateTimeCommand::ReadDateTime => {
                 let date_result = self.date_time.get_date_time();
@@ -63,7 +65,7 @@ impl<'a> DateTime<'a> {
                             Some(date) => {
                                 //sync
 
-                                self.callback(Ok(date));
+                                self.callback_get_date(Ok(date));
 
                                 CommandReturn::success()
                             }
@@ -73,6 +75,46 @@ impl<'a> DateTime<'a> {
                         }
                     }
                     Result::Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
+                }
+            }
+            DateTimeCommand::SetDateTime =>{
+                let year_month_dotm:LocalRegisterCopy<u32, YEAR_MONTH_DOTM::Register>= LocalRegisterCopy::new(r2 as u32);
+                let dotw_hour_min_sec:LocalRegisterCopy<u32, DOTW_HOUR_MIN_SEC::Register>=LocalRegisterCopy::new(r3 as u32);
+
+
+                let date = HilDateTime{
+
+                    year: year_month_dotm.read(YEAR_MONTH_DOTM::YEAR),
+                    month: match HilMonth::try_from(year_month_dotm.read(YEAR_MONTH_DOTM::MONTH) as usize){
+                        Result::Ok(t) => t,
+                        Result::Err(())=> {return CommandReturn::failure(ErrorCode::INVAL);},
+                    },
+                    day: year_month_dotm.read(YEAR_MONTH_DOTM::DAY),
+                    day_of_week: match HilDayOfWeek::try_from(dotw_hour_min_sec.read(DOTW_HOUR_MIN_SEC::DOTW) as usize){
+                        Result::Ok(t) => t,
+                        Result::Err(())=> {return CommandReturn::failure(ErrorCode::INVAL);},
+                    },
+                    hour: dotw_hour_min_sec.read(DOTW_HOUR_MIN_SEC::HOUR),
+                    minute: dotw_hour_min_sec.read(DOTW_HOUR_MIN_SEC::MIN),
+                    seconds: dotw_hour_min_sec.read(DOTW_HOUR_MIN_SEC::SEC)
+                };
+
+                let  get_date_result = self.date_time.set_date_time(date);
+
+                match get_date_result{
+                    Result::Ok(d) =>{
+                        match d {
+                            Some(_date) =>{
+
+
+                                self.callback_set_date(Ok(()));
+                                CommandReturn::success()
+                            },
+                            None => CommandReturn::success()
+                        }
+                    },
+                    Result::Err(e)=> CommandReturn::failure(e)
+
                 }
             }
 
@@ -103,7 +145,7 @@ impl<'a> DateTime<'a> {
 }
 
 impl RtcClient for DateTime<'_> {
-    fn callback(&self, datetime: Result<HilDateTime, ErrorCode>) {
+    fn callback_get_date(&self, datetime: Result<HilDateTime, ErrorCode>) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
                 app.subscribed = true;
@@ -113,31 +155,14 @@ impl RtcClient for DateTime<'_> {
                     match datetime {
                         Result::Ok(date) => {
 
-                            let month = match date.month {
-                                Month::January => 1,
-                                Month::February => 2,
-                                Month::March => 3,
-                                Month::April => 4,
-                                Month::May => 5,
-                                Month::June => 6,
-                                Month::July => 7,
-                                Month::August => 8,
-                                Month::September => 9,
-                                Month::October => 10,
-                                Month::November => 11,
-                                Month::December => 12,
+                            let month:usize = match date.month.try_into(){
+                                Result::Ok(t)=>t,
+                                Result::Err(())=>{return ();}
                             };
 
-
-
-                            let dotw: u32 = match date.day_of_week {
-                                DayOfWeek::Sunday => 0,
-                                DayOfWeek::Monday => 1,
-                                DayOfWeek::Tuesday => 2,
-                                DayOfWeek::Wednesday => 3,
-                                DayOfWeek::Thursday => 4,
-                                DayOfWeek::Friday => 5,
-                                DayOfWeek::Saturday => 6,
+                            let dotw:usize = match date.day_of_week.try_into(){
+                                Result::Ok(t) => t,
+                                Result::Err(())=> {return ();}
                             };
 
 
@@ -146,21 +171,49 @@ impl RtcClient for DateTime<'_> {
                             let mut dotw_hour_min_sec:LocalRegisterCopy<u32, DOTW_HOUR_MIN_SEC::Register>=LocalRegisterCopy::new(0);
 
                             year_month_dotm.modify(YEAR_MONTH_DOTM::YEAR.val(date.year));
-                            year_month_dotm.modify(YEAR_MONTH_DOTM::MONTH.val(month));
+                            year_month_dotm.modify(YEAR_MONTH_DOTM::MONTH.val(month as u32));
                             year_month_dotm.modify(YEAR_MONTH_DOTM::DAY.val(date.day));
 
-                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::DOTW.val(dotw));
+                            dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::DOTW.val(dotw as u32));
                             dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::HOUR.val(date.hour));
                             dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::MIN.val(date.minute));
                             dotw_hour_min_sec.modify(DOTW_HOUR_MIN_SEC::SEC.val(date.seconds));
 
-                            debug!("from capsule year: {}  month:{} day:{}   \n dotw:{} hour:{}   minute:{}  seconds:{}",date.year,month,date.day,dotw,date.hour, date.minute, date.seconds);
 
                             upcalls
                                 .schedule_upcall(
                                     0,
                                     year_month_dotm.get() as usize,
                                     dotw_hour_min_sec.get() as usize,
+                                    0,
+                                )
+                                .ok();
+                        }
+                        Result::Err(_e) => {
+                            debug!("error");
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    fn callback_set_date(&self, result: Result<(), ErrorCode>) {
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, upcalls| {
+                app.subscribed = true;
+                if app.subscribed {
+                    self.in_progress.set(false);
+                    app.subscribed = false;
+                    match result {
+                        Result::Ok(()) => {
+
+
+                            upcalls
+                                .schedule_upcall(
+                                    0,
+                                    0,
+                                    0,
                                     0,
                                 )
                                 .ok();
@@ -187,6 +240,12 @@ impl<'a> Driver for DateTime<'a> {
             0 => CommandReturn::success(),
             1 => self.enqueue_command(
                 DateTimeCommand::ReadDateTime,
+                r2 as u32,
+                r3 as u32,
+                process_id,
+            ),
+            2 => self.enqueue_command(
+                DateTimeCommand::SetDateTime,
                 r2 as u32,
                 r3 as u32,
                 process_id,

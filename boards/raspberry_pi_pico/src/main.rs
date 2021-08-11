@@ -16,10 +16,14 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 
+
 use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
+
+
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -527,7 +531,7 @@ pub unsafe fn main() {
     };
 
     debug!(
-        "RP2040 Revision {} {}",
+        "RP2040 Revision {} {} \n",
         peripherals.sysinfo.get_revision(),
         platform_type
     );
@@ -549,13 +553,10 @@ pub unsafe fn main() {
     };
 
     match peripherals.rtc.set_date_time(dt){
-        Ok(_) => {debug!("rtc time set!");},
-        Err(e) => {debug!("error setting rtc time {:?}",e);}
+        Ok(_) => {debug!("rtc time set to {:?} \n",dt);},
+        Err(e) => {debug!("error setting rtc time {:?} \n",e);}
     };
 
-
-    debug!("finished rtc setup");
-    /////////////////////////////////////////////finished rtc setup
 
 
 

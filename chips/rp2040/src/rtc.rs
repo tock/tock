@@ -1,11 +1,14 @@
+use core::convert::{TryFrom, TryInto};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::debug;
 use kernel::hil::time;
-use kernel::hil::time::RtcClient;
+use kernel::hil::time::{DayOfWeek, Month, RtcClient};
 use kernel::ErrorCode;
+
+use crate::clocks;
 
 register_structs! {
     /// Register block to control RTC
@@ -149,6 +152,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
     client: OptionalCell<&'a dyn kernel::hil::time::RtcClient>,
+    clocks: OptionalCell<&'a clocks::Clocks>
 }
 
 impl<'a> Rtc<'a> {
@@ -156,44 +160,60 @@ impl<'a> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
+            clocks: OptionalCell::empty(),
         }
     }
 
+    pub fn set_clocks (&self, clocks: &'a clocks::Clocks) {
+        self.clocks.replace(clocks);
+    }
+
     fn date_time_setup(&self, datetime: time::DateTime) -> Result<(), ErrorCode> {
-        let month_val: u32 = match datetime.month {
-            time::Month::January => 1,
-            time::Month::February => 2,
-            time::Month::March => 3,
-            time::Month::April => 4,
-            time::Month::May => 5,
-            time::Month::June => 6,
-            time::Month::July => 7,
-            time::Month::August => 8,
-            time::Month::September => 9,
-            time::Month::October => 10,
-            time::Month::November => 11,
-            time::Month::December => 12,
+        let month_val: usize = match datetime.month.try_into() {
+            Result::Ok(t) => t,
+            Result::Err(()) => {
+                return Err(ErrorCode::FAIL);
+            }
         };
 
-        let day_val: u32 = match datetime.day_of_week {
-            time::DayOfWeek::Sunday => 0,
-            time::DayOfWeek::Monday => 1,
-            time::DayOfWeek::Tuesday => 2,
-            time::DayOfWeek::Wednesday => 3,
-            time::DayOfWeek::Thursday => 4,
-            time::DayOfWeek::Friday => 5,
-            time::DayOfWeek::Saturday => 6,
+        let day_val: usize = match datetime.day_of_week.try_into() {
+            Result::Ok(t) => t,
+            Result::Err(()) => {
+                return Err(ErrorCode::FAIL);
+            }
         };
+
+        if !(datetime.year <= 4095) {
+            return Err(ErrorCode::INVAL);
+        }
+
+        if !(datetime.day >= 1 && datetime.day <= 31) {
+            return Err(ErrorCode::INVAL);
+        }
+
+        if !(datetime.hour <= 23) {
+            return Err(ErrorCode::INVAL);
+        }
+        if !(datetime.minute <= 59) {
+            return Err(ErrorCode::INVAL);
+        }
+        if !(datetime.seconds <= 59) {
+            return Err(ErrorCode::INVAL);
+        }
 
         self.registers
             .setup_0
             .modify(SETUP_0::YEAR.val(datetime.year));
-        self.registers.setup_0.modify(SETUP_0::MONTH.val(month_val));
+        self.registers
+            .setup_0
+            .modify(SETUP_0::MONTH.val(month_val as u32));
         self.registers
             .setup_0
             .modify(SETUP_0::DAY.val(datetime.day));
 
-        self.registers.setup_1.modify(SETUP_1::DOTW.val(day_val));
+        self.registers
+            .setup_1
+            .modify(SETUP_1::DOTW.val(day_val as u32));
         self.registers
             .setup_1
             .modify(SETUP_1::HOUR.val(datetime.hour));
@@ -216,7 +236,7 @@ impl<'a> Rtc<'a> {
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
         while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {
-            debug!("is running");
+            debug!("rtc is running");
         }
 
         match self.date_time_setup(datetime) {
@@ -230,14 +250,14 @@ impl<'a> Rtc<'a> {
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
         while !((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)) > 0) {
-            debug!("is NOT running");
+            debug!("rtc is NOT running");
         }
 
         Ok(())
     }
 
     pub fn rtc_init(&self) {
-        let mut rtc_freq: u32 = 48_000_000;
+        let mut rtc_freq= self.clocks.map_or(46875, |clocks| clocks.get_frequency(clocks::Clock::Rtc));
 
         rtc_freq = rtc_freq - 1;
 
@@ -250,31 +270,18 @@ impl<'a> Rtc<'a> {
 impl<'a> time::Rtc<'a> for Rtc<'a> {
     fn get_date_time(&self) -> Result<Option<time::DateTime>, ErrorCode> {
         let month_num: u32 = self.registers.setup_0.read(SETUP_0::MONTH);
-        let month_name: time::Month = match month_num {
-            1 => time::Month::January,
-            2 => time::Month::February,
-            3 => time::Month::March,
-            4 => time::Month::April,
-            5 => time::Month::May,
-            6 => time::Month::June,
-            7 => time::Month::July,
-            8 => time::Month::August,
-            9 => time::Month::September,
-            10 => time::Month::October,
-            11 => time::Month::November,
-            12 => time::Month::December,
-            _ => return Err(ErrorCode::FAIL),
+        let month_name: Month = match time::Month::try_from(month_num as usize) {
+            Result::Ok(t) => t,
+            Result::Err(()) => {
+                return Err(ErrorCode::FAIL);
+            }
         };
-
-        let dotw = match self.registers.setup_1.read(SETUP_1::DOTW) {
-            0 => time::DayOfWeek::Sunday,
-            1 => time::DayOfWeek::Monday,
-            2 => time::DayOfWeek::Tuesday,
-            3 => time::DayOfWeek::Wednesday,
-            4 => time::DayOfWeek::Thursday,
-            5 => time::DayOfWeek::Friday,
-            6 => time::DayOfWeek::Saturday,
-            _ => return Err(ErrorCode::FAIL),
+        let dotw_num = self.registers.setup_1.read(SETUP_1::DOTW);
+        let dotw = match DayOfWeek::try_from(dotw_num as usize) {
+            Result::Ok(t) => t,
+            Result::Err(()) => {
+                return Err(ErrorCode::FAIL);
+            }
         };
 
         let datetime = time::DateTime {
@@ -288,14 +295,19 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
             day_of_week: dotw,
         };
 
-        self.client.map(|client| client.callback(Ok(datetime)));
+        self.client
+            .map(|client| client.callback_get_date(Ok(datetime)));
 
         Ok(None)
     }
 
-    fn set_date_time(&self, date_time: time::DateTime) -> Result<(), ErrorCode> {
+    fn set_date_time(
+        &self,
+        date_time: time::DateTime,
+    ) -> Result<Option<time::DateTime>, ErrorCode> {
         self.set_initial(date_time)?;
-        Ok(())
+        self.client.map(|client| client.callback_set_date(Ok(())));
+        Ok(None)
     }
 
     fn set_client(&self, client: &'a dyn RtcClient) {

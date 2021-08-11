@@ -14,6 +14,7 @@
 use crate::ErrorCode;
 use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
+use core::convert::{TryFrom, TryInto};
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
@@ -714,7 +715,7 @@ impl PartialEq for Ticks64 {
 
 impl Eq for Ticks64 {}
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum DayOfWeek {
     Sunday,
     Monday,
@@ -725,7 +726,40 @@ pub enum DayOfWeek {
     Saturday,
 }
 
-#[derive(Copy, Clone)]
+impl TryFrom<usize> for DayOfWeek{
+    type Error = ();
+
+    fn try_from(dotw: usize) -> Result<Self, Self::Error> {
+        match dotw {
+            0 => Ok(DayOfWeek::Sunday),
+            1 => Ok(DayOfWeek::Monday),
+            2 => Ok(DayOfWeek::Tuesday),
+            3 => Ok(DayOfWeek::Wednesday),
+            4 => Ok(DayOfWeek::Thursday),
+            5 => Ok(DayOfWeek::Friday),
+            6 => Ok(DayOfWeek::Saturday),
+            _ => return Err(()),
+        }
+    }
+}
+
+impl TryInto<usize> for DayOfWeek{
+    type Error = ();
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self{
+            DayOfWeek::Sunday => Ok(0),
+            DayOfWeek::Monday => Ok(1),
+            DayOfWeek::Tuesday => Ok(2),
+            DayOfWeek::Wednesday => Ok(3),
+            DayOfWeek::Thursday => Ok(4),
+            DayOfWeek::Friday => Ok(5),
+            DayOfWeek::Saturday => Ok(6),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 pub enum Month {
     January,
     February,
@@ -741,7 +775,53 @@ pub enum Month {
     December,
 }
 
-#[derive(Copy, Clone)]
+impl TryFrom<usize> for Month{
+    type Error = ();
+
+    fn try_from(month_num: usize) -> Result<Self, Self::Error> {
+        match month_num {
+            1 => Ok(Month::January),
+            2 => Ok(Month::February),
+            3 => Ok(Month::March),
+            4 => Ok(Month::April),
+            5 => Ok(Month::May),
+            6 => Ok(Month::June),
+            7 => Ok(Month::July),
+            8 => Ok(Month::August),
+            9 => Ok(Month::September),
+            10 => Ok(Month::October),
+            11 => Ok(Month::November),
+            12 => Ok(Month::December),
+            _ => return Err(()),
+        }
+    }
+}
+
+impl TryInto<usize> for Month{
+    type Error = ();
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self {
+            Month::January => Ok(1),
+            Month::February => Ok(2),
+            Month::March => Ok(3),
+            Month::April => Ok(4),
+            Month::May => Ok(5),
+            Month::June => Ok(6),
+            Month::July => Ok(7),
+            Month::August => Ok(8),
+            Month::September => Ok(9),
+            Month::October => Ok(10),
+            Month::November => Ok(11),
+            Month::December => Ok(12),
+        }
+    }
+}
+
+
+
+
+#[derive(Copy, Clone, Debug)]
 pub struct DateTime {
     pub year: u32,
     pub month: Month,
@@ -754,15 +834,16 @@ pub struct DateTime {
 
 pub trait Rtc<'a> {
     fn get_date_time(&self) -> Result<Option<DateTime>, ErrorCode>;
-    fn set_date_time(&self, date_time: DateTime) -> Result<(), ErrorCode>;
+    fn set_date_time(&self, date_time: DateTime) -> Result<Option<DateTime>, ErrorCode>;
 
     fn set_client(&self, client: &'a dyn RtcClient);
 }
 
 pub trait RtcClient {
-    /// Called when a date time reading has completed.
 
-    fn callback(&self, datetime: Result<DateTime, ErrorCode>);
+    /// Called when a date time reading has completed
+    fn callback_get_date(&self, datetime: Result<DateTime, ErrorCode>);
+    fn callback_set_date(&self, result: Result<(),ErrorCode>);
 
 }
 
