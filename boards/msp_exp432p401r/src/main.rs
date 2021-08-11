@@ -21,9 +21,6 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
@@ -471,7 +468,9 @@ pub unsafe fn main() {
     .unwrap();
 
     //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(msp432::timer::TimerA))
+    .run();*/
 
     board_kernel.kernel_loop(
         &msp_exp432p4014,

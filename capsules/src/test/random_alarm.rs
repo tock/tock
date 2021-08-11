@@ -14,15 +14,19 @@ pub struct TestRandomAlarm<'a, A: Alarm<'a>> {
     pub counter: Cell<usize>,
     expected: Cell<A::Ticks>,
     _id: char,
+    print_output: bool,
+    first: Cell<bool>,
 }
 
 impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
-    pub fn new(alarm: &'a A, value: usize, ch: char) -> TestRandomAlarm<'a, A> {
+    pub fn new(alarm: &'a A, value: usize, ch: char, print_output: bool) -> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
             alarm: alarm,
             counter: Cell::new(value),
             expected: Cell::new(alarm.ticks_from_seconds(0)),
             _id: ch,
+            print_output,
+            first: Cell::new(true),
         }
     }
 
@@ -43,6 +47,21 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
         // If the delay is already 0, don't subtract anything.
         let start = now.wrapping_sub(A::Ticks::from(us % 10));
         self.alarm.set_alarm(start, delay);
+        if self.print_output {
+            let diff = now.wrapping_sub(self.expected.get());
+            kernel::debug!(
+                "Test{}@{:?}: Expected at {:?} (diff = {:?}), setting alarm to {:?} (delay = {:?})",
+                self._id,
+                now,
+                self.expected.get(),
+                diff,
+                start.wrapping_add(delay),
+                delay
+            );
+            if !self.first.get() {
+                assert!(self.alarm.ticks_to_ms(diff) < 50);
+            }
+        }
         self.counter.set(counter + 1);
         self.expected.set(start.wrapping_add(delay));
     }
@@ -50,6 +69,10 @@ impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
 
 impl<'a, A: Alarm<'a>> AlarmClient for TestRandomAlarm<'a, A> {
     fn alarm(&self) {
+        if self.print_output {
+            kernel::debug!("Test{}: Alarm fired.", self._id);
+        }
+        self.first.set(false);
         self.set_next_alarm();
     }
 }

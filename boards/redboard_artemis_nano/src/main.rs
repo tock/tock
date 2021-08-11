@@ -25,9 +25,6 @@ pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
