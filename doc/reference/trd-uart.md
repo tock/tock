@@ -274,8 +274,140 @@ The valid `ErrorCode` results for `abort_transmit` are:
    A callback will be made for that operation with a result other than
    `Err(CANCEL)`.
 
-4 `Alarm` and `AlarmClient` traits
+4 `Receive` and `ReceiveClient` traits
 ===============================
+
+The `Receive` and `ReceiveClient` traits are used to receive data from the
+UART. They support both single-word and buffer reception. Buffer-based
+reception is more efficient, as it allows an MCU to handle only one
+interrupt for many data words. However, buffer-based reception only supports
+data words of 6, 7, and 8 bits, so clients using 9-bit words need to use
+word operations.
+
+Each byte received is a data word for the UART. If the UART is using 8-bit data words,
+each data word is a byte. If the UART is using smaller data words,
+it MUST zero the high order bits of the data values. For example, if the UART is using
+6-bit data words and receives `0x1f`, it must store `0x1f` in a byte and not set
+high order bits.  If the UART is using 9-bit words and receives `0x1ea`, it stores
+this in a 32-bit value for `receive_word` as `0x000001ea`.
+
+```rust 
+pub trait Receive<'a> {
+    fn set_receive_client(&self, client: &'a dyn ReceiveClient);
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+    fn receive_word(&self) -> Result<(), ErrorCode>;
+    fn receive_abort(&self) -> Result<(), ErrorCode>;
+}
+
+pub trait ReceiveClient {
+    fn received_word(&self, _word: u32, _rval: Result<(), ErrorCode>, _error: Error) {}
+
+    fn received_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+        rval: Result<(), ErrorCode>,
+        error: Error,
+    );
+}
+```
+
+4.1 `receive_buffer`, `received_buffer` and `receive_abort` 
+===============================
+
+The `receive_buffer` method receives from the UART into the passed buffer.
+It receives up to `rx_len` bytes. When `rx_len` bytes has been received,
+the implementation MUST call the `received_buffer` callback to signal 
+reception completion with an `rval` of `Ok(())`. The implementation MAY 
+call the `received_buffer` callback before all `rx_len` bytes have been received.
+If it calls the `received_buffer` callback before all `rx_len` bytes
+have been received, `rval` MUST be `Err`. Valid return values for
+`receive_buffer` are:
+  - OFF: the underlying hardware is not available, because it has not
+    been initialized or is configured in a way that does not allow
+    UART communication (e.g., a USART is configured to be SPI).
+  - BUSY: the UART is already receiving (a buffer or a word)
+    and has not made a reception `received` callback yet.
+  - SIZE: `rx_len` is larger than the passed slice.
+
+The `receive_abort` method can be used to cancel an outstanding buffer reception
+call. If there is an outstanding buffer reception, calling `receive_abort`
+MUST terminate the reception as early as possible, possibly completing it
+before all of the requested bytes have been read. In this case, the
+implementation MUST issue a `received_buffer` callback reporting the number
+of bytes actually read and with an `rval` of `Err(CANCEL)`.
+
+Reception early termination is necessary for UART virtualization. For example,
+suppose there are two UART clients. The first issues a read of 80 bytes.
+After 20 bytes have been read, the second client issues a read of 40 bytes.
+At this point, the virtualizer has to reduce the length of its outstanding
+read, from 60 (80-20) to 40 bytes. It needs to copy the 20 bytes read
+into the first client's buffer, the next 40 bytes into both of their buffers,
+and the last 20 bytes read into the first client's buffer. It accomplishes
+this by calling `receive_abort` to terminate the 100-byte read, copying the 
+bytes read from the resulting callback, then issuing a `receive_buffer` of
+40 bytes.
+
+The valid return values for `receive_abort` are:
+  - Ok(()): there was no reception outstanding and the implementation will
+    not issue a callback.
+  - Err(BUSY): there was a reception outstanding and it has been cancelled.
+    A callbback with `Err(CANCEL)` will be called.
+  - Err(FAIL): there was a reception outstanding but it was not cancelled.
+    A callback will be called with an `rval` other than `Err(CANCEL)`.
+
+4.1 `receive_word` and `received_word`
+===============================
+
+    /// `Err(BUSY).
+
+    /// Abort any ongoing receive transfers and return what is in the
+    /// receive buffer with the `receive_complete` callback. If
+    /// Ok(()) is returned, there will be no callback (no call to
+    /// `receive` was outstanding). If there was a `receive`
+    /// outstanding, which is cancelled successfully then `BUSY` will
+    /// be returned and there will be a callback with a `Result<(), ErrorCode>`
+    /// of `CANCEL`.  If there was a reception outstanding, which is
+    /// not cancelled successfully, then `FAIL` will be returned and
+    /// there will be a later callback.
+
+    /// A call to `Receive::receive_word` completed. The `Result<(), ErrorCode>`
+    /// indicates whether the word was successfully received. A call
+    /// to `receive_word` or `receive_buffer` made within this callback
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// `rval` Ok(()) if the word was successfully received, or
+    ///   - CANCEL if the call to `receive_word` was cancelled and
+    ///     the word was not received: `word` should be ignored.
+    ///   - FAIL if the reception failed in some way and `word`
+    ///     should be ignored. `error` may contain further information
+    ///     on the sort of error.
+
+    /// A call to `Receive::receive_buffer` completed. The `Result<(), ErrorCode>`
+    /// indicates whether the buffer was successfully received. A call
+    /// to `receive_word` or `receive_buffer` made within this callback
+    /// SHOULD NOT return BUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// The `rx_len` argument specifies how many words were received.
+    /// An `rval` of Ok(()) indicates that every requested word was
+    /// received: `rx_len` in the callback should be the same as
+    /// `rx_len` in the initiating call.
+    ///
+    /// `rval` is Ok(()) if the full buffer was successfully received, or
+    ///   - CANCEL if the call to `received_buffer` was cancelled and
+    ///     the buffer was not fully received. `rx_len` contains
+    ///     how many words were received.
+    ///   - SIZE if the buffer could only be partially received. `rx_len`
+    ///     contains how many words were received.
+    ///   - FAIL if reception failed in some way: `error` may contain further
+    ///     information.
+
 
 Instances of the `Alarm` trait track an incrementing clock and can
 trigger callbacks when the clock reaches a specific value as well as
