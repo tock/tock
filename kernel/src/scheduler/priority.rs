@@ -62,10 +62,11 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
             || self
                 .kernel
                 .get_process_iter()
-                .position(|proc| proc.ready())
-                .map_or(false, |ready_idx| {
-                    self.running
-                        .map_or(false, |running| ready_idx < running.index)
+                .find(|proc| proc.ready())
+                .map_or(false, |ready_proc| {
+                    self.running.map_or(false, |running| {
+                        ready_proc.processid().index < running.index
+                    })
                 }))
     }
 

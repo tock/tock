@@ -23,10 +23,6 @@ use stm32f401cc::interrupt_service::Stm32f401ccDefaultPeripherals;
 /// Support routines for debugging I/O.
 pub mod io;
 
-// Unit tests
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
@@ -481,7 +477,9 @@ pub unsafe fn main() {
     });
 
     //Uncomment to run multi alarm test
-    // multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(stm32f401cc::tim2::Tim2))
+    .run();*/
 
     board_kernel.kernel_loop(
         &weact_f401cc,

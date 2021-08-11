@@ -319,7 +319,7 @@ use kernel::platform::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, esp32_c3_board, chip, peripherals) = setup();
+        let (board_kernel, esp32_c3_board, _chip, peripherals) = setup();
 
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);

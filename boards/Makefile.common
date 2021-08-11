@@ -108,9 +108,11 @@ TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
 ifneq ($(V),)
   Q =
   VERBOSE = --verbose
+  DEVNULL =
 else
   Q = @
   VERBOSE =
+  DEVNULL = > /dev/null
 endif
 
 # Ask git what version of the Tock kernel we are compiling, so we can include
@@ -322,8 +324,8 @@ cargobloatnoinline:
 stack-analysis:
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
-	@$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" > /dev/null 2>&1
-	@$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
+	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" $(DEVNULL) 2>&1
+	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
 # Support rules
 

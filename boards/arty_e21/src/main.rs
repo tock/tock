@@ -17,8 +17,6 @@ use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
 
 #[allow(dead_code)]
-mod multi_alarm_test;
-#[allow(dead_code)]
 mod timer_test;
 
 pub mod io;
@@ -256,7 +254,9 @@ pub unsafe fn main() {
 
     // Uncomment to run tests
     //timertest.start();
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
+    .run();*/
 
     /// These symbols are defined in the linker script.
     extern "C" {

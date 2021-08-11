@@ -186,9 +186,9 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    pub(crate) fn process_each<F>(&self, closure: F)
+    pub(crate) fn process_each<F>(&self, mut closure: F)
     where
-        F: Fn(&dyn process::Process),
+        F: FnMut(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -224,9 +224,9 @@ impl Kernel {
     pub fn process_each_capability<F>(
         &'static self,
         _capability: &dyn capabilities::ProcessManagementCapability,
-        closure: F,
+        mut closure: F,
     ) where
-        F: Fn(&dyn process::Process),
+        F: FnMut(&dyn process::Process),
     {
         for process in self.processes.iter() {
             match process {
@@ -942,10 +942,10 @@ impl Kernel {
                                                                 if currently_allocated_grants_count
                                                                     > allocated_grants_count
                                                                 {
-                                                                    debug!("[{:?}] ERROR driver {} allocated wrong grant for upcalls",
+                                                                    debug!("[{:?}] ERROR driver #{:x} allocated wrong grant for upcalls",
                                                                            process.processid(), driver_number);
                                                                 } else {
-                                                                    debug!("[{:?}] WARN driver {} did not allocate grant for upcalls",
+                                                                    debug!("[{:?}] WARN driver #{:x} did not allocate grant for upcalls",
                                                                            process.processid(), driver_number);
                                                                 }
                                                             }

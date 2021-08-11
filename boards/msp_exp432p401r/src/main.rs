@@ -21,9 +21,6 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
@@ -176,6 +173,17 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
     // gpio.pins[PinNr::P08_2 as usize].enable_tertiary_function(); // A23
 }
 
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
+    static_init!(
+        msp432::chip::Msp432DefaultPeripherals,
+        msp432::chip::Msp432DefaultPeripherals::new()
+    )
+}
+
 /// Main function.
 ///
 /// This is called after RAM initialization is complete.
@@ -183,10 +191,7 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
 pub unsafe fn main() {
     startup_intilialisation();
 
-    let peripherals = static_init!(
-        msp432::chip::Msp432DefaultPeripherals,
-        msp432::chip::Msp432DefaultPeripherals::new()
-    );
+    let peripherals = get_peripherals();
     peripherals.init();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
@@ -463,7 +468,9 @@ pub unsafe fn main() {
     .unwrap();
 
     //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(msp432::timer::TimerA))
+    .run();*/
 
     board_kernel.kernel_loop(
         &msp_exp432p4014,

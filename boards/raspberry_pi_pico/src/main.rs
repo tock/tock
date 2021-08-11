@@ -220,13 +220,21 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
         .configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
 }
 
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
+    static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
 
-    let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
+    let peripherals = get_peripherals();
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);
