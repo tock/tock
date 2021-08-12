@@ -10,6 +10,8 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks;
+
 register_structs! {
     /// controls serial port
     UartRegisters {
@@ -373,6 +375,8 @@ const UART1_BASE: StaticRef<UartRegisters> =
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
+    clocks: OptionalCell<&'a clocks::Clocks>,
+
     tx_client: OptionalCell<&'a dyn TransmitClient>,
     rx_client: OptionalCell<&'a dyn ReceiveClient>,
 
@@ -391,6 +395,8 @@ impl<'a> Uart<'a> {
     pub const fn new_uart0() -> Self {
         Self {
             registers: UART0_BASE,
+            clocks: OptionalCell::empty(),
+
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
 
@@ -408,6 +414,8 @@ impl<'a> Uart<'a> {
     pub const fn new_uart1() -> Self {
         Self {
             registers: UART1_BASE,
+            clocks: OptionalCell::empty(),
+
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
 
@@ -420,6 +428,10 @@ impl<'a> Uart<'a> {
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
         }
+    }
+
+    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
+        self.clocks.set(clocks);
     }
 
     pub fn enable(&self) {
@@ -568,7 +580,9 @@ impl Configure for Uart<'_> {
         self.disable();
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
-        let clk = 125_000_000;
+        let clk = self.clocks.map_or(125_000_000, |clocks| {
+            clocks.get_frequency(clocks::Clock::Peripheral)
+        });
 
         // Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
