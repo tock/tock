@@ -46,10 +46,6 @@ use rp2040::timer::RPTimer;
 
 mod io;
 
-use kernel::hil::time::Rtc;
-use kernel::hil::time::DateTime;
-use kernel::hil::time::Month;
-use kernel::hil::time::DayOfWeek;
 mod flash_bootloader;
 
 /// Allocate memory for the stack
@@ -114,6 +110,8 @@ impl SyscallDriverLookup for RaspberryPiPico {
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
 
             capsules::date_time::DRIVER_NUM =>f(Some(self.date_time)),
+
+            capsules::date_time::DRIVER_NUM => f(Some(self.date_time)),
 
             _ => f(None),
         }
@@ -420,6 +418,37 @@ pub unsafe fn main() {
             adc_mux
         ));
 
+    // RTC DATE TIME
+
+    peripherals.rtc.rtc_init();
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules::date_time::DRIVER_NUM,
+        &peripherals.rtc,
+    )
+    .finalize(());
+
+    // uncomment for setting up current date and time
+    // let dt = DateTime {
+    //     year: 2021,
+    //     month: Month::January,
+    //     day: 11,
+    //     day_of_week: DayOfWeek::Monday,
+    //     hour: 13,
+    //     minute: 33,
+    //     seconds: 1,
+    // };
+    //
+    // match peripherals.rtc.set_date_time(dt) {
+    //     Err(e) => {
+    //         debug!("Error setting date and time {:?}", e);
+    //     }
+    //     _ => {
+    //         debug!("Date and time are set");
+    //     }
+    // };
+
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
@@ -429,18 +458,6 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
-
-
-    let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_date_time = board_kernel.create_grant(capsules::date_time::DRIVER_NUM,&grant_dt);
-
-    let date_time = static_init!(
-        capsules::date_time::DateTime<'static>,
-        capsules::date_time::DateTime::new(&peripherals.rtc, grant_date_time)
-    );
-    kernel::hil::time::Rtc::set_client(&peripherals.rtc, date_time);
-
-
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));
@@ -462,7 +479,6 @@ pub unsafe fn main() {
                 adc_channel_2,
                 adc_channel_3,
             ));
-
 
     // PROCESS CONSOLE
     let process_printer =
@@ -536,31 +552,6 @@ pub unsafe fn main() {
         platform_type
     );
 
-
-    // RTC DATE TIME
-
-    peripherals.rtc.rtc_init();
-
-
-    let dt = DateTime{
-        year: 2021,
-        month: Month::January,
-        day: 11,
-        day_of_week: DayOfWeek::Monday,
-        hour: 13,
-        minute: 33,
-        seconds: 1,
-    };
-
-    match peripherals.rtc.set_date_time(dt){
-        Ok(_) => {debug!("rtc time set to {:?} \n",dt);},
-        Err(e) => {debug!("error setting rtc time {:?} \n",e);}
-    };
-
-
-
-
-   
     debug!("Initialization complete. Enter main loop");
 
     /// These symbols are defined in the linker script.

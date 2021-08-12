@@ -8,13 +8,13 @@ pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
 pub mod resets;
+pub mod rtc;
 pub mod spi;
 pub mod sysinfo;
 pub mod timer;
 pub mod uart;
 pub mod watchdog;
 pub mod xosc;
-pub mod rtc;
 
 use cortexm0p::{
     self, generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler,

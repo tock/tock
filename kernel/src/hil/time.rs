@@ -14,7 +14,6 @@
 use crate::ErrorCode;
 use core::cmp::{Eq, Ord, Ordering, PartialOrd};
 use core::fmt;
-use core::convert::{TryFrom, TryInto};
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
@@ -715,7 +714,7 @@ impl PartialEq for Ticks64 {
 
 impl Eq for Ticks64 {}
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DayOfWeek {
     Sunday,
     Monday,
@@ -726,40 +725,7 @@ pub enum DayOfWeek {
     Saturday,
 }
 
-impl TryFrom<usize> for DayOfWeek{
-    type Error = ();
-
-    fn try_from(dotw: usize) -> Result<Self, Self::Error> {
-        match dotw {
-            0 => Ok(DayOfWeek::Sunday),
-            1 => Ok(DayOfWeek::Monday),
-            2 => Ok(DayOfWeek::Tuesday),
-            3 => Ok(DayOfWeek::Wednesday),
-            4 => Ok(DayOfWeek::Thursday),
-            5 => Ok(DayOfWeek::Friday),
-            6 => Ok(DayOfWeek::Saturday),
-            _ => return Err(()),
-        }
-    }
-}
-
-impl TryInto<usize> for DayOfWeek{
-    type Error = ();
-
-    fn try_into(self) -> Result<usize, Self::Error> {
-        match self{
-            DayOfWeek::Sunday => Ok(0),
-            DayOfWeek::Monday => Ok(1),
-            DayOfWeek::Tuesday => Ok(2),
-            DayOfWeek::Wednesday => Ok(3),
-            DayOfWeek::Thursday => Ok(4),
-            DayOfWeek::Friday => Ok(5),
-            DayOfWeek::Saturday => Ok(6),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Month {
     January,
     February,
@@ -775,75 +741,67 @@ pub enum Month {
     December,
 }
 
-impl TryFrom<usize> for Month{
-    type Error = ();
-
-    fn try_from(month_num: usize) -> Result<Self, Self::Error> {
-        match month_num {
-            1 => Ok(Month::January),
-            2 => Ok(Month::February),
-            3 => Ok(Month::March),
-            4 => Ok(Month::April),
-            5 => Ok(Month::May),
-            6 => Ok(Month::June),
-            7 => Ok(Month::July),
-            8 => Ok(Month::August),
-            9 => Ok(Month::September),
-            10 => Ok(Month::October),
-            11 => Ok(Month::November),
-            12 => Ok(Month::December),
-            _ => return Err(()),
-        }
-    }
-}
-
-impl TryInto<usize> for Month{
-    type Error = ();
-
-    fn try_into(self) -> Result<usize, Self::Error> {
-        match self {
-            Month::January => Ok(1),
-            Month::February => Ok(2),
-            Month::March => Ok(3),
-            Month::April => Ok(4),
-            Month::May => Ok(5),
-            Month::June => Ok(6),
-            Month::July => Ok(7),
-            Month::August => Ok(8),
-            Month::September => Ok(9),
-            Month::October => Ok(10),
-            Month::November => Ok(11),
-            Month::December => Ok(12),
-        }
-    }
-}
-
-
-
-
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct DateTime {
-    pub year: u32,
+    pub year: u16,
     pub month: Month,
-    pub day: u32,
+    pub day: u8,
     pub day_of_week: DayOfWeek,
-    pub hour: u32,
-    pub minute: u32,
-    pub seconds: u32,
+    pub hour: u8,
+    pub minute: u8,
+    pub seconds: u8,
 }
 
+/// Interface for reading and setting the current time
 pub trait Rtc<'a> {
+    /// Returns the current date and time
+    ///
+    /// Depending on the underlying driver, retrieving the current date and time
+    /// can be synchronous or asynchronous. On some chips getting the date and time
+    /// implies simply reading a register, while other devices might use external
+    /// RTC hardware that requires an asynchronous bus transmission.
+    /// This function covers both cases:
+    ///   1. If the hardware is synchronous, the function returns `Ok(Some(DateTime))`
+    ///      in case of success and `Err(ErrorCode)` in case of and error;
+    ///   2. If the hardware is asynchronous, the function return `Ok(None)`
+    ///      in case of success and `Err(ErrorCode)` in case of and error.
+    ///      When successful this function call must be followed by a call
+    ///      to `callback_get_date` which provides the actual date and time
+    ///      or an error.
     fn get_date_time(&self) -> Result<Option<DateTime>, ErrorCode>;
-    fn set_date_time(&self, date_time: DateTime) -> Result<Option<DateTime>, ErrorCode>;
 
+    /// Sets the current date and time
+    ///
+    /// Depending on the underlying driver, setting the current date and time
+    /// can be synchronous or asynchronous. On some chips setting the date and time
+    /// implies simply writing on a register, while other devices might use external
+    /// RTC hardware that requires an asynchronous bus transmission.
+    /// This function covers both cases:
+    ///   1. If the hardware is synchronous, the function returns `Ok(Some())`
+    ///      in case of success and `Err(ErrorCode)` in case of and error;
+    ///   2. If the hardware is asynchronous, the function return `Ok(None)`
+    ///      in case of success and `Err(ErrorCode)` in case of and error.
+    ///      When successful this function call must be followed by a call
+    ///      to `callback_set_date`.
+    fn set_date_time(&self, date_time: DateTime) -> Result<Option<()>, ErrorCode>;
+
+    /// Sets a client that calls the callback function when date time is requested asynchronously
     fn set_client(&self, client: &'a dyn RtcClient);
 }
 
+/// Callback handler for when current date is read or set.
 pub trait RtcClient {
 
-    /// Called when a date time reading has completed
+    /// Called from when a date time reading has completed (only for asynchronous reading).
+    /// Returns `Ok(DateTime)` of current date as a DateTime structure.
+    /// If an error is encountered it returns an `Err(ErrorCode)`
     fn callback_get_date(&self, datetime: Result<DateTime, ErrorCode>);
-    fn callback_set_date(&self, result: Result<(),ErrorCode>);
+
+    /// Called from driver when a date is set asynchronously.
+    /// Returns Ok(()) if time is set correctly.
+    /// Returns Err(ErrorCode) if the date received as parameter
+    /// in set_date_time(//..) is incorrect.
+    fn callback_set_date(&self, result: Result<(), ErrorCode>);
 
 }
 

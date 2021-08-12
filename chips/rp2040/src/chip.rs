@@ -11,15 +11,14 @@ use crate::gpio::{RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
 use crate::resets::Resets;
+use crate::rtc;
 use crate::spi;
 use crate::sysinfo;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
-use crate::rtc;
 use cortexm0p::interrupt_mask;
-
 
 #[repr(u8)]
 pub enum Processor {

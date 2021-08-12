@@ -11,6 +11,7 @@ pub mod cdc;
 pub mod console;
 pub mod crc;
 pub mod ctap;
+pub mod date_time;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod digest;
