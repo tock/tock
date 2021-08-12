@@ -791,7 +791,6 @@ pub trait Rtc<'a> {
 
 /// Callback handler for when current date is read or set.
 pub trait RtcClient {
-
     /// Called from when a date time reading has completed (only for asynchronous reading).
     /// Returns `Ok(DateTime)` of current date as a DateTime structure.
     /// If an error is encountered it returns an `Err(ErrorCode)`
@@ -802,7 +801,6 @@ pub trait RtcClient {
     /// Returns Err(ErrorCode) if the date received as parameter
     /// in set_date_time(//..) is incorrect.
     fn callback_set_date(&self, result: Result<(), ErrorCode>);
-
 }
 
 #[cfg(test)]
@@ -934,8 +932,3 @@ mod tests {
         assert_eq!(us, u32::MAX);
     }
 }
-
-
-
-
-

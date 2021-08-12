@@ -16,7 +16,6 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 
-
 use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
@@ -538,7 +537,6 @@ pub unsafe fn main() {
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
-
     };
 
     let platform_type = match peripherals.sysinfo.get_platform() {

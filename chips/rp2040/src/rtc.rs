@@ -1,10 +1,9 @@
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil::time;
 use kernel::hil::time::{DayOfWeek, Month, RtcClient};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::clocks;
@@ -282,7 +281,8 @@ impl<'a> Rtc<'a> {
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
         while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {
-            debug!("rtc is running");
+
+            // wait until rtc stops
         }
 
         match self.date_time_setup(datetime) {
@@ -296,7 +296,7 @@ impl<'a> Rtc<'a> {
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
         while !((hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE)) > 0) {
-            debug!("rtc is NOT running");
+            // wait until rtc starts
         }
 
         Ok(())

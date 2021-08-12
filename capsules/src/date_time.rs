@@ -21,11 +21,13 @@
 
 use crate::driver::NUM;
 use core::cell::Cell;
-use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::grant::Grant;
 use kernel::hil::time::{
     DateTime as HilDateTime, DayOfWeek as HilDayOfWeek, Month as HilMonth, Rtc, RtcClient,
 };
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::{ErrorCode, ProcessId};
 
 pub const DRIVER_NUM: usize = NUM::Rtc as usize;
 
@@ -369,7 +371,7 @@ impl RtcClient for DateTime<'_> {
                     }
 
                     upcalls
-                        .schedule_upcall(0, upcall_status as usize, upcall_r1, upcall_r2)
+                        .schedule_upcall(0, (upcall_status as usize, upcall_r1, upcall_r2))
                         .ok();
                 }
             });
@@ -392,7 +394,7 @@ impl RtcClient for DateTime<'_> {
                     }
 
                     upcalls
-                        .schedule_upcall(0, upcall_status as usize, 0, 0)
+                        .schedule_upcall(0, (upcall_status as usize, 0, 0))
                         .ok();
                 }
             });
@@ -400,7 +402,7 @@ impl RtcClient for DateTime<'_> {
     }
 }
 
-impl<'a> Driver for DateTime<'a> {
+impl<'a> SyscallDriver for DateTime<'a> {
     fn command(
         &self,
         command_number: usize,
@@ -432,7 +434,7 @@ impl<'a> Driver for DateTime<'a> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::procs::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }
