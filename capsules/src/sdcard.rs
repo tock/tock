@@ -8,29 +8,50 @@
 //! ```rust
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//! # use kernel::hil::spi::SpiMasterDevice;
 //!
-//! let sdcard_spi = static_init!(
-//!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,
-//!     capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi,
-//!                                                        Some(&sam4l::gpio::PA[13])));
+//! let spi_mux = components::spi::SpiMuxComponent::new(
+//!         &base_peripherals.spim0,
+//!         dynamic_deferred_caller
+//!     ).finalize(components::spi_mux_component_helper!(nrf52833::spi::SPIM));
+//! base_peripherals.spim0.configure(
+//!     nrf52833::pinmux::Pinmux::new(SPI_MOSI_PIN as u32), // SD MOSI
+//!     nrf52833::pinmux::Pinmux::new(SPI_MISO_PIN as u32), // SD MISO
+//!     nrf52833::pinmux::Pinmux::new(SPI_SCK_PIN as u32),  // SD SCK
+//! );
+//!
+//! let sdcard_spi = components::spi::SpiComponent::new(
+//!         spi_mux,
+//!         &nrf52833_peripherals.gpio_port[SPI_CS_PIN]
+//!     ).finalize(components::spi_component_helper!(nrf52833::spi::SPIM));
+//!
 //! let sdcard_virtual_alarm = static_init!(
-//!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-//!     VirtualMuxAlarm::new(mux_alarm));
+//!      capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+//!      capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
 //!
 //! let sdcard = static_init!(
-//!     capsules::sdcard::SDCard<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+//!     capsules::sdcard::SDCard<
+//!         'static,
+//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>>,
 //!     capsules::sdcard::SDCard::new(sdcard_spi,
 //!                                   sdcard_virtual_alarm,
-//!                                   Some(&sam4l::gpio::PA[17]),
+//!                                   Some(&SD_DETECT_PIN),
 //!                                   &mut capsules::sdcard::TXBUFFER,
 //!                                   &mut capsules::sdcard::RXBUFFER));
 //! sdcard_spi.set_client(sdcard);
-//! sdcard_virtual_alarm.set_client(sdcard);
-//! sam4l::gpio::PA[17].set_client(sdcard);
+//! sdcard_virtual_alarm.set_alarm_client(sdcard);
+//! SD_DETECT_PIN.set_client(sdcard);
 //!
 //! let sdcard_driver = static_init!(
-//!     capsules::sdcard::SDCardDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-//!     capsules::sdcard::SDCardDriver::new(sdcard, &mut capsules::sdcard::KERNEL_BUFFER));
+//!     capsules::sdcard::SDCardDriver<
+//!         'static,
+//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>>,
+//!     capsules::sdcard::SDCardDriver::new(
+//!         sdcard,
+//!         &mut capsules::sdcard::KERNEL_BUFFER,
+//!         board_kernel.create_grant(
+//!             capsules::sdcard::DRIVER_NUM,
+//!             &memory_allocation_capability)));
 //! sdcard.set_client(sdcard_driver);
 //! ```
 
@@ -167,11 +188,11 @@ enum AlarmState {
 /// Error codes returned if an SD card transaction fails
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum SdCardError {
-    CardStateChanged = -1,
-    InitializationFailure = -2,
-    ReadFailure = -3,
-    WriteFailure = -4,
-    TimeoutFailure = -5,
+    CardStateChanged = -10001,
+    InitializationFailure = -10002,
+    ReadFailure = -10003,
+    WriteFailure = -10004,
+    TimeoutFailure = -10005,
 }
 
 /// SD card types, determined during initialization
