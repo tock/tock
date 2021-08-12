@@ -422,11 +422,6 @@ impl<'a> FlashCtrl<'a> {
                     }
                 }
             } else if self.registers.control.matches_all(CONTROL::OP::ERASE) {
-                // Disable erase
-                self.registers
-                    .mp_bank_cfg
-                    .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
-
                 self.flash_client.map(move |client| {
                     client.erase_complete(hil::flash::Error::CommandComplete);
                 });
@@ -552,10 +547,10 @@ impl hil::flash::Flash for FlashCtrl<'_> {
             self.configure_info_partition(FlashBank::BANK0, self.region_num);
         }
 
-        // Enable erase
+        // Disable bank erase
         self.registers
             .mp_bank_cfg
-            .modify(MP_BANK_CFG::ERASE_EN_0::SET + MP_BANK_CFG::ERASE_EN_1::SET);
+            .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
 
         // Set the address
         self.registers.addr.write(ADDR::START.val(addr as u32));
