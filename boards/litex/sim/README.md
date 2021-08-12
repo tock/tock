@@ -32,6 +32,14 @@ simply changing the variables in
 cores and perform further modifications, the `src/main.rs` file will
 have to be modified.
 
+This board makes assumptions about the generated LiteX SoC, such as
+CSR locations in memory. The companion repository
+[tock-litex](https://github.com/lschuermann/tock-litex) provides
+access to an environment with the required LiteX Python packages in
+their targeted versions. This board currently targets the release
+[2021081101](https://github.com/lschuermann/tock-litex/releases/tag/2021081101)
+of `tock-litex`.
+
 
 Building the SoC / Running the simulation
 -----------------------------------------
