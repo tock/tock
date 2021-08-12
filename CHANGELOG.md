@@ -21,7 +21,7 @@ New in 2.0
   of upcalls passed to the kernel with the `subscribe` system call
   has been defined. To enforce that the kernel doesn't maintain
   references to upcalls that it shouldn't (so userspace can reclaim any
-  resources they require), upcalls are now managed by the kernel.
+  resources they require), upcalls are now managed by the core kernel.
   The changes to these calling semantics are documented in TRD104.
   
   * Several types in the kernel have changed names, to better reflect
@@ -88,7 +88,7 @@ New in 2.0
   * All HILs have changed significantly, to be in line with the new
   types within the kernel.
   
-  * `ReturnCode` has been removed within the kernel. HILs that used to
+  * `ReturnCode` has been removed from the kernel. HILs that used to
   return `ReturnCode` now return `Result<(), ErrorCode>`, so that `Ok`
   indicates a success result. #2508
   
