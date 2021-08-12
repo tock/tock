@@ -38,8 +38,8 @@ pub fn run_multi_alarm() {
 
     unsafe {
         assert!(TESTS.unwrap()[0].counter.get() > 15);
-        assert!(TESTS.unwrap()[1].counter.get() > 40);
-        assert!(TESTS.unwrap()[2].counter.get() > 80);
+        assert!(TESTS.unwrap()[1].counter.get() > 30);
+        assert!(TESTS.unwrap()[2].counter.get() > 70);
     }
 
     debug!("    [ok]");

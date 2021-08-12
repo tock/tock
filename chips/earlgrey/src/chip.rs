@@ -123,7 +123,6 @@ impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
                         None,
                     );
                 }
-                interrupts::RVTIMERTIMEREXPIRED0_0 => self.timer.service_interrupt(),
                 _ => {
                     if interrupt >= interrupts::HMAC_HMACDONE
                         && interrupt <= interrupts::HMAC_HMACERR
