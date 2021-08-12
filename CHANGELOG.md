@@ -5,7 +5,7 @@ New in 2.0
   
   * There are two new userspace system calls: `AllowReadOnly` and
   `Exit`. The old `Allow` system call has been renamed to `AllowReadWrite`.
-  `AllowReadyOnly` provides a mechanism for userspace to share a 
+  `AllowReadOnly` provides a mechanism for userspace to share a 
   read-only buffer (e.g., constant data stored in flash) to the kernel.
   `Exit` allows a process to complete execution and request that the
   kernel either terminate or restart it.
@@ -30,7 +30,10 @@ New in 2.0
 	* `AppSlice` is now `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`.
 	
 	* `Callback` is now `Upcall` (to distinguish upcalls from the kernel to
-	userspace from general softare callbacks).
+	userspace from general softare callbacks). `Upcall`s are now stored in
+        a special block of memory in grant regions and are managed by the
+        kernel rather than drivers. This allows the kernel to enforce their
+        swapping semantics. #2639
 	
 	* `Platform` is now `SyscallDriverLookup` and `Chip` is now split into
 	`Chip` for chip-specific operations and `KernelResources` for kernel
@@ -85,9 +88,9 @@ New in 2.0
   * All HILs have changed significantly, to be in line with the new
   types within the kernel.
   
-  * `ReturnCode` has been deprecated within the kernel. HILs that used to
+  * `ReturnCode` has been removed within the kernel. HILs that used to
   return `ReturnCode` now return `Result<(), ErrorCode>`, so that `Ok`
-  indicates a success result. 
+  indicates a success result. #2508
   
   * There is a draft of a TRD describing guidelines for HIL design,
   which enumerates 13 principles HIL traits should follow.
@@ -122,6 +125,28 @@ running kernel version. Because 2.0 changes the user/kernel ABI, processes
 compiled for Tock 1.x will not run correctly on a Tock 2.x kernel and
 vice versa. If the kernel detects that a process is compiled for the
 wrong kernel version it skips the process and does not load it.
+
+* There have been changes to kernel internals and the build system
+to reduce code size. For example, kernel code that was highly 
+replicated in monomorphized functions has been factored out (#2648).
+
+* All system call driver capsules that do not support use by 
+multiple processes now use grant regions to store state and
+explicitly forbid access from multiple processes (e.g., #2518).. 
+
+* Added `tools/stack_analysis.sh` and 'make stack-analysis` for analyzing
+stack size.
+
+* Improvements to `tools/print_tock_memory_usage.sh` for displaying 
+code size.
+
+* Transitioned uses of deprecated `llvm_asm!()` to `asm!()` macro 
+for better compile-time checking (#2449, #2363).
+
+* Make it possible for boards to avoid using code space for 
+peripherals they do not use (e.g., #2069).
+
+* Bug fixes.
 
 New in 1.5
 ==========
