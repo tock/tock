@@ -413,8 +413,8 @@ fn earlgrey_nexysvideo_sha_hmac_test() -> Result<(), Error> {
     p.exp_string("SHA Example Test")?;
 
     p.exp_string("Running HMAC...")?;
-    p.exp_string("0: 0xbb")?;
-    p.exp_string("10: 0x53")?;
+    p.exp_string("0: 0xeb")?;
+    p.exp_string("10: 0xde")?;
 
     p.exp_string("Running SHA...")?;
     p.exp_string("0: 0x68")?;
