@@ -97,7 +97,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastC
 
         if self
             .flash
-            .write_page((0x20040000 + address) / 64, data_buf)
+            .write_page((0x20060000 + address) / 64, data_buf)
             .is_err()
         {
             return Err(tickv::error_codes::ErrorCode::WriteFail);
