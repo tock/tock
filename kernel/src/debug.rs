@@ -58,7 +58,7 @@ use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::platform::chip::Chip;
-use crate::process::Process;
+use crate::process::ProcessDebug;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};
 use crate::ErrorCode;
@@ -103,7 +103,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [Option<&'static dyn ProcessDebug>],
     chip: &'static Option<&'static C>,
 ) {
     panic_begin(nop);
@@ -122,7 +122,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [Option<&'static dyn ProcessDebug>],
     chip: &'static Option<&'static C>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic
@@ -177,7 +177,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static dyn Process>],
+    procs: &'static [Option<&'static dyn ProcessDebug>],
     writer: &mut W,
 ) {
     // print data about each process
