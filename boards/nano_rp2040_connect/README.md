@@ -19,10 +19,11 @@ To install `elf2uf2`, run the commands:
 
 ```bash
 $ git clone https://github.com/raspberrypi/pico-sdk
-$ mkdir build
-$ cd mkdir
-$ cmake ..
+$ cd pico-sdk
 $ cd tools/elf2uf2
+$ mkdir build
+$ cd build
+$ cmake ..
 $ make
 $ sudo cp elf2uf2 /usr/local/bin
 ```
