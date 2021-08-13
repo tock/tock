@@ -17,8 +17,9 @@ use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
-use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
+use crate::process::{Error, FunctionCall, FunctionCallSource, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{Process, ProcessDebug, ProcessMain};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -209,7 +210,8 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     debug: MapCell<ProcessStandardDebug>,
 }
 
-impl<C: Chip> Process for ProcessStandard<'_, C> {
+impl<C: Chip> Process for ProcessStandard<'_, C> {}
+impl<C: Chip> ProcessMain for ProcessStandard<'_, C> {
     fn processid(&self) -> ProcessId {
         self.process_id.get()
     }
@@ -1065,7 +1067,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.debug
             .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
     }
-
+}
+impl<C: Chip> ProcessDebug for ProcessStandard<'_, C> {
     fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
         let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;

@@ -168,9 +168,11 @@ impl ProcessId {
     }
 }
 
+pub trait Process: ProcessMain + ProcessDebug {}
+
 /// This trait represents a generic process that the Tock scheduler can
 /// schedule.
-pub trait Process {
+pub trait ProcessMain {
     /// Returns the process's identifier.
     fn processid(&self) -> ProcessId;
 
@@ -536,14 +538,6 @@ pub trait Process {
     /// switched to.
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    /// Print out the memory map (Grant region, heap, stack, program
-    /// memory, BSS, and data sections) of this process.
-    fn print_memory_map(&self, writer: &mut dyn Write);
-
-    /// Print out the full state of the process: its memory map, its
-    /// context, and the state of the memory protection unit (MPU).
-    fn print_full_process(&self, writer: &mut dyn Write);
-
     // debug
 
     /// Returns how many syscalls this app has called.
@@ -570,6 +564,16 @@ pub trait Process {
 
     /// Return the lowest recorded address of the process stack, if known.
     fn debug_stack_end(&self) -> Option<*const u8>;
+}
+
+pub trait ProcessDebug {
+    /// Print out the memory map (Grant region, heap, stack, program
+    /// memory, BSS, and data sections) of this process.
+    fn print_memory_map(&self, writer: &mut dyn Write);
+
+    /// Print out the full state of the process: its memory map, its
+    /// context, and the state of the memory protection unit (MPU).
+    fn print_full_process(&self, writer: &mut dyn Write);
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
