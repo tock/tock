@@ -453,7 +453,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
         // Enable interrupts and set the FIFO level
@@ -492,7 +492,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
         // Set the address
@@ -544,7 +544,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
         // Disable bank erase
