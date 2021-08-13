@@ -5,7 +5,7 @@
 #![no_std]
 
 pub mod mpu {
-    pub type MPU = cortexm::mpu::MPU<8>;
+    pub type MPU = cortexm::mpu::MPU<8, 256>;
 }
 
 // Re-export the base generic cortex-m functions here as they are

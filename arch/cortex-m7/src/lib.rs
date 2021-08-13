@@ -5,7 +5,7 @@
 #![no_std]
 
 pub mod mpu {
-    pub type MPU = cortexm::mpu::MPU<16>; // Cortex-M7 MPU has 16 regions
+    pub type MPU = cortexm::mpu::MPU<16, 32>; // Cortex-M7 MPU has 16 regions
 }
 
 // Re-export the base generic cortex-m functions here as they are

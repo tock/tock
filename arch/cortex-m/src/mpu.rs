@@ -1,4 +1,4 @@
-//! Implementation of the memory protection unit for the Cortex-M3,
+//! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
 
 use core::cell::Cell;
@@ -129,7 +129,7 @@ const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
 ///
 /// There should only be one instantiation of this object as it represents
 /// real hardware.
-pub struct MPU<const NUM_REGIONS: usize> {
+pub struct MPU<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> {
     /// MMIO reference to MPU registers.
     registers: StaticRef<MpuRegisters>,
     /// Optimization logic. This is used to indicate which application the MPU
@@ -138,7 +138,7 @@ pub struct MPU<const NUM_REGIONS: usize> {
     hardware_is_configured_for: OptionalCell<ProcessId>,
 }
 
-impl<const NUM_REGIONS: usize> MPU<NUM_REGIONS> {
+impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MIN_REGION_SIZE> {
     pub const unsafe fn new() -> Self {
         Self {
             registers: MPU_BASE_ADDRESS,
@@ -360,7 +360,9 @@ impl CortexMRegion {
     }
 }
 
-impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
+impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
+    for MPU<NUM_REGIONS, MIN_REGION_SIZE>
+{
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
 
     fn clear_mpu(&self) {
@@ -406,14 +408,14 @@ impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
         let mut start = unallocated_memory_start as usize;
         let mut size = min_region_size;
 
-        // Region start always has to align to 32 bytes
-        if start % 32 != 0 {
-            start += 32 - (start % 32);
+        // Region start always has to align to minimum region size bytes
+        if start % MIN_REGION_SIZE != 0 {
+            start += MIN_REGION_SIZE - (start % MIN_REGION_SIZE);
         }
 
-        // Regions must be at least 32 bytes
-        if size < 32 {
-            size = 32;
+        // Regions must be at least minimum region size bytes
+        if size < MIN_REGION_SIZE {
+            size = MIN_REGION_SIZE;
         }
 
         // Physical MPU region (might be larger than logical region if some subregions are disabled)
