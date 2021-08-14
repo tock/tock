@@ -47,16 +47,26 @@ impl<'a, T: ?Sized + ListNode<'a, T>> List<'a, T> {
         self.head.0.get()
     }
 
+    pub fn in_list(&self, node: &'a T) -> bool {
+        self.iter()
+            .find(|list_node| *list_node as *const T == node as *const T)
+            .is_some()
+    }
+
     pub fn push_head(&self, node: &'a T) {
-        node.next().0.set(self.head.0.get());
-        self.head.0.set(Some(node));
+        if !self.in_list(node) {
+            node.next().0.set(self.head.0.get());
+            self.head.0.set(Some(node));
+        }
     }
 
     pub fn push_tail(&self, node: &'a T) {
-        node.next().0.set(None);
-        match self.iter().last() {
-            Some(last) => last.next().0.set(Some(node)),
-            None => self.push_head(node),
+        if !self.in_list(node) {
+            node.next().0.set(None);
+            match self.iter().last() {
+                Some(last) => last.next().0.set(Some(node)),
+                None => self.push_head(node),
+            }
         }
     }
 
