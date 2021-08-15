@@ -44,15 +44,31 @@ const SPEAKER_PIN: Pin = Pin::P1_00;
 const BUTTON_LEFT: Pin = Pin::P1_02;
 const BUTTON_RIGHT: Pin = Pin::P1_10;
 
+#[allow(dead_code)]
+const GPIO_D0: Pin = Pin::P0_04;
+#[allow(dead_code)]
+const GPIO_D1: Pin = Pin::P0_05;
+#[allow(dead_code)]
 const GPIO_D2: Pin = Pin::P0_03;
+#[allow(dead_code)]
 const GPIO_D3: Pin = Pin::P0_28;
+#[allow(dead_code)]
 const GPIO_D4: Pin = Pin::P0_02;
+
 const GPIO_D6: Pin = Pin::P1_09;
 const GPIO_D7: Pin = Pin::P0_07;
-const GPIO_D8: Pin = Pin::P1_04;
+const GPIO_D8: Pin = Pin::P1_07;
 const GPIO_D9: Pin = Pin::P0_27;
+
+#[allow(dead_code)]
 const GPIO_D10: Pin = Pin::P0_30;
+#[allow(dead_code)]
 const GPIO_D12: Pin = Pin::P0_31;
+
+const GPIO_D13: Pin = Pin::P0_08;
+const GPIO_D14: Pin = Pin::P0_06;
+const GPIO_D15: Pin = Pin::P0_26;
+const GPIO_D16: Pin = Pin::P0_29;
 
 const _UART_TX_PIN: Pin = Pin::P0_05;
 const _UART_RX_PIN: Pin = Pin::P0_04;
@@ -83,7 +99,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::StopWithDebugFaultPolicy =
+    kernel::process::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -100,11 +117,22 @@ static mut CDC_REF_FOR_PANIC: Option<
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
+static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+// Function for the CDC/USB stack to use to enter the Adafruit nRF52 Bootloader
+fn baud_rate_reset_bootloader_enter() {
+    unsafe {
+        // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
+        // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
+        NRF52_POWER.unwrap().set_gpregret(0x4e);
+        cortexm4::scb::reset();
+    }
+}
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -131,6 +159,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
@@ -149,6 +178,7 @@ impl SyscallDriverLookup for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
@@ -218,6 +248,10 @@ pub unsafe fn main() {
 
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    // Save a reference to the power module for resetting the board into the
+    // bootloader.
+    NRF52_POWER = Some(&base_peripherals.pwr_clk);
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     //--------------------------------------------------------------------------
@@ -253,15 +287,29 @@ pub unsafe fn main() {
         capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
-            3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
-            4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
+            // uncomment the following to use pins D0, D1, D2, D3 and D4 as gpio
+            // instead of A2, A3, A4, A5 and A6
+            // 0 => &nrf52840_peripherals.gpio_port[GPIO_D0],
+            // 1 => &nrf52840_peripherals.gpio_port[GPIO_D1],
+            // 2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
+            // 3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
+            // 4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
+
             6 => &nrf52840_peripherals.gpio_port[GPIO_D6],
             7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
             8 => &nrf52840_peripherals.gpio_port[GPIO_D8],
             9 => &nrf52840_peripherals.gpio_port[GPIO_D9],
-            10 => &nrf52840_peripherals.gpio_port[GPIO_D10],
-            12 => &nrf52840_peripherals.gpio_port[GPIO_D12]
+
+            // uncomment the following to use pins D10 as gpio instead of A7
+            // 10 => &nrf52840_peripherals.gpio_port[GPIO_D10],
+
+            // uncomment the following to use pins D12 as gpio instead of A0
+            // 12 => &nrf52840_peripherals.gpio_port[GPIO_D12],
+
+            13 => &nrf52840_peripherals.gpio_port[GPIO_D13],
+            14 => &nrf52840_peripherals.gpio_port[GPIO_D14],
+            15 => &nrf52840_peripherals.gpio_port[GPIO_D15],
+            16 => &nrf52840_peripherals.gpio_port[GPIO_D16]
         ),
     )
     .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
@@ -289,7 +337,7 @@ pub unsafe fn main() {
             nrf52840::gpio::GPIOPin,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON_LEFT],
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // Left
             (
@@ -396,7 +444,7 @@ pub unsafe fn main() {
         strings,
         mux_alarm,
         dynamic_deferred_caller,
-        None,
+        Some(&baud_rate_reset_bootloader_enter),
     )
     .finalize(components::usb_cdc_acm_component_helper!(
         nrf52::usbd::Usbd,
@@ -428,6 +476,61 @@ pub unsafe fn main() {
         &base_peripherals.trng,
     )
     .finalize(());
+
+    //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+    base_peripherals.adc.calibrate();
+
+    let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
+        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                // A0
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A1
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A2
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A3
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A4
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A5
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A6
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+            ));
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -587,6 +690,11 @@ pub unsafe fn main() {
         nrf52840::aes::AesECB<'static>
     ));
 
+    let pconsole =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+    let _ = pconsole.start();
+
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
     //--------------------------------------------------------------------------
@@ -605,6 +713,7 @@ pub unsafe fn main() {
         proximity: proximity,
         led: led,
         gpio: gpio,
+        adc: adc_syscall,
         screen: screen,
         button: button,
         rng: rng,
