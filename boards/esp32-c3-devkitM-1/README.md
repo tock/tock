@@ -80,6 +80,9 @@ cd openocd-esp32
 make -j8
 ```
 
+Note that the connection can be unreliable, commit
+5b67ad1b15938f524f133afb8ef652c990f570eb seems to work though.
+
 Then connect an [FDTI C232HM](https://ftdichip.com/products/c232hm-ddhsl-0-2/)
 cable as described here:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-guides/jtag-debugging/configure-other-jtag.html.
