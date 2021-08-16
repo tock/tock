@@ -629,7 +629,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // TODO: Check for buffer aliasing here
 
             if self.in_app_owned_memory(buf_start_addr, size) {
-                // Valid buffer, if this is a memory buffer,
+                // Valid buffer, if this is not in a read-only (e.g. flash) memory section,
                 // we need to adjust the app's watermark
                 // note: in_app_owned_memory ensures this offset does not wrap
                 let buf_end_addr = buf_start_addr.wrapping_add(size);
