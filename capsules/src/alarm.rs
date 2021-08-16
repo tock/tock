@@ -210,12 +210,8 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                             }
                         }
                     },
-                    4 /* Set absolute expiration */ => {
-                        let reference = now.into_u32() as usize;
-                        let future_time = data;
-                        let dt = future_time.wrapping_sub(reference);
-                        // if previously unarmed, but now will become armed
-                        rearm(reference, dt)
+                    4 /* Deprecated in 2.0, used to be: set absolute expiration */ => {
+                        (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                     },
                     5 /* Set relative expiration */ => {
                         let reference = now.into_u32() as usize;
@@ -224,11 +220,6 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                         rearm(reference, dt)
                     },
                     6 /* Set absolute expiration with reference point */ => {
-                        // Taking a reference timestamp from userspace
-                        // prevents wraparound bugs; future versions of
-                        // libtock will use only this call and deprecate
-                        // command #4; for now it is added as an additional
-                        // comamnd for backwards compatibility. -pal
                         let reference = data;
                         let dt = data2;
                         rearm(reference, dt)
