@@ -18,6 +18,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -151,12 +152,10 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f429zi::syscfg::Syscfg,
-    exti: &stm32f429zi::exti::Exti,
+    _exti: &stm32f429zi::exti::Exti,
     gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
-    use stm32f429zi::exti::LineId;
-    use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
 
@@ -188,15 +187,13 @@ unsafe fn set_pin_primary_functions(
 
     // button is connected on pc13
     gpio_ports.get_pin(PinId::PC13).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti13, pin);
+        pin.enable_interrupt();
     });
-    // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::EXTI15_10).enable();
+
+    // set interrupt for pin D0
+    gpio_ports.get_pin(PinId::PG09).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
@@ -416,7 +413,7 @@ pub unsafe fn main() {
         components::gpio_component_helper!(
             stm32f429zi::gpio::Pin,
             // Arduino like RX/TX
-            0 => gpio_ports.pins[6][9].as_ref().unwrap(), //D0
+            0 => gpio_ports.get_pin(PinId::PG09).unwrap(), //D0
             1 => gpio_ports.pins[6][14].as_ref().unwrap(), //D1
             2 => gpio_ports.pins[5][15].as_ref().unwrap(), //D2
             3 => gpio_ports.pins[4][13].as_ref().unwrap(), //D3

@@ -139,12 +139,11 @@ impl
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f303xc::syscfg::Syscfg,
-    exti: &stm32f303xc::exti::Exti,
+    _exti: &stm32f303xc::exti::Exti,
     spi1: &stm32f303xc::spi::Spi,
     i2c1: &stm32f303xc::i2c::I2C,
     gpio_ports: &'static stm32f303xc::gpio::GpioPorts<'static>,
 ) {
-    use stm32f303xc::exti::LineId;
     use stm32f303xc::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -183,14 +182,13 @@ unsafe fn set_pin_primary_functions(
 
     // button is connected on pa00
     gpio_ports.get_pin(PinId::PA00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, &pin);
+        pin.enable_interrupt();
     });
-    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::EXTI0).enable();
+
+    // enable interrupt for gpio 0
+    gpio_ports.get_pin(PinId::PC01).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // SPI1 has the l3gd20 sensor connected
     gpio_ports.get_pin(PinId::PA06).map(|pin| {

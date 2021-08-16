@@ -143,11 +143,10 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f401cc::syscfg::Syscfg,
-    exti: &stm32f401cc::exti::Exti,
+    _exti: &stm32f401cc::exti::Exti,
     gpio_ports: &'static stm32f401cc::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
-    use stm32f401cc::exti::LineId;
     use stm32f401cc::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -156,15 +155,13 @@ unsafe fn set_pin_primary_functions(
 
     // On-board KEY button is connected on PA0
     gpio_ports.get_pin(PinId::PA00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, &pin);
+        pin.enable_interrupt();
     });
-    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    cortexm4::nvic::Nvic::new(stm32f401cc::nvic::EXTI0).enable();
+
+    // enable interrupt for D3
+    gpio_ports.get_pin(PinId::PC14).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // PA2 (tx) and PA3 (rx) (USART2)
     gpio_ports.get_pin(PinId::PA02).map(|pin| {

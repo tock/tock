@@ -9,7 +9,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 
-use crate::exti;
+use crate::exti::{self, LineId};
+use crate::nvic;
 use crate::rcc;
 
 /// General-purpose I/Os
@@ -863,6 +864,25 @@ impl<'a> Pin<'a> {
 
     pub fn get_pinid(&self) -> PinId {
         self.pinid
+    }
+
+    pub unsafe fn enable_interrupt(&'static self) {
+        let interrupt = match self.pinid.get_pin_number() {
+            0 => nvic::EXTI0,
+            1 => nvic::EXTI1,
+            2 => nvic::EXTI2,
+            3 => nvic::EXTI3,
+            4 => nvic::EXTI4,
+            5..=9 => nvic::EXTI9_5,
+            10..=15 => nvic::EXTI15_10,
+            _ => panic!("Pin {} is not valid", self.pinid.get_pin_number()),
+        };
+
+        let exti_line_id = LineId::from_u8(self.pinid.get_pin_number() as u8).unwrap();
+
+        self.exti.associate_line_gpiopin(exti_line_id, &self);
+        // enable interrupt
+        cortexm4::nvic::Nvic::new(interrupt).enable();
     }
 
     pub fn set_exti_lineid(&self, lineid: exti::LineId) {

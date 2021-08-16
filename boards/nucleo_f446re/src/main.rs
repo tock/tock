@@ -149,10 +149,9 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f446re::syscfg::Syscfg,
-    exti: &stm32f446re::exti::Exti,
+    _exti: &stm32f446re::exti::Exti,
     gpio_ports: &'static stm32f446re::gpio::GpioPorts<'static>,
 ) {
-    use stm32f446re::exti::LineId;
     use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -183,15 +182,8 @@ unsafe fn set_pin_primary_functions(
 
     // button is connected on pc13
     gpio_ports.get_pin(PinId::PC13).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti13, pin);
+        pin.enable_interrupt();
     });
-    // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f446re::nvic::EXTI15_10).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
