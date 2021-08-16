@@ -128,7 +128,6 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
             SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>,
             SpiMasterBus::new(static_buffer.0, static_buffer.2)
         );
-        static_buffer.0.setup();
         static_buffer.0.set_client(bus);
 
         bus
