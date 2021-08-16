@@ -41,11 +41,12 @@ pub mod io;
 pub mod boot_header;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 1;
+const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
@@ -473,6 +474,14 @@ pub unsafe fn main() {
     //
     // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+
+    //--------------------------------------------------------------------------
+    // Process Console
+    //---------------------------------------------------------------------------
+    let process_console =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, lpuart_mux)
+            .finalize(());
+    let _ = process_console.start();
 
     debug!("Tock OS initialization complete. Entering main loop");
 
