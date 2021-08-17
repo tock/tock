@@ -628,11 +628,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         {
             // TODO: Check for buffer aliasing here
 
-            // Valid buffer, we need to adjust the app's watermark
-            // note: in_app_owned_memory ensures this offset does not wrap
-            let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
-            self.allow_high_water_mark.set(new_water_mark);
+            if self.in_app_owned_memory(buf_start_addr, size) {
+                // Valid buffer, if this is not in a read-only (e.g. flash) memory section,
+                // we need to adjust the app's watermark
+                // note: in_app_owned_memory ensures this offset does not wrap
+                let buf_end_addr = buf_start_addr.wrapping_add(size);
+                let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
+                self.allow_high_water_mark.set(new_water_mark);
+            }
 
             // Clippy complains that we're deferencing a pointer in a
             // public and safe function here. While we are not
