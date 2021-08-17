@@ -607,7 +607,7 @@ pub unsafe fn main() {
     );
 
     let bus = components::bus::SpiMasterBusComponent::new(
-        16_000_000,
+        20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
     )

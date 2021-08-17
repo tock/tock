@@ -406,7 +406,7 @@ pub unsafe fn main() {
         .finalize(components::spi_mux_component_helper!(Spi));
 
     let bus = components::bus::SpiMasterBusComponent::new(
-        16_000_000,
+        20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
     )
