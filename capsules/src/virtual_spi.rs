@@ -109,7 +109,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
         } else {
             self.inflight.map(|node| {
                 let op = node.operation.get();
-                // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
                     // we have to report an error
