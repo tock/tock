@@ -110,7 +110,6 @@ impl SyscallDriverLookup for RaspberryPiPico {
 
             capsules::date_time::DRIVER_NUM =>f(Some(self.date_time)),
 
-            capsules::date_time::DRIVER_NUM => f(Some(self.date_time)),
 
             _ => f(None),
         }
@@ -419,7 +418,12 @@ pub unsafe fn main() {
 
     // RTC DATE TIME
 
-    peripherals.rtc.rtc_init();
+    match peripherals.rtc.rtc_init() {
+        Ok(_) => {}
+        Err(e) => {
+            debug!("error starting rtc {:?}", e);
+        }
+    };
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,

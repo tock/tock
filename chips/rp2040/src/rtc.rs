@@ -1,12 +1,14 @@
+use crate::clocks;
+use crate::deferred_calls::DeferredCallTask;
+use core::cell::Cell;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil::time;
-use kernel::hil::time::{DayOfWeek, Month, RtcClient};
+use kernel::hil::time::{DateTime, DayOfWeek, Month, RtcClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-use crate::clocks;
 
 register_structs! {
     /// Register block to control RTC
@@ -31,9 +33,9 @@ register_structs! {
         /// Raw Interrupts
         (0x020 => intr: ReadWrite<u32>),
         /// Interrupt Enable
-        (0x024 => inte: ReadWrite<u32>),
+        (0x024 => inte: ReadWrite<u32, INTE::Register>),
         /// Interrupt Force
-        (0x028 => intf: ReadWrite<u32>),
+        (0x028 => intf: ReadWrite<u32, INTF::Register>),
         /// Interrupt status after masking & forcing
         (0x02C => ints: ReadWrite<u32>),
         (0x030 => @END),
@@ -144,6 +146,12 @@ INTS [
     RTC OFFSET(0) NUMBITS(1) []
 ]
 ];
+
+static DEFERRED_CALL_GET: DeferredCall<DeferredCallTask> =
+    unsafe { DeferredCall::new(DeferredCallTask::DateTimeGet) };
+static DEFERRED_CALL_SET: DeferredCall<DeferredCallTask> =
+    unsafe { DeferredCall::new(DeferredCallTask::DateTimeSet) };
+
 const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x4005C000 as *const RtcRegisters) };
 
@@ -151,6 +159,7 @@ pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
     client: OptionalCell<&'a dyn kernel::hil::time::RtcClient>,
     clocks: OptionalCell<&'a clocks::Clocks>,
+    time: Cell<DateTime>,
 }
 
 impl<'a> Rtc<'a> {
@@ -159,6 +168,15 @@ impl<'a> Rtc<'a> {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
             clocks: OptionalCell::empty(),
+            time: Cell::new(DateTime {
+                year: 0,
+                month: Month::January,
+                day: 1,
+                day_of_week: DayOfWeek::Sunday,
+                hour: 0,
+                minute: 0,
+                seconds: 0,
+            }),
         }
     }
 
@@ -222,6 +240,15 @@ impl<'a> Rtc<'a> {
         }
     }
 
+    pub fn handle_set_interrupt(&self) {
+        self.client.map(|client| client.callback_set_date(Ok(())));
+    }
+
+    pub fn handle_get_interrupt(&self) {
+        self.client
+            .map(|client| client.callback_get_date(Ok(self.time.get())));
+    }
+
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.replace(clocks);
     }
@@ -271,26 +298,30 @@ impl<'a> Rtc<'a> {
             .setup_1
             .modify(SETUP_1::SEC.val(datetime.seconds as u32));
 
+        self.registers.ctrl.modify(CTRL::LOAD::SET);
+
         Ok(())
     }
 
-    fn set_initial(&self, datetime: time::DateTime) -> Result<(), ErrorCode> {
+    fn set_initial(&self) -> Result<(), ErrorCode> {
         let mut hw_ctrl: u32;
 
         self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(0));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
 
-        while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {
+        while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {}
 
-            // wait until rtc stops
-        }
-
-        match self.date_time_setup(datetime) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
+        let datetime = time::DateTime {
+            year: 1970,
+            month: Month::January,
+            day: 1,
+            day_of_week: DayOfWeek::Sunday,
+            hour: 0,
+            minute: 0,
+            seconds: 0,
         };
+
+        self.date_time_setup(datetime)?;
         self.registers.ctrl.modify(CTRL::LOAD::SET);
         self.registers.ctrl.modify(CTRL::RTC_ENABLE.val(1));
         hw_ctrl = self.registers.ctrl.read(CTRL::RTC_ENABLE);
@@ -302,7 +333,7 @@ impl<'a> Rtc<'a> {
         Ok(())
     }
 
-    pub fn rtc_init(&self) {
+    pub fn rtc_init(&self) -> Result<(), ErrorCode> {
         let mut rtc_freq = self
             .clocks
             .map_or(46875, |clocks| clocks.get_frequency(clocks::Clock::Rtc));
@@ -312,11 +343,13 @@ impl<'a> Rtc<'a> {
         self.registers
             .clkdiv_m1
             .modify(CLKDIV_M1::CLKDIV_M.val(rtc_freq));
+
+        self.set_initial()
     }
 }
 
 impl<'a> time::Rtc<'a> for Rtc<'a> {
-    fn get_date_time(&self) -> Result<Option<time::DateTime>, ErrorCode> {
+    fn get_date_time(&self) -> Result<(), ErrorCode> {
         let month_num: u32 = self.registers.setup_0.read(SETUP_0::MONTH);
         let month_name: Month = match self.month_try_from_u32(month_num) {
             Result::Ok(t) => t,
@@ -343,13 +376,18 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
             day_of_week: dotw,
         };
 
-        Ok(Some(datetime))
+        self.time.replace(datetime);
+
+        DEFERRED_CALL_GET.set();
+
+        Ok(())
     }
 
-    fn set_date_time(&self, date_time: time::DateTime) -> Result<Option<()>, ErrorCode> {
-        self.set_initial(date_time)?;
+    fn set_date_time(&self, date_time: time::DateTime) -> Result<(), ErrorCode> {
+        self.date_time_setup(date_time)?;
 
-        Ok(Some(()))
+        DEFERRED_CALL_SET.set();
+        Ok(())
     }
 
     fn set_client(&self, client: &'a dyn RtcClient) {

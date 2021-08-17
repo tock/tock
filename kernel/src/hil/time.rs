@@ -754,52 +754,33 @@ pub struct DateTime {
 
 /// Interface for reading and setting the current time
 pub trait Rtc<'a> {
-    /// Returns the current date and time
+    /// Request driver to return date and time
     ///
-    /// Depending on the underlying driver, retrieving the current date and time
-    /// can be synchronous or asynchronous. On some chips getting the date and time
-    /// implies simply reading a register, while other devices might use external
-    /// RTC hardware that requires an asynchronous bus transmission.
-    /// This function covers both cases:
-    ///   1. If the hardware is synchronous, the function returns `Ok(Some(DateTime))`
-    ///      in case of success and `Err(ErrorCode)` in case of and error;
-    ///   2. If the hardware is asynchronous, the function return `Ok(None)`
-    ///      in case of success and `Err(ErrorCode)` in case of and error.
-    ///      When successful this function call must be followed by a call
-    ///      to `callback_get_date` which provides the actual date and time
-    ///      or an error.
-    fn get_date_time(&self) -> Result<Option<DateTime>, ErrorCode>;
+    /// When successful this function call must be followed by a call
+    /// to `callback_get_date` which provides the actual date and time
+    /// or an error.
+    fn get_date_time(&self) -> Result<(), ErrorCode>;
 
     /// Sets the current date and time
     ///
-    /// Depending on the underlying driver, setting the current date and time
-    /// can be synchronous or asynchronous. On some chips setting the date and time
-    /// implies simply writing on a register, while other devices might use external
-    /// RTC hardware that requires an asynchronous bus transmission.
-    /// This function covers both cases:
-    ///   1. If the hardware is synchronous, the function returns `Ok(Some())`
-    ///      in case of success and `Err(ErrorCode)` in case of and error;
-    ///   2. If the hardware is asynchronous, the function return `Ok(None)`
-    ///      in case of success and `Err(ErrorCode)` in case of and error.
-    ///      When successful this function call must be followed by a call
-    ///      to `callback_set_date`.
-    fn set_date_time(&self, date_time: DateTime) -> Result<Option<()>, ErrorCode>;
+    /// When successful this function call must be followed by a call
+    /// to `callback_set_date`.
+    fn set_date_time(&self, date_time: DateTime) -> Result<(), ErrorCode>;
 
-    /// Sets a client that calls the callback function when date time is requested asynchronously
+    /// Sets a client that calls the callback function when date and time is requested
     fn set_client(&self, client: &'a dyn RtcClient);
 }
 
 /// Callback handler for when current date is read or set.
 pub trait RtcClient {
-    /// Called from when a date time reading has completed (only for asynchronous reading).
-    /// Returns `Ok(DateTime)` of current date as a DateTime structure.
-    /// If an error is encountered it returns an `Err(ErrorCode)`
+    /// Called when a date time reading has completed.
+    /// Takes `Ok(DateTime)` of current date and passes it when scheduling an upcall.
+    /// If an error is encountered it takes an `Err(ErrorCode)`
     fn callback_get_date(&self, datetime: Result<DateTime, ErrorCode>);
 
-    /// Called from driver when a date is set asynchronously.
-    /// Returns Ok(()) if time is set correctly.
-    /// Returns Err(ErrorCode) if the date received as parameter
-    /// in set_date_time(//..) is incorrect.
+    /// Called when a date is set
+    /// Takes `Ok(())` if time is set correctly.
+    /// Takes  `Err(ErrorCode)` in case of an error
     fn callback_set_date(&self, result: Result<(), ErrorCode>);
 }
 

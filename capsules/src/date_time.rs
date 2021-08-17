@@ -31,9 +31,6 @@ use kernel::{ErrorCode, ProcessId};
 
 pub const DRIVER_NUM: usize = NUM::Rtc as usize;
 
-pub const SYNCHRONOUS: u32 = 1;
-pub const ASYNCHRONOUS: u32 = 0;
-
 pub const UPCALL_OK: u32 = 1;
 pub const UPCALL_ERR: u32 = 0;
 
@@ -41,12 +38,6 @@ pub enum DateTimeCommand {
     Exists,
     ReadDateTime,
     SetDateTime,
-    GetSynchronicity,
-}
-
-struct DriverCallResult {
-    cmd_ret: CommandReturn,
-    synchronous_response: bool,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -173,50 +164,13 @@ impl<'a> DateTime<'a> {
         Ok((year_month_dotm.get(), dotw_hour_min_sec.get()))
     }
 
-    fn call_driver(
-        &self,
-        command: DateTimeCommand,
-        r2: usize,
-        r3: usize,
-    ) -> Result<DriverCallResult, ErrorCode> {
+    fn call_driver(&self, command: DateTimeCommand, r2: usize, r3: usize) -> CommandReturn {
         match command {
             DateTimeCommand::ReadDateTime => {
                 let date_result = self.date_time.get_date_time();
                 match date_result {
-                    Result::Ok(d) => {
-                        match d {
-                            Some(date) => {
-                                //sync
-
-                                let (year_month_dotm, dotw_hour_min_sec) =
-                                    match self.date_as_u32_tuple(date) {
-                                        Result::Ok(t) => t,
-                                        Result::Err(e) => {
-                                            return Err(e);
-                                        }
-                                    };
-
-                                Ok(DriverCallResult {
-                                    cmd_ret: CommandReturn::success_u32_u32_u32(
-                                        SYNCHRONOUS,
-                                        year_month_dotm,
-                                        dotw_hour_min_sec,
-                                    ),
-                                    synchronous_response: true,
-                                })
-                            }
-
-                            //async
-                            None => Ok(DriverCallResult {
-                                cmd_ret: CommandReturn::success_u32_u32_u32(ASYNCHRONOUS, 0, 0),
-                                synchronous_response: true,
-                            }),
-                        }
-                    }
-                    Result::Err(_e) => {
-                        CommandReturn::failure(ErrorCode::FAIL);
-                        Err(ErrorCode::FAIL)
-                    }
+                    Result::Ok(()) => CommandReturn::success(),
+                    Result::Err(e) => CommandReturn::failure(e),
                 }
             }
             DateTimeCommand::SetDateTime => {
@@ -230,8 +184,7 @@ impl<'a> DateTime<'a> {
                     month: match self.u32_as_month(year_month_dotm.read(YEAR_MONTH_DOTM::MONTH)) {
                         Result::Ok(t) => t,
                         Result::Err(e) => {
-                            CommandReturn::failure(e);
-                            return Err(e);
+                            return CommandReturn::failure(e);
                         }
                     },
                     day: year_month_dotm.read(YEAR_MONTH_DOTM::DAY) as u8,
@@ -240,8 +193,7 @@ impl<'a> DateTime<'a> {
                     {
                         Result::Ok(t) => t,
                         Result::Err(e) => {
-                            CommandReturn::failure(e);
-                            return Err(e);
+                            return CommandReturn::failure(e);
                         }
                     },
                     hour: dotw_hour_min_sec.read(DOTW_HOUR_MIN_SEC::HOUR) as u8,
@@ -252,34 +204,12 @@ impl<'a> DateTime<'a> {
                 let get_date_result = self.date_time.set_date_time(date);
 
                 match get_date_result {
-                    Result::Ok(d) => {
-                        match d {
-                            Some(()) => {
-                                //sync
-
-                                Ok(DriverCallResult {
-                                    cmd_ret: CommandReturn::success_u32_u32_u32(SYNCHRONOUS, 0, 0),
-                                    synchronous_response: true,
-                                })
-                            }
-                            //async
-                            None => Ok(DriverCallResult {
-                                cmd_ret: CommandReturn::success_u32_u32_u32(ASYNCHRONOUS, 0, 0),
-                                synchronous_response: true,
-                            }),
-                        }
-                    }
-                    Result::Err(e) => {
-                        CommandReturn::failure(e);
-                        Err(e)
-                    }
+                    Result::Ok(()) => CommandReturn::success(),
+                    Result::Err(e) => CommandReturn::failure(e),
                 }
             }
 
-            _ => {
-                CommandReturn::failure(ErrorCode::NOSUPPORT);
-                Err(ErrorCode::NOSUPPORT)
-            }
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -292,38 +222,7 @@ impl<'a> DateTime<'a> {
     ) -> CommandReturn {
         if !self.in_progress.get() {
             self.in_progress.set(true);
-            //app.subscribed = true;
-            let res = self.call_driver(
-                command,
-                year_month_dotm as usize,
-                dotw_hour_min_sec as usize,
-            );
 
-            match res {
-                Ok(ret) => {
-                    if !ret.synchronous_response {
-                        let grant_enter_res = self.apps.enter(appid, |app, _| {
-                            app.subscribed = true;
-                        });
-
-                        match grant_enter_res {
-                            Ok(()) => {}
-                            Err(_e) => {
-                                return CommandReturn::failure(ErrorCode::FAIL);
-                            }
-                        }
-                    } else {
-                        self.in_progress.set(false);
-                    }
-
-                    ret.cmd_ret.into()
-                }
-                Err(e) => {
-                    self.in_progress.set(false);
-                    CommandReturn::failure(e)
-                }
-            }
-        } else {
             let grant_enter_res = self.apps.enter(appid, |app, _| {
                 app.subscribed = true;
             });
@@ -335,7 +234,21 @@ impl<'a> DateTime<'a> {
                 }
             }
 
-            CommandReturn::success_u32_u32_u32(ASYNCHRONOUS, 0, 0)
+            self.call_driver(
+                command,
+                year_month_dotm as usize,
+                dotw_hour_min_sec as usize,
+            )
+            .into()
+        } else {
+            let grant_enter_res = self.apps.enter(appid, |app, _| {
+                app.subscribed = true;
+            });
+
+            match grant_enter_res {
+                Ok(()) => CommandReturn::success(),
+                Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
+            }
         }
     }
 }
@@ -392,7 +305,6 @@ impl RtcClient for DateTime<'_> {
                             upcall_status = UPCALL_ERR;
                         }
                     }
-
                     upcalls
                         .schedule_upcall(0, (upcall_status as usize, 0, 0))
                         .ok();
@@ -420,12 +332,6 @@ impl<'a> SyscallDriver for DateTime<'a> {
             ),
             2 => self.enqueue_command(
                 DateTimeCommand::SetDateTime,
-                r2 as u32,
-                r3 as u32,
-                process_id,
-            ),
-            3 => self.enqueue_command(
-                DateTimeCommand::GetSynchronicity,
                 r2 as u32,
                 r3 as u32,
                 process_id,

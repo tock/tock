@@ -20,13 +20,15 @@ use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
 use cortexm0p::interrupt_mask;
 
+use crate::deferred_calls::DeferredCallTask;
+
 #[repr(u8)]
 pub enum Processor {
     Processor0 = 0,
     Processor1 = 1,
 }
 
-pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
+pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm0p::mpu::MPU,
     userspace_kernel_boundary: cortexm0p::syscall::SysCall,
     interrupt_service: &'a I,
@@ -35,7 +37,7 @@ pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
     processor1_interrupt_mask: (u128, u128),
 }
 
-impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
@@ -48,7 +50,7 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
 
@@ -69,6 +71,10 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
                     let n = cortexm0p::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
+                } else if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                    if !self.interrupt_service.service_deferred_call(task) {
+                        panic!("Unhandled deferred call");
+                    }
                 } else {
                     break;
                 }
@@ -127,7 +133,6 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub sysinfo: sysinfo::SysInfo,
 
     pub i2c0: i2c::I2c<'a>,
-    pub rtc: rtc::Rtc,
     pub rtc: rtc::Rtc<'a>,
 
 }
@@ -165,7 +170,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
     }
 }
 
-impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
+impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TIMER_IRQ_0 => {
@@ -196,15 +201,21 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
                 self.pins.handle_interrupt();
                 true
             }
+
             interrupts::I2C0_IRQ => {
                 self.i2c0.handle_interrupt();
                 true
             }
+
             _ => false,
         }
     }
 
-    unsafe fn service_deferred_call(&self, _task: ()) -> bool {
-        false
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
+        match task {
+            DeferredCallTask::DateTimeGet => self.rtc.handle_get_interrupt(),
+            DeferredCallTask::DateTimeSet => self.rtc.handle_set_interrupt(),
+        }
+        true
     }
 }
