@@ -108,8 +108,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
             });
         } else {
             self.inflight.map(|node| {
-                let op = node.operation.get();
-                match op {
+                match node.operation.get() {
                     // we have to report an error
                     Op::ReadWriteDone(status, len) => {
                         node.txbuffer.take().map(|write_buffer| {
