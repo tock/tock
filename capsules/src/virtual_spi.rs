@@ -112,13 +112,14 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
+                    // we have to report an error
                     Op::ReadWriteDone(status, len) => {
                         node.txbuffer.take().map(|write_buffer| {
                             let read_buffer = node.rxbuffer.take();
                             self.read_write_done(write_buffer, read_buffer, len, status);
                         });
                     }
-                    _ => {} // Can't get here ...
+                    _ => {} // Something is really in flight
                 }
             });
         }
