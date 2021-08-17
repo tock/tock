@@ -106,6 +106,21 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     Op::Idle => {} // Can't get here...
                 }
             });
+        } else {
+            self.inflight.map(|node| {
+                let op = node.operation.get();
+                // Need to set idle here in case callback changes state
+                node.operation.set(Op::Idle);
+                match op {
+                    Op::ReadWriteDone(status, len) => {
+                        node.txbuffer.take().map(|write_buffer| {
+                            let read_buffer = node.rxbuffer.take();
+                            self.read_write_done(write_buffer, read_buffer, len, status);
+                        });
+                    }
+                    _ => {} // Can't get here ...
+                }
+            });
         }
     }
 
@@ -132,7 +147,7 @@ impl<'a, Spi: hil::spi::SpiMaster> DynamicDeferredCallClient for MuxSpiMaster<'a
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum Op {
     Idle,
     ReadWriteBytes(usize),

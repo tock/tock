@@ -34,8 +34,7 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::bus8080;
-use kernel::hil::spi;
-use kernel::hil::spi::SpiMasterDevice;
+use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterDevice};
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -104,12 +103,22 @@ impl<B: 'static + bus8080::Bus8080<'static>> Component for Bus8080BusComponent<B
 
 pub struct SpiMasterBusComponent<S: 'static + spi::SpiMaster> {
     _select: PhantomData<S>,
+    baud_rate: u32,
+    clock_phase: ClockPhase,
+    clock_polarity: ClockPolarity,
 }
 
 impl<S: 'static + spi::SpiMaster> SpiMasterBusComponent<S> {
-    pub fn new() -> SpiMasterBusComponent<S> {
+    pub fn new(
+        baud_rate: u32,
+        clock_phase: ClockPhase,
+        clock_polarity: ClockPolarity,
+    ) -> SpiMasterBusComponent<S> {
         SpiMasterBusComponent {
             _select: PhantomData,
+            baud_rate,
+            clock_phase,
+            clock_polarity,
         }
     }
 }
@@ -123,6 +132,13 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
     type Output = &'static SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        if let Err(error) =
+            static_buffer
+                .0
+                .configure(self.clock_polarity, self.clock_phase, self.baud_rate)
+        {
+            panic!("Failed to setup SPI Bus ({:?})", error);
+        }
         let bus = static_init_half!(
             static_buffer.1,
             SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>,
