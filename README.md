@@ -32,6 +32,10 @@ ensure you have updated versions of userspace apps and the various Tock tools.
 We recommend if you are using git that you do a `git pull`, and if you are using
 tagged releases be sure to update to the 2.0 release.
 
+Initially, only [libtock-c](https://github.com/tock/libtock-c) is compatible with
+Tock 2.0. Work on supporting Tock 2.0 for libtock-rs is [under
+development](https://github.com/tock/libtock-rs/issues/322).
+
 
 Learn More
 ----------
