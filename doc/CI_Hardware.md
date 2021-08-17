@@ -18,9 +18,10 @@ The Tock core team maintains the following hardware CI instances:
   * [Process of Instances](#process-of-instances)
     + [What are actions/runners?](#what-are-actionsrunners)
   * [Configuration Files](#configuration-files)
-  * [Configuring Uart/I2C/SPI on Raspberry Pi](#configuring-uart-i2c-spi-on-raspberry-pi)
+  * [Configuring the Raspberry Pi](#configuring-the-raspberry-pi)
     + [Uart setup](#uart-setup)
     + [I2C setup](#i2c-setup)
+    + [Downloading Pi-GPIO open source Python Library](#downloading-pi-gpio-open-source-python-library)
   * [Looking in the Workflow](#looking-in-the-workflow)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
@@ -260,7 +261,7 @@ Before looking at the workflow, there are two configuration files that are impor
             - Test.all specifier:
                 - Tests to be built, installed, and tested on the raspberry pi. The “app” variable holds the list of tests to be conducted. The “all” in the specifier can be changed to a Raspberry Pi ID to conduct specific tests on specific Raspberry Pi’s.
 
-## Configuring Uart-I2C-SPI on Raspberry Pi
+## Configuring the Raspberry Pi
 
 The Raspberry Pi does not have Uart, I2C, and SPI configured by default,so there are several things that must be done to enable these interfaces to properly test Tock hardware. 
 
@@ -306,7 +307,7 @@ Follow these commands to setup Uart on raspberry to transmit, and receive messag
 6. Finally, reboot Ubuntu 20.04, then both `hci0` and `/dev/ttyS0` can work at the same time 
 
 **Sanity Check**
-If UART is properly setup, using the command `ls -l dev` you should see the image below.
+If UART is properly setup, using the command `ls -l dev` you should see the image below after scrolling up slightly.
 ```bash
     ls -l dev
 ```
@@ -366,6 +367,42 @@ Using the command `i2cdetect -y 1`, if you see the matrix below then I2C is prop
 70: -- -- -- -- -- -- -- --
 
 ```
+
+## Downloading Pi-GPIO open source Python Library
+[Source of Guide](https://abyz.me.uk/rpi/pigpio/download.html)
+
+The Raspberry Pi does not have I2C slave enabled by default on traditional I2C pins. In order to have the Raspberry Pi act as a slave, we must use Broadcom Pins 10 & 11 (Or GPIO Pins 19 & 23). Then, we also to have to utilize the open source Python Library known as "pigpio". To install this Python lirbary onto the Raspberry Pi, follow the steps below.
+
+1. First, run an update to get current version:
+    ```bash
+        sudo apt-get update
+    ```
+
+2. For Installation, follow these lines:
+    ```bash
+        wget https://github.com/joan2937/pigpio/archive/master.zip
+        unzip master.zip
+        cd pigpio-master
+        make
+        sudo make install
+    ```
+
+3. If python section did not download properly, run the following command:
+    ```bash
+        sudo apt install python-setuptools python3-setuptools
+    ```
+
+4. To run, run the follow commands:
+    - To run pigpio daemon 
+        ```bash
+            sudo pigpiod
+        ```
+    - To shut down pigpio daemon
+        ```bash
+            sudo killall pigpiod
+        ```
+
+If commands on **Step 4** do not output anything, pigpio is properly setup. Slave access is now available on Raspberry Pi.
 
 ## Looking in the Workflow 
 
