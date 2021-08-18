@@ -23,6 +23,7 @@ The Tock core team maintains the following hardware CI instances:
     + [I2C setup](#i2c-setup)
     + [Downloading Pi-GPIO open source Python Library](#downloading-pi-gpio-open-source-python-library)
   * [Looking in the Workflow](#looking-in-the-workflow)
+    + [Creating the Workflow File](#creating-the-workflow-file)
 - [Where Tests are Located and How They Work](#where-tests-are-located-and-how-they-work)
   * [Location](#location)
   * [How Tests Work](#how-tests-work)
@@ -471,7 +472,7 @@ Each workflow file will be designed for eachboard, placed in `tock/.github/workf
         Now, `runs-on` specifies that it will run with runners containing the label `self-hosted` only. Then, just like `install` test needs the job `install` to run before test can occur. `steps` contain the same as `install` with `name` and `run` which calls `main.py` with the flag "-t" to run the test functions. 
 
 
-For a sanity check, here is what the example file looks like
+For a **sanity check**, here is what the example file looks like
 ```yaml
 name: tock-hw-ci
 
