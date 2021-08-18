@@ -421,6 +421,96 @@ For example:
 - **Test**
     - When this job runs, it executes Main.py with the “-t” flag, calling the tock_test function in Runner.py. This function builds the tests by compiling them, installs the tests to the board, then runs the tests on the board. The tests to be installed are designated by the test.config.toml file for each board. Currently, for the board we have set up for hardware CI, nrf52840dk, we have the test object have an “all” specifier in the test.config.toml file that  runs a set of tests for all boards of this type, regardless of harness ID of the RPi. We can set, later, for the test object to have certain Harness ID’s and Raspberry Pi’s run certain tests.  The runner.py, then, runs all the tests specified in the “test” object of the test configuration file for the specific Raspberry Pi and respective board. Through this process, this is how the tests are conducted on the board. 
 
+### Creating the Workflow File
+Each workflow file will be designed for eachboard, placed in `tock/.github/workflows` and be titled with whatever title you want it to be. Following the previous workflow example file, it will have three jobs that are build, install, and test. But, to create a proper workflow file, we must specify the board and the branch to listen to. As such, follow these steps to create a proper workflow for CI-testing.
+1. Name the File
+    - First, name the workflow file you want it to be titled. Then, on the file, we specify the name as such
+    `name: {name of file}`
+    In the example file, we used the name "tock-hw-ci"
+2. Then, create the key `on` and label keys for what git actions you want the workflow to activate on. In the example, we have the git actions as keys `pull_request` and `push`. Thus with these git actions, the workflow will activate. We can also specify what branch these git actions will activate the workflow. In the example file, we label it as the main branch. An example would be:
+    ```yaml
+    on:
+        push:
+            branches: [ master ]
+    ```
+3. Now, add the following line:
+    ```yaml
+    env:
+        CARGO_TERM_COLOR: always
+    ```
+4. Now, add the key `job` and the following keys `build` `install` and `test`.
+    - the Build key will contain:
+        ```yaml
+
+        runs-on: [nrf52dk]
+        steps:
+        - uses: actions/checkout@v2
+        - name: Build
+            run: python3 ~/tock-test-harness/lib/main.py -b
+        ```
+    `runs-on` specifies that this workflow will only run on the runner with the `nrf52dk` label. the key `steps:` define what build will do, which uses the `actions/checkout@v2` and name for itself, then calls the `main.py` file with the "-b" flag to run the build functions. 
+    - the Install key will contain:
+        ```yaml
+
+            runs-on: [nrf52dk]
+            needs: build
+            steps:
+            - name: Install
+                run: python3 ~/tock-test-harness/lib/main.py -i
+        ```
+    same with build, `runs-on` specifies that this portion will only run on the runner with the `nrf52dk` label. `needs:` specifies that the jobs associated must be achieved, which is a key, in order to be ran, that being `build` from previously. `steps` only contains the key `name:` and the file to run, being the `main.py` with the "-i" flag to indicate the installation functions. 
+    - the Test key will contain:
+        ```yaml
+
+        runs-on: [self-hosted]
+        needs: install
+        steps:
+        - name: HW Test
+            run: python3 ~/tock-test-harness/lib/main.py -t
+        ```
+        Now, `runs-on` specifies that it will run with runners containing the label `self-hosted` only. Then, just like `install` test needs the job `install` to run before test can occur. `steps` contain the same as `install` with `name` and `run` which calls `main.py` with the flag "-t" to run the test functions. 
+
+
+For a sanity check, here is what the example file looks like
+```yaml
+name: tock-hw-ci
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: [nrf52dk]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: python3 ~/tock-test-harness/lib/main.py -b
+      
+  install:
+    
+    runs-on: [nrf52dk]
+    needs: build
+    steps:
+    - name: Install
+      run: python3 ~/tock-test-harness/lib/main.py -i
+      
+  test:
+    
+    runs-on: [self-hosted]
+    needs: install
+    steps:
+    - name: HW Test
+      run: python3 ~/tock-test-harness/lib/main.py -t
+      
+```
+
 # Where Tests are Located and How They Work
 
 ## Location
