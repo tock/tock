@@ -369,7 +369,7 @@ Using the command `i2cdetect -y 1`, if you see the matrix below then I2C is prop
 
 ```
 
-## Downloading Pi-GPIO open source Python Library
+### Downloading Pi-GPIO open source Python Library
 For more details or troubleshooting, [see the complete pigpio documentation](https://abyz.me.uk/rpi/pigpio/download.html).
 
 The Raspberry Pi does not have I2C slave enabled by default on traditional I2C pins. In order to have the Raspberry Pi act as a slave, we must use Broadcom Pins 10 & 11 (Or GPIO Pins 19 & 23). Then, we also to have to utilize the open source Python Library known as "pigpio". To install this Python lirbary onto the Raspberry Pi, follow the steps below.
