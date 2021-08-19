@@ -590,7 +590,8 @@ impl<'a> Adc<'a> {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
             let data = self.registers.dr.read(DR::RDATA);
-            self.client.map(|client| client.sample_ready(data as u16));
+            self.client
+                .map(|client| client.sample_ready((data as u16) << 4));
             if self.status.get() == ADCStatus::Continuous {
                 self.registers.ier.modify(IER::EOCIE::SET);
             }

@@ -9,7 +9,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 
-use crate::exti;
+use crate::exti::{self, LineId};
 use crate::rcc;
 
 /// General-purpose I/Os
@@ -824,6 +824,12 @@ impl<'a> Pin<'a> {
 
     pub fn get_pinid(&self) -> PinId {
         self.pinid
+    }
+
+    pub unsafe fn enable_interrupt(&'static self) {
+        let exti_line_id = LineId::from_u8(self.pinid.get_pin_number() as u8).unwrap();
+
+        self.exti.associate_line_gpiopin(exti_line_id, &self);
     }
 
     pub fn set_exti_lineid(&self, lineid: exti::LineId) {
