@@ -153,9 +153,13 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                 .map_or(Err(ErrorCode::NOMEM), |buffer| {
                     self.status.set(BusStatus::SetAddress);
                     buffer[0] = addr as u8;
-                    // TODO verify SPI return value
-                    let _ = self.spi.read_write_bytes(buffer, None, 1);
-                    Ok(())
+                    if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer, None, 1) {
+                        self.status.set(BusStatus::Idle);
+                        self.addr_buffer.replace(buffer);
+                        Err(error)
+                    } else {
+                        Ok(())
+                    }
                 }),
 
             _ => Err(ErrorCode::NOSUPPORT),
@@ -173,9 +177,12 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
         self.bus_width.set(bytes);
         if buffer.len() >= len * bytes {
             self.status.set(BusStatus::Write);
-            // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buffer, None, len * bytes);
-            Ok(())
+            if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer, None, len * bytes) {
+                self.status.set(BusStatus::Idle);
+                Err((error, buffer))
+            } else {
+                Ok(())
+            }
         } else {
             Err((ErrorCode::NOMEM, buffer))
         }
@@ -198,10 +205,16 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
                     && buffer.len() > len * bytes
                 {
                     self.status.set(BusStatus::Read);
-                    let _ = self
-                        .spi
-                        .read_write_bytes(write_buffer, Some(buffer), len * bytes);
-                    Ok(())
+                    if let Err((error, write_buffer, buffer)) =
+                        self.spi
+                            .read_write_bytes(write_buffer, Some(buffer), len * bytes)
+                    {
+                        self.status.set(BusStatus::Idle);
+                        self.read_write_buffer.replace(write_buffer);
+                        Err((error, buffer.unwrap()))
+                    } else {
+                        Ok(())
+                    }
                 } else {
                     Err((ErrorCode::NOMEM, buffer))
                 }
@@ -220,14 +233,13 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for SpiMasterBus<'a, S> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-        _status: Result<(), ErrorCode>,
+        status: Result<(), ErrorCode>,
     ) {
-        // debug!("write done {}", len);
         match self.status.get() {
             BusStatus::SetAddress => {
                 self.addr_buffer.replace(write_buffer);
                 self.client
-                    .map(move |client| client.command_complete(None, 0, Ok(())));
+                    .map(move |client| client.command_complete(None, 0, status));
             }
             BusStatus::Write | BusStatus::Read => {
                 let mut buffer = write_buffer;
@@ -236,7 +248,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for SpiMasterBus<'a, S> {
                     buffer = buf;
                 }
                 self.client.map(move |client| {
-                    client.command_complete(Some(buffer), len / self.bus_width.get(), Ok(()))
+                    client.command_complete(Some(buffer), len / self.bus_width.get(), status)
                 });
             }
             _ => {

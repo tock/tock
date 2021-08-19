@@ -189,6 +189,7 @@ enum Status {
     SendCommandSlice(usize),
     SendParametersSlice,
     Delay,
+    Error(ErrorCode),
 }
 #[derive(Copy, Clone, PartialEq)]
 pub enum SendCommand {
@@ -589,6 +590,25 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 self.status.set(Status::Idle);
                 let _ = self.send_sequence(&self.screen.init_sequence);
             }
+            Status::Error(error) => {
+                if self.setup_command.get() {
+                    self.setup_command.set(false);
+                    self.setup_client.map(|setup_client| {
+                        setup_client.command_complete(Err(error));
+                    });
+                } else {
+                    self.client.map(|client| {
+                        if self.write_buffer.is_some() {
+                            self.write_buffer.take().map(|buffer| {
+                                client.write_complete(buffer, Err(error));
+                            });
+                        } else {
+                            client.command_complete(Err(error));
+                        }
+                    });
+                }
+                self.status.set(Status::Idle);
+            }
             _ => {
                 panic!("ST77XX status Idle");
             }
@@ -846,7 +866,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
         &self,
         buffer: Option<&'static mut [u8]>,
         _len: usize,
-        _status: Result<(), ErrorCode>,
+        status: Result<(), ErrorCode>,
     ) {
         if let Some(buffer) = buffer {
             if self.status.get() == Status::SendParametersSlice {
@@ -854,6 +874,10 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
             } else {
                 self.buffer.replace(buffer);
             }
+        }
+
+        if let Err(error) = status {
+            self.status.set(Status::Error(error));
         }
 
         self.do_next_op();

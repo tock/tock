@@ -606,16 +606,19 @@ pub unsafe fn main() {
         nrf52840::pinmux::Pinmux::new(ST7789H2_SCK as u32),
     );
 
-    let bus = components::bus::SpiMasterBusComponent::new().finalize(
-        components::spi_bus_component_helper!(
-            // spi type
-            nrf52840::spi::SPIM,
-            // chip select
-            &nrf52840_peripherals.gpio_port[ST7789H2_CS],
-            // spi mux
-            spi_mux
-        ),
-    );
+    let bus = components::bus::SpiMasterBusComponent::new(
+        20_000_000,
+        kernel::hil::spi::ClockPhase::SampleLeading,
+        kernel::hil::spi::ClockPolarity::IdleLow,
+    )
+    .finalize(components::spi_bus_component_helper!(
+        // spi type
+        nrf52840::spi::SPIM,
+        // chip select
+        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
+        // spi mux
+        spi_mux
+    ));
 
     let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
         components::st77xx_component_helper!(
