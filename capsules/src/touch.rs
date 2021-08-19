@@ -231,10 +231,10 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                 if buffer.len() > event_index + 8 {
                                     buffer[offset].set(event.id as u8);
                                     buffer[offset + 1].set(event_status as u8);
-                                    buffer[offset + 2].set(((event.x & 0xFFFF) >> 8) as u8);
-                                    buffer[offset + 3].set((event.x & 0xFF) as u8);
-                                    buffer[offset + 4].set(((event.y & 0xFFFF) >> 8) as u8);
-                                    buffer[offset + 5].set((event.y & 0xFF) as u8);
+                                    buffer[offset + 2].set((event.x & 0xFF) as u8);
+                                    buffer[offset + 3].set(((event.x & 0xFFFF) >> 8) as u8);
+                                    buffer[offset + 4].set((event.y & 0xFF) as u8);
+                                    buffer[offset + 5].set(((event.y & 0xFFFF) >> 8) as u8);
                                     buffer[offset + 6].set(if let Some(size) = event.size {
                                         size as u8
                                     } else {
@@ -264,8 +264,6 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                             )
                             .ok();
                     }
-
-                // app.ack == false;
                 } else {
                     app.dropped_events = app.dropped_events + 1;
                 }
@@ -276,7 +274,6 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
 
 impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
-        // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
             app.enter(|_app, upcalls| {
                 let gesture_id = match event {
