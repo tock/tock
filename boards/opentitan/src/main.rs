@@ -23,6 +23,7 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
+use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
@@ -117,6 +118,10 @@ struct EarlGreyNexysVideo {
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
+    aes: &'static capsules::symmetric_encryption::aes::AesDriver<
+        'static,
+        earlgrey::aes::Aes<'static>,
+    >,
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
@@ -138,6 +143,7 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -471,6 +477,24 @@ unsafe fn setup() -> (
     );
     entropy_to_random.set_client(rng);
 
+    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
+    let aes_dest_buffer = static_init!([u8; 16], [0; 16]);
+
+    let aes = static_init!(
+        capsules::symmetric_encryption::aes::AesDriver<'static, earlgrey::aes::Aes<'static>>,
+        capsules::symmetric_encryption::aes::AesDriver::new(
+            &peripherals.aes,
+            aes_source_buffer,
+            aes_dest_buffer,
+            board_kernel.create_grant(
+                capsules::symmetric_encryption::aes::DRIVER_NUM,
+                &memory_allocation_cap
+            )
+        )
+    );
+
+    peripherals.aes.set_client(aes);
+
     /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -515,6 +539,7 @@ unsafe fn setup() -> (
             rng,
             lldb: lldb,
             i2c_master,
+            aes,
             scheduler,
             scheduler_timer,
         }
