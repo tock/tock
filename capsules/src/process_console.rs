@@ -13,6 +13,8 @@
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
 //!  - 'panic' causes the kernel to run the panic handler
+//!  - 'process n' prints the memory map of process with name n
+//!  - 'kernel' prints the kernel memory map
 //!
 //! ### `list` Command Fields:
 //!
@@ -22,7 +24,7 @@
 //! - `Quanta`: How many times this process has exceeded its alloted time
 //!   quanta.
 //! - `Syscalls`: The number of system calls the process has made to the kernel.
-//! - `Dropped Upcalls`: How many callbacks were dropped for this process
+//! - `Dropped Upcalls`: How many upcalls were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
 //!   the kernel.
@@ -54,16 +56,8 @@
 //!                  Capability));
 //! hil::uart::UART::set_client(&usart::USART0, pconsole);
 //!
-//! pconsole.initialize();
 //! pconsole.start();
 //! ```
-//!
-//! Buffer use and output
-//! ---------------------
-//! `ProcessConsole` does not use its own write buffer for output:
-//! it uses the debug!() buffer, so as not to repeat all of its buffering and
-//! to maintain a correct ordering with debug!() calls. The write buffer of
-//! `ProcessConsole` is used solely for echoing what someone types.
 //!
 //! Using ProcessConsole
 //! --------------------
