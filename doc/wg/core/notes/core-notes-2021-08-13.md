@@ -4,7 +4,6 @@
 
 - Pat Pannuto
 - Leon Schuermann
-- Branden Ghena
 - Jett Rink
 - Philip Levis
 - Alexandru Radovici
