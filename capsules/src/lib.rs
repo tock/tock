@@ -73,6 +73,7 @@ pub mod sound_pressure;
 pub mod spi_controller;
 pub mod spi_peripheral;
 pub mod st77xx;
+pub mod symmetric_encryption;
 pub mod temperature;
 pub mod temperature_rp2040;
 pub mod temperature_stm;
