@@ -155,12 +155,10 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f412g::syscfg::Syscfg,
-    exti: &stm32f412g::exti::Exti,
     i2c1: &stm32f412g::i2c::I2C,
     gpio_ports: &'static stm32f412g::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
-    use stm32f412g::exti::LineId;
     use stm32f412g::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -192,63 +190,33 @@ unsafe fn set_pin_primary_functions(
     // uncomment this if you do not plan to use the joystick up, as they both use Exti0
     // joystick selection is connected on pa00
     // gpio_ports.get_pin(PinId::PA00).map(|pin| {
-    //     // By default, upon reset, the pin is in input mode, with no internal
-    //     // pull-up, no internal pull-down (i.e., floating).
-    //     //
-    //     // Only set the mapping between EXTI line and the Pin and let capsule do
-    //     // the rest.
-    //     exti.associate_line_gpiopin(LineId::Exti0, pin);
+    //     pin.enable_interrupt();
     // });
-    // // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    // cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI0).enable();
 
     // joystick down is connected on pg01
     gpio_ports.get_pin(PinId::PG01).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti1, pin);
+        pin.enable_interrupt();
     });
-    // EXTI1 interrupts is delivered at IRQn 7 (EXTI1)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI1).enable();
 
     // joystick left is connected on pf15
     gpio_ports.get_pin(PinId::PF15).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti15, pin);
+        pin.enable_interrupt();
     });
-    // EXTI15_10 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI15_10).enable();
 
     // joystick right is connected on pf14
     gpio_ports.get_pin(PinId::PF14).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti14, pin);
+        pin.enable_interrupt();
     });
-    // EXTI15_10 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI15_10).enable();
 
     // joystick up is connected on pg00
     gpio_ports.get_pin(PinId::PG00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, pin);
+        pin.enable_interrupt();
     });
-    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI0).enable();
+
+    // enable interrupt for D0
+    gpio_ports.get_pin(PinId::PG09).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
@@ -283,12 +251,7 @@ unsafe fn set_pin_primary_functions(
 
     // FT6206 interrupt
     gpio_ports.get_pin(PinId::PG05).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti5, pin);
+        pin.enable_interrupt();
     });
 
     // ADC
@@ -437,12 +400,7 @@ pub unsafe fn main() {
     );
 
     // We use the default HSI 16Mhz clock
-    set_pin_primary_functions(
-        syscfg,
-        &base_peripherals.exti,
-        &base_peripherals.i2c1,
-        &base_peripherals.gpio_ports,
-    );
+    set_pin_primary_functions(syscfg, &base_peripherals.i2c1, &base_peripherals.gpio_ports);
 
     setup_dma(
         dma1,
@@ -495,26 +453,6 @@ pub unsafe fn main() {
     .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
-
-    // // Setup the process inspection console
-    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    // process_console_uart.setup();
-    // pub struct ProcessConsoleCapability;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
-    // let process_console = static_init!(
-    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
-    //     capsules::process_console::ProcessConsole::new(
-    //         process_console_uart,
-    //         &mut capsules::process_console::WRITE_BUF,
-    //         &mut capsules::process_console::READ_BUF,
-    //         &mut capsules::process_console::COMMAND_BUF,
-    //         board_kernel,
-    //         ProcessConsoleCapability,
-    //     )
-    // );
-    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
-    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
-    // process_console.start();
 
     // LEDs
 
@@ -716,7 +654,7 @@ pub unsafe fn main() {
     )
     .finalize(components::screen_buffer_size!(57600));
 
-    let touch = components::touch::TouchComponent::new(
+    let touch = components::touch::MultiTouchComponent::new(
         board_kernel,
         capsules::touch::DRIVER_NUM,
         ft6x06,
@@ -790,6 +728,11 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
+    // PROCESS CONSOLE
+    let _process_console =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
+
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
@@ -822,6 +765,7 @@ pub unsafe fn main() {
     // debug!("id {}", base_peripherals.fsmc.read(0x05));
 
     debug!("Initialization complete. Entering main loop");
+    let _ = _process_console.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
