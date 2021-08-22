@@ -102,18 +102,20 @@ impl<'a> Touch<'a> {
                 break;
             }
         }
-        self.touch.map_or(
-            // if there is no single touch device
-            // try to use the multi touch device and
-            // report only a single touch
-            self.multi_touch
-                .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
-                    if enabled {
-                        multi_touch.enable()
-                    } else {
-                        multi_touch.disable()
-                    }
-                }),
+        self.touch.map_or_else(
+            || {
+                // if there is no single touch device
+                // try to use the multi touch device and
+                // report only a single touch
+                self.multi_touch
+                    .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
+                        if enabled {
+                            multi_touch.enable()
+                        } else {
+                            multi_touch.disable()
+                        }
+                    })
+            },
             |touch| {
                 if enabled {
                     touch.enable()
