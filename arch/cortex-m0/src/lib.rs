@@ -367,11 +367,17 @@ unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kern
             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
 
             ldr r0, FEXC_RETURN_MSP
-            bx r0
+            mov lr, r0
+            b freturn
     .align 4
     FEXC_RETURN_MSP:
       .word 0xFFFFFFF9
-        "
+    freturn:
+        ",
+            out("r1") _,
+            out("r0") _,
+            out("r2") _,
+            options(nostack),
         );
     }
 }
