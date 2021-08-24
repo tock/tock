@@ -19,8 +19,10 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::digest::Digest;
+use kernel::hil::entropy::Entropy32;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::rng::Rng;
 use kernel::hil::time::Alarm;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
@@ -114,6 +116,7 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
@@ -134,6 +137,7 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -439,6 +443,22 @@ unsafe fn setup() -> (
             .expect("dynamic deferred caller out of slots"),
     );
 
+    // Convert hardware RNG to the Random interface.
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&peripherals.rng)
+    );
+    peripherals.rng.set_client(entropy_to_random);
+    // Setup RNG for userspace
+    let rng = static_init!(
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
+            board_kernel.create_grant(capsules::rng::DRIVER_NUM, &memory_allocation_cap)
+        )
+    );
+    entropy_to_random.set_client(rng);
+
     /// These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -480,6 +500,7 @@ unsafe fn setup() -> (
             alarm: alarm,
             hmac,
             sha,
+            rng,
             lldb: lldb,
             i2c_master,
             scheduler,
