@@ -56,7 +56,7 @@ New in 2.0
   to support microcontroller-type systems, including support for EPMP
   memory protection.
   
-  * There is support for ARM CortexM7.
+  * There is support for ARM CortexM0+ and CortexM7.
 
   * Board support adds:
     
@@ -109,7 +109,9 @@ New in 2.0
   * An 8080 bus HIL (for LCDs) has been added.
   
   * A text screen HIL has been added.
+  * A screen HIL has been added
   
+  * A touch HIL has been added
   * The Time HIL has been updated to better support `dyn` references
   when needed, by adding a `ConvertTicks` trait. This change is 
   documented in TRD 105 (which, when finalized, obsoletes 101).
@@ -124,7 +126,7 @@ New in 2.0
 running kernel version. Because 2.0 changes the user/kernel ABI, processes
 compiled for Tock 1.x will not run correctly on a Tock 2.x kernel and
 vice versa. If the kernel detects that a process is compiled for the
-wrong kernel version it skips the process and does not load it.
+wrong kernel version it stops loading processes.
 
 * There have been changes to kernel internals and the build system
 to reduce code size. For example, kernel code that was highly 
@@ -133,6 +135,8 @@ replicated in monomorphized functions has been factored out (#2648).
 * All system call driver capsules that do not support use by 
 multiple processes now use grant regions to store state and
 explicitly forbid access from multiple processes (e.g., #2518).. 
+
+  * The process console has been improved
 
 * Added `tools/stack_analysis.sh` and 'make stack-analysis` for analyzing
 stack size.
