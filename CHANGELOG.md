@@ -26,7 +26,7 @@ New in 2.0
   - Several types in the kernel have changed names, to better reflect their
     actual use and behavior.
 
-	  - `AppSlice` is now `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`.
+    - `AppSlice` is now `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`.
 
     - `Callback` is now `Upcall` (to distinguish upcalls from the kernel to
       userspace from general softare callbacks). `Upcall`s are now stored in a
