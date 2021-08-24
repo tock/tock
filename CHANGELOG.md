@@ -61,17 +61,17 @@ New in 2.0
 
   - Board support adds:
 
-	  - Nano RP2040 Connect
-	  - Clue nRF52840
-	  - BBC Micro:bit v2
-	  - WeAct F401CCU6 Core Board
+    - Nano RP2040 Connect
+    - Clue nRF52840
+    - BBC Micro:bit v2
+    - WeAct F401CCU6 Core Board
     - i.MX RT 1052 Evaluation Kit
-	  - Teensy 4.0
-	  - Pico Explorer Base
-	  - Rapsberry Pi Pico
-	  - LiteX on Digilent Arty A-7
-	  - Verilated LiteX simulation
-	  - ESP32-C3-DevKitM-1
+    - Teensy 4.0
+    - Pico Explorer Base
+    - Rapsberry Pi Pico
+    - LiteX on Digilent Arty A-7
+    - Verilated LiteX simulation
+    - ESP32-C3-DevKitM-1
 
 
 * Major HIL changes
