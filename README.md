@@ -22,10 +22,13 @@ Tock 2.0!
 
 Tock is now on its second major release! Here are some 2.0 highlights, and see
 the [release notes](https://github.com/tock/tock/releases/tag/release-2.0) for
-more detail, or the [changelog](CHANGELOG.md#new-in-20) for the complete set of changes.
+more detail, or the [changelog](CHANGELOG.md#new-in-20) for the complete set of
+changes.
 
 - Revamped system call interface.
-- other
+- Support for 11 new hardware platforms.
+- Updated kernel types.
+- Many new and improved HILs.
 
 As 2.0 includes many breaking changes, to use the new kernel you will need to
 ensure you have updated versions of userspace apps and the various Tock tools.
