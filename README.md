@@ -22,7 +22,7 @@ Tock 2.0!
 
 Tock is now on its second major release! Here are some 2.0 highlights, and see
 the [release notes](https://github.com/tock/tock/releases/tag/release-2.0) for
-more detail.
+more detail, or the [changelog](CHANGELOG.md#new-in-20) for the complete set of changes.
 
 - Revamped system call interface.
 - other
