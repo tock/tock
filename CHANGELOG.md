@@ -2,155 +2,146 @@ New in 2.0
 ==========
 
 * Many core kernel APIs have been redesigned and rewritten.
-  
-  * There are two new userspace system calls: `AllowReadOnly` and
-  `Exit`. The old `Allow` system call has been renamed to `AllowReadWrite`.
-  `AllowReadOnly` provides a mechanism for userspace to share a 
-  read-only buffer (e.g., constant data stored in flash) to the kernel.
-  `Exit` allows a process to complete execution and request that the
-  kernel either terminate or restart it.
-  
-  * The system call ABI has been rewritten. System calls can now return
-  up to 4 registers of values to userspace on return. The ABI defines
-  the format and structure of the allowed return types. TRD104 documents
-  the new ABI.
-  
-  * The calling semantics and requirements for system calls is more
-  clearly defined, especially with respect to calls to the Allow
-  system calls and how buffers are managed. Furthermore, the lifetime
-  of upcalls passed to the kernel with the `subscribe` system call
-  has been defined. To enforce that the kernel doesn't maintain
-  references to upcalls that it shouldn't (so userspace can reclaim any
-  resources they require), upcalls are now managed by the core kernel.
-  The changes to these calling semantics are documented in TRD104.
-  
-  * Several types in the kernel have changed names, to better reflect
-  their actual use and behavior. 
-    
-	* `AppSlice` is now `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`.
-	
-	* `Callback` is now `Upcall` (to distinguish upcalls from the kernel to
-	userspace from general softare callbacks). `Upcall`s are now stored in
-        a special block of memory in grant regions and are managed by the
-        kernel rather than drivers. This allows the kernel to enforce their
-        swapping semantics. #2639
-	
-	* `Platform` is now `SyscallDriverLookup` and `Chip` is now split into
-	`Chip` for chip-specific operations and `KernelResources` for kernel
-	operations.
-	
-	* `Driver` is now `SyscallDriver`.
-	
+
+  - There are two new userspace system calls: `AllowReadOnly` and `Exit`. The
+    old `Allow` system call has been renamed to `AllowReadWrite`.
+    `AllowReadOnly` provides a mechanism for userspace to share a read-only
+    buffer (e.g., constant data stored in flash) to the kernel. `Exit` allows a
+    process to complete execution and request that the kernel either terminate
+    or restart it.
+
+  - The system call ABI has been rewritten. System calls can now return up to 4
+    registers of values to userspace on return. The ABI defines the format and
+    structure of the allowed return types. TRD104 documents the new ABI.
+
+  - The calling semantics and requirements for system calls is more clearly
+    defined, especially with respect to calls to the Allow system calls and how
+    buffers are managed. Furthermore, the lifetime of upcalls passed to the
+    kernel with the `subscribe` system call has been defined. To enforce that
+    the kernel doesn't maintain references to upcalls that it shouldn't (so
+    userspace can reclaim any resources they require), upcalls are now managed
+    by the core kernel. The changes to these calling semantics are documented in
+    TRD104.
+
+  - Several types in the kernel have changed names, to better reflect their
+    actual use and behavior.
+
+	  - `AppSlice` is now `ReadOnlyProcessBuffer` and `ReadWriteProcessBuffer`.
+
+    - `Callback` is now `Upcall` (to distinguish upcalls from the kernel to
+      userspace from general softare callbacks). `Upcall`s are now stored in a
+      special block of memory in grant regions and are managed by the kernel
+      rather than drivers. This allows the kernel to enforce their swapping
+      semantics. #2639
+
+    - `Platform` is now `SyscallDriverLookup` and `Chip` is now split into
+      `Chip` for chip-specific operations and `KernelResources` for kernel
+      operations.
+
+    - `Driver` is now `SyscallDriver`.
+
 * The kernel namespace has been reorganized.
 
-  * https://github.com/tock/tock/pull/2659 reorganizes the kernel namespace.
-  The actual abstractions and types exported were not changed, but their places
-  in the namespace were.
-  
-  * Almost everything is now exported as `kernel::module::Type` rather than `kernel::Type`.
-  * `/common` is split up into `/utilities` and `/collections`
-	
+  - https://github.com/tock/tock/pull/2659 reorganizes the kernel namespace. The
+    actual abstractions and types exported were not changed, but their places in
+    the namespace were.
+
+  - Almost everything is now exported as `kernel::module::Type` rather than
+    `kernel::Type`.
+
+  - `/common` is split up into `/utilities` and `/collections`
+
 * There is increased chip and board support.
 
-  * RISC-V support has been extended to support progress and revisions
-  to support microcontroller-type systems, including support for EPMP
-  memory protection.
-  
-  * There is support for ARM CortexM0+ and CortexM7.
+  - RISC-V support has been extended to support progress and revisions to
+    support microcontroller-type systems, including support for EPMP memory
+    protection.
 
-  * Board support adds:
-    
-	* Nano RP2040 Connect
-	
-	* Clue nRF52840
-	
-	* BBC Micro:bit v2
-	
-	* WeAct F401CCU6 Core Board
-	
-	* i.MX RT 1052 Evaluation Kit
-	
-	* Teensy 4.0
-	
-	* Pico Explorer Base
-	
-	* Rapsberry Pi Pico
-	
-	* LiteX on Digilent Arty A-7
-	
-	* Verilated LiteX simulation
-	
-	* ESP32-C3-DevKitM-1
-	
+  - There is support for ARM CortexM0+ and CortexM7.
+
+  - Board support adds:
+
+	  - Nano RP2040 Connect
+	  - Clue nRF52840
+	  - BBC Micro:bit v2
+	  - WeAct F401CCU6 Core Board
+    - i.MX RT 1052 Evaluation Kit
+	  - Teensy 4.0
+	  - Pico Explorer Base
+	  - Rapsberry Pi Pico
+	  - LiteX on Digilent Arty A-7
+	  - Verilated LiteX simulation
+	  - ESP32-C3-DevKitM-1
+
 
 * Major HIL changes
-  
-  * All HILs have changed significantly, to be in line with the new
-  types within the kernel.
-  
-  * `ReturnCode` has been removed from the kernel. HILs that used to
-  return `ReturnCode` now return `Result<(), ErrorCode>`, so that `Ok`
-  indicates a success result. #2508
-  
-  * There is a draft of a TRD describing guidelines for HIL design,
-  which enumerates 13 principles HIL traits should follow.
-  
-  * The SPI, I2C, and CRC HILs have changed in how they handle buffers.
-  SPI and I2C now correctly return buffers on error cases, and CRC now
-  relies on `LeasableBuffer` to compute a CRC over a large block of
-  memory.
-  
-  * Digest has been extended to support multiple digest algorithms:
-  in addition to HMAC SHA256 it now supports SHA224, SHA256, SHA384, SHA512,
-  HMAC SHA384 and HMAC SHA512.
 
-  * A key/value store HIL has been added.
-  
-  * An 8080 bus HIL (for LCDs) has been added.
-  
-  * A text screen HIL has been added.
-  * A screen HIL has been added
-  
-  * A touch HIL has been added
-  * The Time HIL has been updated to better support `dyn` references
-  when needed, by adding a `ConvertTicks` trait. This change is 
-  documented in TRD 105 (which, when finalized, obsoletes 101).
+  - All HILs have changed significantly, to be in line with the new types within
+    the kernel.
 
-  * Blanket implementations for UART trait groups have been added.
-  Now, if a structure implements both `uart::Transmit` and 
-  `uart::Receive`, it will automatically implement `uart::UartData`.
-  
+  - `ReturnCode` has been removed from the kernel. HILs that used to return
+    `ReturnCode` now return `Result<(), ErrorCode>`, so that `Ok` indicates a
+    success result. #2508
+
+  - There is a draft of a TRD describing guidelines for HIL design, which
+    enumerates 13 principles HIL traits should follow.
+
+  - The SPI, I2C, and CRC HILs have changed in how they handle buffers. SPI and
+    I2C now correctly return buffers on error cases, and CRC now relies on
+    `LeasableBuffer` to compute a CRC over a large block of memory.
+
+  - Digest has been extended to support multiple digest algorithms: in addition
+    to HMAC SHA256 it now supports SHA224, SHA256, SHA384, SHA512, HMAC SHA384
+    and HMAC SHA512.
+
+  - The Time HIL has been updated to better support `dyn` references when
+    needed, by adding a `ConvertTicks` trait. This change is documented in TRD
+    105 (which, when finalized, obsoletes 101).
+
+  - Blanket implementations for UART trait groups have been added. Now, if a
+    structure implements both `uart::Transmit` and `uart::Receive`, it will
+    automatically implement `uart::UartData`.
+
+  - New HILs added:
+
+    - key/value store
+    - 8080 bus (for LCDs)
+    - text screen
+    - screen
+    - touch
+
 * In-kernel virtualizers for the following HILs have been added: AES, RNG, SHA
-  
-* The kernel now checks whether loaded processes are compiled for the
-running kernel version. Because 2.0 changes the user/kernel ABI, processes
-compiled for Tock 1.x will not run correctly on a Tock 2.x kernel and
-vice versa. If the kernel detects that a process is compiled for the
-wrong kernel version it stops loading processes.
 
-* There have been changes to kernel internals and the build system
-to reduce code size. For example, kernel code that was highly 
-replicated in monomorphized functions has been factored out (#2648).
+* The kernel now checks whether loaded processes are compiled for the running
+  kernel version. Because 2.0 changes the user/kernel ABI, processes compiled
+  for Tock 1.x will not run correctly on a Tock 2.x kernel and vice versa. If
+  the kernel detects that a process is compiled for the wrong kernel version it
+  stops loading processes.
 
-* All system call driver capsules that do not support use by 
-multiple processes now use grant regions to store state and
-explicitly forbid access from multiple processes (e.g., #2518).. 
+* There have been changes to kernel internals and the build system to reduce
+  code size. For example, kernel code that was highly replicated in
+  monomorphized functions has been factored out (#2648).
 
-  * The process console has been improved
+* All system call driver capsules that do not support use by multiple processes
+  now use grant regions to store state and explicitly forbid access from
+  multiple processes (e.g., #2518).
 
-* Added `tools/stack_analysis.sh` and 'make stack-analysis` for analyzing
-stack size.
+* The process console has been improved and can now display memory maps for the
+  kernel and processes.
 
-* Improvements to `tools/print_tock_memory_usage.sh` for displaying 
-code size.
+* Added `tools/stack_analysis.sh` and `make stack-analysis` for analyzing stack
+  size.
 
-* Transitioned uses of deprecated `llvm_asm!()` to `asm!()` macro 
-for better compile-time checking (#2449, #2363).
+* Improvements to `tools/print_tock_memory_usage.sh` for displaying code size.
 
-* Make it possible for boards to avoid using code space for 
-peripherals they do not use (e.g., #2069).
+* Transitioned uses of deprecated `llvm_asm!()` to `asm!()` macro for better
+  compile-time checking (#2449, #2363).
+
+* Make it possible for boards to avoid using code space for peripherals they do
+  not use (e.g., #2069).
 
 * Bug fixes.
+
 
 New in 1.5
 ==========
