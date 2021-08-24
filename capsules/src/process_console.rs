@@ -981,7 +981,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
                             // Prints kernel memory by moving the writer to the
                             // start state.
-                            self.write_state(WriterState::KernelStart);
+                            self.writer_state.replace(WriterState::KernelStart);
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self
