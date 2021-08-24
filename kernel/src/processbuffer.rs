@@ -601,6 +601,28 @@ pub struct ReadableProcessSlice {
     slice: [ReadableProcessByte],
 }
 
+// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
+// authored once and accept either [u8] or ReadableProcessSlice
+impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
+    fn from(val: &'a [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
+        //         This also extends the lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
+}
+
+// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
+// authored once and accept either [u8] or ReadableProcessSlice
+impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
+    fn from(val: &'a mut [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
+        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
+}
+
 impl ReadableProcessSlice {
     /// Copy the contents of a [`ReadableProcessSlice`] into a mutable
     /// slice reference.
@@ -717,6 +739,17 @@ impl Index<usize> for ReadableProcessSlice {
 #[repr(transparent)]
 pub struct WriteableProcessSlice {
     slice: [Cell<u8>],
+}
+
+// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow client code to be
+// authored once and accept either [u8] or WriteableProcessSlice
+impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
+    fn from(val: &'a mut [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be the same.
+        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
 }
 
 impl WriteableProcessSlice {
