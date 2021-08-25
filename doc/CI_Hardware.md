@@ -68,10 +68,13 @@ $ sudo cp JLink_Linux_V700a_arm64/99-jlink.rules /etc/udev/rules.d/ # Depends on
 # Example command below (XXX = version number)
 # For example, with our commands above, XXX = 700a
 $ echo 'export PATH=$HOME/JLink_Linux_VXXX_arm64:$PATH' >> ~/.profile
+
+# Update .profile to include new path
+$ source .profile
 ```
 4. Install pip3, if not yet installed
 ```bash
-sudo apt install python-pip3
+sudo apt install python3-pip
 ```
 
 **Note:** if python 3 is not installed, follow these commands and go back to step 4.
@@ -84,7 +87,7 @@ $ sudo apt-get install python3.6 #python version can change
 5. Checkout test harness in home directory 
 ```bash
 cd ~; git clone https://github.com/goodoomoodoo/tock-test-harness.git
-cd ~; git clone https://github.com/goodoomoodoo/libtock-c.git
+cd ~; git clone -b ci-test https://github.com/goodoomoodoo/libtock-c.git # link will vary for user specifications
 ```
 6. Install gpiozero if not yet installed. (It should come with the image)
 ```bash
@@ -113,7 +116,7 @@ $ cd ~/tock-test-harness; pip3 install -r requirements.txt
 
 10. Add path to JLink to ```.path``` in Action Runner
 ```bash
-$ echo "JLINK_PATH_WHATEVER_IT_IS" > ~/actions-runner/.path
+$ echo "JLink_Linux_VXXX_arm64" > ~/actions-runner/.path # Path will vary to your version of JLINK
 ```
 
 11. Configure the harness
@@ -274,7 +277,7 @@ Follow these commands to setup Uart on raspberry to transmit, and receive messag
 
 1. Add `enable_uart=1` to `/boot/firmware/config.txt`
 2. Remove `console=serial0,115200` from `/boot/firmware/cmdline.txt` on Ubuntu 
-3. Make sure you have `pyserial` installed if you're using the python serial library, not `python-serial` from `apt`.
+3. Make sure you have `pyserial` installed if you're using the python serial library, not `python-serial` from `apt`. **NOTE THIS IS OPTIONAL**
 4. Setup udev rules
     - Create file with this command.
     ```bash
@@ -308,9 +311,9 @@ Follow these commands to setup Uart on raspberry to transmit, and receive messag
 6. Finally, reboot Ubuntu 20.04, then both `hci0` and `/dev/ttyS0` can work at the same time 
 
 **Sanity Check**
-If UART is properly setup, using the command `ls -l dev` you should see the image below after scrolling up slightly.
+If UART is properly setup, using the command `ls -l /dev` you should see the image below after scrolling up slightly.
 ```bash
-    ls -l dev
+    ls -l /dev
 ```
 ![UartSanity](images/ci-hardware/uartsanity.png)
 [Source](https://www.electronicwings.com/raspberry-pi/raspberry-pi-uart-communication-using-python-and-c)
@@ -326,7 +329,7 @@ Again, I2C is disabled by default on the Raspberry Pi, and since we are using ub
     ```
     - Then, add the following two lines at the bottom of the text:
     `dtparam=i2c1=on` and `dtparam=i2c_arm=on` respectively.
-2. Install relevant packages. You'll want `i2c-tools` at least, but I'd recommend getting `libi2c-dev` as well and `python3-smbus` if that's your language of choice.
+2. Install relevant packages. You'll want `i2c-tools` and `python3-smbus` at least, but I'd recommend getting `libi2c-dev` if that's your library of choice.
 3. Try probing the bus as user and root:
     ```bash
         sudo i2cdetect -y 1 # (or 0, I2C bus number is hardware-dependent)
