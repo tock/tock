@@ -66,6 +66,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             AesOperation::AES128ECB(encrypt) => {
                                 self.aes.set_mode_aes128ecb(*encrypt)
                             }
+                            AesOperation::AES128CCM(_encrypt) => Ok(()),
                         }
                     } else {
                         Err(ErrorCode::INVAL)
@@ -89,10 +90,22 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                 key[..static_buffer_len]
                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                if let Err(e) = AES128::set_key(self.aes, buf) {
-                                    return Err(e);
+                                match app.aes_operation.as_ref().unwrap() {
+                                    AesOperation::AES128Ctr(_)
+                                    | AesOperation::AES128CBC(_)
+                                    | AesOperation::AES128ECB(_) => {
+                                        if let Err(e) = AES128::set_key(self.aes, buf) {
+                                            return Err(e);
+                                        }
+                                        Ok(())
+                                    }
+                                    AesOperation::AES128CCM(_) => {
+                                        if let Err(e) = AES128CCM::set_key(self.aes, buf) {
+                                            return Err(e);
+                                        }
+                                        Ok(())
+                                    }
                                 }
-                                Ok(())
                             })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))?;
@@ -112,10 +125,22 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                 iv[..static_buffer_len]
                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                if let Err(e) = self.aes.set_iv(buf) {
-                                    return Err(e);
+                                match app.aes_operation.as_ref().unwrap() {
+                                    AesOperation::AES128Ctr(_)
+                                    | AesOperation::AES128CBC(_)
+                                    | AesOperation::AES128ECB(_) => {
+                                        if let Err(e) = self.aes.set_iv(buf) {
+                                            return Err(e);
+                                        }
+                                        Ok(())
+                                    }
+                                    AesOperation::AES128CCM(_) => {
+                                        if let Err(e) = self.aes.set_nonce(&buf[0..13]) {
+                                            return Err(e);
+                                        }
+                                        Ok(())
+                                    }
                                 }
-                                Ok(())
                             })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))?;
@@ -123,24 +148,56 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     app.source
                         .enter(|source| {
                             let mut static_buffer_len = 0;
-                            self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
 
-                                if static_buffer_len > source.len() {
-                                    static_buffer_len = source.len()
+                            match app.aes_operation.as_ref().unwrap() {
+                                AesOperation::AES128Ctr(_)
+                                | AesOperation::AES128CBC(_)
+                                | AesOperation::AES128ECB(_) => {
+                                    self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                        // Determine the size of the static buffer we have
+                                        static_buffer_len = buf.len();
+
+                                        if static_buffer_len > source.len() {
+                                            static_buffer_len = source.len()
+                                        }
+
+                                        // Copy the data into the static buffer
+                                        source[..static_buffer_len]
+                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+
+                                        self.data_copied.set(static_buffer_len);
+
+                                        Ok(())
+                                    })?;
                                 }
+                                AesOperation::AES128CCM(_) => {
+                                    self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                        // Determine the size of the static buffer we have
+                                        static_buffer_len = buf.len();
 
-                                // Copy the data into the static buffer
-                                source[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        if static_buffer_len > source.len() {
+                                            static_buffer_len = source.len()
+                                        }
 
-                                self.data_copied.set(static_buffer_len);
+                                        // Copy the data into the static buffer
+                                        source[..static_buffer_len]
+                                            .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                Ok(())
-                            })?;
+                                        self.data_copied.set(static_buffer_len);
 
-                            if let Err(e) = self.calculate_output() {
+                                        Ok(())
+                                    })?;
+                                }
+                            }
+
+                            if let Err(e) = self.calculate_output(
+                                app.aes_operation.as_ref().unwrap(),
+                                app.aoff.get(),
+                                app.moff.get(),
+                                app.mlen.get(),
+                                app.mic_len.get(),
+                                app.confidential.get(),
+                            ) {
                                 return Err(e);
                             }
                             Ok(())
@@ -153,21 +210,55 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         })
     }
 
-    fn calculate_output(&self) -> Result<(), ErrorCode> {
-        if let Some((e, source, dest)) = AES128::crypt(
-            self.aes,
-            Some(self.source_buffer.take().unwrap()),
-            self.dest_buffer.take().unwrap(),
-            0,
-            AES128_BLOCK_SIZE,
-        ) {
-            // Error, clear the appid and data
-            self.aes.disable();
-            self.appid.clear();
-            self.source_buffer.replace(source.unwrap());
-            self.dest_buffer.replace(dest);
+    fn calculate_output(
+        &self,
+        op: &AesOperation,
+        aoff: usize,
+        moff: usize,
+        mlen: usize,
+        mic_len: usize,
+        confidential: bool,
+    ) -> Result<(), ErrorCode> {
+        match op {
+            AesOperation::AES128Ctr(_)
+            | AesOperation::AES128CBC(_)
+            | AesOperation::AES128ECB(_) => {
+                if let Some((e, source, dest)) = AES128::crypt(
+                    self.aes,
+                    Some(self.source_buffer.take().unwrap()),
+                    self.dest_buffer.take().unwrap(),
+                    0,
+                    AES128_BLOCK_SIZE,
+                ) {
+                    // Error, clear the appid and data
+                    self.aes.disable();
+                    self.appid.clear();
+                    self.source_buffer.replace(source.unwrap());
+                    self.dest_buffer.replace(dest);
 
-            return e;
+                    return e;
+                }
+            }
+            AesOperation::AES128CCM(encrypting) => {
+                let buf = self.dest_buffer.take().unwrap();
+                if let Err((e, dest)) = AES128CCM::crypt(
+                    self.aes,
+                    buf,
+                    aoff,
+                    moff,
+                    mlen,
+                    mic_len,
+                    confidential,
+                    *encrypting,
+                ) {
+                    // Error, clear the appid and data
+                    self.aes.disable();
+                    self.appid.clear();
+                    self.dest_buffer.replace(dest);
+
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
@@ -210,17 +301,27 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     let mut exit = false;
                     let mut static_buffer_len = 0;
 
+                    let subtract = self
+                        .source_buffer
+                        .map_or(0, |buf| core::cmp::min(buf.len(), app.source.len()));
+
                     self.dest_buffer.map(|buf| {
                         let ret = app.dest.mut_enter(|dest| {
-                            let offset = self.data_copied.get() - 16;
+                            let offset = self.data_copied.get() - subtract;
                             let app_len = dest.len();
-                            let static_len = buf.len();
+                            let static_len = self.source_buffer.map_or(0, |source_buf| {
+                                core::cmp::min(source_buf.len(), buf.len())
+                            });
 
                             if app_len < static_len {
-                                dest[offset..(offset + app_len)].copy_from_slice(&buf[0..app_len]);
+                                if app_len - offset > 0 {
+                                    dest[offset..app_len]
+                                        .copy_from_slice(&buf[0..(app_len - offset)]);
+                                }
                             } else {
                                 if offset + static_len <= app_len {
-                                    dest[offset..(offset + static_len)].copy_from_slice(buf);
+                                    dest[offset..(offset + static_len)]
+                                        .copy_from_slice(&buf[0..static_len]);
                                 }
                             }
                         });
@@ -283,7 +384,17 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             // Update the amount of data copied
                             self.data_copied.set(copied_data + static_buffer_len);
 
-                            if self.calculate_output().is_err() {
+                            if self
+                                .calculate_output(
+                                    app.aes_operation.as_ref().unwrap(),
+                                    app.aoff.get(),
+                                    app.moff.get(),
+                                    app.mlen.get(),
+                                    app.mic_len.get(),
+                                    app.confidential.get(),
+                                )
+                                .is_err()
+                            {
                                 // Error, clear the appid and data
                                 self.aes.disable();
                                 self.appid.clear();
@@ -297,7 +408,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     }
 
                     // If we get here we have finished all the crypto operations
-                    upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                    upcalls
+                        .schedule_upcall(0, (0, self.data_copied.get(), 0))
+                        .ok();
                     self.data_copied.set(0);
                 })
                 .map_err(|err| {
@@ -314,13 +427,67 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>> CCMClient
     for AesDriver<'static, A>
 {
-    fn crypt_done(
-        &self,
-        _buf: &'static mut [u8],
-        _res: Result<(), ErrorCode>,
-        _tag_is_valid: bool,
-    ) {
-        unimplemented!();
+    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
+        self.dest_buffer.replace(buf);
+
+        self.appid.map(|id| {
+            self.apps
+                .enter(*id, |app, upcalls| {
+                    let mut exit = false;
+
+                    if let Err(e) = res {
+                        upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                        return;
+                    }
+
+                    self.dest_buffer.map(|buf| {
+                        let ret = app.dest.mut_enter(|dest| {
+                            let offset =
+                                self.data_copied.get() - (core::cmp::min(buf.len(), dest.len()));
+                            let app_len = dest.len();
+                            let static_len = buf.len();
+
+                            if app_len < static_len {
+                                if app_len - offset > 0 {
+                                    dest[offset..app_len]
+                                        .copy_from_slice(&buf[0..(app_len - offset)]);
+                                }
+                            } else {
+                                if offset + static_len <= app_len {
+                                    dest[offset..(offset + static_len)]
+                                        .copy_from_slice(&buf[0..static_len]);
+                                }
+                            }
+                        });
+
+                        if let Err(e) = ret {
+                            // No data buffer, clear the appid and data
+                            self.aes.disable();
+                            self.appid.clear();
+                            upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            exit = true;
+                        }
+                    });
+
+                    if exit {
+                        return;
+                    }
+
+                    // AES CCM is online only we can't send any more data in, so
+                    // just report what we did to the app.
+                    upcalls
+                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize))
+                        .ok();
+                    self.data_copied.set(0);
+                })
+                .map_err(|err| {
+                    if err == kernel::process::Error::NoSuchApp
+                        || err == kernel::process::Error::InactiveApp
+                    {
+                        self.appid.clear();
+                    }
+                })
+        });
     }
 }
 
@@ -370,6 +537,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                 .unwrap_or(Err(ErrorCode::FAIL)),
 
             // Pass buffer for the IV to be in
+            // This also contains the nonce when doing AES CCM
             1 => self
                 .apps
                 .enter(appid, |app, _| {
@@ -379,10 +547,12 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                 .unwrap_or(Err(ErrorCode::FAIL)),
 
             // Pass buffer for the source to be in
+            // If doing a CCM operation also set the mlen
             2 => self
                 .apps
                 .enter(appid, |app, _| {
                     mem::swap(&mut app.source, &mut slice);
+                    app.mlen.set(app.source.len());
                     Ok(())
                 })
                 .unwrap_or(Err(ErrorCode::FAIL)),
@@ -472,6 +642,10 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                         app.aes_operation = Some(AesOperation::AES128ECB(data2 != 0));
                         CommandReturn::success()
                     }
+                    3 => {
+                        app.aes_operation = Some(AesOperation::AES128CCM(data2 != 0));
+                        CommandReturn::success()
+                    }
                     _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -540,7 +714,14 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                         Ok(())
                                     })?;
 
-                                    if let Err(e) = self.calculate_output() {
+                                    if let Err(e) = self.calculate_output(
+                                        app.aes_operation.as_ref().unwrap(),
+                                        app.aoff.get(),
+                                        app.moff.get(),
+                                        app.mlen.get(),
+                                        app.mic_len.get(),
+                                        app.confidential.get(),
+                                    ) {
                                         return Err(e);
                                     }
                                     Ok(())
@@ -584,6 +765,54 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                 }
             }
 
+            // Set aoff for CCM
+            // This will not trigger a callback and will not process any data from userspace
+            5 => {
+                self.apps
+                    .enter(appid, |app, _upcalls| {
+                        app.aoff.set(data1);
+                    })
+                    .unwrap();
+                self.check_queue();
+                CommandReturn::success()
+            }
+
+            // Set moff for CCM
+            // This will not trigger a callback and will not process any data from userspace
+            6 => {
+                self.apps
+                    .enter(appid, |app, _upcalls| {
+                        app.moff.set(data1);
+                    })
+                    .unwrap();
+                self.check_queue();
+                CommandReturn::success()
+            }
+
+            // Set mic_len for CCM
+            // This will not trigger a callback and will not process any data from userspace
+            7 => {
+                self.apps
+                    .enter(appid, |app, _upcalls| {
+                        app.mic_len.set(data1);
+                    })
+                    .unwrap();
+                self.check_queue();
+                CommandReturn::success()
+            }
+
+            // Set confidential boolean for CCM
+            // This will not trigger a callback and will not process any data from userspace
+            8 => {
+                self.apps
+                    .enter(appid, |app, _upcalls| {
+                        app.confidential.set(data1 > 0);
+                    })
+                    .unwrap();
+                self.check_queue();
+                CommandReturn::success()
+            }
+
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
@@ -598,6 +827,7 @@ enum AesOperation {
     AES128Ctr(bool),
     AES128CBC(bool),
     AES128ECB(bool),
+    AES128CCM(bool),
 }
 
 #[derive(Default)]
@@ -608,4 +838,10 @@ pub struct App {
     iv: ReadOnlyProcessBuffer,
     source: ReadOnlyProcessBuffer,
     dest: ReadWriteProcessBuffer,
+
+    aoff: Cell<usize>,
+    moff: Cell<usize>,
+    mlen: Cell<usize>,
+    mic_len: Cell<usize>,
+    confidential: Cell<bool>,
 }
