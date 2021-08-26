@@ -417,6 +417,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             panic!("Called start_ccm_auth when not idle");
         }
 
+        // We are performing CBC-MAC, so always encrypting.
+        self.aes.set_mode_aes128cbc(true)?;
+
         let iv = [0u8; AES128_BLOCK_SIZE];
         let res = self.aes.set_iv(&iv);
         if res != Ok(()) {
@@ -439,8 +442,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             self.crypt_auth_len.get()
         };
 
-        // We are performing CBC-MAC, so always encrypting.
-        self.aes.set_mode_aes128cbc(true)?;
         self.aes.start_message();
         match self.aes.crypt(None, crypt_buf, 0, auth_end) {
             None => {
@@ -470,6 +471,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         //     }
         // });
 
+        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
+
+        let res = self.aes.set_key(&self.key.get());
+        if res != Ok(()) {
+            return res;
+        }
+
         let mut iv = [0u8; AES128_BLOCK_SIZE];
         // flags = reserved | reserved | 0 | (L - 1)
         // Since L = 2, flags = 1.
@@ -480,7 +488,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             return res;
         }
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
         self.aes.start_message();
         let crypt_buf = match self.crypt_buf.take() {
             None => panic!("Cannot perform CCM* encrypt because crypt_buf is not present."),
@@ -765,16 +772,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
 
                     let res = self.start_ccm_encrypt();
                     if res != Ok(()) {
+                        // The operation fails, immediately remove the request and perform the next operation
+                        self.state.set(CCMState::Idle);
+                        self.remove_from_queue();
+                        self.mux.do_next_op();
+
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
                             self.crypt_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
                             });
                         });
-                        // The operation fails, immediately remove the request and perform the next operation
-                        self.state.set(CCMState::Idle);
-                        self.remove_from_queue();
-                        self.mux.do_next_op();
                     }
                 } else {
                     self.reverse_end_ccm();
