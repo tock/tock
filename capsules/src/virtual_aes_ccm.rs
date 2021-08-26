@@ -139,7 +139,7 @@ impl CryptFunctionParameters {
 
 pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     aes: &'a A,
-    clients: List<'a, VirtualAES128CCM<'a, A>>,
+    ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
     inflight: OptionalCell<&'a VirtualAES128CCM<'a, A>>,
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -150,7 +150,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
         aes.enable(); // enable the hardware, in case it's forgotten elsewhere
         MuxAES128CCM {
             aes: aes,
-            clients: List::new(),
+            ccm_clients: List::new(),
             inflight: OptionalCell::empty(),
             deferred_caller: deferred_caller,
             handle: OptionalCell::empty(),
@@ -189,7 +189,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
 
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.clients.iter().find(|node| node.queued_up.is_some());
+            let mnode = self
+                .ccm_clients
+                .iter()
+                .find(|node| node.queued_up.is_some());
             mnode.map(|node| {
                 self.inflight.set(node);
                 let parameters: CryptFunctionParameters = node.queued_up.take().unwrap();
@@ -197,17 +200,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
                 let _ = node.crypt_r(parameters).map_err(|(ecode, _)| {
                     // notice that we didn't put the parameters back...
                     // because it's already eaten
-                    if node.crypt_client.is_none() {
-                        debug!(
-                            "virtual_aes_ccm: no crypt_client is registered in VirtualAES128CCM"
-                        );
+                    if node.ccm_client.is_none() {
+                        debug!("virtual_aes_ccm: no ccm_client is registered in VirtualAES128CCM");
                     }
                     if node.buf.is_none() {
                         debug!("virtual_aes_ccm: no buffer is binded with VirtualAES128CCM");
                     }
                     // notify the client that there's a failure
                     node.buf.take().map(|buf| {
-                        node.crypt_client.map(move |client| {
+                        node.ccm_client.map(move |client| {
                             client.crypt_done(buf, Err(ecode), false);
                         });
                     });
@@ -239,7 +240,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
             // when the encryption is *really* done, inflight will be cleared by remove_from_queue
             // and it will call do_next_op to perform the next operation
             // self.do_next_op() will be called when the encryption is failed or is really done
-            // search for self.crypt_client
+            // search for self.ccm_client
             vaes_ccm.crypt_done(source, dest);
         });
     }
@@ -253,7 +254,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
+    ccm_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
@@ -279,7 +280,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
-            crypt_client: OptionalCell::empty(),
+            ccm_client: OptionalCell::empty(),
             state: Cell::new(CCMState::Idle),
             confidential: Cell::new(false),
             encrypting: Cell::new(false),
@@ -294,7 +295,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
 
     /// bind itself to self.mux, should be called after static_init!
     pub fn setup(&'a self) {
-        self.mux.clients.push_head(self);
+        self.mux.ccm_clients.push_head(self);
     }
 
     /// Prepares crypt_buf with the input for the CCM* authentication and
@@ -545,7 +546,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.state.set(CCMState::Idle);
         self.remove_from_queue();
         self.mux.do_next_op();
-        self.crypt_client.map(|client| {
+        self.ccm_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, Ok(()), tag_valid);
             });
@@ -583,7 +584,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.state.set(CCMState::Idle);
         self.remove_from_queue();
         self.mux.do_next_op();
-        self.crypt_client.map(|client| {
+        self.ccm_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, Ok(()), tag_valid);
             });
@@ -677,7 +678,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
     for VirtualAES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a dyn symmetric_encryption::CCMClient) {
-        self.crypt_client.set(client);
+        self.ccm_client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -779,7 +780,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
 
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
-                            self.crypt_client.map(move |client| {
+                            self.ccm_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
                             });
                         });
@@ -809,9 +810,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     });
                     let res = self.start_ccm_auth();
                     if res != Ok(()) {
-                        // Return client buffer to client
+                        // Return client buffer to ccm_clients
                         self.buf.take().map(|buf| {
-                            self.crypt_client.map(move |client| {
+                            self.ccm_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
                             });
                         });
