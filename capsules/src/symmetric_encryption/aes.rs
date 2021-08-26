@@ -9,7 +9,7 @@ use core::mem;
 
 use kernel::grant::Grant;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, Client, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE,
+    AES128Ctr, CCMClient, Client, AES128, AES128CBC, AES128CCM, AES128ECB, AES128_BLOCK_SIZE,
 };
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -17,7 +17,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
-pub struct AesDriver<'a, A: AES128<'a>> {
+pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static>> {
     aes: &'a A,
 
     active: Cell<bool>,
@@ -30,7 +30,9 @@ pub struct AesDriver<'a, A: AES128<'a>> {
     dest_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesDriver<'static, A> {
+impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>>
+    AesDriver<'static, A>
+{
     pub fn new(
         aes: &'static A,
         source_buffer: &'static mut [u8],
@@ -87,7 +89,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesDriver<'stat
                                 key[..static_buffer_len]
                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                if let Err(e) = self.aes.set_key(buf) {
+                                if let Err(e) = AES128::set_key(self.aes, buf) {
                                     return Err(e);
                                 }
                                 Ok(())
@@ -152,7 +154,8 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesDriver<'stat
     }
 
     fn calculate_output(&self) -> Result<(), ErrorCode> {
-        if let Some((e, source, dest)) = self.aes.crypt(
+        if let Some((e, source, dest)) = AES128::crypt(
+            self.aes,
             Some(self.source_buffer.take().unwrap()),
             self.dest_buffer.take().unwrap(),
             0,
@@ -193,8 +196,8 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesDriver<'stat
     }
 }
 
-impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Client<'static>
-    for AesDriver<'static, A>
+impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>>
+    Client<'static> for AesDriver<'static, A>
 {
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         self.source_buffer.replace(source.unwrap());
@@ -308,7 +311,20 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Client<'static>
     }
 }
 
-impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> SyscallDriver
+impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>> CCMClient
+    for AesDriver<'static, A>
+{
+    fn crypt_done(
+        &self,
+        _buf: &'static mut [u8],
+        _res: Result<(), ErrorCode>,
+        _tag_is_valid: bool,
+    ) {
+        unimplemented!();
+    }
+}
+
+impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>> SyscallDriver
     for AesDriver<'static, A>
 {
     fn allow_readwrite(
