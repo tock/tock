@@ -1,6 +1,8 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
+use kernel::capabilities::LowLevelDriverCreationCapability;
+use kernel::create_capability;
 use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
@@ -46,7 +48,8 @@ impl IoWrite for Writer {
         self.uart.map_or_else(
             || {
                 // If no UART is configured for panic print, use UART0
-                let uart0 = &Uart::new_uart0();
+                let capability = create_capability!(LowLevelDriverCreationCapability);
+                let uart0 = &Uart::new_uart0(&capability);
 
                 if !uart0.is_configured() {
                     let parameters = Parameters {
@@ -59,8 +62,8 @@ impl IoWrite for Writer {
                     //configure parameters of uart for sending bytes
                     let _result = uart0.configure(parameters);
                     //set RX and TX pins in UART mode
-                    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
-                    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+                    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0, &capability);
+                    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1, &capability);
                     gpio_rx.set_function(GpioFunction::UART);
                     gpio_tx.set_function(GpioFunction::UART);
                 }
@@ -81,8 +84,9 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+    let capability = create_capability!(LowLevelDriverCreationCapability);
     // LED is conneted to GPIO 25
-    let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
+    let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25, &capability);
     let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut WRITER;
 

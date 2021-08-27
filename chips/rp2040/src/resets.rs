@@ -1,3 +1,4 @@
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, FieldValue, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -299,7 +300,7 @@ pub struct Resets {
 }
 
 impl Resets {
-    pub const fn new() -> Resets {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> Resets {
         Resets {
             registers: RESETS_BASE,
         }

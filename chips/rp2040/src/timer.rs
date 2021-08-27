@@ -1,5 +1,6 @@
 use cortexm0p;
 use cortexm0p::support::atomic;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -173,7 +174,7 @@ pub struct RPTimer<'a> {
 }
 
 impl<'a> RPTimer<'a> {
-    pub const fn new() -> RPTimer<'a> {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> RPTimer<'a> {
         RPTimer {
             registers: TIMER_BASE,
             client: OptionalCell::empty(),

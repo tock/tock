@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -881,7 +882,7 @@ pub enum ClockAuxiliarySource {
 }
 
 impl Clocks {
-    pub const fn new() -> Self {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: CLOCKS_BASE,
             pll_registers: &[PLL_SYS_BASE, PLL_USB_BASE],

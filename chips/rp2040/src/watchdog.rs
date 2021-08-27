@@ -1,3 +1,4 @@
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -102,7 +103,7 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
-    pub const fn new() -> Watchdog {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> Watchdog {
         Watchdog {
             registers: WATCHDOG_BASE,
         }

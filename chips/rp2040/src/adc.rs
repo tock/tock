@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::hil;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
@@ -145,7 +146,7 @@ pub struct Adc {
 }
 
 impl Adc {
-    pub const fn new() -> Self {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: ADC_BASE,
             status: Cell::new(ADCStatus::Idle),

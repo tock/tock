@@ -1,6 +1,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -126,19 +127,19 @@ pub struct Rp2040DefaultPeripherals<'a> {
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
-    pub const fn new() -> Self {
+    pub const fn new(capability: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
-            resets: Resets::new(),
+            resets: Resets::new(capability),
             sio: SIO::new(),
-            clocks: Clocks::new(),
-            xosc: Xosc::new(),
-            timer: RPTimer::new(),
-            watchdog: Watchdog::new(),
-            pins: RPPins::new(),
-            uart0: Uart::new_uart0(),
-            adc: adc::Adc::new(),
-            spi0: spi::Spi::new_spi0(),
-            sysinfo: sysinfo::SysInfo::new(),
+            clocks: Clocks::new(capability),
+            xosc: Xosc::new(capability),
+            timer: RPTimer::new(capability),
+            watchdog: Watchdog::new(capability),
+            pins: RPPins::new(capability),
+            uart0: Uart::new_uart0(capability),
+            adc: adc::Adc::new(capability),
+            spi0: spi::Spi::new_spi0(capability),
+            sysinfo: sysinfo::SysInfo::new(capability),
         }
     }
 

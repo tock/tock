@@ -90,3 +90,8 @@ pub unsafe trait CreatePortTableCapability {}
 /// of the networking stack. A capsule would never hold this capability although
 /// it may hold capabilities created via this capability.
 pub unsafe trait NetworkCapabilityCreationCapability {}
+
+/// The `LowLevelDriverCreationCapability` allows the creation of low level
+/// drivers, usually peripherals. This capability should be required by all
+/// low level drivers and should not be distributed to capsules.
+pub unsafe trait LowLevelDriverCreationCapability {}

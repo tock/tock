@@ -1,6 +1,7 @@
 use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::SpiMaster;
@@ -248,7 +249,7 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    pub const fn new_spi0() -> Self {
+    pub const fn new_spi0(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: SPI0_BASE,
             clocks: OptionalCell::empty(),
@@ -268,7 +269,7 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub const fn new_spi1() -> Self {
+    pub const fn new_spi1(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: SPI1_BASE,
             clocks: OptionalCell::empty(),

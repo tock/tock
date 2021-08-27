@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
@@ -392,7 +393,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub const fn new_uart0() -> Self {
+    pub const fn new_uart0(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: UART0_BASE,
             clocks: OptionalCell::empty(),
@@ -411,7 +412,7 @@ impl<'a> Uart<'a> {
             rx_status: Cell::new(UARTStateRX::Idle),
         }
     }
-    pub const fn new_uart1() -> Self {
+    pub const fn new_uart1(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: UART1_BASE,
             clocks: OptionalCell::empty(),

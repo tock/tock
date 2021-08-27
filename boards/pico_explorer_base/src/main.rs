@@ -233,7 +233,11 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn get_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
-    static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
+    let low_level_capability = create_capability!(capabilities::LowLevelDriverCreationCapability);
+    static_init!(
+        Rp2040DefaultPeripherals,
+        Rp2040DefaultPeripherals::new(&low_level_capability)
+    )
 }
 
 /// Main function called after RAM initialized.

@@ -1,3 +1,4 @@
+use kernel::capabilities::LowLevelDriverCreationCapability;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -81,7 +82,7 @@ pub struct Xosc {
 }
 
 impl Xosc {
-    pub const fn new() -> Self {
+    pub const fn new(_: &dyn LowLevelDriverCreationCapability) -> Self {
         Self {
             registers: XOSC_BASE,
         }
