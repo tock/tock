@@ -1,5 +1,5 @@
 OpenTitan RISC-V Board
-=================
+======================
 
 - https://opentitan.org/
 
@@ -7,11 +7,12 @@ OpenTitan is the first open source project building a transparent,
 high-quality reference design and integration guidelines for
 silicon root of trust (RoT) chips.
 
-Tock currently supports OpenTitan on the Nexys Video FPGA, as described
-here: https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html.
+Tock currently supports OpenTitan on the Nexys Video and the ChipWhisperer
+CW310 FPGA boards. For more details on the boards see:
+https://docs.opentitan.org/doc/ug/fpga_boards/
 
 You can get started with OpenTitan using either the Nexys Video FPGA
-board or simulation. See the OpenTitan
+board, ChipWhisperer CW310 board or a simulation. See the OpenTitan
 [getting started](https://docs.opentitan.org/doc/ug/getting_started/index.html)
 for more details.
 
@@ -33,6 +34,9 @@ You need to make sure the boot ROM is working and that your machine can
 communicate with the OpenTitan ROM. You will need to use the `PROG` USB
 port on the board for this.
 
+Nexys Video
+-----------
+
 To use `make flash` you first need to clone the OpenTitan repo and build
 the `spiflash` tool.
 
@@ -49,7 +53,7 @@ Export the `OPENTITAN_TREE` enviroment variable to point to the OpenTitan tree.
 export OPENTITAN_TREE=/home/opentitan/
 ```
 
-Back in the Tock directory run `make flash`
+Back in the Tock board directory run `make flash`
 
 If everything works you should see something like this on the console.
 If you need help getting console access check the
@@ -66,10 +70,44 @@ You can also just use the `spiflash` program manually to download the image
 to the board if you don't want to use `make flash`.
 
 ```shell
-./sw/host/spiflash/spiflash --input=../../target/riscv32imc-unknown-none-elf/release/opentitan.bin
+./sw/host/spiflash/spiflash --input=../../../target/riscv32imc-unknown-none-elf/release/opentitan.bin
 ```
 
 NOTE: You will need to download the Tock binary after every power cycle.
+
+ChipWhisper CW310
+-----------------
+
+To use `make flash` you first need to clone the OpenTitan repo and ensure that
+the Python dependencies are installed.
+
+```shell
+python3 pip install -r python-requirements.txt
+```
+
+Next connect to the boards serieal with a second terminal:
+
+```shell
+screen /dev/ttyACM1 115200,cs8,-ixon,-ixoff
+```
+
+Then you need to flash the bitstream with:
+
+
+```shell
+./util/fpga/cw310_loader.py --bitstream lowrisc_systems_chip_earlgrey_cw310_0.1.bit --set-pll-defaults
+```
+
+After which you should see some output in the serial window.
+
+Then in the Tock board directoty export the `OPENTITAN_TREE` enviroment
+variable to point to the OpenTitan tree.
+
+```shell
+export OPENTITAN_TREE=/home/opentitan/
+```
+
+then you can run `make flash` or `make test-hardware` to use the board.
 
 ### Compiling the Kernel for FPGA or Verilator
 
@@ -94,31 +132,7 @@ Programming Apps
 Tock apps for OpenTitan must be included in the Tock binary file flashed with
 the steps mentioned above.
 
-Apps are built out of tree. Currently
-[libtock-rs](https://github.com/tock/libtock-rs) apps work well while
-[libtock-c](https://github.com/tock/libtock-c) apps are not built by default.
-It is recomended that libtock-rs apps are used.
-
-Once an app is built and a tbf file is generated, you can use
-`riscv32-none-elf-objcopy` with `--update-section` to create an ELF image
-with the apps included.
-
-```shell
-$ riscv32-oe-elf-objcopy \
-    --update-section .apps=<...>/libtock-rs/target/riscv32imc-unknown-none-elf/tab/opentitan/hello_world/rv32imc.tbf \
-    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan.elf\
-    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.elf
-```
-
-You will then need to convert this new elf to a binary file.
-
-```shell
-$ riscv32-oe-elf-objcopy \
-    --output-target=binary \
-    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.elf \
-    <...>/tock/target/riscv32imc-unknown-none-elf/release/opentitan-app.bin
-
-```
+Apps are built out of tree.
 
 The OpenTitan Makefile can also handle this process automatically. Follow
 the steps above but instead run the `flash-app` make target.

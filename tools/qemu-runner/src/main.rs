@@ -71,6 +71,42 @@ fn earlgrey_nexysvideo() -> Result<(), Error> {
     Ok(())
 }
 
+fn earlgrey_cw310() -> Result<(), Error> {
+    // First, build the board if needed
+    // n.b. rexpect's `exp_eof` does not actually block main thread, so use
+    // the standard Rust process library mechanism instead.
+    let mut build = Command::new("make")
+        .arg("-C")
+        .arg("../../boards/opentitan/earlgrey-cw310")
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    // Get canonicalized path to opentitan rom
+    let mut rom_path = std::env::current_exe().unwrap();
+    rom_path.pop(); // strip exe file
+    rom_path.pop(); // strip /debug
+    rom_path.pop(); // strip /target
+    rom_path.push("opentitan-boot-rom.elf");
+
+    let mut p = spawn(
+        &format!(
+            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/opentitan/earlgrey-cw310",
+            rom_path.to_str().unwrap()
+        ),
+        Some(10_000),
+    )?;
+
+    p.exp_string("Boot ROM initialisation has completed, jump into flash!")?;
+    p.exp_string("OpenTitan initialisation complete. Entering main loop")?;
+
+    // Test completed, kill QEMU
+    kill_qemu(&mut p)?;
+
+    p.exp_eof()?;
+    Ok(())
+}
+
 fn main() {
     println!("Tock qemu-runner starting...");
     println!("");
@@ -81,4 +117,8 @@ fn main() {
     println!("Running earlgrey_nexysvideo tests...");
     earlgrey_nexysvideo().unwrap_or_else(|e| panic!("earlgrey_nexysvideo job failed with {}", e));
     println!("earlgrey_nexysvideo SUCCESS.");
+    println!("");
+    println!("Running earlgrey_cw310 tests...");
+    earlgrey_cw310().unwrap_or_else(|e| panic!("earlgrey_cw310 job failed with {}", e));
+    println!("earlgrey_cw310 SUCCESS.");
 }
