@@ -1077,8 +1077,16 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
 
+        // Grant pointers size.
+        let grant_ptr_size = mem::size_of::<GrantPointerEntry>();
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
+        let sram_grant_pointers_size = grant_ptrs_num * grant_ptr_size;
+
         // SRAM addresses
         let sram_end = self.mem_end() as usize;
+        let sram_grant_pointers_start = sram_end - sram_grant_pointers_size;
+        let sram_upcall_list_start = sram_grant_pointers_start - Self::CALLBACKS_OFFSET;
+        let process_struct_memory_location = sram_upcall_list_start - Self::PROCESS_STRUCT_OFFSET;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
@@ -1093,8 +1101,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let sram_start = self.mem_start() as usize;
 
         // SRAM sizes
-        let sram_grant_size = sram_end - sram_grant_start;
-        let sram_grant_allocated = sram_end - sram_grant_start;
+        let sram_upcall_list_size = Self::CALLBACKS_OFFSET;
+        let sram_process_struct_size = Self::PROCESS_STRUCT_OFFSET;
+        let sram_grant_size = process_struct_memory_location - sram_grant_start;
+        let sram_grant_allocated = process_struct_memory_location - sram_grant_start;
 
         // application statistics
         let events_queued = self.tasks.map_or(0, |tasks| tasks.len());
@@ -1127,11 +1137,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
              \r\n ╔═══════════╤══════════════════════════════════════════╗\
              \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
              \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
+             \r\n             │ Grant Ptrs   {:6}\
+             \r\n             │ Upcalls      {:6}\
+             \r\n             │ Process      {:6}\
+             \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ ▼ Grant      {:6} | {:6}{}\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ Unused\
              \r\n  {:#010X} ┼───────────────────────────────────────────",
             sram_end,
+            sram_grant_pointers_size,
+            sram_upcall_list_size,
+            sram_process_struct_size,
+            process_struct_memory_location,
             sram_grant_size,
             sram_grant_allocated,
             exceeded_check(sram_grant_size, sram_grant_allocated),
