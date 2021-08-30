@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 #![feature(asm, naked_functions)]
 
+use capsules::i2c_master::I2CMasterDriver;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
@@ -16,6 +17,8 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::gpio::{Configure, FloatingState};
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -31,6 +34,7 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
@@ -74,6 +78,7 @@ pub struct RaspberryPiPico {
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -92,6 +97,7 @@ impl SyscallDriverLookup for RaspberryPiPico {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
     }
@@ -125,7 +131,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     }
 }
 
-/// Entry point used for debuger
+/// Entry point used for debugger
 ///
 /// When loaded using gdb, the Raspberry Pi Pico is not reset
 /// by default. Without this function, gdb sets the PC to the
@@ -134,7 +140,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
 ///
 /// This function is set to be the entry point for gdb and is used
 /// to send the RP2040 back in the bootloader so that all the boot
-/// sqeuence is performed.
+/// sequence is performed.
 #[no_mangle]
 #[naked]
 pub unsafe extern "C" fn jump_to_bootloader() {
@@ -177,7 +183,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // PLL SYS: 12 / 1 = 12MHz * 125 = 1500MHZ / 6 / 2 = 125MHz
     // PLL USB: 12 / 1 = 12MHz * 40  = 480 MHz / 5 / 2 =  48MHz
 
-    // It seems that the external osciallator is clocked at 12 MHz
+    // It seems that the external oscillator is clocked at 12 MHz
 
     peripherals
         .clocks
@@ -235,6 +241,7 @@ pub unsafe fn main() {
     rp2040::init();
 
     let peripherals = get_peripherals();
+    peripherals.resolve_dependencies();
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);
@@ -341,8 +348,9 @@ pub unsafe fn main() {
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
             3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
-            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
+            // Used for i2c. Comment them in if you don't use i2c.
+            // 4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
+            // 5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
             6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
             7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
             8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
@@ -430,6 +438,30 @@ pub unsafe fn main() {
             .finalize(());
     let _ = process_console.start();
 
+    let sda_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
+    let scl_pin = peripherals.pins.get_pin(RPGpio::GPIO5);
+
+    sda_pin.set_function(GpioFunction::I2C);
+    scl_pin.set_function(GpioFunction::I2C);
+
+    sda_pin.set_floating_state(FloatingState::PullUp);
+    scl_pin.set_floating_state(FloatingState::PullUp);
+
+    let i2c0 = &peripherals.i2c0;
+    let i2c = static_init!(
+        I2CMasterDriver<I2c>,
+        I2CMasterDriver::new(
+            i2c0,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(
+                capsules::i2c_master::DRIVER_NUM,
+                &memory_allocation_capability
+            ),
+        )
+    );
+    i2c0.init(10 * 1000);
+    i2c0.set_master_client(i2c);
+
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
@@ -445,6 +477,7 @@ pub unsafe fn main() {
         console,
         adc: adc_syscall,
         temperature: temp,
+        i2c,
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),

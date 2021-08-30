@@ -243,7 +243,7 @@ pub unsafe fn main() {
     rp2040::init();
 
     let peripherals = get_peripherals();
-    peripherals.set_clocks();
+    peripherals.resolve_dependencies();
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);

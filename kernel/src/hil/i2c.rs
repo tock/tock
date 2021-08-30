@@ -6,7 +6,7 @@ use core::convert::Into;
 use core::fmt;
 use core::fmt::{Display, Formatter};
 
-/// The type of error encoutered during I2C communication.
+/// The type of error encountered during I2C communication.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     /// The slave did not acknowledge the chip address. Most likely the address
@@ -28,7 +28,7 @@ pub enum Error {
     /// The requested operation wasn't supported.
     NotSupported,
 
-    /// The underlaying device has another request in progress
+    /// The underlying device has another request in progress
     Busy,
 }
 
@@ -182,7 +182,7 @@ impl<T: I2CMaster + I2CSlave> I2CMasterSlave for T {}
 /// Client interface for capsules that use I2CMaster devices.
 pub trait I2CHwMasterClient {
     /// Called when an I2C command completed. The `error` denotes whether the command completed
-    /// successfully or if an error occured.
+    /// successfully or if an error occurred.
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>);
 }
 
