@@ -41,7 +41,7 @@ fn earlgrey_nexysvideo() -> Result<(), Error> {
     // the standard Rust process library mechanism instead.
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/earlgrey-nexysvideo")
+        .arg("../../boards/opentitan/earlgrey-nexysvideo")
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
@@ -55,7 +55,7 @@ fn earlgrey_nexysvideo() -> Result<(), Error> {
 
     let mut p = spawn(
         &format!(
-            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/earlgrey-nexysvideo",
+            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/opentitan/earlgrey-nexysvideo",
             rom_path.to_str().unwrap()
         ),
         Some(10_000),

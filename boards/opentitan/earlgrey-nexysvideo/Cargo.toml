@@ -6,12 +6,12 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
-components = { path = "../components" }
-rv32i = { path = "../../arch/rv32i" }
-capsules = { path = "../../capsules" }
-kernel = { path = "../../kernel" }
-earlgrey = { path = "../../chips/earlgrey" }
-lowrisc = { path = "../../chips/lowrisc" }
+components = { path = "../../components" }
+rv32i = { path = "../../../arch/rv32i" }
+capsules = { path = "../../../capsules" }
+kernel = { path = "../../../kernel" }
+earlgrey = { path = "../../../chips/earlgrey" }
+lowrisc = { path = "../../../chips/lowrisc" }
 
 [features]
 # OpenTitan SoC design can be synthesized or compiled for different targets. A

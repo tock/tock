@@ -34,7 +34,7 @@ fn earlgrey_nexysvideo_flash(
     // Flash the Tock kernel and app
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/earlgrey-nexysvideo")
+        .arg("../../boards/opentitan/earlgrey-nexysvideo")
         .arg(format!(
             "OPENTITAN_TREE={}",
             env::var("OPENTITAN_TREE").unwrap()

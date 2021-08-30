@@ -5,10 +5,10 @@ TARGET=riscv32imc-unknown-none-elf
 PLATFORM=earlgrey-nexysvideo
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX = riscv64-elf
-QEMU ?= ../../tools/qemu/build/qemu-system-riscv32
+QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 
 
-include ../Makefile.common
+include ../../Makefile.common
 
 # Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
 # Cargo `--features`. Please see `Cargo.toml` for available options.
@@ -53,5 +53,5 @@ ifeq ($(OPENTITAN_TREE),)
 endif
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
+	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release --features=hardware_tests
