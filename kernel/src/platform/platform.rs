@@ -1,14 +1,13 @@
 //! Interfaces for implementing boards in Tock.
 
 use crate::errorcode;
+use crate::platform::chip::Chip;
+use crate::platform::scheduler_timer;
+use crate::platform::watchdog;
 use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
-
-use crate::platform::chip::Chip;
-use crate::platform::scheduler_timer;
-use crate::platform::watchdog;
 
 /// Combination trait that boards provide to the kernel that includes all of
 /// the extensible operations the kernel supports.
@@ -26,6 +25,10 @@ pub trait KernelResources<C: Chip> {
     /// The implementation of the process fault handling mechanism the kernel
     /// will use.
     type ProcessFault: ProcessFault;
+
+    /// The implementation of the context switch callback handler
+    /// the kernel will use.
+    type ContextSwitchCallback: ContextSwitchCallback;
 
     /// The implementation of the scheduling algorithm the kernel will use.
     type Scheduler: Scheduler<C>;
@@ -61,6 +64,10 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
+
+    /// Returns a reference to the implementation of the ContextSwitchCallback
+    /// for this platform.
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback;
 }
 
 /// Configure the system call dispatch mapping.
@@ -169,3 +176,16 @@ pub trait ProcessFault {
 
 /// Implement default ProcessFault trait for unit.
 impl ProcessFault for () {}
+
+/// Trait for implementing handlers on userspace context switches.
+pub trait ContextSwitchCallback {
+    /// This function is called before the kernel switches to a process.
+    ///
+    /// `process` is the app that is about to run
+    fn context_switch_hook(&self, process: &dyn process::Process);
+}
+
+/// Implement default ContextSwitchCallback trait for unit.
+impl ContextSwitchCallback for () {
+    fn context_switch_hook(&self, _process: &dyn process::Process) {}
+}

@@ -27,13 +27,14 @@
 //!   |-------------------------|
 //!
 
-use crate::grant::Grant;
-use crate::hil::time::{Ticks, Time};
-use crate::process::ProcessId;
-use crate::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
-use crate::syscall_driver::{CommandReturn, SyscallDriver};
-use crate::ErrorCode;
 use core::cell::Cell;
+use kernel::grant::Grant;
+use kernel::hil::time::{Ticks, Time};
+use kernel::platform::ContextSwitchCallback;
+use kernel::process::{self, ProcessId};
+use kernel::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::ErrorCode;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x10001;
@@ -49,8 +50,13 @@ impl<'a, T: Time> ROSDriver<'a, T> {
     pub fn new(timer: &'a T, grant: Grant<App, 0>) -> ROSDriver<'a, T> {
         ROSDriver { timer, apps: grant }
     }
+}
 
-    pub fn update_values(&self, appid: ProcessId, pending_tasks: usize) {
+impl<'a, T: Time> ContextSwitchCallback for ROSDriver<'a, T> {
+    fn context_switch_hook(&self, process: &dyn process::Process) {
+        let appid = process.processid();
+        let pending_tasks = process.pending_tasks();
+
         self.apps
             .enter(appid, |app, _| {
                 let count = app.count.get();
@@ -121,7 +127,7 @@ impl<'a, T: Time> SyscallDriver for ROSDriver<'a, T> {
         }
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), crate::process::Error> {
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
 }

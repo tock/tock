@@ -96,6 +96,7 @@ impl
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -113,6 +114,9 @@ impl
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -404,7 +408,6 @@ pub unsafe fn main() {
         &nucleo_f446re,
         chip,
         Some(&nucleo_f446re.ipc),
-        None::<&kernel::ros::ROSDriver<stm32f446re::tim2::Tim2>>,
         &main_loop_capability,
     );
 }

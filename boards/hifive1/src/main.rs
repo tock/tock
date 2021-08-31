@@ -88,6 +88,7 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -105,6 +106,9 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -298,7 +302,6 @@ pub unsafe fn main() {
         &hifive1,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        None::<&kernel::ros::ROSDriver<sifive::clint::Clint>>,
         &main_loop_cap,
     );
 }

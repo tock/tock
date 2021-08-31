@@ -72,6 +72,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -89,6 +90,9 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -353,13 +357,7 @@ pub unsafe fn main() {
     )
     .unwrap();
 
-    board_kernel.kernel_loop(
-        &teensy40,
-        chip,
-        Some(&teensy40.ipc),
-        None::<&kernel::ros::ROSDriver<imxrt1060::gpt::Gpt1>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&teensy40, chip, Some(&teensy40.ipc), &main_loop_capability);
 }
 
 /// Space for the stack buffer

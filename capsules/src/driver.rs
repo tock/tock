@@ -17,10 +17,10 @@ pub enum NUM {
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
     LowLevelDebug         = 0x00008,
+    ReadOnlySysCalls      = 0x00009,
 
     // Kernel
     Ipc                   = 0x10000,
-    ReadOnlySysCalls      = 0x10001,
 
     // HW Buses
     Spi                   = 0x20001,

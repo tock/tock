@@ -174,6 +174,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         >,
     >;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -191,6 +192,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -526,16 +530,6 @@ pub unsafe fn main() {
         &litex_arty,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        None::<
-            &kernel::ros::ROSDriver<
-                litex_vexriscv::timer::LiteXAlarm<
-                    'static,
-                    'static,
-                    socc::SoCRegisterFmt,
-                    socc::ClockFrequency,
-                >,
-            >,
-        >,
         &main_loop_cap,
     );
 }

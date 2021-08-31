@@ -110,6 +110,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -127,6 +128,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -531,7 +535,6 @@ pub unsafe fn main() {
         &raspberry_pi_pico,
         chip,
         Some(&raspberry_pi_pico.ipc),
-        None::<&kernel::ros::ROSDriver<rp2040::timer::RPTimer>>,
         &main_loop_capability,
     );
 }

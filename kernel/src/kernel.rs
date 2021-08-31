@@ -14,11 +14,11 @@ use crate::debug;
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::Grant;
-use crate::hil::time::Time;
 use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
+use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -420,7 +420,6 @@ impl Kernel {
     pub fn kernel_loop_operation<
         KR: KernelResources<C>,
         C: Chip,
-        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -428,7 +427,6 @@ impl Kernel {
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver<T>>,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
@@ -451,14 +449,8 @@ impl Kernel {
                     match scheduler.next(self) {
                         SchedulingDecision::RunProcess((appid, timeslice_us)) => {
                             self.process_map_or((), appid, |process| {
-                                let (reason, time_executed) = self.do_process(
-                                    resources,
-                                    chip,
-                                    process,
-                                    ipc,
-                                    ros,
-                                    timeslice_us,
-                                );
+                                let (reason, time_executed) =
+                                    self.do_process(resources, chip, process, ipc, timeslice_us);
                                 scheduler.result(reason, time_executed);
                             });
                         }
@@ -502,7 +494,6 @@ impl Kernel {
     pub fn kernel_loop<
         KR: KernelResources<C>,
         C: Chip,
-        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -510,12 +501,11 @@ impl Kernel {
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver<T>>,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
         loop {
-            self.kernel_loop_operation(resources, chip, ipc, ros, false, capability);
+            self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
     }
 
@@ -553,7 +543,6 @@ impl Kernel {
     fn do_process<
         KR: KernelResources<C>,
         C: Chip,
-        T: Time,
         const NUM_PROCS: usize,
         const NUM_UPCALLS_IPC: usize,
     >(
@@ -562,7 +551,6 @@ impl Kernel {
         chip: &C,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        ros: Option<&crate::ros::ROSDriver<T>>,
         timeslice_us: Option<u32>,
     ) -> (StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -629,9 +617,9 @@ impl Kernel {
                     // process. Arming the scheduler timer instructs it to
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
-                    ros.map(|r| {
-                        r.update_values(process.processid(), process.pending_tasks());
-                    });
+                    resources
+                        .context_switch_callback()
+                        .context_switch_hook(process);
                     process.setup_mpu();
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();

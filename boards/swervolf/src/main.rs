@@ -76,6 +76,7 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -93,6 +94,9 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -245,7 +249,6 @@ pub unsafe fn main() {
         &swervolf,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        None::<&kernel::ros::ROSDriver<swervolf_eh1::syscon::SysCon>>,
         &main_loop_cap,
     );
 }
