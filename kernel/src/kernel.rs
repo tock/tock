@@ -1122,7 +1122,7 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
-            Syscall::SharedAllow {
+            Syscall::UserspaceReadableAllow {
                 driver_number,
                 subdriver_number,
                 allow_address,
@@ -1132,15 +1132,15 @@ impl Kernel {
                     .syscall_driver_lookup()
                     .with_driver(driver_number, |driver| match driver {
                         Some(d) => {
-                            // Try to create an appropriate [`SharedProcessBuffer`].
+                            // Try to create an appropriate [`UserspaceReadableProcessBuffer`].
                             // This method will ensure that the memory in question
                             // is located in the process-accessible memory space.
                             match process.build_readwrite_process_buffer(allow_address, allow_size)
                             {
                                 Ok(rw_pbuf) => {
-                                    // Creating the [`SharedProcessBuffer`] worked,
+                                    // Creating the [`UserspaceReadableProcessBuffer`] worked,
                                     // provide it to the capsule.
-                                    match d.allow_shared(
+                                    match d.allow_userspace_readable(
                                         process.processid(),
                                         subdriver_number,
                                         rw_pbuf,
@@ -1150,21 +1150,23 @@ impl Kernel {
                                             // operation. Pass the previous buffer
                                             // information back to the process.
                                             let (ptr, len) = returned_pbuf.consume();
-                                            SyscallReturn::SharedAllowSuccess(ptr, len)
+                                            SyscallReturn::UserspaceReadableAllowSuccess(ptr, len)
                                         }
                                         Err((rejected_pbuf, err)) => {
                                             // The capsule has rejected the allow
                                             // operation. Pass the new buffer information
                                             // back to the process.
                                             let (ptr, len) = rejected_pbuf.consume();
-                                            SyscallReturn::SharedAllowFailure(err, ptr, len)
+                                            SyscallReturn::UserspaceReadableAllowFailure(
+                                                err, ptr, len,
+                                            )
                                         }
                                     }
                                 }
                                 Err(allow_error) => {
-                                    // There was an error creating the [`SharedProcessBuffer`].
+                                    // There was an error creating the [`UserspaceReadableProcessBuffer`].
                                     // Report back to the process.
-                                    SyscallReturn::SharedAllowFailure(
+                                    SyscallReturn::UserspaceReadableAllowFailure(
                                         allow_error,
                                         allow_address,
                                         allow_size,
@@ -1173,7 +1175,7 @@ impl Kernel {
                             }
                         }
 
-                        None => SyscallReturn::SharedAllowFailure(
+                        None => SyscallReturn::UserspaceReadableAllowFailure(
                             ErrorCode::NODEVICE,
                             allow_address,
                             allow_size,

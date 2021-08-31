@@ -563,7 +563,7 @@ impl Default for ReadWriteProcessBuffer {
 /// wrapped in an AppSlice type.
 // We currently don't need any special functionality in the kernel for this
 // type so we alias it as `ReadWriteAppSlice`.
-pub type SharedProcessBuffer = ReadWriteProcessBuffer;
+pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 
 /// Read-only wrapper around a [`Cell`]
 ///
