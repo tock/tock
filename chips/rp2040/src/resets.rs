@@ -299,7 +299,7 @@ pub struct Resets {
 }
 
 impl Resets {
-    pub const fn new() -> Resets {
+    pub const unsafe fn new() -> Resets {
         Resets {
             registers: RESETS_BASE,
         }

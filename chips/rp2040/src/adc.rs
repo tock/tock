@@ -145,7 +145,7 @@ pub struct Adc {
 }
 
 impl Adc {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             registers: ADC_BASE,
             status: Cell::new(ADCStatus::Idle),

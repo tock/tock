@@ -81,7 +81,7 @@ pub struct Xosc {
 }
 
 impl Xosc {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             registers: XOSC_BASE,
         }

@@ -881,7 +881,7 @@ pub enum ClockAuxiliarySource {
 }
 
 impl Clocks {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             registers: CLOCKS_BASE,
             pll_registers: &[PLL_SYS_BASE, PLL_USB_BASE],

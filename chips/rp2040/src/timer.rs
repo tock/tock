@@ -173,7 +173,7 @@ pub struct RPTimer<'a> {
 }
 
 impl<'a> RPTimer<'a> {
-    pub const fn new() -> RPTimer<'a> {
+    pub const unsafe fn new() -> RPTimer<'a> {
         RPTimer {
             registers: TIMER_BASE,
             client: OptionalCell::empty(),

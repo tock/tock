@@ -128,7 +128,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             resets: Resets::new(),
             sio: SIO::new(),

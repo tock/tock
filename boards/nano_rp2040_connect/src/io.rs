@@ -46,7 +46,7 @@ impl IoWrite for Writer {
         self.uart.map_or_else(
             || {
                 // If no UART is configured for panic print, use UART0
-                let uart0 = &Uart::new_uart0();
+                let uart0 = unsafe { &Uart::new_uart0() };
 
                 if !uart0.is_configured() {
                     let parameters = Parameters {
@@ -59,8 +59,8 @@ impl IoWrite for Writer {
                     //configure parameters of uart for sending bytes
                     let _result = uart0.configure(parameters);
                     //set RX and TX pins in UART mode
-                    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
-                    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+                    let gpio_tx = unsafe { RPGpioPin::new(RPGpio::GPIO0) };
+                    let gpio_rx = unsafe { RPGpioPin::new(RPGpio::GPIO1) };
                     gpio_rx.set_function(GpioFunction::UART);
                     gpio_tx.set_function(GpioFunction::UART);
                 }

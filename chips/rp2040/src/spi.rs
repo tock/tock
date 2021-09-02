@@ -224,11 +224,12 @@ register_bitfields![u32,
     ]
 ];
 
-const SPI0_BASE: StaticRef<SpiRegisters> =
-    unsafe { StaticRef::new(0x4003C000 as *const SpiRegisters) };
-
-const SPI1_BASE: StaticRef<SpiRegisters> =
-    unsafe { StaticRef::new(0x40040000 as *const SpiRegisters) };
+const INSTANCES: [StaticRef<SpiRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x4003C000 as *const SpiRegisters),
+        StaticRef::new(0x40040000 as *const SpiRegisters),
+    ]
+};
 
 pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
@@ -248,9 +249,9 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    pub const fn new_spi0() -> Self {
+    const fn new(instance: u8) -> Self {
         Self {
-            registers: SPI0_BASE,
+            registers: INSTANCES[instance as usize],
             clocks: OptionalCell::empty(),
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
@@ -268,24 +269,12 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub const fn new_spi1() -> Self {
-        Self {
-            registers: SPI1_BASE,
-            clocks: OptionalCell::empty(),
-            master_client: OptionalCell::empty(),
-            active_slave: OptionalCell::empty(),
+    pub const unsafe fn new_spi0() -> Self {
+        Spi::new(0)
+    }
 
-            tx_buffer: TakeCell::empty(),
-            tx_position: Cell::new(0),
-
-            rx_buffer: TakeCell::empty(),
-            rx_position: Cell::new(0),
-
-            len: Cell::new(0),
-
-            transfers: Cell::new(SPI_IDLE),
-            active_after: Cell::new(false),
-        }
+    pub const unsafe fn new_spi1() -> Self {
+        Spi::new(1)
     }
 
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {

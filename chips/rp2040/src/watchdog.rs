@@ -102,7 +102,7 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
-    pub const fn new() -> Watchdog {
+    pub const unsafe fn new() -> Watchdog {
         Watchdog {
             registers: WATCHDOG_BASE,
         }

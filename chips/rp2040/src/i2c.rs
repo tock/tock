@@ -276,11 +276,11 @@ impl<'a> I2c<'a> {
         }
     }
 
-    pub const fn new_i2c0() -> Self {
+    pub const unsafe fn new_i2c0() -> Self {
         I2c::new(0)
     }
 
-    pub const fn new_i2c1() -> Self {
+    pub const unsafe fn new_i2c1() -> Self {
         I2c::new(1)
     }
 

@@ -367,11 +367,12 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-const UART0_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40034000 as *const UartRegisters) };
-
-const UART1_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40038000 as *const UartRegisters) };
+const INSTANCES: [StaticRef<UartRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x40034000 as *const UartRegisters),
+        StaticRef::new(0x40038000 as *const UartRegisters),
+    ]
+};
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
@@ -392,9 +393,9 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub const fn new_uart0() -> Self {
+    const fn new(instance: u8) -> Self {
         Self {
-            registers: UART0_BASE,
+            registers: INSTANCES[instance as usize],
             clocks: OptionalCell::empty(),
 
             tx_client: OptionalCell::empty(),
@@ -411,23 +412,12 @@ impl<'a> Uart<'a> {
             rx_status: Cell::new(UARTStateRX::Idle),
         }
     }
-    pub const fn new_uart1() -> Self {
-        Self {
-            registers: UART1_BASE,
-            clocks: OptionalCell::empty(),
 
-            tx_client: OptionalCell::empty(),
-            rx_client: OptionalCell::empty(),
-
-            tx_buffer: TakeCell::empty(),
-            tx_position: Cell::new(0),
-            tx_len: Cell::new(0),
-            tx_status: Cell::new(UARTStateTX::Idle),
-            rx_buffer: TakeCell::empty(),
-            rx_position: Cell::new(0),
-            rx_len: Cell::new(0),
-            rx_status: Cell::new(UARTStateRX::Idle),
-        }
+    pub const unsafe fn new_uart0() -> Self {
+        Uart::new(0)
+    }
+    pub const unsafe fn new_uart1() -> Self {
+        Uart::new(1)
     }
 
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {

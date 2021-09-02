@@ -293,7 +293,7 @@ pub struct RPPins<'a> {
 }
 
 impl<'a> RPPins<'a> {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             pins: [
                 RPGpioPin::new(RPGpio::GPIO0),
@@ -396,7 +396,7 @@ pub struct RPGpioPin<'a> {
 }
 
 impl<'a> RPGpioPin<'a> {
-    pub const fn new(pin: RPGpio) -> RPGpioPin<'a> {
+    pub const unsafe fn new(pin: RPGpio) -> RPGpioPin<'a> {
         RPGpioPin {
             pin: pin as usize,
             client: OptionalCell::empty(),
@@ -637,7 +637,7 @@ pub struct SIO {
 }
 
 impl SIO {
-    pub const fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             registers: SIO_BASE,
         }

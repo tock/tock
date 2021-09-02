@@ -1,7 +1,6 @@
 use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::StaticRef;
-
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 register_structs! {
 
@@ -52,7 +51,7 @@ pub struct SysInfo {
 }
 
 impl SysInfo {
-    pub const fn new() -> SysInfo {
+    pub const unsafe fn new() -> SysInfo {
         SysInfo {
             registers: SYSINFO_BASE,
         }
