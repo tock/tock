@@ -124,9 +124,11 @@ consider these four use cases.
   
   1. The application has a single process. It has no application
   credentials: it only runs on kernels that are willing to load
-  applications without credentials (e.g., research systems).
+  applications without credentials (e.g., research systems). The
+  application has only a local application identifier.
 
-  1. The application has a single process. The application is
+  1. The application has a single process and there is a one-to-one
+  mapping between public keys and applications. The application is
   identified by a public key (e.g., an RSA public key) that is also a
   global application identifier. This application's application
   credentials consist of a TBF header containing this key as well as a
@@ -135,16 +137,67 @@ consider these four use cases.
   kernel decides whether to accept a particular public key for
   verification.
 
-  1. The application has a single process. The application is
-  identified by a unique identifier I. This application's application
-  credentials consist of a TBF header containing a public key, the
-  unique identifier I, as well as a signed SHA512 hash of the
-  application binary and unique identifier I, signed with the private
-  key corresponding to the public key in the header. The kernel
-  decides whether to accept a particular public key for verification.
+  1. The application has a single process and the same key is used for
+  multiple applications. The application is identified by a unique
+  identifier I. This application's application credentials consist of
+  a TBF header containing an ECDSA public key, the unique identifier
+  I, and a signed SHA512 hash of the application binary and unique
+  identifier I, signed with the private key corresponding to the
+  public key in the header. The kernel decides whether to accept a
+  particular public key for verification. The application has a global
+  application identifier is the concatenation of its public key and I.
+
+  1. The application has multiple processes. The application is
+  identified by a public key that is also its global application
+  identifier. The application credentials of each Tock binary of the
+  process consist a TBF header containing the public key and a
+  signature of the SHA512 of the application binary made with the
+  corresponding private key.
+
+An application identifier provides an identity for an application
+binary. It allows the Tock kernel to know about the provenance and
+origin of the binary and make access control or security decisions
+based on this. For example, a kernel may allow only applications whose
+credentials use a particular trusted public key to access restricted
+functionality, but other applications may use unrestricted system
+calls freely.
+
+Note that application identifiers are distinct from process
+identifiers; an application identifier is per-application (persists
+across restarts of a Tock binary, for example), while a process
+identifier identifies a particular execution of that binary. At any
+time on a Tock device, each process has a unique process identifier,
+but they can be re-used over time (like POSIX process identifiers).
+
+As the above examples illustrate, application credentials can vary in
+size and content. The credentials that the kernel will accept depends
+on its use case: certain devices will only accept credentials which
+include a particular public key, while others will accept
+many. Furthermore, the internal format of these credentials can vary.
+Finally, the cryptography used in credentials can vary, either due to
+security policies or certification requirements.
 
 4 `Verifier` trait
 ===============================
+
+The `Verifier` trait defines an interface to a module that accepts,
+passes on, or rejects application credentials. When a Tock board
+asks the kernel to load processes, it passes a reference to a 
+`Verifier`, which the kernel uses to check credentials.
+
+
+```rust
+pub enum VerificationResult {
+  Accept,
+  Pass,
+  Reject
+}
+
+pub trait Verifier {
+
+}
+```
+
 
 5 Short IDs and the `Compress` trait
 ===============================
