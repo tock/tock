@@ -265,8 +265,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGION
     /// The app regions need to be lower then the kernel to ensure they
     /// match before the kernel ones.
     fn unused_kernel_region_number(&self, locked_region_mask: u64) -> Option<usize> {
-        for (num, region) in self.regions.iter().rev().enumerate() {
-            let number = MAX_AVAILABLE_REGIONS_OVER_TWO - num - 1;
+        // It is important to enumerate first, then reverse otherwise the enumeration index
+        // won't match the array index
+        for (number, region) in self.regions.iter().enumerate().rev() {
             if self.app_memory_region.contains(&number) {
                 continue;
             }
