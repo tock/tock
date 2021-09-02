@@ -113,14 +113,14 @@ fn earlgrey_cw310_c_hello_and_printf_long() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20032080.0x10008000.tbf"
+            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20030880.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_cw310_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_cw310_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
     p.exp_string("Hi welcome to Tock. This test makes sure that a greater than 64 byte message can be printed.")?;
@@ -158,14 +158,14 @@ fn earlgrey_cw310_recv_short_and_recv_long() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/console_recv_long/build/rv32imc/rv32imc.0x20040080.0x10008000.tbf"
+            "examples/tests/console_recv_long/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_cw310_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_cw310_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Error doing UART receive: -2")?;
 
@@ -201,7 +201,7 @@ fn earlgrey_cw310_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/c_hello/build/rv32imc/rv32imc.0x20032080.0x10008000.tbf"
+            "examples/c_hello/build/rv32imc/rv32imc.0x20030880.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
@@ -218,14 +218,14 @@ fn earlgrey_cw310_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/buttons/build/rv32imc/rv32imc.0x20034080.0x1000B000.tbf"
+            "examples/buttons/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_cw310_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_cw310_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
 
@@ -261,18 +261,15 @@ fn earlgrey_cw310_console_timeout() -> Result<(), Error> {
     );
     let mut p = earlgrey_cw310_flash(&app).unwrap();
 
-    // Send message
-    p.send_line("Test message")?;
-
-    // Wait 25 seconds
-    let timeout = time::Duration::from_secs(25);
+    // Wait 5 seconds
+    let timeout = time::Duration::from_secs(5);
     thread::sleep(timeout);
 
-    // Send enter
-    p.send_line("")?;
+    // Send a 60 charecter message
+    p.send_line("This is a test message that we are sending. Look at us go...")?;
 
     // Check the message
-    p.exp_string("Userspace call to read console returned: Test message")?;
+    p.exp_string("Userspace call to read console returned: This is a test message that we are sending. Look at us go...")?;
 
     Ok(())
 }
@@ -399,14 +396,14 @@ fn earlgrey_cw310_sha_hmac_test() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/sha/build/rv32imc/rv32imc.0x20040080.0x1000B000.tbf"
+            "examples/tests/sha/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_cw310_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_cw310_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("HMAC Example Test")?;
     p.exp_string("SHA Example Test")?;
