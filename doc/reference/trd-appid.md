@@ -31,19 +31,22 @@ The Tock kernel needs to be able to manage and restrict what userspace
 applications can do. Examples include:
   - making sure other applications cannot access an application's sensitive data stored in non-volatile memory,
   - restricting certain system calls to be used only by trusted applications,
-  - restrict runnable applications to those signed by a trusted party.
+  - run and load only applications that a trusted third party has signed.
 
 In order to accomplish this, the kernel needs a way to identify an
 application and know whether a particular userspace binary belongs to
-an application. The mapping between binaries and applications is
-many-to-many. Multiple binaries can be associated with an application
-when software updates version the binary or when an application needs
-to run in multiple processes. An example of a binary associated with
-multiple applications is a program that migrates data from one
-application to another (e.g., transitions keys from an old U2F
-application to a new one).
+an application. 
 
-The Tock kernel makes minimal assumptions on the structure and form of
+The mapping between binaries and applications can be 
+many-to-many. Multiple binaries can be associated with a single application
+when there are software updates/versions or when an application needs
+to run in multiple processes. A program that migrates data from one
+application to another (e.g., transitions keys from an old U2F
+application to a new one) needs to be associated with both the source
+and destination applications.
+
+To remain flexible and support many use cases, the Tock kernel makes 
+minimal assumptions on the structure and form of
 application credentials that bind an application identifier to a
 binary. Application credentials are arbitrary k-byte sequences that
 are stored in an userspace binary's Tock binary format (TBF)
@@ -157,12 +160,12 @@ consider these four use cases.
 An application identifier provides an identity for an application
 binary. It allows the Tock kernel to know about the provenance and
 origin of the binary and make access control or security decisions
-based on this. For example, a kernel may allow only applications whose
+based on this information. For example, a kernel may allow only applications whose
 credentials use a particular trusted public key to access restricted
-functionality, but other applications may use unrestricted system
-calls freely.
+functionality, but restrict other applications to use a subset of
+available system calls.
 
-Note that application identifiers are distinct from process
+Application identifiers are distinct from process
 identifiers; an application identifier is per-application (persists
 across restarts of a Tock binary, for example), while a process
 identifier identifies a particular execution of that binary. At any
@@ -176,6 +179,62 @@ include a particular public key, while others will accept
 many. Furthermore, the internal format of these credentials can vary.
 Finally, the cryptography used in credentials can vary, either due to
 security policies or certification requirements.
+
+4. Credentials in Tock Binary Format Headers
+===============================
+
+To support credentials in Tock binaries, the Tock Binary Format has
+a `TbfHeaderV2Credentials` header. This header is variable length
+and has two fields:
+
+```rust
+pub struct TbfHeaderV2Credentials {
+    format: TbfHeaderV2CredentialsType,
+    data: &[u8],
+}  
+```
+
+The `TbfHeaderV2CredentialsType` defines the format and size of `data`
+field. A `TbfHeaderV2CredentialsType` value MUST have a fixed
+data size and format. Currently supported values are:
+
+```rust
+pub enum TbfHeaderV2CredentialsType {
+    CleartextID = 0,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+    Rsa3072KeyWithID = 3,
+    Rsa4096KeyWithID = 4,
+}
+```
+
+**These are not intended to be final or prescriptive. They are merely some examples
+of what kind of information we might put here. Among other things, the exact format 
+of the data blocks needs to be more precise. -pal**
+
+The `CleartextID` value has a data length of 8 bytes. It contains a 64-bit number in
+big-endian format representing an application identifier.
+
+The `Rsa3072Key` value has a data of length of 768 bytes. It contains a public 3072-bit
+RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
+hash of the application binary in this Tock binary, encrypted by the private key 
+of the public key in the header.
+
+The `Rsa4096Key` value has a data of length of 1024 bytes. It contains a public 4096-bit
+RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
+hash of the application binary in this Tock binary, encrypted by the private key 
+of the public key in the header.
+
+The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It contains a public 3072-bit
+RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
+hash of the application binary in this Tock binary followed by a 32-bit application
+ID, encrypted by the private key of the public key in the header.
+
+The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It contains a public 4096-bit
+RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
+hash of the application binary in this Tock binary followed by a 32-bit application
+ID, encrypted by the private key of the public key in the header.
+
 
 4 `Verifier` trait
 ===============================
@@ -194,9 +253,27 @@ pub enum VerificationResult {
 }
 
 pub trait Verifier {
-
+  fn require_credential(&self) -> bool;
+  fn check_credential(&self, 
+                       credentials: &TbfHeaderV2Credential, 
+                       binary: &mut [u8]) -> VerificationResult;
 }
 ```
+
+The kernel, when it loads a Tock binary, scans its headers in order from
+the beginning of the Tock binary. At each `TbfHeaderV2Credential` header it 
+encounters, it calls `check_credential`. If the `Verifier` returns `Accept`,
+the kernel accepts the Tock binary for loading. If the `Verifier` returns
+`Pass`, the kernel tries the next `TbfHeaderV2Credential`, if there is one.
+If the `Verifier` returns `Reject`, the kernel stops processing headers
+and terminates loading the Tock binary.
+
+If the kernel reaches the end of the TBF headers without either an `Accept`
+or `Reject` result (or because there are no credential headers), it calls 
+`require_credentials` to ask the `Verifier` what the default behavior is.
+If `require_credential` returns `true`, the kernel rejects the Tock binary
+and terminates loading it. If `require_credential` returns `false`, the
+kernel accepts the Tock binary and continues loading it.
 
 
 5 Short IDs and the `Compress` trait
