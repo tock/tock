@@ -198,7 +198,7 @@ should use `transmit_word`, as `transmit_buffer` is a buffer of 8-bit
 bytes and cannot store 9-bit values.
 
 There can be a single transmit operation ongoing at any
-time. Successfully calling= either `transmit_buffer` or
+time. Successfully calling either `transmit_buffer` or
 `transmit_word` causes the UART to become busy until it issues the
 callback corresponding to the oustanding operation.
 
@@ -227,7 +227,7 @@ The valid error codes for `transmit_buffer` are:
   - `FAIL`: some other failure.
 
 Calling `transmit_buffer` while there is an outstanding
-transmit_buffer` or `transmit_word` operation MUST return `Err(BUSY)`.
+`transmit_buffer` or `transmit_word` operation MUST return `Err(BUSY)`.
 
 The `TransmitClient::transmitted_buffer` callback indicates completion
 of a buffer transmission.  The `Result` indicates whether the buffer
@@ -245,7 +245,7 @@ returned by `transmit_buffer` plus:
   to `abort` and the entire buffer was not transmitted.
   - `SIZE` if the buffer could only be partially transmitted. 
 
-3.2 `transmit_word` and `transmitted_word``
+3.2 `transmit_word` and `transmitted_word`
 ===============================
 
 The `transmit_word` method transmits a single data word of data
