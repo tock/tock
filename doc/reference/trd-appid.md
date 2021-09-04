@@ -327,11 +327,19 @@ pub trait Compress {
 }
 ```
 
+The `to_short_id` method returns an `Option` so that it has a clear
+default action if it does not recognize or give any special meaning to
+the credentials passed. A return value of `None` semantically means
+that these credentials do not map to any known security group or set
+of privileges, while a `Some` result denotes the credentials map to
+a known security group or set of privileges.
+
 Generally, the same structure that implements `Verifier` also
 implements `Compress`. This allows it to share copies of public keys
-or other credentials that it uses to make decisions. Doing so also
-makes it less likely that the two are inconsistent, e.g., credentials
-are correctly mapped to security policies via `Compress`.
+or other credentials that it uses to make decisions, reducing flash
+space dedicated to these constants. Doing so also makes it less likely
+that the two are inconsistent, e.g., that credentials are correctly
+mapped to security policies via `Compress`.
 
 The mechanism by which kernel modules gain access to
 `TbfHeaderV2Credentials` with which to construct `ShortID`s for access
@@ -341,21 +349,29 @@ additional traits or methods that expose these.
 
 For example, suppose there is a system that wants to grant extra
 permissions to Tock binaries with a `TbfHeaderV2Credentials` of
-`Rsa4096Key` with the public key of a certain university researcher. A
-structure implementing `Verifier` and `Compress` stores a copy of this
-key, and returns `Accept` to calls to `check_credentials` with valid
-`TbfHeaderV2Credentials` with this key. Calls to `Compress` return
-`ShortID {id: 0}` for all credentials except `Rsa4096Key` with this
+`Rsa4096Key` with a certain public key. A structure implementing
+`Verifier` and `Compress` stores a copy of this key, and returns
+`Accept` to calls to `check_credentials` with valid
+`TbfHeaderV2Credentials` using this key. Calls to `Compress` return
+`None` for all credentials except a `Rsa4096Key` with this
 key, for which it returns `ShortID {id: 1}`. The structure also has a
-method `owner_id`, which returns `ShortID {id: 1}`.
+method `privileged_id`, which returns `ShortID {id: 1}`.
 
 Kernel modules which want to give these processes extra permissions
 can check whether the `ShortID` associated with a process matches the
-`ShortID` returned from `owner_id`. Alternatively, when they are
+`ShortID` returned from `privileged_id`. Alternatively, when they are
 initialized, they can be passed a slice or array of `ShortID`s which
 are allowed; system initialization generates this set once and passes
 it into the module so it does not need to maintain a reference to the
 structure implementing `Verifier` and `Compress`.
+
+It is RECOMMENDED that the `id` field of `ShortID` be completely
+hidden and unknown to modules that use `ShortID` to manage security
+policies. They should depend on obtaining `ShortID` values based on
+known names or methods, as in the `privileged_id` example above. The
+exact `id` values used is an internal implementation decision for the
+implementer of `Compress`. Doing so more cleanly decouples modules
+through APIs and does not leak internal state.
 
 6 Capsules 
 ===============================
@@ -375,9 +391,6 @@ pal@cs.stanford.edu
 
 Johnathan Van Why <jrvanwhy@google.com>
 ```
-
-9 Citations
-===============================
 
 [TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
 [TBF]: ../TockBinaryFormat.md "Tock Binary Format"
