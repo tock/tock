@@ -14,7 +14,9 @@ This document describes the hardware independent layer interface (HIL)
 for UARTs (serial ports) in the Tock operating system kernel. It
 describes the Rust traits and other definitions for this service as
 well as the reasoning behind them. This document is in full compliance
-with [TRD1](./trd1-trds.md).
+with [TRD1](./trd1-trds.md). The UART HIL in this document also adherses
+to the rules in the [HIL Design Guide](./trd-hil-design.md), which requires
+all callbacks to be asynchronous -- even if they could be sychronous.
 
 
 1 Introduction
