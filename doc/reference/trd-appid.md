@@ -29,7 +29,8 @@ compliance with [TRD1](./trd1-trds.md).
 
 The Tock kernel needs to be able to manage and restrict what userspace
 applications can do. Examples include:
-  - making sure other applications cannot access an application's sensitive data stored in non-volatile memory,
+  - making sure other applications cannot access an application's sensitive
+  data stored in non-volatile memory,
   - restricting certain system calls to be used only by trusted applications,
   - run and load only applications that a trusted third party has signed.
 
@@ -254,49 +255,129 @@ pub enum VerificationResult {
 
 pub trait Verifier {
   fn require_credential(&self) -> bool;
-  fn check_credential(&self, 
-                       credentials: &TbfHeaderV2Credential, 
+  fn check_credentials(&self, 
+                       credentials: &TbfHeaderV2Credentials, 
                        binary: &mut [u8]) -> VerificationResult;
 }
 ```
 
-The kernel, when it loads a Tock binary, scans its headers in order from
-the beginning of the Tock binary. At each `TbfHeaderV2Credential` header it 
-encounters, it calls `check_credential`. If the `Verifier` returns `Accept`,
-the kernel accepts the Tock binary for loading. If the `Verifier` returns
-`Pass`, the kernel tries the next `TbfHeaderV2Credential`, if there is one.
-If the `Verifier` returns `Reject`, the kernel stops processing headers
-and terminates loading the Tock binary.
+The kernel, when it loads a Tock binary, scans its headers in order
+from the beginning of the Tock binary. At each
+`TbfHeaderV2Credentials` header it encounters, it calls
+`check_credentials` on the provided `Verifier`. If the `Verifier`
+returns `Accept`, the kernel stops processing credentials and
+continues loading the Tock binary. If the `Verifier` returns `Reject`,
+the kernel stops processing credentials and terminates loading the
+Tock binary. If the `Verifier` returns `Pass`, the kernel tries the
+next `TbfHeaderV2Credentials`, if there is one. 
 
-If the kernel reaches the end of the TBF headers without either an `Accept`
-or `Reject` result (or because there are no credential headers), it calls 
-`require_credentials` to ask the `Verifier` what the default behavior is.
-If `require_credential` returns `true`, the kernel rejects the Tock binary
-and terminates loading it. If `require_credential` returns `false`, the
-kernel accepts the Tock binary and continues loading it.
+If the kernel reaches the end of the TBF headers without encountering
+a `Reject` or `Accept` result, it calls `require_credentials` to ask
+the `Verifier` what the default behavior is.  If `require_credentials`
+returns `true`, the kernel rejects the Tock binary and terminates
+loading it. If `require_credentials` returns `false`, the kernel
+accepts the Tock binary and continues loading it. If a Tock binary has
+no `TbfHeaderV2Credentials` headers then there will be no `Accept` or
+`Reject` results and `require_credentials` defines whether to load
+such a binary.
+
+An implementer of `Verifier` sets the security policy of Tock binary
+loading by deciding which types of credentials, and which credentials,
+are acceptable and which are rejected.
+
+If `check_credentials` returns `Accept` for a
+`TbfHeaderV2Credentials`, the kernel stores a reference to this
+`TbfHeaderV2Credentials` in the process structure. This data
+represents the acting credentials of the process.
 
 
 5 Short IDs and the `Compress` trait
 ===============================
 
+While `TbfHeaderV2Credentials` define the identity and credentials of
+an application, they are typically large data structures that are too
+large to store in RAM. When parts of the kernel wish to apply
+application-based security or access policies, they need a concise way
+to represent these policies. Requiring policies to be encoded in terms
+of application credentials is extremely costly: a table, for example,
+that says that only applications signed with a particular 4096-bit RSA
+key can access certain system calls requires storing the whole
+4096-bit key. If there are multiple such security policies through the
+kernel, they must each store this information. 
 
-6 Capsules
+The `Compress` trait provides a mechanism to map credentials to a
+small (32-bit) integer, which can then be used throughout the kernel
+as an identifier for security policies. For example, suppose that a
+device wants to grant access to all application binaries signed by a
+certain 3072-bit RSA key. The `Compress` trait can map all such
+`TbfHeaderV2Credentials` to a known identifier. This identifier is
+stored in the process structure. Access control systems within the
+kernel can define their policies in terms of these identifiers, such
+that they can check access by comparing 32-bit integers rather than
+512-byte keys.
+
+```rust
+#[derive(Clone, Copy, Eq)]
+struct ShortID {
+  id: u32
+}
+
+pub trait Compress {
+    fn to_short_id(credentials: &TbfHeaderV2Credentials) -> Option<ShortID>;
+}
+```
+
+Generally, the same structure that implements `Verifier` also
+implements `Compress`. This allows it to share copies of public keys
+or other credentials that it uses to make decisions. Doing so also
+makes it less likely that the two are inconsistent, e.g., credentials
+are correctly mapped to security policies via `Compress`.
+
+The mechanism by which kernel modules gain access to
+`TbfHeaderV2Credentials` with which to construct `ShortID`s for access
+tables is outside of scope for this document and are system-specific.
+The structure implementing `Verifier` and `Compress` typically has
+additional traits or methods that expose these. 
+
+For example, suppose there is a system that wants to grant extra
+permissions to Tock binaries with a `TbfHeaderV2Credentials` of
+`Rsa4096Key` with the public key of a certain university researcher. A
+structure implementing `Verifier` and `Compress` stores a copy of this
+key, and returns `Accept` to calls to `check_credentials` with valid
+`TbfHeaderV2Credentials` with this key. Calls to `Compress` return
+`ShortID {id: 0}` for all credentials except `Rsa4096Key` with this
+key, for which it returns `ShortID {id: 1}`. The structure also has a
+method `owner_id`, which returns `ShortID {id: 1}`.
+
+Kernel modules which want to give these processes extra permissions
+can check whether the `ShortID` associated with a process matches the
+`ShortID` returned from `owner_id`. Alternatively, when they are
+initialized, they can be passed a slice or array of `ShortID`s which
+are allowed; system initialization generates this set once and passes
+it into the module so it does not need to maintain a reference to the
+structure implementing `Verifier` and `Compress`.
+
+6 Capsules 
 ===============================
-
-This section describes the standard Tock capsules for SPI communication.
 
 7 Implementation Considerations
 ===============================
 
-8 Authors' Address
-=================================
+8 Authors' Addresses
+===============================
 ```
 Philip Levis
-409 Gates Hall
+414 Gates Hall
 Stanford University
 Stanford, CA 94305
 USA
 pal@cs.stanford.edu
 
-Alexandru Radovici <msg4alex@gmail.com>
+Johnathan Van Why <jrvanwhy@google.com>
 ```
+
+9 Citations
+===============================
+
+[TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
+[TBF]: ../TockBinaryFormat.md "Tock Binary Format"
