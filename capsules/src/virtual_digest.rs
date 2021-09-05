@@ -4,7 +4,7 @@
 use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::digest::{self, Client, Digest};
+use kernel::hil::digest::{self, ClientData, ClientHash, ClientVerify, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
@@ -87,7 +87,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
@@ -120,6 +120,20 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
         }
     }
 
+    /// Disable the Digest hardware and clear the keys and any other sensitive
+    /// data
+    fn clear_data(&self) {
+        if self.mux.running_id.get() == self.id {
+            self.mux.running.set(false);
+            self.mode.set(Mode::None);
+            self.mux.digest.clear_data()
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
+    for VirtualMuxDigest<'a, A, L>
+{
     /// Request the hardware block to generate a Digest
     /// This doesn't return anything, instead the client needs to have
     /// set a `hash_done` handler.
@@ -142,17 +156,11 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
             }
         }
     }
+}
 
-    /// Disable the Digest hardware and clear the keys and any other sensitive
-    /// data
-    fn clear_data(&self) {
-        if self.mux.running_id.get() == self.id {
-            self.mux.running.set(false);
-            self.mode.set(Mode::None);
-            self.mux.digest.clear_data()
-        }
-    }
-
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
+    for VirtualMuxDigest<'a, A, L>
+{
     fn verify(
         &self,
         compare: &'static mut [u8; L],
@@ -185,7 +193,7 @@ impl<
             + digest::Sha384
             + digest::Sha512,
         const L: usize,
-    > digest::Client<'a, L> for VirtualMuxDigest<'a, A, L>
+    > digest::ClientData<'a, L> for VirtualMuxDigest<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         match self.mode.get() {
@@ -201,7 +209,20 @@ impl<
         }
         self.mux.do_next_op();
     }
+}
 
+impl<
+        'a,
+        A: digest::Digest<'a, L>
+            + digest::HMACSha256
+            + digest::HMACSha384
+            + digest::HMACSha512
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
+        const L: usize,
+    > digest::ClientHash<'a, L> for VirtualMuxDigest<'a, A, L>
+{
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         match self.mode.get() {
             Mode::None => {}
@@ -219,7 +240,19 @@ impl<
         self.clear_data();
         self.mux.do_next_op();
     }
-
+}
+impl<
+        'a,
+        A: digest::Digest<'a, L>
+            + digest::HMACSha256
+            + digest::HMACSha384
+            + digest::HMACSha512
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
+        const L: usize,
+    > digest::ClientVerify<'a, L> for VirtualMuxDigest<'a, A, L>
+{
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         match self.mode.get() {
             Mode::None => {}

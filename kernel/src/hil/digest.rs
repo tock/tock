@@ -6,13 +6,18 @@ use crate::ErrorCode;
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait Client<'a, const L: usize> {
+pub trait ClientData<'a, const L: usize> {
     /// This callback is called when the data has been added to the digest
     /// engine.
     /// On error or success `data` will contain a reference to the original
     /// data supplied to `add_data()`.
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+}
 
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait ClientHash<'a, const L: usize> {
     /// This callback is called when a digest is computed.
     /// On error or success `digest` will contain a reference to the original
     /// data supplied to `run()`.
@@ -31,10 +36,20 @@ pub trait ClientVerify<'a, const L: usize> {
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
 }
 
+pub trait Client<'a, const L: usize>:
+    ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>
+{
+}
+
+impl<'a, T: ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>, const L: usize>
+    Client<'a, L> for T
+{
+}
+
 /// Computes a digest (cryptographic hash) over data
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait Digest<'a, const L: usize> {
+pub trait DigestData<'a, const L: usize> {
     /// Set the client instance which will receive `hash_done()` and
     /// `add_data_done()` callbacks.
     /// This callback is called when the data has been added to the digest
@@ -53,6 +68,16 @@ pub trait Digest<'a, const L: usize> {
         data: LeasableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
 
+    /// Clear the keys and any other sensitive data.
+    /// This won't clear the buffers provided to this API, that is up to the
+    /// user to clear.
+    fn clear_data(&self);
+}
+
+/// Computes a digest (cryptographic hash) over data
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait DigestHash<'a, const L: usize> {
     /// Request the hardware block to generate a Digest and stores the returned
     /// digest in the memory location specified.
     /// This doesn't return any data, instead the client needs to have
@@ -68,11 +93,6 @@ pub trait Digest<'a, const L: usize> {
     /// error with error code ENOSUPPORT.
     fn run(&'a self, digest: &'static mut [u8; L])
         -> Result<(), (ErrorCode, &'static mut [u8; L])>;
-
-    /// Clear the keys and any other sensitive data.
-    /// This won't clear the buffers provided to this API, that is up to the
-    /// user to clear.
-    fn clear_data(&self);
 }
 
 /// Computes a digest (cryptographic hash) over data
@@ -103,6 +123,19 @@ pub trait DigestVerify<'a, const L: usize> {
         &'a self,
         compare: &'static mut [u8; L],
     ) -> Result<(), (ErrorCode, &'static mut [u8; L])>;
+}
+
+/// Computes a digest (cryptographic hash) over data
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait Digest<'a, const L: usize>:
+    DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>
+{
+}
+
+impl<'a, T: DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>, const L: usize>
+    Digest<'a, L> for T
+{
 }
 
 pub trait Sha224 {

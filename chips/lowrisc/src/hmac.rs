@@ -193,7 +193,7 @@ impl Hmac<'_> {
     }
 }
 
-impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
+impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
         self.client.set(client);
     }
@@ -227,6 +227,15 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
         Ok(self.data_len.get())
     }
 
+    fn clear_data(&self) {
+        let regs = self.registers;
+
+        regs.cmd.modify(CMD::START::CLEAR);
+        regs.wipe_secret.set(1 as u32);
+    }
+}
+
+impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
     fn run(
         &'a self,
         digest: &'static mut [u8; 32],
@@ -246,14 +255,9 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
 
         Ok(())
     }
+}
 
-    fn clear_data(&self) {
-        let regs = self.registers;
-
-        regs.cmd.modify(CMD::START::CLEAR);
-        regs.wipe_secret.set(1 as u32);
-    }
-
+impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
     fn verify(
         &'a self,
         compare: &'static mut [u8; 32],

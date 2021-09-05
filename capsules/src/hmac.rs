@@ -195,7 +195,7 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
-    > digest::Client<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -296,7 +296,14 @@ impl<
 
         self.check_queue();
     }
+}
 
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
+{
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
@@ -343,7 +350,14 @@ impl<
         self.check_queue();
         self.dest_buffer.replace(digest);
     }
+}
 
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
+{
     fn verification_done(
         &'a self,
         _result: Result<bool, ErrorCode>,
