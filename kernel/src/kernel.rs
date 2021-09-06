@@ -1184,7 +1184,7 @@ impl Kernel {
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] shared allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] userspace readable allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
                         process.processid(),
                         driver_number,
                         subdriver_number,

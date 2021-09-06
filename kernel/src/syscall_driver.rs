@@ -220,8 +220,9 @@ pub trait SyscallDriver {
     /// within memory the process can both read and write.
     ///
     /// This is different to `allow_readwrite()` in that the app is allowed
-    /// to read/write the buffer once it has been passed to the kernel.
-    /// For more details on how this can be done safely see TRD104.
+    /// to read the buffer once it has been passed to the kernel.
+    /// For more details on how this can be done safely see the userspace
+    /// readable allow syscalls TRDXXX.
     fn allow_userspace_readable(
         &self,
         app: ProcessId,

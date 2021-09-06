@@ -7,8 +7,8 @@ Userspace Readable Allow System Call
 **Status:** Draft <br/>
 **Author:** Alistair Francis <br/>
 **Draft-Created:** June 17, 2021<br/>
-**Draft-Modified:** June 17, 2021<br/>
-**Draft-Version:** 1<br/>
+**Draft-Modified:** Sep 8, 2021<br/>
+**Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -45,6 +45,9 @@ the app perform a userspace readable allow call to allocate a buffer. Then the c
 write statistics to the buffer and at any time the app can read the statistics
 from the buffer.
 
+The userspace readable allow system call allows userspace to have read-only access
+a buffer that is writeable by the kernel.
+
 2 System Call API
 =================================
 
@@ -54,10 +57,9 @@ The userspace readable allow syscall follows the same expectations and
 requirements as described for the Read-Write syscall in
 [TRD104 Section 4.4](trd104-syscalls.md#44-read-write-allow-class-id-3), with
 the exception that apps are explicitly allowed to read buffers that have
-trd-userspace-readable-allow-syscalls.md
 been passed to the kernel.
 
-The register arguments for Read-Write Allow system calls are as
+The register arguments for Userspace Readable Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
 
@@ -77,52 +79,68 @@ kernel MUST return a failure result with an error code of `INVALID`.
 The buffer number specifies which buffer this is. A driver may
 support multiple allowed buffers.
 
-The return variants for Read-Write Allow system calls are `Failure
+The return variants for Userspace Readable Allow system calls are `Failure
 with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
 contains an address and `Argument 1` contains a length. When a driver
-implementing the Read-Write Allow system call returns a failure
+implementing the Userspace Readable Allow system call returns a failure
 result, it MUST return the same address and length as those that were passed
-in the call. When a driver implementing the Read-Write Allow system call
+in the call. When a driver implementing the Userspace Readable Allow system call
 returns a success result, the returned address and length MUST be those
 that were passed in the previous call, unless this is the first call.
-On the first successful invocation of a particular Read-Write Allow system
-call, an driver implementation MUST return address 0 and size 0.
+On the first successful invocation of a particular Userspace Readable Allow system
+call, a driver implementation MUST return address 0 and size 0.
 
 The syscall class ID is shown below:
 
-| Syscall Class    | Syscall Class Number |
-|------------------|----------------------|
-| Read-Write Allow |           7          |
+| Syscall Class            | Syscall Class Number |
+|--------------------------|----------------------|
+| Userspace Readable Allow |           7          |
 
 The standard access model for userspace readable allowed buffers is that userspace can read
-from a buffer while the kernel can read or write. Syncronisation
-methods are required to ensure data consistency but are implementation specifc.
+from a buffer while the kernel can read or write. Synchronisation
+methods are required to ensure data consistency but are implementation specific.
 
 Simultaneous accesses to a buffer from both userspace and the kernel can
-cause issues if not implemented properly. For example a userspace app could
-read partially written data or the kernel could act on partially written data.
+cause userspace to read inconsistent data if not implemented properly.
+For example a userspace app could read partially written data.
 This would result in obscure timing bugs that are hard to detect. Due to this
-each capsule using the userspace readable Allow mechanism MUST document, in a Draft or
-Final Documentary TRD, how consistency of the data exchanged through this
-userspace readable memory region is achieved.
+each capsule using the userspace readable allow mechanism MUST document, in a Draft or
+Final Documentary TRD, how it ensures userspace always reads consistent data
+from a userspace readable buffer.
 
-An examples to ensure consistent data reads/writes can be a monotonically
-increasing counters along with the data for userspace to ensure a read
-operation yielded consistent data.
+Finally, because a process conceptually relinquishes write access to a buffer
+when it makes a userspace readable allow call with it, a userspace API MUST NOT
+assume or rely on a process writing an allowed buffer. If userspace needs to
+write to a buffer held by the kernel, it MUST first regain access to it by
+calling the corresponding Userspace Readable Allow. A userspace API MAY
+allow a process to read an allowed buffer, but if it does, it must document
+a consistency mechanism.
 
-An example of reading a monotomic counter from userspace would look like this:
+One example approach to ensure that userspace reads of a data object are
+consistent is to use a monotonic counter. Every time the kernel writes
+the data object, it increments the counter. If userspace reads the counter,
+reads the data object, then reads the counter again to check that it has not
+changed, it can check that the object was not modified mid-read. If the counter
+changes, it restarts the read of the data object. This approach is simple, but
+does make reading the data object take variable time and is theoretically
+vulnerable to starvation.
+
+An example of reading a monotonic counter from userspace would look like this:
 
 ```c
-  volatile uint32_t high, low;
+  // Reference to the readable-allow'd buffer
+  volatile uint32_t* ptr;
 
   do {
-    // Set the high bytes the value in memory
-    high = ptr[3];
-    // Read the low bytes
-    low = ptr[2];
-    // If the high bytes don't match what is still in memory re-try
-    // the load
-  } while (high != ptr[3]);
+    // Read the current counter value
+    counter = ptr[0];
+
+    // Read in the data
+    my_data0 = ptr[1];
+    my_data1 = ptr[2];
+
+    // Only exit the loop if counter and ptr[0] are the same
+  } while (counter != ptr[0]);
 ```
 
 where the counter is incremented on every context switch to userspace.
@@ -146,7 +164,7 @@ typedef struct {
   tock_error_t error;
 } userspace_readable_allow_return_t;
 
-userspace_readable_allow_return_t allow_userspace_readable(uint32_t driver, uint32_t allow, void* ptr, size_t size);
+userspace_readable_allow_return_t allow_userspace_readable(uint32_t driver, uint32_t allow, volatile void* ptr, size_t size);
 ```
 
 The `success` field indicates whether the call succeeded.
@@ -154,7 +172,7 @@ If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
-The register arguments for Read-Write Allow system calls are as
+The register arguments for Userspace Readable Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
 
@@ -165,7 +183,7 @@ on RISC-V.
 | Address          | r2       |
 | Size             | r3       |
 
-4 Authors' Address
+4 Author's Address
 =================================
 Alistair Francis
 alistair.francis@wdc.com
