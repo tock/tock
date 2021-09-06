@@ -156,6 +156,11 @@ The `Transmit` and `TransmitClient` traits allow a client to transmit
 bytes over the UART.
 
 ```rust
+enum AbortResult {
+  Failure,
+  Success,
+}
+
 pub trait Transmit<'a> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient);
 
@@ -166,7 +171,7 @@ pub trait Transmit<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
-    fn transmit_abort(&self) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> Result<AbortResult, ()>;
 }
 
 pub trait TransmitClient {
@@ -284,29 +289,30 @@ ready to receive another call. The valid `ErrorCode` values for
   - `CANCEL` if the call to `transmit_word` was cancelled by a call to 
   `abort` and the word was not transmitted.
 
-3.3 `abort`
+3.3 `transmit_abort`
 ===============================
 
-The `abort_transmit` method allows a UART implementation to terminate
+The `transmit_abort` method allows a UART implementation to terminate
 an outstanding call to `transmit_word` or `transmit_buffer` early. The
-result of `abort_transmit` indicates whether the abort was
+result of `transmit_abort` indicates whether the abort was
 successful. Cancelled calls to `transmit_buffer` MUST always make a
 callback, to return the transmit buffer to the caller. Cancelled calls
 to `transmit_word` MAY issue a callback.
 
-If `abort_transmit` returns `Ok(())`, there will be no future callback
-and the client may immediately call `transmit_buffer` or
-`transmit_word`. If `abort_transmit` returns `Err`, there will be a
-callback. If there is no outstanding call to `transmit_word` or
-`transmit_buffer`, `abort_transmit` MUST return `Ok(())`.
+If `transmit_abort` returns `Ok`, there will be be a future callback
+for the completion of the outstanding request. The value of `AbortResult`
+denotes whether it will be cancelled:
+  - `Ok(AbortResult::Success)`: there was an outstanding operation, which 
+  has been cancelled.  A callback will be made for that operation with an 
+  `ErrorCode` of `CANCEL`.
+  - `Ok(AbortResult::Failure)`: there was an oustanding oepration, which 
+  has not been cancelled.  A callback will be made for that operation with 
+  a result other than `Err(CANCEL)`. 
+  - `Err(()):` there was no outstanding request and there will be no future 
+  callback.
 
-The valid `ErrorCode` results for `abort_transmit` are:
-   - `BUSY`: there was an oustanding operation, which has been cancelled.
-   A callback will be made for that operation with an `ErrorCode` of
-   `CANCEL`.
-   - `FAIL`: there was an outstanding operation, which will not be cancelled.
-   A callback will be made for that operation with a result other than
-   `Err(CANCEL)`.
+If there is no outstanding call to `transmit_word` or
+`transmit_buffer`, `transmit_abort`` MUST return `Err(())`.
 
 4 `Receive` and `ReceiveClient` traits
 ===============================
@@ -339,9 +345,12 @@ outstanding operation. The first call to `receive_buffer` or
 another reception request.
 
 
-
-
 ```rust 
+enum AbortResult {
+  Failure,
+  Success,
+}
+
 pub trait Receive<'a> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient);
     fn receive_buffer(
@@ -350,7 +359,7 @@ pub trait Receive<'a> {
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
     fn receive_word(&self) -> Result<(), ErrorCode>;
-    fn receive_abort(&self) -> Result<(), ErrorCode>;
+    fn receive_abort(&self) -> Result<AbortResult, ()>;
 }
 
 pub trait ReceiveClient {
@@ -406,12 +415,15 @@ to terminate the 100-byte read, copying the bytes read from the
 resulting callback, then issuing a `receive_buffer` of 40 bytes.
 
 The valid return values for `receive_abort` are:
-  - `Ok(())`: there was no reception outstanding and the implementation will
+  - `Ok(AbortResult::Success): there was a reception outstanding and 
+     it has been cancelled.  A callbback with `Err(CANCEL)` will be called.
+  - `Err(AbortResult::Failure)`: there was a reception outstanding but it 
+     was not cancelled.  A callback will be called with an `rval` other than `Err(CANCEL)`.
+  - `Err(())`: there was no reception outstanding and the implementation will
     not issue a callback.
-  - `Err(BUSY)`: there was a reception outstanding and it has been cancelled.
-    A callbback with `Err(CANCEL)` will be called.
-  - `Err(FAIL)`: there was a reception outstanding but it was not cancelled.
-    A callback will be called with an `rval` other than `Err(CANCEL)`.
+
+If there is no outstanding call to `receive_buffer` or
+`receive_word`, `receive_abort`` MUST return `Err(())`.
 
 4.2 `receive_word` and `received_word`
 ===============================
