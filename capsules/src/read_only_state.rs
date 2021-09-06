@@ -1,6 +1,6 @@
-//! Read Only Systems calls
+//! Read Only State
 //!
-//! This capsule provides read only system calls to userspace applications.
+//! This capsule provides read only state to userspace applications.
 //! This is similar to the Linux vDSO syscalls.
 //!
 //! The benefit of using these is that applications can avoid the context
@@ -10,7 +10,7 @@
 //! The value will only be as accurate as the last time the application was
 //! switched to by the kernel.
 //!
-//! The layout of the read only syscalls in the allow region depends on the
+//! The layout of the read only state in the allow region depends on the
 //! version. Userspace can use `command 0` to get the version information.
 //!
 //! Versions are backwards compatible, that is new versions will only add
@@ -37,22 +37,22 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x10001;
+pub const DRIVER_NUM: usize = crate::driver::NUM::ReadOnlyState as usize;
 const VERSION: u32 = 1;
 
-pub struct ROSDriver<'a, T: Time> {
+pub struct ReadOnlyStateDriver<'a, T: Time> {
     timer: &'a T,
 
     apps: Grant<App, 0>,
 }
 
-impl<'a, T: Time> ROSDriver<'a, T> {
-    pub fn new(timer: &'a T, grant: Grant<App, 0>) -> ROSDriver<'a, T> {
-        ROSDriver { timer, apps: grant }
+impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
+    pub fn new(timer: &'a T, grant: Grant<App, 0>) -> ReadOnlyStateDriver<'a, T> {
+        ReadOnlyStateDriver { timer, apps: grant }
     }
 }
 
-impl<'a, T: Time> ContextSwitchCallback for ROSDriver<'a, T> {
+impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
     fn context_switch_hook(&self, process: &dyn process::Process) {
         let appid = process.processid();
         let pending_tasks = process.pending_tasks();
@@ -80,7 +80,7 @@ impl<'a, T: Time> ContextSwitchCallback for ROSDriver<'a, T> {
     }
 }
 
-impl<'a, T: Time> SyscallDriver for ROSDriver<'a, T> {
+impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
     /// Specify memory regions to be used.
     ///
     /// ### `allow_num`
@@ -106,7 +106,7 @@ impl<'a, T: Time> SyscallDriver for ROSDriver<'a, T> {
         }
     }
 
-    /// Commands for ROSDriver.
+    /// Commands for ReadOnlyStateDriver.
     ///
     /// ### `command_num`
     ///
