@@ -64,17 +64,23 @@ enum CurrentState {
 pub struct KVSystemTest<'a, S: KVSystem<'static>, T: KeyType> {
     kv_system: &'a S,
     phantom: PhantomData<&'a T>,
+    value: TakeCell<'static, [u8]>,
     ret_buffer: TakeCell<'static, [u8]>,
     state: Cell<CurrentState>,
 }
 
 impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
-    pub fn new(kv_system: &'a S, static_buf: &'static mut [u8; 4]) -> KVSystemTest<'a, S, T> {
+    pub fn new(
+        kv_system: &'a S,
+        value: &'static mut [u8],
+        static_buf: &'static mut [u8; 4],
+    ) -> KVSystemTest<'a, S, T> {
         debug!("---Starting TicKV Tests---");
 
         Self {
             kv_system: kv_system,
             phantom: PhantomData,
+            value: TakeCell::new(value),
             ret_buffer: TakeCell::new(static_buf),
             state: Cell::new(CurrentState::Normal),
         }
@@ -86,11 +92,22 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
 {
     fn generate_key_complete(
         &self,
-        _result: Result<(), ErrorCode>,
-        _unhashed_key: &'static [u8],
-        _key_buf: &'static T,
+        result: Result<(), ErrorCode>,
+        _unhashed_key: &'static mut [u8],
+        key_buf: &'static mut T,
     ) {
-        unimplemented!()
+        match result {
+            Ok(()) => {
+                debug!("Generated key: {:?}", key_buf);
+                debug!("Now appending the key");
+                self.kv_system
+                    .append_key(key_buf, self.value.take().unwrap())
+                    .unwrap();
+            }
+            Err(e) => {
+                panic!("Error adding key: {:?}", e);
+            }
+        }
     }
 
     fn append_key_complete(

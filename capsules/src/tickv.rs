@@ -126,6 +126,8 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Digest<'a, 8>> {
     value_buffer: Cell<Option<&'static [u8]>>,
     key_buffer: TakeCell<'static, [u8; 8]>,
     ret_buffer: TakeCell<'static, [u8]>,
+    unhashed_key_buf: TakeCell<'static, [u8]>,
+    key_buf: TakeCell<'static, [u8; 8]>,
 
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
 }
@@ -153,6 +155,8 @@ impl<'a, F: Flash, H: Digest<'a, 8>> TicKVStore<'a, F, H> {
             value_buffer: Cell::new(None),
             key_buffer: TakeCell::empty(),
             ret_buffer: TakeCell::empty(),
+            unhashed_key_buf: TakeCell::empty(),
+            key_buf: TakeCell::empty(),
             client: OptionalCell::empty(),
         }
     }
@@ -216,14 +220,18 @@ impl<'a, F: Flash, H: Digest<'a, 8>> TicKVStore<'a, F, H> {
 }
 
 impl<'a, F: Flash, H: Digest<'a, 8>> digest::Client<'a, 8> for TicKVStore<'a, F, H> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
-        unimplemented!();
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+        self.unhashed_key_buf.replace(data);
+
+        self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
 
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 8]) {
-        self.hasher.clear_data();
+    fn hash_done(&'a self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+        self.client.map(move |cb| {
+            cb.generate_key_complete(Ok(()), self.unhashed_key_buf.take().unwrap(), digest);
+        });
 
-        unimplemented!();
+        self.hasher.clear_data();
     }
 }
 
@@ -384,6 +392,8 @@ impl<'a, F: Flash, H: Digest<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
         if let Err((e, buf)) = self.hasher.add_data(LeasableBuffer::new(unhashed_key)) {
             return Err((buf, key_buf, Err(e)));
         }
+
+        self.key_buf.replace(key_buf);
 
         Ok(())
     }
