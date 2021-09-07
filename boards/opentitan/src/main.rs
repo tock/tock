@@ -68,6 +68,7 @@ static mut TICKV: Option<
     &capsules::tickv::TicKVStore<
         'static,
         capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+        capsules::sip_hash::SipHasher24<'static>,
     >,
 > = None;
 // Test access to AES CCM
@@ -452,6 +453,7 @@ unsafe fn setup() -> (
     // TicKV
     #[cfg(not(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
         &mux_flash,                                  // Flash controller
         0x20090000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
         0x70000,                                     // Region size
@@ -459,10 +461,12 @@ unsafe fn setup() -> (
         page_buffer,                                 // Buffer used with the flash controller
     )
     .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl
+        lowrisc::flash_ctrl::FlashCtrl,
+        capsules::sip_hash::SipHasher24
     ));
     #[cfg(any(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
         &mux_flash,                                  // Flash controller
         0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
         0x20000,                                     // Region size
@@ -470,9 +474,11 @@ unsafe fn setup() -> (
         page_buffer,                                 // Buffer used with the flash controller
     )
     .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl
+        lowrisc::flash_ctrl::FlashCtrl,
+        capsules::sip_hash::SipHasher24
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+    sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
     // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses

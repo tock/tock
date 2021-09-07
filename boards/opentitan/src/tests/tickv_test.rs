@@ -22,7 +22,11 @@ fn tickv_append_key() {
         let test = static_init!(
             KVSystemTest<
                 'static,
-                TicKVStore<'static, FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>>,
+                TicKVStore<
+                    'static,
+                    FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+                    capsules::sip_hash::SipHasher24,
+                >,
                 TicKVKeyType,
             >,
             KVSystemTest::new(tickv, ret)
