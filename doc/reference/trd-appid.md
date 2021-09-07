@@ -5,7 +5,7 @@ Application IDs (AppID)
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis, Johnathan van Why<br/>
+**Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
 **Draft-Modified:** 2021/09/01 <br/>
 **Draft-Version:** 1 <br/>
@@ -84,7 +84,7 @@ main traits:
 This document uses several terms in precise ways. Because these terms
 overlap somewhat with general terminology in the Tock kernel, this
 section defines them for clarity. The Tock kernel often uses the term
-"application" to refer to what this document calls a "Tock binary."
+"application" to refer to what this document calls a "process binary."
 
 **Application**: userspace software developed and maintained by an
 individual, group, corporation, or organization that meets the
@@ -94,7 +94,7 @@ run concurrently (an application split into several processes), or
 multiple userspace binaries only one of which runs at a time (an
 application with multiple versions).
 
-**Tock binary**: a Tock binary format (TBF)[TBF] object stored on a
+**Process binary**: a Tock binary format (TBF)[TBF] object stored on a
 Tock device, containing TBF headers and an application binary.
 
 **Application binary**: a code image compiled to run in a Tock
@@ -114,10 +114,10 @@ Tock device have this identifier.
 to an application binary. Application credentials are usually stored
 in Tock binary format[TBF] headers.
 
-In normal use of Tock, Tock binaries are copied into an application
+In normal use of Tock, process binaries are copied into an application
 flash region by a software tool. When the Tock kernel boots, it scans
-this application flash region for Tock binaries. After inspecting the
-application binary and TBF headers in a Tock binary, the kernel
+this application flash region for process binaries. After inspecting the
+application binary and TBF headers in a process binary, the kernel
 decides whether to load it into a process and run it.
 
 3 Application identifiers and application credentials
@@ -153,7 +153,7 @@ consider these four use cases.
 
   1. The application has multiple processes. The application is
   identified by a public key that is also its global application
-  identifier. The application credentials of each Tock binary of the
+  identifier. The application credentials of each process binary of the
   process consist a TBF header containing the public key and a
   signature of the SHA512 of the application binary made with the
   corresponding private key.
@@ -168,7 +168,7 @@ available system calls.
 
 Application identifiers are distinct from process
 identifiers; an application identifier is per-application (persists
-across restarts of a Tock binary, for example), while a process
+across restarts of a process binary, for example), while a process
 identifier identifies a particular execution of that binary. At any
 time on a Tock device, each process has a unique process identifier,
 but they can be re-used over time (like POSIX process identifiers).
@@ -181,7 +181,7 @@ many. Furthermore, the internal format of these credentials can vary.
 Finally, the cryptography used in credentials can vary, either due to
 security policies or certification requirements.
 
-4. Credentials in Tock Binary Format Headers
+4 Credentials in Tock Binary Format Headers
 ===============================
 
 To support credentials in Tock binaries, the Tock Binary Format has
@@ -218,22 +218,22 @@ big-endian format representing an application identifier.
 
 The `Rsa3072Key` value has a data of length of 768 bytes. It contains a public 3072-bit
 RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this Tock binary, encrypted by the private key 
+hash of the application binary in this process binary, signed by the private key 
 of the public key in the header.
 
 The `Rsa4096Key` value has a data of length of 1024 bytes. It contains a public 4096-bit
 RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this Tock binary, encrypted by the private key 
+hash of the application binary in this process binary, encrypted by the private key 
 of the public key in the header.
 
 The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It contains a public 3072-bit
 RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this Tock binary followed by a 32-bit application
+hash of the application binary in this process binary followed by a 32-bit application
 ID, encrypted by the private key of the public key in the header.
 
 The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It contains a public 4096-bit
 RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this Tock binary followed by a 32-bit application
+hash of the application binary in this process binary followed by a 32-bit application
 ID, encrypted by the private key of the public key in the header.
 
 
@@ -261,27 +261,27 @@ pub trait Verifier {
 }
 ```
 
-The kernel, when it loads a Tock binary, scans its headers in order
-from the beginning of the Tock binary. At each
+The kernel, when it loads a process binary, scans its headers in order
+from the beginning of the process binary. At each
 `TbfHeaderV2Credentials` header it encounters, it calls
 `check_credentials` on the provided `Verifier`. If the `Verifier`
 returns `Accept`, the kernel stops processing credentials and
-continues loading the Tock binary. If the `Verifier` returns `Reject`,
+continues loading the process binary. If the `Verifier` returns `Reject`,
 the kernel stops processing credentials and terminates loading the
-Tock binary. If the `Verifier` returns `Pass`, the kernel tries the
+process binary. If the `Verifier` returns `Pass`, the kernel tries the
 next `TbfHeaderV2Credentials`, if there is one. 
 
 If the kernel reaches the end of the TBF headers without encountering
 a `Reject` or `Accept` result, it calls `require_credentials` to ask
 the `Verifier` what the default behavior is.  If `require_credentials`
-returns `true`, the kernel rejects the Tock binary and terminates
+returns `true`, the kernel rejects the process binary and terminates
 loading it. If `require_credentials` returns `false`, the kernel
-accepts the Tock binary and continues loading it. If a Tock binary has
+accepts the process binary and continues loading it. If a process binary has
 no `TbfHeaderV2Credentials` headers then there will be no `Accept` or
 `Reject` results and `require_credentials` defines whether to load
 such a binary.
 
-An implementer of `Verifier` sets the security policy of Tock binary
+An implementer of `Verifier` sets the security policy of process binary
 loading by deciding which types of credentials, and which credentials,
 are acceptable and which are rejected.
 
