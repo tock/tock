@@ -73,6 +73,8 @@ static mut TICKV: Option<
 // Test access to AES CCM
 static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>> =
     None;
+// Test access to SipHash
+static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -206,7 +208,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -434,6 +436,18 @@ unsafe fn setup() -> (
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
         components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
     );
+
+    // SipHash
+    let sip_hash = static_init!(
+        capsules::sip_hash::SipHasher24,
+        capsules::sip_hash::SipHasher24::new(dynamic_deferred_caller)
+    );
+    sip_hash.initialise(
+        dynamic_deferred_caller
+            .register(sip_hash)
+            .expect("dynamic deferred caller out of slots for sip_hash"),
+    );
+    SIPHASH = Some(sip_hash);
 
     // TicKV
     #[cfg(not(feature = "fpga_nexysvideo"))]
