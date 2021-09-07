@@ -121,11 +121,11 @@ pub trait Configuration {
 }
 
 pub trait Configure {
-    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode);
-    fn set_width(&self, width: Width) -> Result<(), ErrorCode);
-    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode);
-    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode);
-    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode);
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
+    fn set_width(&self, width: Width) -> Result<(), ErrorCode>;
+    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode>;
+    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode>;
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 ```
