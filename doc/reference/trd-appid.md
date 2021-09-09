@@ -36,9 +36,9 @@ applications can do. Examples include:
 
 In order to accomplish this, the kernel needs a way to identify an
 application and know whether a particular userspace binary belongs to
-an application. 
+an application.
 
-The mapping between binaries and applications can be 
+The mapping between binaries and applications can be
 many-to-many. Multiple binaries can be associated with a single application
 when there are software updates/versions or when an application needs
 to run in multiple processes. A program that migrates data from one
@@ -46,7 +46,7 @@ application to another (e.g., transitions keys from an old U2F
 application to a new one) needs to be associated with both the source
 and destination applications.
 
-To remain flexible and support many use cases, the Tock kernel makes 
+To remain flexible and support many use cases, the Tock kernel makes
 minimal assumptions on the structure and form of
 application credentials that bind an application identifier to a
 binary. Application credentials are arbitrary k-byte sequences that
@@ -60,9 +60,9 @@ Most of the complications in AppIDs stem from the fact that they are a
 general mechanism used for many different use cases. Therefore, the
 exact structure and semantics of application credentials can vary
 widely. Tock's TBF header formats, kernel interfaces and mechanisms
-must accomodate this wide range.
+must accommodate this wide range.
 
-The interfaces and standard implemenentations for AppIDs and AppID
+The interfaces and standard implementations for AppIDs and AppID
 verifiers are in the kernel crate, in module `appid`. There are two
 main traits:
 
@@ -71,12 +71,12 @@ main traits:
   particular application identifier for a specific application
   binary. The kernel only loads application binaries the `Verifier`
   accepts.
-  
-  * `kernel::appid::Compress` is repsonsible for compressing
+
+  * `kernel::appid::Compress` is responsible for compressing
   application identifiers into short, 32-bit identifiers called
   `ShortID`s. `ShortID`s provide a mechanism for fast comparison,
   e.g., for an application identifier against an access control list.
-  
+
 
 2 Terminology
 ===============================
@@ -106,7 +106,7 @@ process.
 globally unique. All instances of the application have this identifier
 and no instances of other applications have this identifier.
 
-**Local application identifer**: an application identifier which is
+**Local application identifier**: an application identifier which is
 locally unique. No instances of other applications on the same
 Tock device have this identifier.
 
@@ -125,7 +125,7 @@ decides whether to load it into a process and run it.
 
 To explain the distinction between application identifiers and credentials,
 consider these four use cases.
-  
+
   1. The application has a single process. It has no application
   credentials: it only runs on kernels that are willing to load
   applications without credentials (e.g., research systems). The
@@ -192,7 +192,7 @@ and has two fields:
 pub struct TbfHeaderV2Credentials {
     format: TbfHeaderV2CredentialsType,
     data: &[u8],
-}  
+}
 ```
 
 The `TbfHeaderV2CredentialsType` defines the format and size of `data`
@@ -210,29 +210,29 @@ pub enum TbfHeaderV2CredentialsType {
 ```
 
 **These are not intended to be final or prescriptive. They are merely some examples
-of what kind of information we might put here. Among other things, the exact format 
+of what kind of information we might put here. Among other things, the exact format
 of the data blocks needs to be more precise. -pal**
 
 The `CleartextID` value has a data length of 8 bytes. It contains a 64-bit number in
 big-endian format representing an application identifier.
 
 The `Rsa3072Key` value has a data of length of 768 bytes. It contains a public 3072-bit
-RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this process binary, signed by the private key 
+RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512
+hash of the application binary in this process binary, signed by the private key
 of the public key in the header.
 
 The `Rsa4096Key` value has a data of length of 1024 bytes. It contains a public 4096-bit
-RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
-hash of the application binary in this process binary, encrypted by the private key 
+RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512
+hash of the application binary in this process binary, encrypted by the private key
 of the public key in the header.
 
 The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It contains a public 3072-bit
-RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512 
+RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512
 hash of the application binary in this process binary followed by a 32-bit application
 ID, encrypted by the private key of the public key in the header.
 
 The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It contains a public 4096-bit
-RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512 
+RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512
 hash of the application binary in this process binary followed by a 32-bit application
 ID, encrypted by the private key of the public key in the header.
 
@@ -242,22 +242,22 @@ ID, encrypted by the private key of the public key in the header.
 
 The `Verifier` trait defines an interface to a module that accepts,
 passes on, or rejects application credentials. When a Tock board
-asks the kernel to load processes, it passes a reference to a 
+asks the kernel to load processes, it passes a reference to a
 `Verifier`, which the kernel uses to check credentials.
 
 
 ```rust
 pub enum VerificationResult {
-  Accept,
-  Pass,
-  Reject
+    Accept,
+    Pass,
+    Reject
 }
 
 pub trait Verifier {
-  fn require_credential(&self) -> bool;
-  fn check_credentials(&self, 
-                       credentials: &TbfHeaderV2Credentials, 
-                       binary: &mut [u8]) -> VerificationResult;
+    fn require_credential(&self) -> bool;
+    fn check_credentials(&self,
+                         credentials: &TbfHeaderV2Credentials,
+                         binary: &mut [u8]) -> VerificationResult;
 }
 ```
 
@@ -269,7 +269,7 @@ returns `Accept`, the kernel stops processing credentials and
 continues loading the process binary. If the `Verifier` returns `Reject`,
 the kernel stops processing credentials and terminates loading the
 process binary. If the `Verifier` returns `Pass`, the kernel tries the
-next `TbfHeaderV2Credentials`, if there is one. 
+next `TbfHeaderV2Credentials`, if there is one.
 
 If the kernel reaches the end of the TBF headers without encountering
 a `Reject` or `Accept` result, it calls `require_credentials` to ask
@@ -303,7 +303,7 @@ of application credentials is extremely costly: a table, for example,
 that says that only applications signed with a particular 4096-bit RSA
 key can access certain system calls requires storing the whole
 4096-bit key. If there are multiple such security policies through the
-kernel, they must each store this information. 
+kernel, they must each store this information.
 
 The `Compress` trait provides a mechanism to map credentials to a
 small (32-bit) integer, which can then be used throughout the kernel
@@ -319,7 +319,7 @@ that they can check access by comparing 32-bit integers rather than
 ```rust
 #[derive(Clone, Copy, Eq)]
 struct ShortID {
-  id: u32
+    id: u32
 }
 
 pub trait Compress {
@@ -345,7 +345,7 @@ The mechanism by which kernel modules gain access to
 `TbfHeaderV2Credentials` with which to construct `ShortID`s for access
 tables is outside of scope for this document and are system-specific.
 The structure implementing `Verifier` and `Compress` typically has
-additional traits or methods that expose these. 
+additional traits or methods that expose these.
 
 For example, suppose there is a system that wants to grant extra
 permissions to Tock binaries with a `TbfHeaderV2Credentials` of
@@ -373,7 +373,7 @@ exact `id` values used is an internal implementation decision for the
 implementer of `Compress`. Doing so more cleanly decouples modules
 through APIs and does not leak internal state.
 
-6 Capsules 
+6 Capsules
 ===============================
 
 7 Implementation Considerations
