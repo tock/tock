@@ -19,20 +19,18 @@ register_structs! {
         (0x0C => alert_test: WriteOnly<u32>),
         (0x10 => regwen: ReadWrite<u32, REGWEN::Register>),
         (0x14 => ctrl: ReadWrite<u32, CTRL::Register>),
-        (0x18 => status: ReadWrite<u32>),
-        (0x1C => cmd_req: WriteOnly<u32, COMMAND::Register>),
-        (0x20 => sw_cmd_sts: ReadOnly<u32, SW_CMD_STS::Register>),
-        (0x24 => genbits_vld: ReadOnly<u32>),
-        (0x28 => genbits: ReadOnly<u32>),
-        (0x2C => halt_main_sm: ReadWrite<u32>),
-        (0x30 => int_state_num: ReadWrite<u32>),
-        (0x34 => int_state_val: ReadOnly<u32>),
-        (0x38 => hw_exc_sts: ReadWrite<u32>),
-        (0x3C => err_code: ReadOnly<u32>),
-        (0x40 => err_code_test: ReadWrite<u32>),
-        (0x44 => sel_tracking_sm: WriteOnly<u32>),
-        (0x48 => tracking_sm_obs: ReadOnly<u32>),
-        (0x4C => @END),
+        (0x18 => cmd_req: WriteOnly<u32, COMMAND::Register>),
+        (0x1C => sw_cmd_sts: ReadOnly<u32, SW_CMD_STS::Register>),
+        (0x20 => genbits_vld: ReadOnly<u32>),
+        (0x24 => genbits: ReadOnly<u32>),
+        (0x28 => int_state_num: ReadWrite<u32>),
+        (0x2C => int_state_val: ReadOnly<u32>),
+        (0x30 => hw_exc_sts: ReadWrite<u32>),
+        (0x34 => err_code: ReadOnly<u32>),
+        (0x38 => err_code_test: ReadWrite<u32>),
+        (0x3C => sel_tracking_sm: WriteOnly<u32>),
+        (0x40 => tracking_sm_obs: ReadOnly<u32>),
+        (0x44 => @END),
     }
 }
 
@@ -153,7 +151,7 @@ impl<'a> Entropy32<'a> for CsRng<'a> {
     fn get(&self) -> Result<(), ErrorCode> {
         self.disable_interrupts();
 
-        if self.registers.regwen.is_set(REGWEN::REGWEN) {
+        if !self.registers.regwen.is_set(REGWEN::REGWEN) {
             // Registers are read only
             return Err(ErrorCode::FAIL);
         }

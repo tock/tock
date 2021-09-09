@@ -123,7 +123,6 @@ impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
                         None,
                     );
                 }
-                interrupts::RVTIMERTIMEREXPIRED0_0 => self.timer.service_interrupt(),
                 _ => {
                     if interrupt >= interrupts::HMAC_HMACDONE
                         && interrupt <= interrupts::HMAC_HMACERR
@@ -256,7 +255,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
-            "\r\n---| EarlGrey configuration for {} |---",
+            "\r\n---| OpenTitan Earlgrey configuration for {} |---",
             CONFIG.name
         ));
         rv32i::print_riscv_state(writer);

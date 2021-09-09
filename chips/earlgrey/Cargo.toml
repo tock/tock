@@ -8,6 +8,7 @@ edition = "2018"
 # Compiling this crate requires enabling one of these features, otherwise
 # the default will be chosen.
 config_fpga_nexysvideo = ["config_disable_default"]
+config_fpga_cw310 = ["config_disable_default"]
 config_sim_verilator = ["config_disable_default"]
 config_disable_default = []
 
