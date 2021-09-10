@@ -148,11 +148,11 @@ pub unsafe fn main() {
     pwr_ctrl.enable_iom2();
 
     // Enable PinCfg
-    &peripherals
+    let _ = &peripherals
         .gpio_port
         .enable_uart(&&peripherals.gpio_port[48], &&peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C2 (exposed via Qwiic)
-    &peripherals
+    let _ = &peripherals
         .gpio_port
         .enable_i2c(&&peripherals.gpio_port[25], &&peripherals.gpio_port[27]);
 
@@ -229,17 +229,17 @@ pub unsafe fn main() {
         )
     );
 
-    &peripherals.iom2.set_master_client(i2c_master);
-    &peripherals.iom2.enable();
+    let _ = &peripherals.iom2.set_master_client(i2c_master);
+    let _ = &peripherals.iom2.enable();
 
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
     pwr_ctrl.enable_ble();
-    &peripherals.ble.setup_clocks();
+    let _ = &peripherals.ble.setup_clocks();
     mcu_ctrl.reset_ble();
-    &peripherals.ble.power_up();
-    &peripherals.ble.ble_initialise();
+    let _ = &peripherals.ble.power_up();
+    let _ = &peripherals.ble.ble_initialise();
 
     let ble_radio = ble::BLEComponent::new(
         board_kernel,
