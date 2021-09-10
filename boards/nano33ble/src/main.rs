@@ -460,8 +460,8 @@ pub unsafe fn main() {
     );
     base_peripherals.twi0.set_master_client(sensors_i2c_bus);
 
-    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
