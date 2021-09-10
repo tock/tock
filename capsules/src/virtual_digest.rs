@@ -90,12 +90,6 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
-    /// Set the client instance which will receive `add_data_done()` and
-    /// `hash_done()` callbacks
-    fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
-        unimplemented!()
-    }
-
     /// Add data to the digest IP.
     /// All data passed in is fed to the Digest hardware block.
     /// Returns the number of bytes written on success
@@ -180,6 +174,16 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
                 Err((ErrorCode::BUSY, compare))
             }
         }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+    for VirtualMuxDigest<'a, A, L>
+{
+    /// Set the client instance which will receive `add_data_done()` and
+    /// `hash_done()` callbacks
+    fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
+        unimplemented!()
     }
 }
 

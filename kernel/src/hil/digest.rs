@@ -46,16 +46,24 @@ impl<'a, T: ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>, const L
 {
 }
 
+pub trait ClientDataHash<'a, const L: usize>: ClientData<'a, L> + ClientHash<'a, L> {}
+
+impl<'a, T: ClientData<'a, L> + ClientHash<'a, L>, const L: usize> ClientDataHash<'a, L> for T {}
+
+pub trait ClientDataVerify<'a, const L: usize>: ClientData<'a, L> + ClientVerify<'a, L> {}
+
+impl<'a, T: ClientData<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataVerify<'a, L> for T {}
+
 /// Computes a digest (cryptographic hash) over data
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestData<'a, const L: usize> {
-    /// Set the client instance which will receive `hash_done()` and
-    /// `add_data_done()` callbacks.
-    /// This callback is called when the data has been added to the digest
-    /// engine.
-    /// The callback should follow the `Client` `add_data_done` callback.
-    fn set_client(&'a self, client: &'a dyn Client<'a, L>);
+    /// Set the client instance which will receive the `add_data_done()`
+    /// callback.
+    /// This is not required if using the `set_client()` fuction from the
+    /// `Digest` trait.
+    #[allow(unused_variables)]
+    fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
 
     /// Add data to the digest block. This is the data that will be used
     /// for the hash function.
@@ -74,10 +82,18 @@ pub trait DigestData<'a, const L: usize> {
     fn clear_data(&self);
 }
 
-/// Computes a digest (cryptographic hash) over data
+/// Computes a digest (cryptographic hash) over data provided through a
+/// separate trait
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestHash<'a, const L: usize> {
+    /// Set the client instance which will receive the `hash_done()`
+    /// callback.
+    /// This is not required if using the `set_client()` fuction from the
+    /// `Digest` trait.
+    #[allow(unused_variables)]
+    fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>) {}
+
     /// Request the hardware block to generate a Digest and stores the returned
     /// digest in the memory location specified.
     /// This doesn't return any data, instead the client needs to have
@@ -95,17 +111,25 @@ pub trait DigestHash<'a, const L: usize> {
         -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
 
-/// Computes a digest (cryptographic hash) over data
+/// Computes a digest (cryptographic hash) over data provided through a
+/// separate trait
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestVerify<'a, const L: usize> {
+    /// Set the client instance which will receive the `verification_done()`
+    /// callback.
+    /// This is not required if using the `set_client()` fuction from the
+    /// `Digest` trait.
+    #[allow(unused_variables)]
+    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>) {}
+
     /// Compare the specified digest in the `compare` buffer to the calculated
     /// digest. This function is similar to `run()` and should be used instead
     /// of `run()` if the caller doesn't need to know the output, just if it
     /// matches a known value.
     ///
     /// For example:
-    /// ```rust,ignore
+    /// ```ignore
     ///     // Compute a digest on data
     ///     add_data(...);
     ///     add_data(...);
@@ -125,18 +149,30 @@ pub trait DigestVerify<'a, const L: usize> {
     ) -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
 
-/// Computes a digest (cryptographic hash) over data
+/// Computes a digest (cryptographic hash) over data or performs verification.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait Digest<'a, const L: usize>:
     DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>
 {
+    /// Set the client instance which will receive `hash_done()`,
+    /// `add_data_done()` and `verification_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn Client<'a, L>);
 }
 
-impl<'a, T: DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>, const L: usize>
-    Digest<'a, L> for T
-{
-}
+/// Computes a digest (cryptographic hash) over data
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {}
+
+impl<'a, T: DigestData<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHash<'a, L> for T {}
+
+/// Performs a verification on data
+///
+/// 'L' is the length of the 'u8' array to store the digest output.
+pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {}
+
+impl<'a, T: DigestData<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerify<'a, L> for T {}
 
 pub trait Sha224 {
     /// Call before `Digest::run()` to perform Sha224

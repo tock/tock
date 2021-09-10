@@ -53,16 +53,6 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
-    /// Set the client instance which will receive `add_data_done()` and
-    /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
-        let node = self.mux.users.iter().find(|node| node.id == self.id);
-        if node.is_none() {
-            self.mux.users.push_head(self);
-        }
-        self.mux.sha.set_client(client);
-    }
-
     /// Add data to the sha IP.
     /// All data passed in is fed to the SHA hardware block.
     /// Returns the number of bytes written on success
@@ -145,6 +135,20 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
                 Err((ErrorCode::BUSY, compare))
             }
         }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+    for VirtualMuxSha<'a, A, L>
+{
+    /// Set the client instance which will receive `add_data_done()` and
+    /// `hash_done()` callbacks
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+        let node = self.mux.users.iter().find(|node| node.id == self.id);
+        if node.is_none() {
+            self.mux.users.push_head(self);
+        }
+        self.mux.sha.set_client(client);
     }
 }
 
