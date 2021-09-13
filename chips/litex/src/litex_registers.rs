@@ -53,6 +53,8 @@ pub trait UIntLike: TRUIntLike {
     fn max() -> Self {
         !Self::zero()
     }
+    fn trailing_zeros(self) -> u32;
+    fn into_usize(self) -> usize;
 }
 
 // Implement the custom UIntLike trait for all required base integer
@@ -61,25 +63,65 @@ impl UIntLike for u8 {
     fn one() -> Self {
         1
     }
+
+    fn trailing_zeros(self) -> u32 {
+        self.trailing_zeros()
+    }
+
+    fn into_usize(self) -> usize {
+        self as usize
+    }
 }
 impl UIntLike for u16 {
     fn one() -> Self {
         1
+    }
+
+    fn trailing_zeros(self) -> u32 {
+        self.trailing_zeros()
+    }
+
+    fn into_usize(self) -> usize {
+        self as usize
     }
 }
 impl UIntLike for u32 {
     fn one() -> Self {
         1
     }
+
+    fn trailing_zeros(self) -> u32 {
+        self.trailing_zeros()
+    }
+
+    fn into_usize(self) -> usize {
+        self as usize
+    }
 }
 impl UIntLike for u64 {
     fn one() -> Self {
         1
     }
+
+    fn trailing_zeros(self) -> u32 {
+        self.trailing_zeros()
+    }
+
+    fn into_usize(self) -> usize {
+        self as usize
+    }
 }
 impl UIntLike for u128 {
     fn one() -> Self {
         1
+    }
+
+    fn trailing_zeros(self) -> u32 {
+        self.trailing_zeros()
+    }
+
+    fn into_usize(self) -> usize {
+        self as usize
     }
 }
 
