@@ -37,7 +37,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install python3-pip python3-venv \
-            verilator libevent-dev libjson-c-dev libz-dev
+            verilator libevent-dev libjson-c-dev libz-dev libzmq3-dev
 
       # Uses a custom RISCV toolchain containing the required headers. This
       # follows the libtock-c GitHub actions definition.
@@ -79,7 +79,11 @@ jobs:
           repository: lschuermann/tock-litex
           # Currently pointing to a fixed commit, switch to a tag on the next
           # release with the Python requirements.txt included.
-          ref: 3f8c71379ae7ca4014646894321d769b79acef5e
+          #
+          # Also, currently using the dev/litex-sim-ci branch, which
+          # pulls in a forked LiteX with GPIO support in the
+          # simulation and the simctrl modules
+          ref: da3f33968ae018c33dd10d705fd7e3ca04e5e056
           path: tock-litex
 
       # Install all of the required Python packages from the tock-litex'
@@ -87,6 +91,10 @@ jobs:
       - name: Install Python packages pinned by the tock-litex revision
         run: |
           pushd tock-litex
+          # Unfortunately the valentyusb package fails to install because
+          # it does not have a setup.py. Thus ignore it, we don't need it
+          # here anyways (would need it for LiteX unit tests though).
+          sed -i '/valentyusb/d' ./requirements.txt
           pip3 install -r requirements.txt
           popd
 

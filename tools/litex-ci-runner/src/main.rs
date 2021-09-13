@@ -5,6 +5,27 @@ use rexpect::spawn;
 
 use uuid::Uuid;
 
+use litex_simctrl::gpio::GpioCtrl;
+use litex_simctrl::sim::SimCtrl;
+
+// Semantic GPIO assignments
+// const LED0: u64 = 0;
+// const LED1: u64 = 1;
+// const LED2: u64 = 2;
+// const LED3: u64 = 3;
+// const LED4: u64 = 4;
+// const LED5: u64 = 5;
+// const LED6: u64 = 6;
+// const LED7: u64 = 7;
+const BTN0: u64 = 8;
+// const BTN1: u64 = 9;
+// const BTN2: u64 = 10;
+// const BTN3: u64 = 11;
+// const BTN4: u64 = 12;
+// const BTN5: u64 = 13;
+// const BTN6: u64 = 14;
+// const BTN7: u64 = 15;
+
 fn run_with_apps<F, R>(kernel_binary: &str, app_paths: &[&str], pty_fn: F) -> Result<R, ()>
 where
     F: FnOnce(&mut PtySession) -> R,
@@ -65,11 +86,14 @@ where
             "litex_sim \
             --csr-data-width=32 \
             --integrated-rom-size=0x100000 \
-            --cpu-variant=secure \
+            --integrated-main-ram-size=0x10000000 \
+            --cpu-variant=tock+secure+imc \
             --with-ethernet \
             --timer-uptime \
+            --with-gpio \
             --rom-init {} \
-            --non-interactive",
+            --non-interactive \
+            --with-simctrl",
             flash_file.to_string_lossy(),
         ),
         // The initial build might take a while, which is why we're
@@ -98,7 +122,7 @@ fn run() -> Result<(), Error> {
     // application. Always expects the kernel message first.
     fn libtock_c_examples_test(
         example_apps: &[&str],
-        pty_fn: impl FnOnce(&mut PtySession) -> Result<(), Error>,
+        pty_fn: impl FnOnce(&mut PtySession, &GpioCtrl) -> Result<(), Error>,
     ) -> Result<(), Error> {
         println!("Testing with apps: {:?}", example_apps);
 
@@ -110,7 +134,7 @@ fn run() -> Result<(), Error> {
         let app_paths_str: Vec<&str> = app_paths.iter().map(|s| &**s).collect();
 
         let res = run_with_apps(
-            "../../target/riscv32i-unknown-none-elf/release/litex_sim.bin",
+            "../../target/riscv32imc-unknown-none-elf/release/litex_sim.bin",
             &app_paths_str,
             |p: &mut PtySession| -> Result<(), Error> {
                 println!("Starting test. This will compile a Verilated LiteX simulation and thus might take a bit...");
@@ -119,10 +143,16 @@ fn run() -> Result<(), Error> {
                 p.exp_string(
                     "Verilated LiteX+VexRiscv: initialization complete, entering main loop.",
                 )?;
-                println!("We're up! Got the kernel greeting. Running custom tests...");
+
+                println!("We're up! Got the kernel greeting. Connecting to ZeroMQ simulation control socket...");
+                let simctrl = SimCtrl::new("tcp://localhost:7173").unwrap();
+                // We expect to not have multiple GPIO module instances in the
+                // simulation, so just pick the first session found.
+                let gpio_session = GpioCtrl::list_sessions(&simctrl).unwrap().next().unwrap();
+                let gpioctrl = GpioCtrl::new(&simctrl, gpio_session.session_id).unwrap();
 
                 // Execute custom user code
-                pty_fn(p)?;
+                pty_fn(p, &gpioctrl)?;
 
                 println!("Test succeeded!");
                 Ok(())
@@ -143,7 +173,7 @@ fn run() -> Result<(), Error> {
     // Test: c_hello
     //
     // Tests basic functionality and whether apps can run at all.
-    libtock_c_examples_test(&["c_hello"], |p| {
+    libtock_c_examples_test(&["c_hello"], |p, _| {
         p.exp_string("Hello World!")?;
         Ok(())
     })?;
@@ -155,45 +185,111 @@ fn run() -> Result<(), Error> {
     // should return that.
     //
     // Tests parts of the UART stack and the LiteX UART driver.
-    libtock_c_examples_test(&["tests/console_timeout"], |p| {
+    libtock_c_examples_test(&["tests/console_timeout"], |p, _| {
         p.send_line("Tock is awesome!")?;
         p.exp_string("Userspace call to read console returned: Tock is awesome!")?;
         Ok(())
     })?;
 
-    // Test: mpu_walk_region, no 1
+    // Test: mpu_walk_region, no. 1
     //
-    // Tests whether the MPU regions are entirely accessible by the
-    // application.
-    libtock_c_examples_test(&["tests/mpu_walk_region"], |p| {
+    // This tests two things:
+    //
+    // - it tests that both the entire flash region and RAM region of a
+    //   process are accessible and can be read.
+    //
+    // - it tests whether an overrun of the flash region will trigger a process fault
+    //   by the MPU because of a load page fault.
+    //
+    // It does not make sense to split them up, as we must do a successful pass
+    // of both the flash and RAM region anyways before we can overrun the flash
+    // region. This is because we need a reliably detectable moment in time to
+    // "press" the overrun button. Once we receive the message that the
+    // application will walk a region, it's already too late for that. Thus the
+    // button is pressed immediately after the start of the prior run.
+    libtock_c_examples_test(&["tests/mpu_walk_region"], |p, gpio| {
         p.exp_string("[TEST] MPU Walk Regions")?;
 
         // Start walking the entire flash region, should not panic
         p.exp_string("Walking flash")?;
 
-        // If we receive this string, walking the flash region
-        // worked. Start walking the entire memory region, also should
-        // not panic.
+        // If we receive this string, walking the flash region worked. Start
+        // walking the entire RAM region, also should not panic.
         p.exp_string("Walking memory")?;
         println!("Walking flash worked.");
 
-        // One final time, expect "Walking flash", which indicates
-        // that walking the memory region worked.
-        p.exp_string("Walking flash")?;
-        println!("Walking memory worked.");
+        // As soon as we see the first " incr " print, we know the device
+        // started walking RAM. Now its safe to "press" the button, so that we
+        // will overrun flash in the next iteration.
+        p.exp_string(" incr ")?;
+        gpio.set_input(BTN0, true).unwrap();
+        let button_state = gpio.get_state(BTN0).unwrap();
+        println!(
+            "Set button input to {}, currently driven by {}.",
+            button_state.state, button_state.driven_by
+        );
+        println!("Expecting to overrun flash region.");
+
+        // If we receive this string, walking the flash region worked. Start
+        // walking the entire memory region, this should now detect the button
+        // is pushed.
+        p.exp_regex("Walking flash[[[:space:]]!]*Will overrun")?;
+        println!("Walking RAM worked, walking flash now, will overrun!");
+
+        p.exp_string("mpu_walk_region had a fault")?;
+        println!("Process faulted.");
+
+        p.exp_string("mpu_walk_region   -   [Faulted]")?;
+        p.exp_string("mcause: 0x00000005 (Load access fault)")?;
+        println!("Process had a load access fault, as expected.");
 
         Ok(())
     })?;
 
-    // TODO: simulate a button press to overrun both the memory and
-    // flash sections to verify that the MPU protections indeed work
+    // Test: mpu_walk_region, no 2
+    //
+    // Tests whether an overrun of the RAM region will trigger a process fault
+    // by the MPU because of a load page fault.
+    libtock_c_examples_test(&["tests/mpu_walk_region"], |p, gpio| {
+        p.exp_string("[TEST] MPU Walk Regions")?;
+
+        // Start walking the entire flash region.
+        p.exp_string("Walking flash")?;
+
+        // As soon as we see the first " incr " print, we know the device
+        // started walking flash. Now its safe to "press" the button, so that we
+        // will overrun the next walk RAM run.
+        p.exp_string(" incr ")?;
+        gpio.set_input(BTN0, true).unwrap();
+        let button_state = gpio.get_state(BTN0).unwrap();
+        println!(
+            "Set button input to {}, currently driven by {}.",
+            button_state.state, button_state.driven_by
+        );
+        println!("Expecting to overrun RAM region.");
+
+        // If we receive this string, walking the flash region worked. Start
+        // walking the entire memory region, this should now detect the button
+        // is pushed.
+        p.exp_regex("Walking memory[[[:space:]]!]*Will overrun")?;
+        println!("Walking flash worked, walking RAM now, will overrun!");
+
+        p.exp_string("mpu_walk_region had a fault")?;
+        println!("Process faulted.");
+
+        p.exp_string("mpu_walk_region   -   [Faulted]")?;
+        p.exp_string("mcause: 0x00000005 (Load access fault)")?;
+        println!("Process had a load access fault, as expected.");
+
+        Ok(())
+    })?;
 
     // Test: c_hello and printf_long
     //
     // Most importantly, tests whether multiple apps can run on the
     // board. Furthermore tests whether the console (TX) is properly
     // muxed between applications.
-    libtock_c_examples_test(&["c_hello", "tests/printf_long"], |p| {
+    libtock_c_examples_test(&["c_hello", "tests/printf_long"], |p, _| {
         // Output may arrive out of order, but verify that all three
         // messages arrive fully, and the second message of
         // printf_long arrives after the first one.
@@ -218,7 +314,7 @@ fn run() -> Result<(), Error> {
     // Test: rot13_client and rot13_service
     //
     // Tests IPC and IPC service discovery.
-    libtock_c_examples_test(&["rot13_service", "rot13_client"], |p| {
+    libtock_c_examples_test(&["rot13_service", "rot13_client"], |p, _| {
         // Let run for a few cycles to make sure it doesn't crash
         // after the first few messages
         for _ in 0..10 {

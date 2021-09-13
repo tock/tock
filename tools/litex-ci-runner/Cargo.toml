@@ -7,3 +7,9 @@ edition = "2018"
 [dependencies]
 rexpect = "0.4.0"
 uuid = { version = "0.8.2", features = [ "v4" ] }
+
+[dependencies.litex_simctrl]
+# LiteX simctrl library for interacting with the simulation. Not
+# upstream yet, pulled from a fork
+git = "https://github.com/lschuermann/litex"
+rev = "3325aabd46dd4698903f0647ac154fef8ba32b60"
