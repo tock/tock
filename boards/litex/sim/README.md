@@ -26,6 +26,7 @@ used. This board definition currently targets and has been tested with
   --timer-uptime
   --with-gpio
   --rom-init $PATH_TO_TOCK_BINARY
+  --with-gpio
   ```
 
 The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the

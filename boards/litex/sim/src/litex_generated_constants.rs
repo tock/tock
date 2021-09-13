@@ -25,7 +25,7 @@ pub const ETHMAC_RX_SLOTS: usize = 2;
 pub const ETHMAC_TX_SLOTS: usize = 2;
 pub const ETHMAC_SLOT_SIZE: usize = 2048;
 
-//pub const GPIO_INTERRUPT: usize = 3;
+pub const GPIO_INTERRUPT: usize = 3;
 pub const ETHMAC_INTERRUPT: usize = 2;
 pub const TIMER0_INTERRUPT: usize = 1;
 pub const UART_INTERRUPT: usize = 0;
@@ -35,7 +35,7 @@ pub const CSR_BASE: usize = 0xf0000000;
 pub const CSR_CTRL_BASE: usize = CSR_BASE + 0x0000;
 pub const CSR_ETHMAC_BASE: usize = CSR_BASE + 0x0800;
 pub const CSR_ETHPHY_BASE: usize = CSR_BASE + 0x1000;
-//pub const CSR_GPIO_BASE: usize = CSR_BASE + 0x1800;
+pub const CSR_GPIO_BASE: usize = CSR_BASE + 0x1800;
 pub const CSR_IDENTIFIER_MEM_BASE: usize = CSR_BASE + 0x2000;
 pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x2800;
 pub const CSR_UART_BASE: usize = CSR_BASE + 0x3000;
