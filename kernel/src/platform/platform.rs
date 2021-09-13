@@ -15,6 +15,10 @@ use crate::platform::watchdog;
 ///
 /// This is the primary method for configuring the kernel for a specific board.
 pub trait KernelResources<C: Chip> {
+    /// The implementation of the kernel loop started even handler the kernel
+    /// will use.
+    type KernelLoopStarted: KernelLoopStarted;
+
     /// The implementation of the system call dispatch mechanism the kernel
     /// will use.
     type SyscallDriverLookup: SyscallDriverLookup;
@@ -37,6 +41,10 @@ pub trait KernelResources<C: Chip> {
     /// The implementation of the WatchDog timer used to monitor the running
     /// of the kernel.
     type WatchDog: watchdog::WatchDog;
+
+    /// Returns a reference to the implementation of the KernelLoopStarted this
+    /// platform will use to handle the kernel loop has started event.
+    fn kernel_loop_started(&self) -> &Self::KernelLoopStarted;
 
     /// Returns a reference to the implementation of the SyscallDriverLookup this
     /// platform will use to route syscalls.
@@ -61,6 +69,15 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
+}
+
+/// Trait for a hook function when the kernel loop starts running.
+///
+/// This hook can be used by boards to start operations after processes are
+/// loaded and the kernel loop is just about to start.
+pub trait KernelLoopStarted {
+    /// Hook function called when the kernel loop has just started.
+    fn kernel_loop_started(&self) {}
 }
 
 /// Configure the system call dispatch mapping.

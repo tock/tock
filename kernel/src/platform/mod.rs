@@ -9,6 +9,7 @@ pub mod watchdog;
 
 pub(crate) mod platform;
 
+pub use self::platform::KernelLoopStarted;
 pub use self::platform::KernelResources;
 pub use self::platform::ProcessFault;
 pub use self::platform::SyscallDriverLookup;
