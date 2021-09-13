@@ -19,7 +19,7 @@ use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
-use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::platform::{KernelLoopStarted, KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -77,6 +77,10 @@ struct Hail {
     dac: &'static capsules::dac::Dac<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    process_console: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -112,7 +116,18 @@ impl SyscallDriverLookup for Hail {
     }
 }
 
+impl KernelLoopStarted for Hail {
+    fn kernel_loop_started(&self) {
+        // Setup the UART bus for nRF51 serialization..
+        self.nrf51822.initialize();
+
+        let _ = self.process_console.start();
+        self.process_console.display_welcome();
+    }
+}
+
 impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
+    type KernelLoopStarted = Self;
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -120,6 +135,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
 
+    fn kernel_loop_started(&self) -> &Self::KernelLoopStarted {
+        &self
+    }
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
     }
@@ -529,12 +547,8 @@ pub unsafe fn main() {
         dac,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        process_console,
     };
-
-    // Setup the UART bus for nRF51 serialization..
-    hail.nrf51822.initialize();
-
-    let _ = process_console.start();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
