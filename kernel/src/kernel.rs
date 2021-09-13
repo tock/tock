@@ -18,6 +18,7 @@ use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
+use crate::platform::platform::KernelLoopStarted;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -490,6 +491,26 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
+    ///
+    /// ### Startup
+    ///
+    /// When the kernel loop first starts running, these are the steps that
+    /// happen, in order:
+    ///
+    /// 1. The watchdog (if supplied) is initialized and started. The watchdog
+    ///    will continue to run forever, and the main kernel loop is responsible
+    ///    for periodically tickling it.
+    ///
+    /// 2. Any kernel operations started by the main setup code (i.e. in
+    ///    `main.rs`) are executed until they finish. No process code will run
+    ///    until there are no more kernel tasks outstanding.
+    ///
+    /// 3. The `KernelLoopStarted.kernel_loop_started()` hook function is
+    ///    executed. This allows boards to start events after the kernel loop is
+    ///    running but before any processes are started.
+    ///
+    /// 4. The main kernel loop is started, which executes both kernel work and
+    ///    processes.
     pub fn kernel_loop<
         KR: KernelResources<C>,
         C: Chip,
@@ -503,6 +524,37 @@ impl Kernel {
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
+
+        // Run all outstanding kernel tasks.
+        loop {
+            // Make sure we tickle the watchdog on each loop just in case.
+            resources.watchdog().tickle();
+
+            unsafe {
+                // Check if we have any kernel work to do.
+                let is_kernel_work = chip.has_pending_interrupts()
+                    || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false);
+
+                if is_kernel_work {
+                    // We have something to do, so handle it now. We want all
+                    // pending kernel work to finish before we run the main
+                    // kernel loop and potentially start handing processes.
+                    chip.service_pending_interrupts();
+                    DynamicDeferredCall::call_global_instance_while(|| {
+                        !chip.has_pending_interrupts()
+                    });
+                } else {
+                    // If we have no pending kernel work, break from this loop
+                    // and proceed with the startup process.
+                    break;
+                }
+            }
+        }
+
+        // Next step in startup is to trigger the `kernel_loop_started()` hook.
+        resources.kernel_loop_started().kernel_loop_started();
+
+        // Finally loop forever in the main kernel loop.
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
