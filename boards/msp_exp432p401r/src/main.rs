@@ -32,6 +32,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 /// Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>> =
     None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -420,6 +422,10 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,

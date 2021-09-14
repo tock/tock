@@ -59,5 +59,6 @@ unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
         &cortexm7::support::nop,
         &crate::PROCESSES,
         &crate::CHIP,
+        &crate::PROCESS_PRINTER,
     )
 }

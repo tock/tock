@@ -62,6 +62,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Supported drivers by the platform
 pub struct PicoExplorerBase {
@@ -494,11 +495,16 @@ pub unsafe fn main() {
                 adc_channel_1,
                 adc_channel_2,
             ));
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
+        process_printer,
     )
     .finalize(components::process_console_component_helper!(RPTimer));
     let _ = process_console.start();

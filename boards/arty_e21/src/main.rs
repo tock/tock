@@ -36,6 +36,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -149,6 +150,10 @@ pub unsafe fn main() {
         Some(&peripherals.gpio_port[1]), // Green
         Some(&peripherals.gpio_port[8]),
     );
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(

@@ -36,6 +36,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static esp32_c3::chip::Esp32C3<Esp32C3DefaultPeripherals>> = None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -242,6 +244,11 @@ unsafe fn setup() -> (
     .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+
+    // Create process printer for panic.
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     debug!("ESP32-C3 initialisation complete.");
     debug!("Entering main loop.");
