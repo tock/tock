@@ -41,6 +41,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>> = None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -757,11 +759,16 @@ pub unsafe fn main() {
         stm32f303xc::flash::Flash
     ));
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
+        process_printer,
     )
     .finalize(components::process_console_component_helper!(
         stm32f303xc::tim2::Tim2

@@ -124,6 +124,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52832::chip::NRF52<Nrf52832DefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -365,6 +366,10 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux =
         components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
@@ -374,6 +379,7 @@ pub unsafe fn main() {
         board_kernel,
         uart_mux,
         mux_alarm,
+        process_printer,
     )
     .finalize(components::process_console_component_helper!(Rtc<'static>));
 

@@ -50,6 +50,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -482,10 +483,15 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //---------------------------------------------------------------------------
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         lpuart_mux,
         mux_alarm,
+        process_printer,
     )
     .finalize(components::process_console_component_helper!(
         imxrt1050::gpt::Gpt1

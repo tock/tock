@@ -34,6 +34,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -222,6 +224,11 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
+
+    // Create a process printer for panic.
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic
     let i2c_master = static_init!(

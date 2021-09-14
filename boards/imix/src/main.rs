@@ -97,6 +97,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -354,6 +355,10 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -367,9 +372,10 @@ pub unsafe fn main() {
     let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
-    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm).finalize(
-        components::process_console_component_helper!(sam4l::ast::Ast),
-    );
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm, process_printer)
+        .finalize(components::process_console_component_helper!(
+            sam4l::ast::Ast
+        ));
     let console =
         ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());

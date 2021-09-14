@@ -3,13 +3,14 @@ use core::panic::PanicInfo;
 
 use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
 
 use crate::CHIP;
 use crate::PROCESSES;
-use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
+use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -92,5 +93,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &cortexm0p::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }

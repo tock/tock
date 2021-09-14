@@ -83,10 +83,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 struct LiteXSimPanicReferences {
     chip: Option<&'static litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePeripherals>>,
     uart: Option<&'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>>,
+    process_printer: Option<&'static kernel::process::ProcessPrinterText>,
 }
 static mut PANIC_REFERENCES: LiteXSimPanicReferences = LiteXSimPanicReferences {
     chip: None,
     uart: None,
+    process_printer: None,
 };
 
 // How should the kernel respond when a process faults.
@@ -406,6 +408,11 @@ pub unsafe fn main() {
     );
 
     PANIC_REFERENCES.chip = Some(chip);
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+
+    PANIC_REFERENCES.process_printer = Some(process_printer);
 
     // Enable RISC-V interrupts globally
     csr::CSR
