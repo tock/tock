@@ -116,6 +116,7 @@ mod config;
 mod kernel;
 mod memop;
 mod process_policies;
+mod process_printer;
 mod process_standard;
 mod process_utilities;
 mod syscall_driver;
