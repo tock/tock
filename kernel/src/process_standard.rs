@@ -19,6 +19,7 @@ use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{ProcessAddresses, ProcessSizes};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -1067,6 +1068,36 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn debug_stack_end(&self) -> Option<*const u8> {
         self.debug
             .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
+    }
+
+    fn get_addresses(&self) -> ProcessAddresses {
+        ProcessAddresses {
+            flash_start: self.flash_start() as usize,
+            flash_non_protected_start: self.flash_non_protected_start() as usize,
+            flash_end: self.flash_end() as usize,
+            sram_start: self.mem_start() as usize,
+            sram_app_brk: self.app_memory_break() as usize,
+            sram_grant_start: self.kernel_memory_break() as usize,
+            sram_end: self.mem_end() as usize,
+            sram_heap_start: self.debug.map_or(None, |debug| {
+                debug.app_heap_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_top: self.debug.map_or(None, |debug| {
+                debug.app_stack_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_bottom: self.debug.map_or(None, |debug| {
+                debug.app_stack_min_pointer.map(|p| p as usize)
+            }),
+        }
+    }
+
+    fn get_sizes(&self) -> ProcessSizes {
+        ProcessSizes {
+            grant_pointers: mem::size_of::<GrantPointerEntry>()
+                * self.kernel.get_grant_count_and_finalize(),
+            upcall_list: Self::CALLBACKS_OFFSET,
+            process_control_block: Self::PROCESS_STRUCT_OFFSET,
+        }
     }
 
     fn print_memory_map(&self, writer: &mut dyn Write) {
