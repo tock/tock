@@ -251,33 +251,37 @@ impl SyscallDriver for Console<'_> {
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
-        let res = self
-            .apps
-            .enter(appid, |app, _| {
-                match cmd_num {
-                    0 => Ok(()),
-                    1 => {
-                        // putstr
-                        let len = arg1;
-                        self.send_new(appid, app, len)
-                    }
-                    2 => {
-                        // getnstr
-                        let len = arg1;
-                        self.receive_new(appid, app, len)
-                    }
-                    3 => {
-                        // Abort RX
-                        let _ = self.uart.receive_abort();
-                        Ok(())
-                    }
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .map_err(ErrorCode::from);
+        let res = match cmd_num {
+            0 => Ok(Ok(())),
+            1 => {
+                // putstr
+                let len = arg1;
+                self.apps
+                    .enter(appid, |app, _| self.send_new(appid, app, len))
+                    .map_err(ErrorCode::from)
+            }
+            2 => {
+                // getnstr
+                let len = arg1;
+                self.apps
+                    .enter(appid, |app, _| self.receive_new(appid, app, len))
+                    .map_err(ErrorCode::from)
+            }
+            3 => {
+                // Abort RX
+                let _ = self.uart.receive_abort();
+                Ok(Ok(()))
+            }
+            _ => Err(ErrorCode::NOSUPPORT),
+        };
         match res {
-            Ok(Ok(())) => CommandReturn::success(),
-            Ok(Err(e)) => CommandReturn::failure(e),
+            Ok(r) => {
+                let res = ErrorCode::try_from(r);
+                match res {
+                    Err(_) => CommandReturn::success(),
+                    Ok(e) => CommandReturn::failure(e),
+                }
+            }
             Err(e) => CommandReturn::failure(e),
         }
     }
