@@ -14,7 +14,9 @@ This document describes the hardware independent layer interface (HIL)
 for UARTs (serial ports) in the Tock operating system kernel. It
 describes the Rust traits and other definitions for this service as
 well as the reasoning behind them. This document is in full compliance
-with [TRD1](./trd1-trds.md).
+with [TRD1](./trd1-trds.md). The UART HIL in this document also adheres
+to the rules in the [HIL Design Guide](./trd-hil-design.md), which requires
+all callbacks to be asynchronous -- even if they could be synchronous.
 
 
 1 Introduction
@@ -30,16 +32,16 @@ between the two sides can cause bits to be read incorrectly.
 The UART HIL is in the kernel crate, in module `hil::uart`. It provides five
 main traits:
 
-  * `kernel::hil::uart::Configuration`: allows a client to query how a 
-  UART is configured.
-  * `kernel::hil::uart::Configure`: allows a client to configure a UART, 
-  setting its speed, data width, parity, and stop bit configuration.
+  * `kernel::hil::uart::Configuration`: allows a client to query how a
+    UART is configured.
+  * `kernel::hil::uart::Configure`: allows a client to configure a UART,
+    setting its speed, data width, parity, and stop bit configuration.
   * `kernel::hil::uart::Transmit`: is for transmitting data.
-  * `kernel::hil::uart::TransmitClient`: is for handling callbacks 
-  when a data transmission is complete.
+  * `kernel::hil::uart::TransmitClient`: is for handling callbacks
+    when a data transmission is complete.
   * `kernel::hil::uart::Receive`: is for receiving data.
-  * `kernel::hil::time::ReceiveClient`: handles callbacks when data is 
-  received.
+  * `kernel::hil::time::ReceiveClient`: handles callbacks when data is
+    received.
 
 There are also collections of traits that combine these into more
 complete abstractions. For example, the `Uart` trait represents a
@@ -58,7 +60,7 @@ framing: [Wikipedia's article on asynchronous serial
 communication](https://en.wikipedia.org/wiki/Asynchronous_serial_communication)
 is a good reference.
 
-2 `Configuration` and `Configure` 
+2 `Configuration` and `Configure`
 ===============================
 
 The `Configuration` trait allows a client to query how a UART is
@@ -68,7 +70,7 @@ hardware flow control is enabled.
 
 These two traits are separate because there are cases when clients
 need to know the configuration but cannot set it. For example, when a UART
-is virtualized across multiple clients (e.g., so multiple sources can 
+is virtualized across multiple clients (e.g., so multiple sources can
 write to the console), individual clients may want to check the baud rate.
 However, they cannot set the baud rate, because that is fixed and shared
 across all of them. Similarly, some services may need to be able to set
@@ -110,31 +112,31 @@ pub struct Parameters {
 }
 
 pub trait Configuration {
-	fn get_baud_rate(&self) -> u32;
+    fn get_baud_rate(&self) -> u32;
     fn get_width(&self) -> Width;
-	fn get_parity(&self) -> Parity;
-    fn get_stop_bits(&self) -> StopBits;	
+    fn get_parity(&self) -> Parity;
+    fn get_stop_bits(&self) -> StopBits;
     fn get_flow_control(&self) -> bool;
-	fn get_configuration(&self) -> Configuration;
+    fn get_configuration(&self) -> Configuration;
 }
 
 pub trait Configure {
-	fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode);
-    fn set_width(&self, width: Width) -> Result<(), ErrorCode);
-    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode);
-    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode);
-    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode);
-	fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
+    fn set_width(&self, width: Width) -> Result<(), ErrorCode>;
+    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode>;
+    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode>;
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
+    fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 ```
 
 Methods in `Configure` can return the following error conditions:
-- OFF: The underlying hardware is currently not available, perhaps
-  because it has not been initialized or in the case of a shared
-  hardware USART controller because it is set up for SPI.
-- INVAL: Baud rate was set to 0.
-- ENOSUPPORT: The underlying UART cannot satisfy this configuration.
-- FAIL: Other failure condition.
+  - `OFF`: The underlying hardware is currently not available, perhaps
+    because it has not been initialized or in the case of a shared
+    hardware USART controller because it is set up for SPI.
+  - `INVAL`: Baud rate was set to 0.
+  - `ENOSUPPORT`: The underlying UART cannot satisfy this configuration.
+  - `FAIL`: Other failure condition.
 
 
 The UART may be unable to set the precise baud rate specified. For
@@ -154,6 +156,11 @@ The `Transmit` and `TransmitClient` traits allow a client to transmit
 bytes over the UART.
 
 ```rust
+enum AbortResult {
+    Failure,
+    Success,
+}
+
 pub trait Transmit<'a> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient);
 
@@ -164,7 +171,7 @@ pub trait Transmit<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
     fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
-    fn transmit_abort(&self) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> Result<AbortResult, ()>;
 }
 
 pub trait TransmitClient {
@@ -200,7 +207,7 @@ bytes and cannot store 9-bit values.
 There can be a single transmit operation ongoing at any
 time. Successfully calling either `transmit_buffer` or
 `transmit_word` causes the UART to become busy until it issues the
-callback corresponding to the oustanding operation.
+callback corresponding to the outstanding operation.
 
 3.1 `transmit_buffer` and `transmitted_buffer`
 ===============================
@@ -231,7 +238,7 @@ Calling `transmit_buffer` while there is an outstanding
 
 The `TransmitClient::transmitted_buffer` callback indicates completion
 of a buffer transmission.  The `Result` indicates whether the buffer
-was successsfully transmitted.  The `tx_len` argument specifies how
+was successfully transmitted.  The `tx_len` argument specifies how
 many data words (defined by `Configure`) were transmitted. If the
 `rval` of `transmitted_buffer` is `Ok(())`, `tx_len` MUST be equal to
 the size of the transmission started by `transmit_buffer`, defined
@@ -242,8 +249,8 @@ callback is made, the UART MUST be ready to receive another call. The
 valid `ErrorCode` values for `transmitted_buffer` are all of those
 returned by `transmit_buffer` plus:
   - `CANCEL` if the call to `transmit_buffer` was cancelled by a call
-  to `abort` and the entire buffer was not transmitted.
-  - `SIZE` if the buffer could only be partially transmitted. 
+    to `abort` and the entire buffer was not transmitted.
+  - `SIZE` if the buffer could only be partially transmitted.
 
 3.2 `transmit_word` and `transmitted_word`
 ===============================
@@ -255,56 +262,56 @@ configuration.  A UART implementation MAY choose to not implement
 implementation of `transmitted_word` so clients that do not use
 `receive_word` do not have to implement a callback.
 
-
 If `transmit_word` returns `Ok(())`, the implementation MUST call the
 `transmitted_word` callback in the future. If a call to
 `transmit_word` returns `Err`, the implementation MUST NOT issue a
 callback for this call, although if the it is `Err(BUSY)` is will
-issue a callback for the oustanding operation.  Valid `ErrorCode`
+issue a callback for the outstanding operation.  Valid `ErrorCode`
 results for `transmit_word` are:
-   - `OFF`: The underlying hardware is not available, perhaps because
-     it has not been initialized or in the case of a shared
-     hardware USART controller because it is set up for SPI.
+  - `OFF`: The underlying hardware is not available, perhaps because
+    it has not been initialized or in the case of a shared
+    hardware USART controller because it is set up for SPI.
   - `BUSY`: the UART is already transmitting and has not made a
     transmission callback yet.
   - `NOSUPPORT`: the implementation does not support `transmit_word`
-  operations.
+    operations.
   - `FAIL`: some other error.
 
 The `TransmitClient::transmitted_word` method indicates that a single
 word transmission completed.  The `Result` indicates whether the word
-was successsfully transmitted. A call to `transmit_word` or
+was successfully transmitted. A call to `transmit_word` or
 `transmit_buffer` made within this callback MUST NOT return BUSY
 unless it is because this is not the first call to one of these
 methods in the callback.  When this callback is made, the UART MUST be
 ready to receive another call. The valid `ErrorCode` values for
 `transmitted_word` are all of those returned by `transmit_word` plus:
-  - `CANCEL` if the call to `transmit_word` was cancelled by a call to 
-  `abort` and the word was not transmitted.
+  - `CANCEL` if the call to `transmit_word` was cancelled by a call to
+    `abort` and the word was not transmitted.
 
-3.3 `abort`
+3.3 `transmit_abort`
 ===============================
 
-The `abort_transmit` method allows a UART implementation to terminate
+The `transmit_abort` method allows a UART implementation to terminate
 an outstanding call to `transmit_word` or `transmit_buffer` early. The
-result of `abort_transmit` indicates whether the abort was
+result of `transmit_abort` indicates whether the abort was
 successful. Cancelled calls to `transmit_buffer` MUST always make a
 callback, to return the transmit buffer to the caller. Cancelled calls
 to `transmit_word` MAY issue a callback.
 
-If `abort_transmit` returns `Ok(())`, there will be no future callback
-and the client may immediately call `transmit_buffer` or
-`transmit_word`. If `abort_transmit` returns `Err`, there will be a
-callback. If there is no outstanding call to `transmit_word` or
-`transmit_buffer`, `abort_transmit` MUST return `Ok(())`.
+If `transmit_abort` returns `Ok`, there will be be a future callback
+for the completion of the outstanding request. The value of `AbortResult`
+denotes whether it will be cancelled:
+  - `Ok(AbortResult::Success)`: there was an outstanding operation, which
+    has been cancelled.  A callback will be made for that operation with an
+    `ErrorCode` of `CANCEL`.
+  - `Ok(AbortResult::Failure)`: there was an outstanding operation, which
+    has not been cancelled.  A callback will be made for that operation with
+    a result other than `Err(CANCEL)`.
+  - `Err(()):` there was no outstanding request and there will be no future
+    callback.
 
-The valid `ErrorCode` results for `abort_transmit` are:
-   - `BUSY`: there was an oustanding operation, which has been cancelled.
-   A callback will be made for that operation with an `ErrorCode` of
-   `CANCEL`.
-   - `FAIL`: there was an outstanding operation, which will not be cancelled.
-   A callback will be made for that operation with a result other than
-   `Err(CANCEL)`.
+If there is no outstanding call to `transmit_word` or
+`transmit_buffer`, `transmit_abort` MUST return `Err(())`.
 
 4 `Receive` and `ReceiveClient` traits
 ===============================
@@ -326,7 +333,7 @@ stores this in a 32-bit value for `receive_word` as `0x000001ea`.
 
 `Receive` supports a single outstanding receive request. A successful
 call to `receive_buffer` or `receive_word` causes the UART to be busy
-` until the callback for the outstanding operation is issued.
+until the callback for the outstanding operation is issued.
 
 If the UART returns `Ok` to a call to `receive_buffer` or
 `receive_word`, it MUST return `Err(BUSY)` to subsequent calls to
@@ -337,9 +344,12 @@ outstanding operation. The first call to `receive_buffer` or
 another reception request.
 
 
+```rust
+enum AbortResult {
+    Failure,
+    Success,
+}
 
-
-```rust 
 pub trait Receive<'a> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient);
     fn receive_buffer(
@@ -348,7 +358,7 @@ pub trait Receive<'a> {
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
     fn receive_word(&self) -> Result<(), ErrorCode>;
-    fn receive_abort(&self) -> Result<(), ErrorCode>;
+    fn receive_abort(&self) -> Result<AbortResult, ()>;
 }
 
 pub trait ReceiveClient {
@@ -364,7 +374,7 @@ pub trait ReceiveClient {
 }
 ```
 
-4.1 `receive_buffer`, `received_buffer` and `receive_abort` 
+4.1 `receive_buffer`, `received_buffer` and `receive_abort`
 ===============================
 
 The `receive_buffer` method receives from the UART into the passed
@@ -404,12 +414,16 @@ to terminate the 100-byte read, copying the bytes read from the
 resulting callback, then issuing a `receive_buffer` of 40 bytes.
 
 The valid return values for `receive_abort` are:
-  - `Ok(())`: there was no reception outstanding and the implementation will
+  - `Ok(AbortResult::Success)`: there was a reception outstanding and
+     it has been cancelled.  A callback with `Err(CANCEL)` will be called.
+  - `Err(AbortResult::Failure)`: there was a reception outstanding but it
+     was not cancelled.  A callback will be called with an `rval` other than
+     `Err(CANCEL)`.
+  - `Err(())`: there was no reception outstanding and the implementation will
     not issue a callback.
-  - `Err(BUSY)`: there was a reception outstanding and it has been cancelled.
-    A callbback with `Err(CANCEL)` will be called.
-  - `Err(FAIL)`: there was a reception outstanding but it was not cancelled.
-    A callback will be called with an `rval` other than `Err(CANCEL)`.
+
+If there is no outstanding call to `receive_buffer` or
+`receive_word`, `receive_abort` MUST return `Err(())`.
 
 4.2 `receive_word` and `received_word`
 ===============================
@@ -417,7 +431,7 @@ The valid return values for `receive_abort` are:
 The `receive_word` method and `received_word` callback allow a client
 to perform data word operations without buffer management. They
 receive a single UART data word, where the word length is defined by
-the UART configuration and can be wider than 8 bits. 
+the UART configuration and can be wider than 8 bits.
 
 A UART implementation MAY choose to not implement `receive_word` and
 `received_word`.  There is a default implementation of `received_word`
@@ -428,10 +442,10 @@ If the UART returns `Ok(())` to a call to `receive_word`, it MUST make
 a `received_word` callback in the future, when it receives a data word
 or some error occurs. Valid `Err` values of `receive_word` are:
   - `BUSY`: the UART is busy with an outstanding call to
-  `receive_buffer` or `receive_word`.
+    `receive_buffer` or `receive_word`.
   - `OFF`: the UART is powered down or in a configuration that does
-  not allow UART reception (e.g., it is a USART in SPI mode).
-  - `NOSUPPORT: `receive_word` operations are not supported.
+    not allow UART reception (e.g., it is a USART in SPI mode).
+  - `NOSUPPORT`: `receive_word` operations are not supported.
   - `FAIL`: some other error.
 
 5 `ReceiveXXX` trait
@@ -465,11 +479,10 @@ automatically implement the composite trait.
 The Tock kernel provides two standard capsules for UARTs:
 
   * `capsules::console::Console` provides a userspace abstraction of a console.
-  It allows userspace to print to and read from a serial port through a
-  system call API. 
+    It allows userspace to print to and read from a serial port through a
+    system call API.
   * `capsules::virtual_uart` provides a set of abstractions for virtualizing
-  a single UART into many UARTs.
-  
+    a single UART into many UARTs.
 
 The structures in `capsules::virtual_uart` allow multiple clients to
 read from and write to a serial port. Write operations are interleaved
