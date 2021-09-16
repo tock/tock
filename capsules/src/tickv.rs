@@ -31,8 +31,8 @@
 //!    hil::flash
 
 use core::cell::Cell;
-use kernel::hil::digest::{self, Digest};
 use kernel::hil::flash::{self, Flash};
+use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -117,7 +117,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastC
 
 pub type TicKVKeyType = [u8; 8];
 
-pub struct TicKVStore<'a, F: Flash + 'static, H: Digest<'a, 8>> {
+pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>> {
     tickv: AsyncTicKV<'a, TickFSFlastCtrl<'a, F>, 64>,
     hasher: &'a H,
     operation: Cell<Operation>,
@@ -132,7 +132,7 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Digest<'a, 8>> {
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
 }
 
-impl<'a, F: Flash, H: Digest<'a, 8>> TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     pub fn new(
         flash: &'a F,
         hasher: &'a H,
@@ -219,7 +219,7 @@ impl<'a, F: Flash, H: Digest<'a, 8>> TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Digest<'a, 8>> digest::Client<'a, 8> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<'a, 8> for TicKVStore<'a, F, H> {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
 
@@ -235,7 +235,7 @@ impl<'a, F: Flash, H: Digest<'a, 8>> digest::Client<'a, 8> for TicKVStore<'a, F,
     }
 }
 
-impl<'a, F: Flash, H: Digest<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
         self.tickv
@@ -370,7 +370,7 @@ impl<'a, F: Flash, H: Digest<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Digest<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
     type K = TicKVKeyType;
 
     fn set_client(&self, client: &'a dyn kv_system::Client<Self::K>) {

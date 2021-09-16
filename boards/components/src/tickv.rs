@@ -40,8 +40,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::hil::digest::Digest;
 use kernel::hil::flash::HasClient;
+use kernel::hil::hasher::Hasher;
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -61,7 +61,7 @@ macro_rules! tickv_component_helper {
 
 pub struct TicKVComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
-    H: 'static + Digest<'static, 8>,
+    H: 'static + Hasher<'static, 8>,
 > {
     mux_flash: &'static MuxFlash<'static, F>,
     hasher: &'static H,
@@ -73,7 +73,7 @@ pub struct TicKVComponent<
 
 impl<
         F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
-        H: Digest<'static, 8>,
+        H: Hasher<'static, 8>,
     > TicKVComponent<F, H>
 {
     pub fn new(
@@ -97,7 +97,7 @@ impl<
 
 impl<
         F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
-        H: 'static + Digest<'static, 8>,
+        H: 'static + Hasher<'static, 8>,
     > Component for TicKVComponent<F, H>
 {
     type StaticInput = (

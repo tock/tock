@@ -1,7 +1,7 @@
 use crate::tests::run_kernel_op;
 use crate::SIPHASH;
 use core::cell::Cell;
-use kernel::hil::digest::{self, Digest};
+use kernel::hil::hasher::{self, Hasher};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::{debug, ErrorCode};
 
@@ -51,7 +51,7 @@ impl<'a> SipHashTestCallback {
     }
 }
 
-impl<'a> digest::Client<'a, 8> for SipHashTestCallback {
+impl<'a> hasher::Client<'a, 8> for SipHashTestCallback {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
         assert_eq!(result, Ok(()));
         self.data_add_done.set(true);

@@ -28,7 +28,7 @@ use core::{cmp, mem};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::hil::digest::{Client, Digest};
+use kernel::hil::hasher::{Client, Hasher};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
@@ -36,7 +36,7 @@ use kernel::ErrorCode;
 pub struct SipHasher24<'a> {
     client: OptionalCell<&'a dyn Client<'a, 8>>,
 
-    hasher: Cell<Hasher>,
+    hasher: Cell<SipHasher>,
 
     add_data_deferred_call: Cell<bool>,
     complete_deferred_call: Cell<bool>,
@@ -48,7 +48,7 @@ pub struct SipHasher24<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Hasher {
+struct SipHasher {
     k0: u64,
     k1: u64,
     length: usize, // how many bytes we've processed
@@ -71,7 +71,7 @@ struct State {
 
 impl<'a> SipHasher24<'a> {
     pub const fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
-        let hasher = Hasher {
+        let hasher = SipHasher {
             k0: 0,
             k1: 0,
             length: 0,
@@ -155,7 +155,7 @@ fn u8to64_le(buf: &[u8], start: usize, len: usize) -> u64 {
     out
 }
 
-impl<'a> Digest<'a, 8> for SipHasher24<'a> {
+impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
     fn set_client(&'a self, client: &'a dyn Client<'a, 8>) {
         self.client.set(client);
     }

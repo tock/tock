@@ -6,7 +6,7 @@ use capsules::test::kv_system::KVSystemTest;
 use capsules::tickv::{TicKVKeyType, TicKVStore};
 use capsules::virtual_flash::FlashUser;
 use kernel::debug;
-use kernel::hil::digest::Digest;
+use kernel::hil::hasher::Hasher;
 use kernel::hil::kv_system::KVSystem;
 use kernel::static_init;
 
