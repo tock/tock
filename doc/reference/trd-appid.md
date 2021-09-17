@@ -398,12 +398,15 @@ additional traits or methods that expose these.
 
 For example, suppose there is a system that wants to grant extra
 permissions to Tock binaries with a `TbfHeaderV2Credentials` of
-`Rsa4096Key` with a certain public key. A structure implementing
-`Verifier` and `Compress` stores a copy of this key, and returns
-`Accept` to calls to `check_credentials` with valid
-`TbfHeaderV2Credentials` using this key. Calls to `Compress` return
-`None` for all credentials except a `Rsa4096Key` with this
-key, for which it returns `ShortID {id: 1}`. The structure also has a
+`Rsa4096Key` with a certain public key. The public key is the global
+application identifier of the process binary. Note this means only one
+process signed with that key can run at any time. 
+
+A structure implementing `Verifier` and `Compress` stores a copy of
+this key, and returns `Accept` to calls to `check_credentials` with
+valid `TbfHeaderV2Credentials` using this key. Calls to `Compress`
+return `None` for all credentials except a `Rsa4096Key` with this key,
+for which it returns `ShortID {id: 1}`. The structure also has a
 method `privileged_id`, which returns `ShortID {id: 1}`.
 
 Kernel modules which want to give these processes extra permissions
@@ -422,14 +425,10 @@ exact `id` values used is an internal implementation decision for the
 implementer of `Compress`. Doing so more cleanly decouples modules
 through APIs and does not leak internal state.
 
-The mapping between global application identifiers and `ShortID`
-values MUST be deterministic. For a given verifier policy, `ShortID`s
-must also be globally unique identifiers. 
-
-`ShortID`s MUST be locally unique among running processes. If the
-`Compress` implementation assigns a `ShortID` to a process that
-matches the `ShortID` of a running process, the Tock kernel MUST NOT
-load or run the new process until the existing one terminates.
+`ShortID` values MUST be locally unique among running processes.  The
+mapping between global application identifiers and `ShortID` values
+MUST be deterministic. For a given verifier policy, `ShortID`s also
+must also be globally unique identifiers.
 
 `ShortID`s MAY persist across boots and restarts of a process
 binary. If `ShortID` is derived from a global application identifier,
