@@ -130,6 +130,7 @@ pub fn parse_tbf_header(
                     Default::default();
                 let mut app_name_str = "";
                 let mut fixed_address_pointer: Option<types::TbfHeaderV2FixedAddresses> = None;
+                let mut permissions_pointer: Option<types::TbfHeaderV2Permissions<8>> = None;
                 let mut kernel_version: Option<types::TbfHeaderV2KernelVersion> = None;
 
                 // Iterate the remainder of the header looking for TLV entries.
@@ -220,7 +221,9 @@ pub fn parse_tbf_header(
                             }
                         }
 
-                        types::TbfHeaderTypes::TbfHeaderPermissions => {}
+                        types::TbfHeaderTypes::TbfHeaderPermissions => {
+                            permissions_pointer = Some(remaining.try_into()?);
+                        }
 
                         types::TbfHeaderTypes::TbfHeaderPersistentAcl => {}
 
@@ -252,6 +255,7 @@ pub fn parse_tbf_header(
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
                     fixed_addresses: fixed_address_pointer,
+                    permissions: permissions_pointer,
                     kernel_version: kernel_version,
                 };
 
