@@ -556,10 +556,6 @@ pub trait Process {
     /// various process data structures.
     fn get_sizes(&self) -> ProcessSizes;
 
-    /// Print out the memory map (Grant region, heap, stack, program
-    /// memory, BSS, and data sections) of this process.
-    fn print_memory_map(&self, writer: &mut dyn Write);
-
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
     fn print_full_process(&self, writer: &mut dyn Write);
