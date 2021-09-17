@@ -102,6 +102,7 @@ enum TbfHeaderTypes {
     TbfHeaderFixedAddresses = 5,
     TbfHeaderPermissions = 6,
     TbfHeaderPersistent = 7,
+    TbfHeaderKernelVersion = 8,
 }
 
 // Type-length-value header to identify each struct.
@@ -168,6 +169,7 @@ struct TbfHeaderV2PersistentAcl {
     read_ids: [u32],
     access_length: u16,
     access_ids: [u32],
+}
 
 // Kernel Version
 struct TbfHeaderV2KernelVersion {

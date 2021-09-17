@@ -220,6 +220,10 @@ pub fn parse_tbf_header(
                             }
                         }
 
+                        types::TbfHeaderTypes::TbfHeaderPermissions => {}
+
+                        types::TbfHeaderTypes::TbfHeaderPersistentAcl => {}
+
                         types::TbfHeaderTypes::TbfHeaderKernelVersion => {
                             let entry_len = 4;
                             if tlv_header.length as usize == entry_len {
