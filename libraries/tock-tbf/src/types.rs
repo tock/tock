@@ -195,6 +195,16 @@ pub struct TbfHeaderV2Permissions<const L: usize> {
     perms: [TbfHeaderDriverPermission; L],
 }
 
+/// A list of persistent access permissions
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2PersistentAcl<const L: usize> {
+    write_id: u32,
+    read_length: u16,
+    read_ids: [u32; L],
+    access_length: u16,
+    access_ids: [u32; L],
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2KernelVersion {
     major: u16,
@@ -399,6 +409,84 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
     }
 }
 
+impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<L> {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2PersistentAcl<L>, Self::Error> {
+        let mut read_end = 6;
+
+        let write_id = u32::from_le_bytes(
+            b.get(0..4)
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let read_length = u16::from_le_bytes(
+            b.get(4..6)
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let mut read_ids: [u32; L] = [0; L];
+        for i in 0..read_length as usize {
+            let start = 6 + (i * size_of::<u32>());
+            read_end = start + size_of::<u32>();
+            if let Some(read_id) = read_ids.get_mut(i) {
+                *read_id = u32::from_le_bytes(
+                    b.get(start..read_end as usize)
+                        .ok_or(TbfParseError::BadTlvEntry(
+                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                        ))?
+                        .try_into()?,
+                );
+            } else {
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ));
+            }
+        }
+
+        let access_length = u16::from_le_bytes(
+            b.get(read_end..(read_end + 2))
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let mut access_ids: [u32; L] = [0; L];
+        for i in 0..access_length as usize {
+            let start = read_end + 2 + (i * size_of::<u32>());
+            let access_end = start + size_of::<u32>();
+            if let Some(access_id) = access_ids.get_mut(i) {
+                *access_id = u32::from_le_bytes(
+                    b.get(start..access_end as usize)
+                        .ok_or(TbfParseError::BadTlvEntry(
+                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                        ))?
+                        .try_into()?,
+                );
+            } else {
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ));
+            }
+        }
+
+        Ok(TbfHeaderV2PersistentAcl {
+            write_id,
+            read_length,
+            read_ids,
+            access_length,
+            access_ids,
+        })
+    }
+}
+
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     type Error = TbfParseError;
 
@@ -431,6 +519,7 @@ pub struct TbfHeaderV2 {
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
+    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<8>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
