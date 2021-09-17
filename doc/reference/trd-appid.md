@@ -67,7 +67,7 @@ verifiers are in the kernel crate, in module `appid`. There are two
 main traits:
 
   * `kernel::appid::Verifier` is responsible for defining which types
-  of application identifier it can accepts and whether it accepts a
+  of application identifier it can accept and whether it accepts a
   particular application identifier for a specific application
   binary. The kernel only loads application binaries the `Verifier`
   accepts.
@@ -86,33 +86,46 @@ overlap somewhat with general terminology in the Tock kernel, this
 section defines them for clarity. The Tock kernel often uses the term
 "application" to refer to what this document calls a "process binary."
 
+**Process binary**: a Tock binary format (TBF)[TBF] object stored on a
+Tock device, containing TBF headers and an application binary.
+
 **Application**: userspace software developed and maintained by an
 individual, group, corporation, or organization that meets the
 requirements of a particular Tock device use case. An application can
-consist of a single userspace binary, multiple userspace binaries that
-run concurrently (an application split into several processes), or
-multiple userspace binaries only one of which runs at a time (an
-application with multiple versions).
-
-**Process binary**: a Tock binary format (TBF)[TBF] object stored on a
-Tock device, containing TBF headers and an application binary.
+consist of multiple process binaries to support versioning.
 
 **Application binary**: a code image compiled to run in a Tock
 process.
 
 **Application identifier**: a numerical identifier for an application.
-
-**Global application identifier**: an application identifier which is
-globally unique. All instances of the application have this identifier
-and no instances of other applications have this identifier.
-
-**Local application identifier**: an application identifier which is
-locally unique. No instances of other applications on the same
-Tock device have this identifier.
+Every process binary has a single application identifier, and multiple
+process binaries can share the same application identifier. An
+application identifier can be persistent across boots or restarts of a
+process binary. 
 
 **Application credentials**: data that binds an application identifier
 to an application binary. Application credentials are usually stored
 in Tock binary format[TBF] headers.
+
+**Verifier**: a component of the Tock kernel which is responsible for
+validating application credentials and assigning application
+identifiers. 
+
+**Verifier Policy**: the algorithm that a Verifier uses to assign
+application identifiers to a process binary. A verifier policy defines
+a application identifier space. Tock kernels using different verifier
+policies may and often do assign different application identifiers for
+the same process binary.
+
+**Global application identifier**: an application identifier which is
+globally unique for the verifier policy that assigned it. All
+instances of the application loaded with that verifier policy have
+this identifier and no instances of other applications loaded with
+that Verifier policy have this identifier.
+
+**Local application identifier**: an application identifier which is
+locally unique for the verifier policy that assigned it.  No other
+process binary on the same Tock device have this identifier.
 
 In normal use of Tock, process binaries are copied into an application
 flash region by a software tool. When the Tock kernel boots, it scans
@@ -123,48 +136,67 @@ decides whether to load it into a process and run it.
 3 Application identifiers and application credentials
 ===============================
 
-To explain the distinction between application identifiers and credentials,
-consider these four use cases.
+There is a relationship between application identifiers and
+credentials, but they are not the same thing. An application
+identifier is a numerical representation of the application's
+identity, while credentials bind identifiers to binaries. For example,
+two versions (say, v1.1 and v1.2) of the same application have the
+same application identifier, but different credentials. For example,
+credentials often rely on public key cryptography (e.g., a signature)
+to show that someone holding a certain private key bound the process
+binary and application identifier.
 
-  1. The application has a single process. It has no application
-  credentials: it only runs on kernels that are willing to load
-  applications without credentials (e.g., research systems). The
-  application has only a local application identifier.
+Application identifiers MUST be unique across running processes in a
+single Tock system and every Tock process MUST have an application
+identifier.  If the verifier policy assigns the same application
+identifier to multiple process binaries, then the Tock kernel MUST NOT
+run more than one of them at any given time. For example, if there are
+two versions of a program that have the same application identifier,
+the kernel will only run one of them at any given time.
 
-  1. The application has a single process and there is a one-to-one
-  mapping between public keys and applications. The application is
-  identified by a public key (e.g., an RSA public key) that is also a
-  global application identifier. This application's application
-  credentials consist of a TBF header containing this key as well as a
-  signed SHA512 hash of the application binary, signed with the
-  private key corresponding to the public key in the header. The
-  kernel decides whether to accept a particular public key for
-  verification.
+Application identifiers MUST persist across process restarts or
+reloads.  In cases when a process does not have any application
+credentials, the verifier policy MAY assign it a global or local
+application identifier. If the verifier policy does not assign a
+process binary an application identifier then the kernel MUST NOT load
+or run that process.
 
-  1. The application has a single process and the same key is used for
-  multiple applications. The application is identified by a unique
-  identifier I. This application's application credentials consist of
-  a TBF header containing an ECDSA public key, the unique identifier
-  I, and a signed SHA512 hash of the application binary and unique
-  identifier I, signed with the private key corresponding to the
-  public key in the header. The kernel decides whether to accept a
-  particular public key for verification. The application has a global
-  application identifier is the concatenation of its public key and I.
+Consider these three use cases.
 
-  1. The application has multiple processes. The application is
-  identified by a public key that is also its global application
-  identifier. The application credentials of each process binary of the
-  process consist a TBF header containing the public key and a
-  signature of the SHA512 of the application binary made with the
-  corresponding private key.
+  1. A process binary that has no application credentials: it only
+  runs on kernels that are willing to load applications without
+  credentials (e.g., research systems). The verifier policy assigns
+  the process binary a local application identifier, which is a SHA256
+  hash of the application binary.
+
+  1. The verifier policy defines that the global application
+  identifier of a process is the public key used to sign its process
+  binary. Application credentials for a process binary consist of a
+  TBF header containing this public key as well as a signature for the
+  process binary signed with the associated private key. Before
+  verifiying a signature in a TBF header, the verifier policy decides
+  whether to it accepts the associated public key. The verifier policy
+  assigns a global application identifier as the public key in the TBF
+  header.
+
+  1. Multiple separate process binaries that run concurrently need to
+  be signed with a single public key. Each process binary is
+  identified by a unique identifier I. Application credentials for
+  these process binaries consist of a TBF header containing an ECDSA
+  public key, the unique identifier I, and a signature over the
+  process binary and I signed with the private key corresponding to
+  the public key in the header. The kernel decides whether to accept a
+  particular public key for verification. The verifier policy assigns
+  a global application identifier as the concatenation of the public
+  key and I.
 
 An application identifier provides an identity for an application
 binary. It allows the Tock kernel to know about the provenance and
 origin of the binary and make access control or security decisions
-based on this information. For example, a kernel may allow only applications whose
-credentials use a particular trusted public key to access restricted
-functionality, but restrict other applications to use a subset of
-available system calls.
+based on this information. For example, a kernel may allow only
+applications whose credentials use a particular trusted public key to
+access restricted functionality, but restrict other applications to
+use a subset of available system calls.
 
 Application identifiers are distinct from process
 identifiers; an application identifier is per-application (persists
@@ -174,12 +206,22 @@ time on a Tock device, each process has a unique process identifier,
 but they can be re-used over time (like POSIX process identifiers).
 
 As the above examples illustrate, application credentials can vary in
-size and content. The credentials that the kernel will accept depends
-on its use case: certain devices will only accept credentials which
-include a particular public key, while others will accept
-many. Furthermore, the internal format of these credentials can vary.
-Finally, the cryptography used in credentials can vary, either due to
-security policies or certification requirements.
+size and content. The credentials that a kernel's verifier policy will
+accept depends on its use case: certain devices will only accept
+credentials which include a particular public key, while others will
+accept many. Furthermore, the internal format of these credentials can
+vary.  Finally, the cryptography used in credentials can vary, either
+due to security policies or certification requirements.
+
+Because the verifier policy is responsible for assigning application
+identifiers to process binaries, it is possible for the same process
+binary to have different application identifiers on different Tock
+systems.  For example, suppose a process binary has two application
+credential TBF headers: one signs with a key A, and the other with key
+B. Tock systems using a verifier policy that accepts key A may assign
+A as the global application identifier, while Tock systems using a
+different verifier policy that accepts key B may assign B as the
+global application identifier.
 
 4 Credentials in Tock Binary Format Headers
 ===============================
@@ -213,28 +255,33 @@ pub enum TbfHeaderV2CredentialsType {
 of what kind of information we might put here. Among other things, the exact format
 of the data blocks needs to be more precise. -pal**
 
-The `CleartextID` value has a data length of 8 bytes. It contains a 64-bit number in
-big-endian format representing an application identifier.
+The `CleartextID` value has a data length of 8 bytes. It contains a
+64-bit number in big-endian format representing an application
+identifier.
 
-The `Rsa3072Key` value has a data of length of 768 bytes. It contains a public 3072-bit
-RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512
-hash of the application binary in this process binary, signed by the private key
-of the public key in the header.
+The `Rsa3072Key` value has a data of length of 768 bytes. It contains
+a public 3072-bit RSA key (384 bytes), followed by a 384-byte
+ciphertext block, consisting of the SHA512 hash of the application
+binary in this process binary, signed by the private key of the public
+key in the header.
 
-The `Rsa4096Key` value has a data of length of 1024 bytes. It contains a public 4096-bit
-RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512
-hash of the application binary in this process binary, encrypted by the private key
-of the public key in the header.
+The `Rsa4096Key` value has a data of length of 1024 bytes. It contains
+a public 4096-bit RSA key (512 bytes), followed by a 512-byte
+ciphertext block, consisting of the SHA512 hash of the application
+binary in this process binary, encrypted by the private key of the
+public key in the header.
 
-The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It contains a public 3072-bit
-RSA key (384 bytes), followed by a 384-byte ciphertext block, consisting of the SHA512
-hash of the application binary in this process binary followed by a 32-bit application
-ID, encrypted by the private key of the public key in the header.
+The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It
+contains a public 3072-bit RSA key (384 bytes), followed by a 384-byte
+ciphertext block, consisting of the SHA512 hash of the application
+binary in this process binary followed by a 32-bit application ID,
+encrypted by the private key of the public key in the header.
 
-The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It contains a public 4096-bit
-RSA key (512 bytes), followed by a 512-byte ciphertext block, consisting of the SHA512
-hash of the application binary in this process binary followed by a 32-bit application
-ID, encrypted by the private key of the public key in the header.
+The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It
+contains a public 4096-bit RSA key (512 bytes), followed by a 512-byte
+ciphertext block, consisting of the SHA512 hash of the application
+binary in this process binary followed by a 32-bit application ID,
+encrypted by the private key of the public key in the header.
 
 
 4 `Verifier` trait
@@ -276,10 +323,10 @@ a `Reject` or `Accept` result, it calls `require_credentials` to ask
 the `Verifier` what the default behavior is.  If `require_credentials`
 returns `true`, the kernel rejects the process binary and terminates
 loading it. If `require_credentials` returns `false`, the kernel
-accepts the process binary and continues loading it. If a process binary has
-no `TbfHeaderV2Credentials` headers then there will be no `Accept` or
-`Reject` results and `require_credentials` defines whether to load
-such a binary.
+accepts the process binary and continues loading it. If a process
+binary has no `TbfHeaderV2Credentials` headers then there will be no
+`Accept` or `Reject` results and `require_credentials` defines whether
+to load such a binary.
 
 An implementer of `Verifier` sets the security policy of process binary
 loading by deciding which types of credentials, and which credentials,
@@ -299,17 +346,19 @@ an application, they are typically large data structures that are too
 large to store in RAM. When parts of the kernel wish to apply
 application-based security or access policies, they need a concise way
 to represent these policies. Requiring policies to be encoded in terms
-of application credentials is extremely costly: a table, for example,
-that says that only applications signed with a particular 4096-bit RSA
-key can access certain system calls requires storing the whole
-4096-bit key. If there are multiple such security policies through the
-kernel, they must each store this information.
+of application credentials (or application identifiers) is extremely
+costly: a table, for example, that says that only applications signed
+with a particular 4096-bit RSA key can access certain system calls
+requires storing the whole 4096-bit key. If there are multiple such
+security policies through the kernel, they must each store this
+information.
 
-The `Compress` trait provides a mechanism to map credentials to a
-small (32-bit) integer, which can then be used throughout the kernel
-as an identifier for security policies. For example, suppose that a
-device wants to grant access to all application binaries signed by a
-certain 3072-bit RSA key. The `Compress` trait can map all such
+The `Compress` trait provides a mechanism to map the application
+identifier defined by application credentials to a small (32-bit)
+integer, which can then be used throughout the kernel as an identifier
+for security policies. For example, suppose that a device wants to
+grant access to all application binaries signed by a certain 3072-bit
+RSA key. The `Compress` trait can map all such
 `TbfHeaderV2Credentials` to a known identifier. This identifier is
 stored in the process structure. Access control systems within the
 kernel can define their policies in terms of these identifiers, such
@@ -372,6 +421,22 @@ known names or methods, as in the `privileged_id` example above. The
 exact `id` values used is an internal implementation decision for the
 implementer of `Compress`. Doing so more cleanly decouples modules
 through APIs and does not leak internal state.
+
+The mapping between global application identifiers and `ShortID`
+values MUST be deterministic. For a given verifier policy, `ShortID`s
+must also be globally unique identifiers. 
+
+`ShortID`s MUST be locally unique among running processes. If the
+`Compress` implementation assigns a `ShortID` to a process that
+matches the `ShortID` of a running process, the Tock kernel MUST NOT
+load or run the new process until the existing one terminates.
+
+`ShortID`s MAY persist across boots and restarts of a process
+binary. If `ShortID` is derived from a global application identifier,
+then it is by definition persistent, since it is a determinstic
+mapping from the identifier. `ShortID` values derived from local
+application identifiers, however, MAY be transient and not persist.
+
 
 6 Capsules
 ===============================
