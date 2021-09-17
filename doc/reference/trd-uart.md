@@ -6,6 +6,10 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
+**Draft-Created:** August 5, 2021<br/>
+**Draft-Modified:** September 17, 2021<br/>
+**Draft-Version:** 2<br/>
+**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
@@ -422,8 +426,18 @@ The valid return values for `receive_abort` are:
   - `Err(())`: there was no reception outstanding and the implementation will
     not issue a callback.
 
-If there is no outstanding call to `receive_buffer` or
-`receive_word`, `receive_abort` MUST return `Err(())`.
+If there is no outstanding call to `receive_buffer` or `receive_word`,
+`receive_abort` MUST return `Err(())`.
+
+If `receive_abort` triggers a callback with `Err(CANCEL)`, this
+callback MAY be invoked while the call stack frame for `receive_abort`
+is still active. It MAY be triggered asynchronously.  This is because
+a low-level chip implementation may not have a ready interrupt source
+for this case (e.g., stopping a DMA transfer) and requiring it to
+implement software deferred procedure calls is heavyweight. This
+does not violate Rule 1 of the HIL design TRD because the callback
+`received_buffer` or `received_word` is in response to calls to
+`receive`, and not `receive_abort`.
 
 4.2 `receive_word` and `received_word`
 ===============================
@@ -448,13 +462,7 @@ or some error occurs. Valid `Err` values of `receive_word` are:
   - `NOSUPPORT`: `receive_word` operations are not supported.
   - `FAIL`: some other error.
 
-5 `ReceiveXXX` trait
-===============================
-
-This is the section for what's currently called `ReceiveAdvanced`.
-
-
-6 Composite Traits
+5 Composite Traits
 ===============================
 
 In addition to the 6 basic traits, the UART HIL defines several traits
@@ -473,7 +481,7 @@ The HIL provides blanket implementations of these four traits: any
 structure that implements the supertraits of a composite trait will
 automatically implement the composite trait.
 
-7 Capsules
+6 Capsules
 ===============================
 
 The Tock kernel provides two standard capsules for UARTs:
@@ -503,7 +511,7 @@ After the user types "8", the first client will receive a callback
 with a buffer containing "12345678".
 
 
-8 Authors' Address
+7 Authors' Address
 =================================
 ```
 Philip Levis
