@@ -1,15 +1,11 @@
 Design of Kernel Hardware Interface Layers (HILs)
 ========================================
 
-**TRD:** <br/>
+**TRD: 2** <br/>
 **Working Group:** Kernel<br/>
 **Type:** Best Current Practice<br/>
-**Status:** Draft <br/>
+**Status:** Final<br/>
 **Author:** Brad Campbell, Philip Levis <br/>
-**Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** May 27, 2021<br/>
-**Draft-Version:** 6<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
