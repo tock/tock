@@ -13,7 +13,7 @@ use kernel::{ErrorCode, ProcessId};
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
 
-pub const DRIVER_NUM: usize = 0x8;
+pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
