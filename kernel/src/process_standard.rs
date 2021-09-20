@@ -26,6 +26,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
+use tock_tbf::types::CommandPermissions;
 
 /// State for helping with debugging apps.
 ///
@@ -418,6 +419,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn flash_non_protected_start(&self) -> *const u8 {
         ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+    }
+
+    fn get_command_permissions(
+        &self,
+        driver_num: usize,
+        offset: Option<usize>,
+    ) -> CommandPermissions {
+        self.header.get_command_permissions(driver_num, offset)
     }
 
     fn flash_end(&self) -> *const u8 {
