@@ -506,6 +506,15 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
+/// The command permissions speified by the TBF header
+///
+/// Use the `get_command_permissions()` function to retrieve these.
+pub enum CommandPermissions {
+    NoPermsAtAll,
+    NoPermsThisDriver,
+    Mask(u64),
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -645,6 +654,48 @@ impl TbfHeader {
         match hd.fixed_addresses.as_ref()?.start_process_flash {
             0xFFFFFFFF => None,
             start => Some(start),
+        }
+    }
+
+    /// Get the permissions for a specified driver and offset.
+    ///
+    /// `driver_num`: The driver to lookup
+    /// `offset`: The offset for the driver to find. `None` indicates any offset,
+    ///  while `Some` will specify the offset to find. An offset value of `Some(1)`
+    ///  will find a header with offset `1`, so the `allowed_commands` will cover
+    ///  command 64 to 127.
+    ///
+    /// If the specified permissions are found, this function will return
+    /// `Some((true, allowed_command_mask))`. If there are permissions in the header
+    /// but no driver or offset match the function will return `Some((false, 0)).
+    /// If the process does not have any permissions specified, return `None`.
+    pub fn get_command_permissions(
+        &self,
+        driver_num: usize,
+        offset: Option<usize>,
+    ) -> CommandPermissions {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.permissions {
+                Some(permissions) => {
+                    for perm in permissions.perms {
+                        if perm.driver_number == driver_num as u32 {
+                            match offset {
+                                Some(off) => {
+                                    if perm.offset == off as u32 {
+                                        return CommandPermissions::Mask(perm.allowed_commands);
+                                    }
+                                }
+                                None => {
+                                    return CommandPermissions::Mask(perm.allowed_commands);
+                                }
+                            }
+                        }
+                    }
+                    CommandPermissions::NoPermsThisDriver
+                }
+                _ => CommandPermissions::NoPermsAtAll,
+            },
+            _ => CommandPermissions::NoPermsAtAll,
         }
     }
 
