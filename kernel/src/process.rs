@@ -410,6 +410,13 @@ pub trait Process {
         min_region_size: usize,
     ) -> Option<mpu::Region>;
 
+    /// Removes an MPU region from the process that has been previouly added with
+    /// `add_mpu_region`.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
+    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode>;
+
     // grants
 
     /// Allocate memory from the grant region and store the reference in the

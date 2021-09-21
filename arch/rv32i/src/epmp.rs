@@ -180,6 +180,12 @@ pub struct PMPRegion {
     cfg: registers::FieldValue<u8, pmpcfg::Register>,
 }
 
+impl PartialEq<mpu::Region> for PMPRegion {
+    fn eq(&self, other: &mpu::Region) -> bool {
+        self.location.0 == other.start_address() && self.location.1 == other.size()
+    }
+}
+
 impl fmt::Display for PMPRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn bit_str<'a>(reg: &PMPRegion, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
@@ -367,14 +373,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGION
     /// Get the first unused region
     fn unused_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
-            if self.app_memory_region.contains(&number) {
-                continue;
-            }
-            // This region exists, but is locked
-            if locked_region_mask & (1 << number) > 0 {
-                continue;
-            }
-            if region.is_none() {
+            if !self.is_index_locked_or_app(locked_region_mask, number) && region.is_none() {
                 return Some(number);
             }
         }
@@ -387,18 +386,16 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGION
     fn unused_kernel_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (num, region) in self.regions.iter().rev().enumerate() {
             let number = MAX_AVAILABLE_REGIONS_OVER_TWO - num - 1;
-            if self.app_memory_region.contains(&number) {
-                continue;
-            }
-            // This region exists, but is locked
-            if locked_region_mask & (1 << number) > 0 {
-                continue;
-            }
-            if region.is_none() {
+            if !self.is_index_locked_or_app(locked_region_mask, number) && region.is_none() {
                 return Some(number);
             }
         }
         None
+    }
+
+    /// Returns true is the specified index is either locked or corresponds to the app region
+    fn is_index_locked_or_app(&self, locked_region_mask: u64, number: usize) -> bool {
+        locked_region_mask & (1 << number) > 0 || self.app_memory_region.contains(&number)
     }
 }
 
@@ -506,6 +503,28 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         config.is_dirty.set(true);
 
         Some(mpu::Region::new(start as *const u8, size))
+    }
+
+    fn remove_memory_region(
+        &self,
+        region: mpu::Region,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        let (index, _r) = config
+            .regions
+            .iter()
+            .enumerate()
+            .find(|(_idx, r)| r.map_or(false, |r| r == region))
+            .ok_or(())?;
+
+        if config.is_index_locked_or_app(self.locked_region_mask.get(), index) {
+            return Err(());
+        }
+
+        config.regions[index] = None;
+        config.is_dirty.set(true);
+
+        Ok(())
     }
 
     fn allocate_app_memory_region(

@@ -17,7 +17,7 @@ pub enum Permissions {
 /// MPU region.
 ///
 /// This is one contiguous address space protected by the MPU.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Region {
     /// The memory address where the region starts.
     ///
@@ -153,6 +153,26 @@ pub trait MPU {
         } else {
             Some(Region::new(unallocated_memory_start, min_region_size))
         }
+    }
+
+    /// Removes an MPU region within app-owned memory.
+    ///
+    /// An implementation must remove the MPU region that matches the region parameter if it exists.
+    /// If there is not a region that matches exactly, then the implementation may return an Error.
+    /// Implementors should not remove the app_memory_region and should return an Error if that
+    /// region is supplied.
+    ///
+    /// # Arguments
+    ///
+    /// - `region`:    a region previously allocated with `allocate_region`
+    /// - `config`:    MPU region configuration
+    ///
+    /// # Return Value
+    ///
+    /// Returns an error if the specified region is not exactly mapped to the process as specified
+    #[allow(unused_variables)]
+    fn remove_memory_region(&self, region: Region, config: &mut Self::MpuConfig) -> Result<(), ()> {
+        Ok(())
     }
 
     /// Chooses the location for a process's memory, and allocates an MPU region
