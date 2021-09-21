@@ -38,7 +38,6 @@ pub mod utvec;
 // if we are compiling for a rv32i target), OR if the target OS is set to
 // something (as it would be if compiled for a host OS).
 
-#[repr(C)]
 pub struct CSR {
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
     pub minstreth: ReadWriteRiscvCsr<usize, minstret::minstreth::Register, MINSTRETH>,
