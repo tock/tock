@@ -573,6 +573,10 @@ pub trait Process {
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
 
+    /// Return the last syscall the process called. Returns `None` if the
+    /// process has not called any syscalls or the information is unknown.
+    fn debug_syscall_last(&self) -> Option<Syscall>;
+
     /// Return the address of the start of the process heap, if known.
     fn debug_heap_start(&self) -> Option<*const u8>;
 
