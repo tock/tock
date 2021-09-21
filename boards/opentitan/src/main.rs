@@ -24,6 +24,7 @@ use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::kv_system::KVSystem;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -131,6 +132,15 @@ struct EarlGreyNexysVideo {
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
     >,
+    kv_driver: &'static capsules::kv_driver::KVSystemDriver<
+        'static,
+        capsules::tickv::TicKVStore<
+            'static,
+            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        [u8; 8],
+    >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
     scheduler_timer:
@@ -154,6 +164,7 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
+            capsules::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
@@ -482,6 +493,48 @@ unsafe fn setup() -> (
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
+    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
+        components::kv_store_mux_component_helper!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
+
+    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
+    let header_buf = static_init!([u8; 9], [0; 9]);
+
+    let kv_store =
+        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
+            .finalize(components::kv_store_component_helper!(
+                capsules::tickv::TicKVStore<
+                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                    capsules::sip_hash::SipHasher24<'static>,
+                >,
+                capsules::tickv::TicKVKeyType,
+            ));
+    tickv.set_client(kv_store);
+
+    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
+    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
+
+    let kv_driver = components::kv_system::KVDriverComponent::new(
+        kv_store,
+        board_kernel,
+        capsules::kv_driver::DRIVER_NUM,
+        kv_driver_data_buf,
+        kv_driver_dest_buf,
+    )
+    .finalize(components::kv_driver_component_helper!(
+        capsules::tickv::TicKVStore<
+            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        capsules::tickv::TicKVKeyType,
+    ));
+
     // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
     // to the OTBN hardware will hang.
     // OTBN is still connected though as it works on simulation runs
@@ -593,6 +646,7 @@ unsafe fn setup() -> (
             lldb: lldb,
             i2c_master,
             aes,
+            kv_driver,
             syscall_filter,
             scheduler,
             scheduler_timer,

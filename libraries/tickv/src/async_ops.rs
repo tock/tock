@@ -343,11 +343,11 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     }
 }
 
-/// Tests using a flash controller that can store data
 #[cfg(test)]
 mod tests {
     #![allow(unsafe_code)]
 
+    /// Tests using a flash controller that can store data
     mod store_flast_ctrl {
         use crate::async_ops::AsyncTicKV;
         use crate::error_codes::ErrorCode;
