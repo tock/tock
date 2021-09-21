@@ -304,7 +304,12 @@ impl uart::TransmitClient for Console<'_> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            upcalls.schedule_upcall(1, (written, 0, 0)).ok();
+                            upcalls
+                                .schedule_upcall(
+                                    1,
+                                    (kernel::errorcode::into_statuscode(Ok(())), written, 0),
+                                )
+                                .ok();
                         }
                     }
                     Err(return_code) => {

@@ -76,9 +76,9 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Description**: Subscribe to write transaction completion event. The
     callback will be called whenever a write transaction completes.
 
-    **Callback signature**: The callback receives a single argument, the number
-    of bytes written in the transaction. The value of the remaining arguments
-    is undefined.
+    **Callback signature**: The callback receives two arguments: the status
+    code and the number of bytes written in the transaction.
+    The value of the remaining argument is undefined.
 
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
@@ -88,9 +88,9 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Description**: Subscribe to read transaction completion event. The
     callback will be called whenever a read transaction completes.
 
-    **Callback signature**: The callback receives a single argument, the number
-    of bytes read in the transaction. The value of the remaining arguments
-    is undefined.
+    **Callback signature**: The callback receives two arguments, the status
+    code and the number of bytes read in the transaction. The value of the
+    remaining argument is undefined.
 
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
