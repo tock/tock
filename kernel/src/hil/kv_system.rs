@@ -20,17 +20,13 @@
 //! This file describes the HIL for this level.
 //!
 //! 3 - KV Store:
-//! This is a user friendly high level HIL. This HIL is used inside the kernel
+//! This is a user friendly high level API. This API is used inside the kernel
 //! and exposed to applications to allow KV operations. The API from this level
 //! should be high level, for example set/get/delete on unhashed keys.
-//! This level is in charge of enforcing permissions. It is expected that
-//! this level will combine the user data with a header and pass that to the
-//! level 2 system HIL.
+//! This level is in charge of enforcing permissions.
 //!
 //! This level is also in charge of generating the key hash by calling into
 //! level 2.
-//!
-//! There is currently no implementation of this HIL in Tock.
 //!
 //! The expected setup inside Tock will look like this:
 //! +-----------------------+
@@ -39,7 +35,7 @@
 //! |                       |
 //! +-----------------------+
 //!
-//!    hil::kv_store (not written yet)
+//!    capsules::kv_store
 //!
 //! +-----------------------+
 //! |                       |
@@ -47,7 +43,7 @@
 //! |                       |
 //! +-----------------------+
 //!
-//!    hil::kv_system (this PR)
+//!    hil::kv_system (this file)
 //!
 //! +-----------------------+
 //! |                       |
@@ -64,6 +60,39 @@ use crate::ErrorCode;
 pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
 
 impl KeyType for [u8; 8] {}
+
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+pub trait StoreClient<K: KeyType> {
+    /// This callback is called when the get operation completes
+    ///
+    /// `result`: Nothing on success, 'ErrorCode' on error
+    /// `key`: The key buffer
+    /// `ret_buf`: The ret_buf buffer
+    fn get_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: &'static mut [u8],
+        ret_buf: &'static mut [u8],
+    );
+
+    /// This callback is called when the set operation completes
+    ///
+    /// `result`: Nothing on success, 'ErrorCode' on error
+    /// `key`: The key buffer
+    /// `value`: The value buffer
+    fn set_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: &'static mut [u8],
+        value: &'static mut [u8],
+    );
+
+    /// This callback is called when the delete operation completes
+    ///
+    /// `result`: Nothing on success, 'ErrorCode' on error
+    /// `key`: The key buffer
+    fn delete_complete(&self, result: Result<(), ErrorCode>, key: &'static mut [u8]);
+}
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<K: KeyType> {
