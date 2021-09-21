@@ -1084,6 +1084,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
+    fn debug_syscall_last(&self) -> Option<Syscall> {
+        self.debug.map_or(None, |debug| debug.last_syscall)
+    }
+
     fn debug_heap_start(&self) -> Option<*const u8> {
         self.debug
             .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
