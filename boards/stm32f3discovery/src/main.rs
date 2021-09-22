@@ -115,6 +115,7 @@ impl
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'static>;
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -133,6 +134,9 @@ impl
     }
     fn watchdog(&self) -> &Self::WatchDog {
         self.watchdog
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
     }
 }
 

@@ -161,6 +161,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -178,6 +179,9 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }

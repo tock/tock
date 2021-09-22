@@ -104,6 +104,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -121,6 +122,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }

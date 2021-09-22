@@ -191,6 +191,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -208,6 +209,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }

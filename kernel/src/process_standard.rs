@@ -389,6 +389,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         })
     }
 
+    fn pending_tasks(&self) -> usize {
+        self.tasks.map_or(0, |tasks| tasks.len())
+    }
+
     fn mem_start(&self) -> *const u8 {
         self.memory_start
     }
@@ -1129,7 +1133,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let sram_grant_allocated = process_struct_memory_location - sram_grant_start;
 
         // application statistics
-        let events_queued = self.tasks.map_or(0, |tasks| tasks.len());
+        let events_queued = self.pending_tasks();
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);

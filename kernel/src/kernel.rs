@@ -18,6 +18,7 @@ use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
+use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -616,8 +617,10 @@ impl Kernel {
                     // process. Arming the scheduler timer instructs it to
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
+                    resources
+                        .context_switch_callback()
+                        .context_switch_hook(process);
                     process.setup_mpu();
-
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();

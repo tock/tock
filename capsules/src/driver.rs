@@ -17,6 +17,7 @@ pub enum NUM {
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
     LowLevelDebug         = 0x00008,
+    ReadOnlyState         = 0x00009,
 
     // Kernel
     Ipc                   = 0x10000,

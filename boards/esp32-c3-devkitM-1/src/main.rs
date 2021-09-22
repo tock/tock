@@ -100,6 +100,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type Scheduler = PrioritySched;
     type SchedulerTimer = VirtualSchedulerTimer<esp32::timg::TimG<'static>>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -117,6 +118,9 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }

@@ -112,6 +112,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -129,6 +130,9 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
