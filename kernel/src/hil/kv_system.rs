@@ -88,7 +88,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut K,
-        value: &'static [u8],
+        value: &'static mut [u8],
     );
 
     /// This callback is called when the get_value operation completes
@@ -160,8 +160,15 @@ pub trait KVSystem<'a> {
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: &'static [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static [u8], Result<(), ErrorCode>)>;
+        value: &'static mut [u8],
+    ) -> Result<
+        (),
+        (
+            &'static mut Self::K,
+            &'static mut [u8],
+            Result<(), ErrorCode>,
+        ),
+    >;
 
     /// Retrieves the value from a specified key.
     ///
