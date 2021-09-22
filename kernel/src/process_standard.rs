@@ -1122,6 +1122,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);
         let restart_count = self.restart_count.get();
+        let completion_code = self.completion_code.extract();
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1139,6 +1140,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let _ = match last_syscall {
             Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}\r\n", syscall)),
             None => writer.write_str(" Last Syscall: None\r\n"),
+        };
+
+        let _ = match completion_code {
+            Some(opt_cc) => match opt_cc {
+                Some(cc) => writer.write_fmt(format_args!(" Completion Code: {}\r\n", cc)),
+                None => writer.write_str(" Completion Code: Faulted\r\n"),
+            },
+            None => writer.write_str(" Completion Code: None\r\n"),
         };
 
         let _ = writer.write_fmt(format_args!(
