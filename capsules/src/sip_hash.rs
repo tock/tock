@@ -28,7 +28,7 @@ use core::{cmp, mem};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::hil::hasher::{Client, Hasher};
+use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
@@ -74,6 +74,37 @@ impl<'a> SipHasher24<'a> {
         let hasher = SipHasher {
             k0: 0,
             k1: 0,
+            length: 0,
+            state: State {
+                v0: 0x736f6d6570736575,
+                v1: 0x646f72616e646f6d,
+                v2: 0x6c7967656e657261,
+                v3: 0x7465646279746573,
+            },
+            ntail: 0,
+            tail: 0,
+        };
+
+        Self {
+            client: OptionalCell::empty(),
+            hasher: Cell::new(hasher),
+            add_data_deferred_call: Cell::new(false),
+            complete_deferred_call: Cell::new(false),
+            deferred_caller,
+            deferred_handle: OptionalCell::empty(),
+            data_buffer: TakeCell::empty(),
+            out_buffer: TakeCell::empty(),
+        }
+    }
+
+    pub const fn new_with_keys(
+        deferred_caller: &'static DynamicDeferredCall,
+        k0: u64,
+        k1: u64,
+    ) -> Self {
+        let hasher = SipHasher {
+            k0,
+            k1,
             length: 0,
             state: State {
                 v0: 0x736f6d6570736575,
@@ -256,6 +287,20 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         hasher.ntail = 0;
 
         self.hasher.set(hasher);
+    }
+}
+
+impl<'a> SipHash for SipHasher24<'a> {
+    fn set_keys(&self, k0: u64, k1: u64) -> Result<(), ErrorCode> {
+        let mut hasher = self.hasher.get();
+
+        hasher.k0 = k0;
+        hasher.k1 = k1;
+
+        self.hasher.set(hasher);
+        self.clear_data();
+
+        Ok(())
     }
 }
 

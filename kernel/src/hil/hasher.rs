@@ -67,3 +67,13 @@ pub trait Hasher<'a, const L: usize> {
     /// user to clear.
     fn clear_data(&self);
 }
+
+pub trait SipHash {
+    /// Optionaly call before `Hasher::run()` to specify the keys used
+    /// The possible ErrorCodes are:
+    ///    - BUSY: The system is busy
+    ///    - ALREADY: An operation is already on going
+    ///    - INVAL: An invalid parameter was supplied
+    ///    - NOSUPPORT: The operation is not supported
+    fn set_keys(&self, k0: u64, k1: u64) -> Result<(), ErrorCode>;
+}
