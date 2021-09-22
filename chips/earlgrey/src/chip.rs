@@ -123,6 +123,7 @@ impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
                         None,
                     );
                 }
+                interrupts::RVTIMERTIMEREXPIRED0_0 => self.timer.service_interrupt(),
                 _ => {
                     if interrupt >= interrupts::HMAC_HMACDONE
                         && interrupt <= interrupts::HMAC_HMACERR
@@ -213,9 +214,6 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
         loop {
             let mip = CSR.mip.extract();
 
-            if mip.is_set(mip::mtimer) {
-                self.timer.service_interrupt();
-            }
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
