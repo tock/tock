@@ -1,7 +1,7 @@
-# Makefile for building the tock kernel for the HiFive1 platform
+# Makefile for building the tock kernel for the RedV platform
 
 TARGET=riscv32imac-unknown-none-elf
-PLATFORM=hifive1
+PLATFORM=redboard_redv
 QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common
@@ -18,7 +18,7 @@ qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(QEMU) -M sifive_e,revb=true -kernel $^  -nographic
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20040000 -nographic
+	$(QEMU) -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20010000 -nographic
 
 
 TOCKLOADER=tockloader
