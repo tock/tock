@@ -244,7 +244,7 @@ pub trait Process {
     /// restarted and run again. This function instead frees grants and any
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
-    fn terminate(&self, completion_code: u32);
+    fn terminate(&self, completion_code: Option<u32>);
 
     /// Terminates and attempts to restart the process. The process and current
     /// application always terminate. The kernel may, based on its own policy,
@@ -267,7 +267,7 @@ pub trait Process {
     /// After `restart()` runs the process will either be queued to run its the
     /// application's `_start` function, terminated, or queued to run a
     /// different application's `_start` function.
-    fn try_restart(&self, completion_code: u32);
+    fn try_restart(&self, completion_code: Option<u32>);
 
     // memop operations
 

@@ -1271,9 +1271,9 @@ impl Kernel {
                 completion_code,
             } => match which {
                 // The process called the `exit-terminate` system call.
-                0 => process.terminate(completion_code as u32),
+                0 => process.terminate(Some(completion_code as u32)),
                 // The process called the `exit-restart` system call.
-                1 => process.try_restart(completion_code as u32),
+                1 => process.try_restart(Some(completion_code as u32)),
                 // The process called an invalid variant of the Exit
                 // system call class.
                 _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
