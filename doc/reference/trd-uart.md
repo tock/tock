@@ -224,16 +224,18 @@ callback in the future when the transmission completes or fails. If
 `transmit_buffer` returns `Err` it MUST NOT issue a callback in the
 future in response to this call. If the error is `BUSY`, this is
 because there is an outstanding call to `transmit_buffer` or
-`transmit_word`: the implementation handles these calls normally and
-issues a callback for them. However, it does not issue a callback for
-the call to `transmit_buffer` that returned `Err`.
+`transmit_word`: the implementation will continue to handle
+the original call and issue the originally scheduled callback
+(as if the call that `Err`'d with `BUSY` never happened). However,
+ it does not issue a callback for the call to `transmit_buffer`
+  that returned `Err`.
 
 The valid error codes for `transmit_buffer` are:
   - `OFF`: the underlying hardware is not available, perhaps because it has
     not been initialized or has been initialized into a different mode
     (e.g., a USART has been configured to be a SPI).
   - `BUSY`: the UART is already transmitting and has not made a transmission
-    callback yet.
+    complete callback yet.
   - `SIZE`: `tx_len` is larger than the passed slice.
   - `FAIL`: some other failure.
 
