@@ -76,7 +76,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // is something other than 0xfffffff9, then we are coming from an app which
     // has called a syscall.
     cmp lr, #0xfffffff9
-    bne 100f
+    bne 100f // to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Set thread mode to unprivileged to run the application.

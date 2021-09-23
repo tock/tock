@@ -219,7 +219,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           //  5*4(sp): x4
           //  4*4(sp): x3
           //  3*4(sp): x1
-          //  2*4(sp): 100      (address to resume after trap)
+          //  2*4(sp): _return_to_kernel (100) (address to resume after trap)
           //  1*4(sp): *state   (Per-process StoredState struct)
           //  0*4(sp): app s0   <- new stack pointer
           // ```
