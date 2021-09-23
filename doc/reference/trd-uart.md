@@ -105,6 +105,7 @@ pub enum Width {
     Six = 6,
     Seven = 7,
     Eight = 8,
+	None = 9,
 }
 
 pub struct Parameters {
@@ -145,12 +146,13 @@ Methods in `Configure` can return the following error conditions:
 
 The UART may be unable to set the precise baud rate specified. For
 example, the UART may be driven off a fixed clock with integer
-prescalar. A call to `configure` MUST set the baud rate to the closest
-possible value to the `baud_rate` field of the `params` argument and a
-call to `set_baud_rate` MUST set the baud rate to the closest possible
-value to the `rate` argument. The `Ok` result of `set_baud_rate`
-includes the actual rate set, while an `Err(INVAL)` result means the
-requested rate is well outside the operating speed of the UART (e.g., 4MHz).
+prescalar. An implementation of `configure` MUST set the baud rate to
+the closest possible value to the `baud_rate` field of the `params`
+argument and an an implementation of `set_baud_rate` MUST set the baud
+rate to the closest possible value to the `rate` argument. The `Ok`
+result of `set_baud_rate` includes the actual rate set, while an
+`Err(INVAL)` result means the requested rate is well outside the
+operating speed of the UART (e.g., 16MHz).
 
 
 3 `Transmit` and `TransmitClient`
