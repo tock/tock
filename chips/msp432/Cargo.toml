@@ -2,7 +2,7 @@
 name = "msp432"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
