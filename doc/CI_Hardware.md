@@ -19,8 +19,8 @@ The Tock core team maintains the following hardware CI instances:
     + [What are actions/runners?](#what-are-actionsrunners)
   * [Configuration Files](#configuration-files)
   * [Configuring the Raspberry Pi](#configuring-the-raspberry-pi)
-    + [Uart setup](#uart-setup)
-    + [I2C setup](#i2c-setup)
+    + [Uart Setup](#uart-setup)
+    + [I2C Setup](#i2c-setup)
     + [Downloading Pi-GPIO open source Python Library](#downloading-pi-gpio-open-source-python-library)
   * [Looking in the Workflow](#looking-in-the-workflow)
     + [Creating the Workflow File](#creating-the-workflow-file)
@@ -555,4 +555,4 @@ Take a look at what type of test failed (in the output on github) and see what i
 ## If there’s boot up issues of the Raspberry Pi
 Go to the [Troubleshooting section](#troubleshoot)
 
-**Further updates here will be made accordingly to new issues that arise.** 
+**Further updates here will be made accordingly to new issues that arise.**
