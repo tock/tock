@@ -139,35 +139,40 @@ decides whether to load it into a process and run it.
 There is a relationship between application identifiers and
 credentials, but they are not the same thing. An application
 identifier is a numerical representation of the application's
-identity, while credentials bind identifiers to binaries. For example,
-two versions (say, v1.1 and v1.2) of the same application have the
-same application identifier, but different credentials. For example,
-credentials often rely on public key cryptography (e.g., a signature)
-to show that someone holding a certain private key bound the process
-binary and application identifier.
+identity, while credentials are the data that, combined with
+a verifier policy, bind identifiers to 
+binaries. Suppose there are two versions (v1.1 and v1.2) of the same 
+application. They have different binaries. Their application credentials
+consist of a cryptographic hash of their binary signed by a known 
+public key. The public key defines the application identifier: all
+versions of this application have credentials signed by this key.
+The two versions have different credentials, because their hashes
+differ, but they have the same application identifier. 
 
+Every running Tock process MUST have an application identifier.  
 Application identifiers MUST be unique across running processes in a
-single Tock system and every Tock process MUST have an application
-identifier.  If the verifier policy assigns the same application
-identifier to multiple process binaries, then the Tock kernel MUST NOT
-run more than one of them at any given time. For example, if there are
-two versions of a program that have the same application identifier,
-the kernel will only run one of them at any given time.
+single Tock system.  Global application identifiers MUST persist 
+across process restarts or reloads.  
 
-Application identifiers MUST persist across process restarts or
-reloads.  In cases when a process does not have any application
+If the verifier policy assigns the same application
+identifier to multiple process binaries, then the Tock kernel MUST NOT
+run more than one of them at any given time. Following the above example,
+the Tock kernel can run v1.1 or v1.2 of the application, but will not
+run both simultaneously.
+
+In cases when a process does not have any application
 credentials, the verifier policy MAY assign it a global or local
 application identifier. If the verifier policy does not assign a
 process binary an application identifier then the kernel MUST NOT load
 or run that process.
 
-Consider these three use cases.
+Consider these five use cases.
 
   1. A process binary that has no application credentials: it only
   runs on kernels that are willing to load applications without
-  credentials (e.g., research systems). The verifier policy assigns
-  the process binary a local application identifier, which is a SHA256
-  hash of the application binary.
+  credentials (e.g., research systems). The verifier policy defines
+  that process binaries with no credentials have a local application 
+  identifier of a SHA256 hash of the application binary. 
 
   1. The verifier policy defines that the global application
   identifier of a process is the public key used to sign its process
@@ -190,6 +195,18 @@ Consider these three use cases.
   a global application identifier as the concatenation of the public
   key and I.
 
+  1. A Tock system wants to load the same process binary in 
+  two different processes at the same time. It cannot. Every process
+  binary has a single application identifier, and Tock will not run
+  two processes with the same application identifier.
+
+  1. A Tock system wants to load the same application binary
+  in two different processes at the same time. The system administrator
+  installs two process binaries on the device, which contain the
+  same application binary. The process binaries have no credentials.
+  The verifier policy assigns a local application identifier to each
+  process binary based on its order in application flash.
+
 An application identifier provides an identity for an application
 binary. It allows the Tock kernel to know about the provenance and
 origin of the binary and make access control or security decisions
@@ -199,7 +216,7 @@ access restricted functionality, but restrict other applications to
 use a subset of available system calls.
 
 Application identifiers are distinct from process
-identifiers; an application identifier is per-application (persists
+identifiers. An application identifier is per-application (persists
 across restarts of a process binary, for example), while a process
 identifier identifies a particular execution of that binary. At any
 time on a Tock device, each process has a unique process identifier,
@@ -207,7 +224,7 @@ but they can be re-used over time (like POSIX process identifiers).
 
 As the above examples illustrate, application credentials can vary in
 size and content. The credentials that a kernel's verifier policy will
-accept depends on its use case: certain devices will only accept
+accept depends on its use case. Certain devices will only accept
 credentials which include a particular public key, while others will
 accept many. Furthermore, the internal format of these credentials can
 vary.  Finally, the cryptography used in credentials can vary, either
@@ -355,7 +372,7 @@ information.
 
 The `Compress` trait provides a mechanism to map the application
 identifier defined by application credentials to a small (32-bit)
-integer, which can then be used throughout the kernel as an identifier
+integer, which can be used throughout the kernel as an identifier
 for security policies. For example, suppose that a device wants to
 grant access to all application binaries signed by a certain 3072-bit
 RSA key. The `Compress` trait can map all such
@@ -392,7 +409,7 @@ mapped to security policies via `Compress`.
 
 The mechanism by which kernel modules gain access to
 `TbfHeaderV2Credentials` with which to construct `ShortID`s for access
-tables is outside of scope for this document and are system-specific.
+tables is outside of scope for this document and is system-specific.
 The structure implementing `Verifier` and `Compress` typically has
 additional traits or methods that expose these.
 
@@ -427,8 +444,7 @@ through APIs and does not leak internal state.
 
 `ShortID` values MUST be locally unique among running processes.  The
 mapping between global application identifiers and `ShortID` values
-MUST be deterministic. For a given verifier policy, `ShortID`s also
-must also be globally unique identifiers.
+MUST be deterministic. 
 
 `ShortID`s MAY persist across boots and restarts of a process
 binary. If `ShortID` is derived from a global application identifier,
