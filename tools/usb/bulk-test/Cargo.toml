@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Daniel B. Giffin <dbg@scs.stanford.edu>"]
 
 [dependencies]
-libusb = "0.3"
+libusb = { git ="https://github.com/tock/libusb-rs" }

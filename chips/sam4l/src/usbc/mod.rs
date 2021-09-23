@@ -27,13 +27,13 @@ use kernel::utilities::StaticRef;
 
 macro_rules! client_warn {
     [ $( $arg:expr ),+ ] => {
-        debugln!($( $arg ),+);
+        debugln!($( $arg ),+)
     };
 }
 
 macro_rules! client_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 
@@ -45,7 +45,7 @@ macro_rules! debug1 {
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 

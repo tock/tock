@@ -19,37 +19,37 @@ use crate::power;
 // replaced with better error handling.
 macro_rules! debug_events {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_tasks {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_packets {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 

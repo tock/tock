@@ -31,7 +31,7 @@ fn hifive1() -> Result<(), Error> {
     // Test completed, kill QEMU
     kill_qemu(&mut p)?;
 
-    p.exp_eof()?;
+    p.exp_string("QEMU: Terminated")?;
     Ok(())
 }
 
@@ -67,7 +67,7 @@ fn earlgrey_nexysvideo() -> Result<(), Error> {
     // Test completed, kill QEMU
     kill_qemu(&mut p)?;
 
-    p.exp_eof()?;
+    p.exp_string("QEMU: Terminated")?;
     Ok(())
 }
 
@@ -103,7 +103,7 @@ fn earlgrey_cw310() -> Result<(), Error> {
     // Test completed, kill QEMU
     kill_qemu(&mut p)?;
 
-    p.exp_eof()?;
+    p.exp_string("QEMU: Terminated")?;
     Ok(())
 }
 

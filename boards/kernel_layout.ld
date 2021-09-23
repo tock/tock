@@ -110,7 +110,7 @@ SECTIONS
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
         *(.text .text.* .gnu.linkonce.t.*)
-        
+
         _srodata = .;
         *(.rodata .rodata.* .gnu.linkonce.r.*)
 
@@ -190,7 +190,7 @@ SECTIONS
 
     /* Region for on-chip kernel non-volatile storage.
      *
-     * Align on PAGE_SIZE number of bytes. Volumes within this region are 
+     * Align on PAGE_SIZE number of bytes. Volumes within this region are
      * allocated with the storage_volume! macro in utils.rs.
      */
     .storage :
@@ -262,7 +262,7 @@ SECTIONS
      * Tock assumes the relocation section follows all static elements and will
      * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
      */
-    .relocate : AT (_etext)
+    .relocate :
     {
         . = ALIGN(4);
         _srelocate = .;
@@ -291,7 +291,7 @@ SECTIONS
 
         . = ALIGN(4);
         _erelocate = .;
-    } > ram
+    } > ram AT>rom
 
 
     .sram (NOLOAD) :

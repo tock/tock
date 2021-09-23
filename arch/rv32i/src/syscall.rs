@@ -219,7 +219,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           //  5*4(sp): x4
           //  4*4(sp): x3
           //  3*4(sp): x1
-          //  2*4(sp): _return_to_kernel (address to resume after trap)
+          //  2*4(sp): _return_to_kernel (100) (address to resume after trap)
           //  1*4(sp): *state   (Per-process StoredState struct)
           //  0*4(sp): app s0   <- new stack pointer
           // ```
@@ -288,11 +288,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // Store the address to jump back to on the stack so that the trap
           // handler knows where to return to after the app stops executing.
           //
-          // In asm!() we can't use the shorthand `li` pseudo-instruction,
-          // as it complains about _return_to_kernel not being a constant in
-          // the required range.
-          lui  t0, %hi(_return_to_kernel)
-          addi t0, t0, %lo(_return_to_kernel)
+          // In asm!() we can't use the shorthand `li` pseudo-instruction, as it
+          // complains about _return_to_kernel (100) not being a constant in the
+          // required range.
+          lui  t0, %hi(100)
+          addi t0, t0, %lo(100)
           sw   t0, 2*4(sp)
 
           csrw 0x340, sp      // Save stack pointer in mscratch. This allows
@@ -353,7 +353,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
           // This is where the trap handler jumps back to after the app stops
           // executing.
-        _return_to_kernel:
+        100: // _return_to_kernel
 
           // We have already stored the app registers in the trap handler. We
           // can restore the kernel registers before resuming kernel code.
