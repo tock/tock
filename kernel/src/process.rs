@@ -95,8 +95,8 @@ impl fmt::Debug for ProcessId {
 }
 
 impl ProcessId {
-    /// Create a new `ProcessId` object based on the app identifier and its index
-    /// in the processes array.
+    /// Create a new `ProcessId` object based on the app identifier and its
+    /// index in the processes array.
     pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
         ProcessId {
             kernel: kernel,
@@ -105,8 +105,8 @@ impl ProcessId {
         }
     }
 
-    /// Create a new `ProcessId` object based on the app identifier and its index
-    /// in the processes array.
+    /// Create a new `ProcessId` object based on the app identifier and its
+    /// index in the processes array.
     ///
     /// This constructor is public but protected with a capability so that
     /// external implementations of `Process` can use it.
@@ -125,9 +125,9 @@ impl ProcessId {
 
     /// Get the location of this app in the processes array.
     ///
-    /// This will return `Some(index)` if the identifier stored in this `ProcessId`
-    /// matches the app saved at the known index. If the identifier does not
-    /// match then `None` will be returned.
+    /// This will return `Some(index)` if the identifier stored in this
+    /// `ProcessId` matches the app saved at the known index. If the identifier
+    /// does not match then `None` will be returned.
     pub(crate) fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
         if self.kernel.processid_is_valid(self) {
@@ -330,8 +330,8 @@ pub trait Process {
     /// process memory brk.
     fn app_memory_break(&self) -> *const u8;
 
-    /// Creates a [`ReadWriteProcessBuffer`] from the given offset and
-    /// size in process memory.
+    /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
+    /// process memory.
     ///
     /// ## Returns
     ///
@@ -340,20 +340,20 @@ pub trait Process {
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
-    /// - if the memory is not contained in the process-accessible
-    ///   memory space / `buf_start_addr` and `size` are not a valid
-    ///   read-write buffer (any byte in the range is not read/write
-    ///   accessible to the process), [`ErrorCode::INVAL`]
-    /// - if the process is not active: [`ErrorCode::FAIL`]
-    /// - for all other errors: [`ErrorCode::FAIL`]
+    /// - If the memory is not contained in the process-accessible memory space
+    ///   / `buf_start_addr` and `size` are not a valid read-write buffer (any
+    ///   byte in the range is not read/write accessible to the process),
+    ///   [`ErrorCode::INVAL`].
+    /// - If the process is not active: [`ErrorCode::FAIL`].
+    /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
-    /// Creates a [`ReadOnlyProcessBuffer`] from the given offset and
-    /// size in process memory.
+    /// Creates a [`ReadOnlyProcessBuffer`] from the given offset and size in
+    /// process memory.
     ///
     /// ## Returns
     ///
@@ -362,22 +362,22 @@ pub trait Process {
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
-    /// - if the memory is not contained in the process-accessible
-    ///   memory space / `buf_start_addr` and `size` are not a valid
-    ///   read-only buffer (any byte in the range is not
-    ///   read-accessible to the process), [`ErrorCode::INVAL`]
-    /// - if the process is not active: [`ErrorCode::FAIL`]
-    /// - for all other errors: [`ErrorCode::FAIL`]
+    /// - If the memory is not contained in the process-accessible memory space
+    ///   / `buf_start_addr` and `size` are not a valid read-only buffer (any
+    ///   byte in the range is not read-accessible to the process),
+    ///   [`ErrorCode::INVAL`].
+    /// - If the process is not active: [`ErrorCode::FAIL`].
+    /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readonly_process_buffer(
         &self,
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 
-    /// Set a single byte within the process address space at
-    /// `addr` to `value`. Return true if `addr` is within the RAM
-    /// bounds currently exposed to the process (thereby writable
-    /// by the process itself) and the value was set, false otherwise.
+    /// Set a single byte within the process address space at `addr` to `value`.
+    /// Return true if `addr` is within the RAM bounds currently exposed to the
+    /// process (thereby writable by the process itself) and the value was set,
+    /// false otherwise.
     ///
     /// ### Safety
     ///
@@ -501,8 +501,8 @@ pub trait Process {
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;
 
-    /// Get the grant number (grant_num) associated with a given driver number if there is a grant
-    /// associated with that driver_num.
+    /// Get the grant number (grant_num) associated with a given driver number
+    /// if there is a grant associated with that driver_num.
     fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error>;
 
     // subscribe
@@ -522,8 +522,8 @@ pub trait Process {
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
     ///
-    /// This can fail, if the UKB implementation cannot correctly set the return value. An
-    /// example of how this might occur:
+    /// This can fail, if the UKB implementation cannot correctly set the return
+    /// value. An example of how this might occur:
     ///
     /// 1. The UKB implementation uses the process's stack to transfer values
     ///    between kernelspace and userspace.
@@ -603,8 +603,14 @@ pub struct ProcessCustomGrantIdentifer {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// The process has been removed and no longer exists. For example, the
+    /// kernel could stop a process and re-claim its resources.
     NoSuchApp,
+    /// The process does not have enough memory to complete the requested
+    /// operation.
     OutOfMemory,
+    /// The provided memory address is not accessible or not valid for the
+    /// process.
     AddressOutOfBounds,
     /// The process is inactive (likely in a fault or exit state) and the
     /// attempted operation is therefore invalid.
@@ -673,19 +679,20 @@ pub enum State {
     /// The process faulted and cannot be run.
     Faulted,
 
-    /// The process exited with the `exit-terminate` system call and
-    /// cannot be run.
+    /// The process exited with the `exit-terminate` system call and cannot be
+    /// run.
     Terminated,
 
     /// The process has never actually been executed. This of course happens
     /// when the board first boots and the kernel has not switched to any
-    /// processes yet. It can also happen if an process is terminated and all
-    /// of its state is reset as if it has not been executed yet.
+    /// processes yet. It can also happen if an process is terminated and all of
+    /// its state is reset as if it has not been executed yet.
     Unstarted,
 }
 
-/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising from
-/// the state duplication in the kernel work tracking and process state tracking.
+/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
+/// from the state duplication in the kernel work tracking and process state
+/// tracking.
 pub(crate) struct ProcessStateCell<'a> {
     state: Cell<State>,
     kernel: &'a Kernel,
