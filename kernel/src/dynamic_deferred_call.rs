@@ -37,7 +37,7 @@
 //!     DynamicDeferredCall,
 //!     DynamicDeferredCall::new(dynamic_deferred_call_clients)
 //! ) };
-//! assert!(unsafe { DynamicDeferredCall::set_global_instance(dynamic_deferred_call) }, true);
+//! assert!(unsafe { DynamicDeferredCall::set_global_instance(dynamic_deferred_call) } == true);
 //!
 //! # struct SomeCapsule;
 //! # impl SomeCapsule {
