@@ -284,6 +284,10 @@ pub unsafe fn main() {
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);
     hil::uart::Receive::set_receive_client(&peripherals.usart0, uart_mux);
 
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+    peripherals.ast.configure(mux_alarm);
+
     // Setup the console and the process inspection console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -291,9 +295,14 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(());
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        sam4l::ast::Ast<'static>
+    ));
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Initialize USART3 for UART for the nRF serialization link.
@@ -307,10 +316,6 @@ pub unsafe fn main() {
         &peripherals.pa[17],
     )
     .finalize(());
-
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.ast)
-        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
-    peripherals.ast.configure(mux_alarm);
 
     let sensors_i2c = static_init!(
         MuxI2C<'static>,

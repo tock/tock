@@ -140,6 +140,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        VirtualMuxAlarm<'static, Rtc<'static>>,
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
@@ -369,9 +370,12 @@ pub unsafe fn main() {
         components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
             .finalize(());
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(Rtc<'static>));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

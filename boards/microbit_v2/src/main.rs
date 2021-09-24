@@ -563,10 +563,15 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
-    let _ = process_console.start();
+    let _process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        nrf52833::rtc::Rtc
+    ));
+    let _ = _process_console.start();
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

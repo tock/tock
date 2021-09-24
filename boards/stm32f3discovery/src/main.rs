@@ -758,9 +758,15 @@ pub unsafe fn main() {
     ));
 
     // PROCESS CONSOLE
-    let _process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f303xc::tim2::Tim2
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
@@ -794,7 +800,6 @@ pub unsafe fn main() {
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Initialization complete. Entering main loop");
-    let _ = _process_console.start();
 
     /// These symbols are defined in the linker script.
     extern "C" {
