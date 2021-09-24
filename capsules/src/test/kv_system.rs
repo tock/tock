@@ -35,7 +35,7 @@
 //!
 //! You should then see the following output
 //!
-//! ```
+//! ```text
 //! ---Starting TicKV Tests---
 //! Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48] was added
 //! Now retriving the key
