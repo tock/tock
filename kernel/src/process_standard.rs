@@ -1096,6 +1096,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn print_memory_map(&self, writer: &mut dyn Write) {
+        if !config::CONFIG.debug_panics {
+            return;
+        }
         // Flash
         let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
@@ -1273,6 +1276,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn print_full_process(&self, writer: &mut dyn Write) {
+        if !config::CONFIG.debug_panics {
+            return;
+        }
         self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
@@ -1363,6 +1369,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 }
 
+// Only used if debug_panics == true
+#[allow(unused)]
 fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     if size > allocated {
         " EXCEEDED!"

@@ -40,6 +40,27 @@ pub(crate) struct Config {
     /// into which SRAM addresses. This can be useful to debug whether the kernel could
     /// successfully load processes, and whether the allocated SRAM is as expected.
     pub(crate) debug_load_processes: bool,
+
+    /// Whether the kernel should output additional debug information on panics.
+    ///
+    /// If enabled, the kernel will include implementations of `Process::print_full_process()` and
+    /// `Process::print_memory_map()` that display the process's state in a human-readable
+    /// form.
+    // This config option is intended to allow for smaller kernel builds (in
+    // terms of code size) where printing code is removed from the kernel
+    // binary. Ideally, the compiler would automatically remove
+    // printing/debugging functions if they are never called, but due to
+    // limitations in Rust (as of Sep 2021) that does not happen if the
+    // functions are part of a trait (see
+    // https://github.com/tock/tock/issues/2594).
+    //
+    // Attempts to separate the printing/debugging code from the Process trait
+    // have only been moderately successful (see
+    // https://github.com/tock/tock/pull/2826 and
+    // https://github.com/tock/tock/pull/2759). Until a more complete solution
+    // is identified, using configuration constants is the most effective
+    // option.
+    pub(crate) debug_panics: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
@@ -47,4 +68,5 @@ pub(crate) struct Config {
 pub(crate) const CONFIG: Config = Config {
     trace_syscalls: false,
     debug_load_processes: false,
+    debug_panics: true,
 };
