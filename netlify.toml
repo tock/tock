@@ -1,2 +1,6 @@
 [[plugins]]
 package = "./tools/netlify-cache"
+
+# Suppress `tput` warnings by setting TERM
+[build]
+environment = { TERM = "dumb" }
