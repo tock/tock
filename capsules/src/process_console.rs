@@ -195,8 +195,6 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
 
-    first_prompt_shown: Cell<bool>,
-
     /// Flag to mark that the process console is active and has called receive
     /// from the underlying UART.
     running: Cell<bool>,
@@ -272,7 +270,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
-            first_prompt_shown: Cell::new(false),
+
             running: Cell::new(false),
             execute: Cell::new(false),
             kernel: kernel,
@@ -1025,7 +1023,6 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
     }
 
     fn prompt(&self) {
-        self.first_prompt_shown.set(true);
         let _ = self.write_bytes(b"tock$ ");
     }
 
