@@ -21,7 +21,6 @@ use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 use rp2040;
 
@@ -81,7 +80,7 @@ pub struct PicoExplorerBase {
     button: &'static capsules::button::Button<'static, RPGpioPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -111,7 +110,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

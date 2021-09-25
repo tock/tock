@@ -12,22 +12,33 @@
 // Author: Hudson Ayers <hayers@stanford.edu>
 
 use core::mem::MaybeUninit;
+use kernel::collections::list::simple_linked_list::{SimpleLinkedList, SimpleLinkedListNode};
+use kernel::collections::list::SinglyLinkedList;
 use kernel::component::Component;
 use kernel::process::Process;
-use kernel::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
+use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::{static_init, static_init_half};
 
 #[macro_export]
 macro_rules! coop_component_helper {
     ($N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
-        use kernel::scheduler::cooperative::CoopProcessNode;
+        use kernel::collections::list::simple_linked_list::SimpleLinkedListNode;
+        use kernel::process::Process;
         use kernel::static_buf;
-        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
-        static mut BUF: [MaybeUninit<CoopProcessNode<'static>>; $N] = [UNINIT; $N];
+        const UNINIT: MaybeUninit<SimpleLinkedListNode<'static, Option<&'static dyn Process>>> =
+            MaybeUninit::uninit();
+        static mut BUF: [MaybeUninit<SimpleLinkedListNode<'static, Option<&'static dyn Process>>>;
+            $N] = [UNINIT; $N];
         &mut BUF
     };};
 }
+
+pub type SchedulerType = CooperativeSched<
+        'static,
+        SimpleLinkedListNode<'static, Option<&'static dyn Process>>,
+        SimpleLinkedList<'static, Option<&'static dyn Process>>,
+    >;
 
 pub struct CooperativeComponent {
     processes: &'static [Option<&'static dyn Process>],
@@ -40,17 +51,21 @@ impl CooperativeComponent {
 }
 
 impl Component for CooperativeComponent {
-    type StaticInput = &'static mut [MaybeUninit<CoopProcessNode<'static>>];
-    type Output = &'static mut CooperativeSched<'static>;
+    type StaticInput =
+        &'static mut [MaybeUninit<SimpleLinkedListNode<'static, Option<&'static dyn Process>>>];
+    type Output = &'static mut SchedulerType;
 
     unsafe fn finalize(self, proc_nodes: Self::StaticInput) -> Self::Output {
-        let scheduler = static_init!(CooperativeSched<'static>, CooperativeSched::new());
+        let scheduler = static_init!(
+            SchedulerType,
+            CooperativeSched::new(SimpleLinkedList::new())
+        );
 
         for (i, node) in proc_nodes.iter_mut().enumerate() {
             let init_node = static_init_half!(
                 node,
-                CoopProcessNode<'static>,
-                CoopProcessNode::new(&self.processes[i])
+                SimpleLinkedListNode<'static, Option<&'static dyn Process>>,
+                SimpleLinkedListNode::new(self.processes[i])
             );
             scheduler.processes.push_head(init_node);
         }

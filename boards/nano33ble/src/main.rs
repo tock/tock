@@ -23,7 +23,6 @@ use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
 use kernel::platform::mpu::MPU;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -147,7 +146,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -181,7 +180,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

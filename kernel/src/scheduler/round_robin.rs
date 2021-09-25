@@ -15,55 +15,51 @@
 //! interrupted.
 
 use core::cell::Cell;
+use core::marker::PhantomData;
 
-use crate::collections::list::{List, ListLink, ListNode};
+use crate::collections::list::{ListNode, SinglyLinkedList};
 use crate::kernel::{Kernel, StoppedExecutingReason};
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
-/// A node in the linked list the scheduler uses to track processes
-/// Each node holds a pointer to a slot in the processes array
-pub struct RoundRobinProcessNode<'a> {
-    proc: &'static Option<&'static dyn Process>,
-    next: ListLink<'a, RoundRobinProcessNode<'a>>,
-}
-
-impl<'a> RoundRobinProcessNode<'a> {
-    pub fn new(proc: &'static Option<&'static dyn Process>) -> RoundRobinProcessNode<'a> {
-        RoundRobinProcessNode {
-            proc,
-            next: ListLink::empty(),
-        }
-    }
-}
-
-impl<'a> ListNode<'a, RoundRobinProcessNode<'a>> for RoundRobinProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, RoundRobinProcessNode> {
-        &self.next
-    }
-}
-
 /// Round Robin Scheduler
-pub struct RoundRobinSched<'a> {
+pub struct RoundRobinSched<
+    'a,
+    N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+    L: SinglyLinkedList<'a, N>,
+> {
     time_remaining: Cell<u32>,
-    pub processes: List<'a, RoundRobinProcessNode<'a>>,
+    pub processes: L,
     last_rescheduled: Cell<bool>,
+    _node: PhantomData<&'a N>,
 }
 
-impl<'a> RoundRobinSched<'a> {
+impl<
+        'a,
+        N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+        L: SinglyLinkedList<'a, N>,
+    > RoundRobinSched<'a, N, L>
+{
     /// How long a process can run before being pre-empted
     const DEFAULT_TIMESLICE_US: u32 = 10000;
-    pub const fn new() -> RoundRobinSched<'a> {
+    pub const fn new(processes: L) -> RoundRobinSched<'a, N, L> {
         RoundRobinSched {
+            processes,
             time_remaining: Cell::new(Self::DEFAULT_TIMESLICE_US),
-            processes: List::new(),
             last_rescheduled: Cell::new(false),
+            _node: PhantomData,
         }
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
+impl<
+        'a,
+        N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+        L: SinglyLinkedList<'a, N>,
+        C: Chip,
+    > Scheduler<C> for RoundRobinSched<'a, N, L>
+{
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
@@ -75,7 +71,7 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
             // Find next ready process. Place any *empty* process slots, or not-ready
             // processes, at the back of the queue.
             for node in self.processes.iter() {
-                match node.proc {
+                match node {
                     Some(proc) => {
                         if proc.ready() {
                             next = Some(proc.processid());

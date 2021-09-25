@@ -17,6 +17,8 @@ pub struct PriorityComponent {
     board_kernel: &'static kernel::Kernel,
 }
 
+pub type SchedulerType = PrioritySched;
+
 impl PriorityComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> PriorityComponent {
         PriorityComponent { board_kernel }
@@ -25,10 +27,10 @@ impl PriorityComponent {
 
 impl Component for PriorityComponent {
     type StaticInput = ();
-    type Output = &'static mut PrioritySched;
+    type Output = &'static mut SchedulerType;
 
     unsafe fn finalize(self, _static_buffer: Self::StaticInput) -> Self::Output {
-        let scheduler = static_init!(PrioritySched, PrioritySched::new(self.board_kernel));
+        let scheduler = static_init!(SchedulerType, PrioritySched::new(self.board_kernel));
         scheduler
     }
 }

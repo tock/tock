@@ -18,7 +18,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 pub mod ble;
@@ -64,7 +63,7 @@ struct RedboardArtemisNano {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -90,7 +89,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

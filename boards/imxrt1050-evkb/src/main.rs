@@ -15,7 +15,6 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 // use components::fxos8700::Fxos8700Component;
@@ -84,7 +83,7 @@ struct Imxrt1050EVKB {
     >,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -113,7 +112,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

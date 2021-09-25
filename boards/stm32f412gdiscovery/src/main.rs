@@ -17,7 +17,6 @@ use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
 
@@ -64,7 +63,7 @@ struct STM32F412GDiscovery {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -102,7 +101,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

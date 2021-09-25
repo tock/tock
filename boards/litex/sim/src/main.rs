@@ -14,7 +14,6 @@ use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
@@ -141,7 +140,7 @@ struct LiteXSim {
         >,
     >,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static components::sched::cooperative::SchedulerType,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -180,7 +179,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = components::sched::cooperative::SchedulerType;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,

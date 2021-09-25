@@ -18,8 +18,9 @@
 //!           topmost queue.
 
 use core::cell::Cell;
+use core::marker::PhantomData;
 
-use crate::collections::list::{List, ListLink, ListNode};
+use crate::collections::list::{ListNode, SinglyLinkedList};
 use crate::hil::time::{self, ConvertTicks, Ticks};
 use crate::kernel::{Kernel, StoppedExecutingReason};
 use crate::platform::chip::Chip;
@@ -33,51 +34,56 @@ struct MfProcState {
     us_used_this_queue: Cell<u32>,
 }
 
-/// Nodes store per-process state
-pub struct MLFQProcessNode<'a> {
-    proc: &'static Option<&'static dyn Process>,
+/// Container to store a process reference with associated state
+pub struct MLFQProcessState {
+    proc: Option<&'static dyn Process>,
     state: MfProcState,
-    next: ListLink<'a, MLFQProcessNode<'a>>,
 }
 
-impl<'a> MLFQProcessNode<'a> {
-    pub fn new(proc: &'static Option<&'static dyn Process>) -> MLFQProcessNode<'a> {
-        MLFQProcessNode {
+impl MLFQProcessState {
+    pub fn new(proc: Option<&'static dyn Process>) -> MLFQProcessState {
+        MLFQProcessState {
             proc,
             state: MfProcState::default(),
-            next: ListLink::empty(),
         }
     }
 }
 
-impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
-    fn next(&'a self) -> &'static ListLink<'a, MLFQProcessNode<'a>> {
-        &self.next
-    }
-}
-
-pub struct MLFQSched<'a, A: 'static + time::Alarm<'static>> {
+pub struct MLFQSched<
+    'a,
+    A: 'static + time::Alarm<'static>,
+    N: 'a + ListNode<'a, Content = MLFQProcessState>,
+    L: SinglyLinkedList<'a, N>,
+> {
     alarm: &'static A,
-    pub processes: [List<'a, MLFQProcessNode<'a>>; 3], // Using Self::NUM_QUEUES causes rustc to crash..
+    pub processes: [L; 3], // Using Self::NUM_QUEUES causes rustc to crash..
     next_reset: Cell<A::Ticks>,
     last_reset_check: Cell<A::Ticks>,
     last_timeslice: Cell<u32>,
     last_queue_idx: Cell<usize>,
+    _node: PhantomData<&'a N>,
 }
 
-impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
+impl<
+        'a,
+        A: 'static + time::Alarm<'static>,
+        N: 'a + ListNode<'a, Content = MLFQProcessState>,
+        L: SinglyLinkedList<'a, N>,
+    > MLFQSched<'a, A, N, L>
+{
     /// How often to restore all processes to max priority
     pub const PRIORITY_REFRESH_PERIOD_MS: u32 = 5000;
     pub const NUM_QUEUES: usize = 3;
 
-    pub fn new(alarm: &'static A) -> Self {
+    pub fn new(alarm: &'static A, processes_lists: [L; 3]) -> Self {
         Self {
             alarm,
-            processes: [List::new(), List::new(), List::new()],
+            processes: processes_lists,
             next_reset: Cell::new(A::Ticks::from(0)),
             last_reset_check: Cell::new(A::Ticks::from(0)),
             last_timeslice: Cell::new(0),
             last_queue_idx: Cell::new(0),
+            _node: PhantomData,
         }
     }
 
@@ -98,7 +104,13 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
             }
             first = false;
             match queue.pop_head() {
-                Some(proc) => self.processes[0].push_tail(proc),
+                Some(proc) => {
+                    // Assert that this returns true (indicating that the
+                    // MLFQProcessState node was successfully appended at the
+                    // end of the list. false would indicate that the list node
+                    // is duplicate.
+                    assert!(self.processes[0].push_tail(proc))
+                }
                 None => continue,
             }
         }
@@ -107,7 +119,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// Returns the process at the head of the highest priority queue containing a process
     /// that is ready to execute (as determined by `has_tasks()`)
     /// This method moves that node to the head of its queue.
-    fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessNode<'a>>, usize) {
+    fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessState>, usize) {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
@@ -118,7 +130,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
                     let cur = queue.pop_head();
                     match cur {
                         Some(node) => {
-                            if node as *const _ == next.unwrap() as *const _ {
+                            if node.content() as *const _ == next.unwrap() as *const _ {
                                 queue.push_head(node);
                                 // match! Put back on front
                                 return (next, idx);
@@ -135,7 +147,14 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
+impl<
+        'a,
+        A: 'static + time::Alarm<'static>,
+        N: 'a + ListNode<'a, Content = MLFQProcessState>,
+        L: SinglyLinkedList<'a, N>,
+        C: Chip,
+    > Scheduler<C> for MLFQSched<'a, A, N, L>
+{
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
@@ -173,13 +192,14 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         // Last executed node will always be at head of its queue
         let node_ref = self.processes[queue_idx].head().unwrap();
         node_ref
+            .content()
             .state
             .us_used_this_queue
             .set(self.last_timeslice.get() - execution_time_us);
 
         let punish = result == StoppedExecutingReason::TimesliceExpired;
         if punish {
-            node_ref.state.us_used_this_queue.set(0);
+            node_ref.content().state.us_used_this_queue.set(0);
             let next_queue = if queue_idx == Self::NUM_QUEUES - 1 {
                 queue_idx
             } else {

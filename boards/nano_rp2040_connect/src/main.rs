@@ -20,7 +20,6 @@ use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 use rp2040;
@@ -78,7 +77,7 @@ pub struct NanoRP2040Connect {
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm6dsoxtr: &'static capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -106,7 +105,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

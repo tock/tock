@@ -8,26 +8,38 @@
 use core::mem::MaybeUninit;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::collections::list::simple_linked_list::{SimpleLinkedList, SimpleLinkedListNode};
+use kernel::collections::list::SinglyLinkedList;
 use kernel::component::Component;
 use kernel::hil::time;
 use kernel::process::Process;
-use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
+use kernel::scheduler::mlfq::{MLFQProcessState, MLFQSched};
 use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! mlfq_component_helper {
     ($A:ty, $N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
-        use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
+        use kernel::collections::list::simple_linked_list::SimpleLinkedListNode;
+        use kernel::scheduler::mlfq::{MLFQProcessState, MLFQSched};
         use kernel::static_init;
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<MLFQSched<'static, VirtualMuxAlarm<'static, $A>>> =
             MaybeUninit::uninit();
-        const UNINIT: MaybeUninit<MLFQProcessNode<'static>> = MaybeUninit::uninit();
-        static mut BUF3: [MaybeUninit<MLFQProcessNode<'static>>; $N] = [UNINIT; $N];
+        const UNINIT: MaybeUninit<SimpleLinkedListNode<'static, MLFQProcessState>> =
+            MaybeUninit::uninit();
+        static mut BUF3: [MaybeUninit<SimpleLinkedListNode<'static, MLFQProcessState>>; $N] =
+            [UNINIT; $N];
         (&mut BUF1, &mut BUF2, &mut BUF3)
     };};
 }
+
+pub type SchedulerType<A> = MLFQSched<
+                'static,
+                VirtualMuxAlarm<'static, A>,
+                SimpleLinkedListNode<'static, MLFQProcessState>,
+                SimpleLinkedList<'static, MLFQProcessState>,
+            >;
 
 pub struct MLFQComponent<A: 'static + time::Alarm<'static>> {
     alarm_mux: &'static MuxAlarm<'static, A>,
@@ -49,10 +61,12 @@ impl<A: 'static + time::Alarm<'static>> MLFQComponent<A> {
 impl<A: 'static + time::Alarm<'static>> Component for MLFQComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<MLFQSched<'static, VirtualMuxAlarm<'static, A>>>,
-        &'static mut [MaybeUninit<MLFQProcessNode<'static>>],
+        &'static mut MaybeUninit<
+            SchedulerType<A>
+        >,
+        &'static mut [MaybeUninit<SimpleLinkedListNode<'static, MLFQProcessState>>],
     );
-    type Output = &'static mut MLFQSched<'static, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static mut SchedulerType<A>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let (alarm_buf, sched_buf, proc_nodes) = static_buffer;
@@ -65,14 +79,21 @@ impl<A: 'static + time::Alarm<'static>> Component for MLFQComponent<A> {
 
         let scheduler = static_init_half!(
             sched_buf,
-            MLFQSched<'static, VirtualMuxAlarm<'static, A>>,
-            MLFQSched::new(scheduler_alarm)
+            SchedulerType<A>,
+            MLFQSched::new(
+                scheduler_alarm,
+                [
+                    SimpleLinkedList::new(),
+                    SimpleLinkedList::new(),
+                    SimpleLinkedList::new()
+                ]
+            )
         );
         for (i, node) in proc_nodes.iter_mut().enumerate() {
             let init_node = static_init_half!(
                 node,
-                MLFQProcessNode<'static>,
-                MLFQProcessNode::new(&self.processes[i])
+                SimpleLinkedListNode<'static, MLFQProcessState>,
+                SimpleLinkedListNode::new(MLFQProcessState::new(self.processes[i]))
             );
             scheduler.processes[0].push_head(init_node);
         }

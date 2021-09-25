@@ -20,7 +20,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::adc::Channel;
@@ -79,7 +78,7 @@ struct Hail {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -120,7 +119,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

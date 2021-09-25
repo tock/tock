@@ -23,7 +23,6 @@ use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
@@ -82,7 +81,7 @@ pub struct RaspberryPiPico {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -109,7 +108,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

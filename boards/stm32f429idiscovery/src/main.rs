@@ -15,7 +15,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
@@ -62,7 +61,7 @@ struct STM32F429IDiscovery {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -97,7 +96,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

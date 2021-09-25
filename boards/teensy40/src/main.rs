@@ -19,7 +19,6 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
@@ -46,7 +45,7 @@ struct Teensy40 {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
     >,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -71,7 +70,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

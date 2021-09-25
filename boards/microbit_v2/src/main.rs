@@ -13,7 +13,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -110,7 +109,7 @@ pub struct MicroBit {
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -146,7 +145,7 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

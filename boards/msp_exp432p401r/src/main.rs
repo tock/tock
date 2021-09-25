@@ -15,7 +15,6 @@ use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
@@ -60,7 +59,7 @@ struct MspExp432P401R {
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -70,7 +69,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
     type ContextSwitchCallback = ();

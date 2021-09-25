@@ -27,7 +27,6 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
@@ -141,7 +140,7 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -192,7 +191,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

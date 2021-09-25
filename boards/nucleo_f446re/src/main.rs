@@ -15,7 +15,6 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -63,7 +62,7 @@ struct NucleoF446RE {
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -95,7 +94,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

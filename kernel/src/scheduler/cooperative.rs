@@ -11,47 +11,45 @@
 //! interrupt. However it then continues executing the same userspace process
 //! that was executing.
 
-use crate::collections::list::{List, ListLink, ListNode};
+use core::marker::PhantomData;
+
+use crate::collections::list::{ListNode, SinglyLinkedList};
 use crate::kernel::{Kernel, StoppedExecutingReason};
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
-/// A node in the linked list the scheduler uses to track processes
-pub struct CoopProcessNode<'a> {
-    proc: &'static Option<&'static dyn Process>,
-    next: ListLink<'a, CoopProcessNode<'a>>,
-}
-
-impl<'a> CoopProcessNode<'a> {
-    pub fn new(proc: &'static Option<&'static dyn Process>) -> CoopProcessNode<'a> {
-        CoopProcessNode {
-            proc,
-            next: ListLink::empty(),
-        }
-    }
-}
-
-impl<'a> ListNode<'a, CoopProcessNode<'a>> for CoopProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, CoopProcessNode> {
-        &self.next
-    }
-}
-
 /// Cooperative Scheduler
-pub struct CooperativeSched<'a> {
-    pub processes: List<'a, CoopProcessNode<'a>>,
+pub struct CooperativeSched<
+    'a,
+    N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+    L: SinglyLinkedList<'a, N>,
+> {
+    pub processes: L,
+    _node: PhantomData<&'a N>,
 }
 
-impl<'a> CooperativeSched<'a> {
-    pub const fn new() -> CooperativeSched<'a> {
+impl<
+        'a,
+        N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+        L: SinglyLinkedList<'a, N>,
+    > CooperativeSched<'a, N, L>
+{
+    pub const fn new(processes: L) -> CooperativeSched<'a, N, L> {
         CooperativeSched {
-            processes: List::new(),
+            processes,
+            _node: PhantomData,
         }
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
+impl<
+        'a,
+        C: Chip,
+        N: 'a + ListNode<'a, Content = Option<&'static dyn Process>>,
+        L: SinglyLinkedList<'a, N>,
+    > Scheduler<C> for CooperativeSched<'a, N, L>
+{
     fn next(&self, kernel: &Kernel) -> SchedulingDecision {
         if kernel.processes_blocked() {
             // No processes ready
@@ -63,7 +61,7 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
             // Find next ready process. Place any *empty* process slots, or not-ready
             // processes, at the back of the queue.
             for node in self.processes.iter() {
-                match node.proc {
+                match node {
                     Some(proc) => {
                         if proc.ready() {
                             next = Some(proc.processid());

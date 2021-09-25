@@ -14,7 +14,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -50,7 +49,7 @@ struct SweRVolf {
         'static,
         VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon<'static>>,
     >,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static components::sched::cooperative::SchedulerType,
     scheduler_timer: &'static swerv::eh1_timer::Timer<'static>,
 }
 
@@ -74,7 +73,7 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = components::sched::cooperative::SchedulerType;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
     type ContextSwitchCallback = ();

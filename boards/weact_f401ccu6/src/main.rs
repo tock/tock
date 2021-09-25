@@ -15,7 +15,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f401cc::interrupt_service::Stm32f401ccDefaultPeripherals;
@@ -59,7 +58,7 @@ struct WeactF401CC {
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -88,7 +87,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

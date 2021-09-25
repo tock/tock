@@ -17,7 +17,6 @@ use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -103,7 +102,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static components::sched::round_robin::SchedulerType,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -135,7 +134,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = components::sched::round_robin::SchedulerType;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
