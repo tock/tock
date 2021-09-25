@@ -32,7 +32,8 @@
 //!    hil::flash
 
 use core::cell::Cell;
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -80,7 +81,7 @@ impl KeyHeader {
 
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     mux_kv: &'a MuxKVStore<'a, K, T>,
-    next: ListLink<'a, KVStore<'a, K, T>>,
+    next: Cell<Option<&'a KVStore<'a, K, T>>>,
 
     client: OptionalCell<&'a dyn kv_system::StoreClient<T>>,
 
@@ -95,11 +96,23 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     next_valid_ids: OptionalCell<StoragePermissions>,
 }
 
-impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a, KVStore<'a, K, T>>
+impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a> for KVStore<'a, K, T> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ModifyableListNode<'a>
     for KVStore<'a, K, T>
 {
-    fn next(&self) -> &'a ListLink<KVStore<'a, K, T>> {
-        &self.next
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -111,7 +124,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     ) -> KVStore<'a, K, T> {
         Self {
             mux_kv,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
             next_operation: OptionalCell::empty(),
             hashed_key: TakeCell::new(key),
@@ -507,7 +520,7 @@ pub struct MuxKVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv
     kv: &'a K,
     operation: OptionalCell<Operation>,
     perform_cleanup: Cell<bool>,
-    users: List<'a, KVStore<'a, K, T>>,
+    users: GenericLinkedList<'a, KVStore<'a, K, T>>,
 }
 
 impl<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType>
@@ -518,7 +531,7 @@ impl<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType>
             kv,
             operation: OptionalCell::empty(),
             perform_cleanup: Cell::new(false),
-            users: List::new(),
+            users: GenericLinkedList::new(),
         }
     }
 

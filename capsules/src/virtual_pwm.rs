@@ -20,14 +20,17 @@
 //! virtual_pwm_buzzer.add_to_mux();
 //! ```
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use core::cell::Cell;
+
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     pwm: &'a P,
-    devices: List<'a, PwmPinUser<'a, P>>,
+    devices: GenericLinkedList<'a, PwmPinUser<'a, P>>,
     inflight: OptionalCell<&'a PwmPinUser<'a, P>>,
 }
 
@@ -35,7 +38,7 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
     pub const fn new(pwm: &'a P) -> MuxPwm<'a, P> {
         MuxPwm {
             pwm: pwm,
-            devices: List::new(),
+            devices: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -108,7 +111,7 @@ pub struct PwmPinUser<'a, P: hil::pwm::Pwm> {
     mux: &'a MuxPwm<'a, P>,
     pin: P::Pin,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, PwmPinUser<'a, P>>,
+    next: Cell<Option<&'a PwmPinUser<'a, P>>>,
 }
 
 impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
@@ -117,7 +120,7 @@ impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
             mux: mux,
             pin: pin,
             operation: OptionalCell::empty(),
-            next: ListLink::empty(),
+            next: Cell::new(None),
         }
     }
 
@@ -126,9 +129,21 @@ impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     }
 }
 
-impl<'a, P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P> {
-    fn next(&'a self) -> &'a ListLink<'a, PwmPinUser<'a, P>> {
-        &self.next
+impl<'a, P: hil::pwm::Pwm> ListNode<'a> for PwmPinUser<'a, P> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, P: hil::pwm::Pwm> ModifyableListNode<'a> for PwmPinUser<'a, P> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

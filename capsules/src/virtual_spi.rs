@@ -1,7 +1,9 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
-use kernel::collections::list::{List, ListLink, ListNode};
+
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -14,7 +16,7 @@ use kernel::ErrorCode;
 /// at most one outstanding Spi request.
 pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
     spi: &'a Spi,
-    devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
+    devices: GenericLinkedList<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: OptionalCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -47,7 +49,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     ) -> MuxSpiMaster<'a, Spi> {
         MuxSpiMaster {
             spi: spi,
-            devices: List::new(),
+            devices: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
             deferred_caller: deferred_caller,
             handle: OptionalCell::empty(),
@@ -177,7 +179,7 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
+    next: Cell<Option<&'a VirtualSpiMasterDevice<'a, Spi>>>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 }
 
@@ -197,7 +199,7 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
             txbuffer: TakeCell::empty(),
             rxbuffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         }
     }
@@ -222,11 +224,21 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDev
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
-    for VirtualSpiMasterDevice<'a, Spi>
-{
-    fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
-        &self.next
+impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a> for VirtualSpiMasterDevice<'a, Spi> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, Spi: hil::spi::SpiMaster> ModifyableListNode<'a> for VirtualSpiMasterDevice<'a, Spi> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

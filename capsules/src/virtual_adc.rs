@@ -2,7 +2,10 @@
 //!
 //! Support Single Sample for now.
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use core::cell::Cell;
+
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -10,7 +13,7 @@ use kernel::ErrorCode;
 /// ADC Mux
 pub struct MuxAdc<'a, A: hil::adc::Adc> {
     adc: &'a A,
-    devices: List<'a, AdcDevice<'a, A>>,
+    devices: GenericLinkedList<'a, AdcDevice<'a, A>>,
     inflight: OptionalCell<&'a AdcDevice<'a, A>>,
 }
 
@@ -35,7 +38,7 @@ impl<'a, A: hil::adc::Adc> MuxAdc<'a, A> {
     pub const fn new(adc: &'a A) -> MuxAdc<'a, A> {
         MuxAdc {
             adc: adc,
-            devices: List::new(),
+            devices: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -78,7 +81,7 @@ pub struct AdcDevice<'a, A: hil::adc::Adc> {
     mux: &'a MuxAdc<'a, A>,
     channel: A::Channel,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, AdcDevice<'a, A>>,
+    next: Cell<Option<&'a AdcDevice<'a, A>>>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
@@ -88,7 +91,7 @@ impl<'a, A: hil::adc::Adc> AdcDevice<'a, A> {
             mux: mux,
             channel: channel,
             operation: OptionalCell::empty(),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         };
         adc_user
@@ -99,9 +102,21 @@ impl<'a, A: hil::adc::Adc> AdcDevice<'a, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc> ListNode<'a, AdcDevice<'a, A>> for AdcDevice<'a, A> {
-    fn next(&'a self) -> &'a ListLink<'a, AdcDevice<'a, A>> {
-        &self.next
+impl<'a, A: hil::adc::Adc> ListNode<'a> for AdcDevice<'a, A> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: hil::adc::Adc> ModifyableListNode<'a> for AdcDevice<'a, A> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

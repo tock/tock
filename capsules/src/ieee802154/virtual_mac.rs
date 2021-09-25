@@ -33,7 +33,8 @@ use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::ErrorCode;
 
@@ -42,7 +43,7 @@ use kernel::ErrorCode;
 /// MAC device are sent to all users.
 pub struct MuxMac<'a> {
     mac: &'a dyn device::MacDevice<'a>,
-    users: List<'a, MacUser<'a>>,
+    users: GenericLinkedList<'a, MacUser<'a>>,
     inflight: OptionalCell<&'a MacUser<'a>>,
 }
 
@@ -67,7 +68,7 @@ impl<'a> MuxMac<'a> {
     pub const fn new(mac: &'a dyn device::MacDevice<'a>) -> MuxMac<'a> {
         MuxMac {
             mac: mac,
-            users: List::new(),
+            users: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -191,7 +192,7 @@ enum Op {
 pub struct MacUser<'a> {
     mux: &'a MuxMac<'a>,
     operation: MapCell<Op>,
-    next: ListLink<'a, MacUser<'a>>,
+    next: Cell<Option<&'a MacUser<'a>>>,
     tx_client: Cell<Option<&'a dyn device::TxClient>>,
     rx_client: Cell<Option<&'a dyn device::RxClient>>,
 }
@@ -201,7 +202,7 @@ impl<'a> MacUser<'a> {
         MacUser {
             mux: mux,
             operation: MapCell::new(Op::Idle),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             tx_client: Cell::new(None),
             rx_client: Cell::new(None),
         }
@@ -222,9 +223,21 @@ impl MacUser<'_> {
     }
 }
 
-impl<'a> ListNode<'a, MacUser<'a>> for MacUser<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, MacUser<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for MacUser<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for MacUser<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

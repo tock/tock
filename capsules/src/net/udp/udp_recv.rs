@@ -5,6 +5,8 @@
 //! by the UDP userspace driver, which must correctly check bindings of kernel apps to ensure
 //! correctness when dispatching received packets to the appropriate client.
 
+use core::cell::Cell;
+
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::ipv6::IP6Header;
@@ -12,19 +14,20 @@ use crate::net::udp::driver::UDPDriver;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortBindingRx};
 use crate::net::udp::UDPHeader;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::debug;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 
 pub struct MuxUdpReceiver<'a> {
-    rcvr_list: List<'a, UDPReceiver<'a>>,
+    rcvr_list: GenericLinkedList<'a, UDPReceiver<'a>>,
     driver: OptionalCell<&'static UDPDriver<'static>>,
 }
 
 impl<'a> MuxUdpReceiver<'a> {
     pub fn new() -> MuxUdpReceiver<'a> {
         MuxUdpReceiver {
-            rcvr_list: List::new(),
+            rcvr_list: GenericLinkedList::new(),
             driver: OptionalCell::empty(),
         }
     }
@@ -114,12 +117,24 @@ pub trait UDPRecvClient {
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a dyn UDPRecvClient>,
     binding: MapCell<UdpPortBindingRx>,
-    next: ListLink<'a, UDPReceiver<'a>>,
+    next: Cell<Option<&'a UDPReceiver<'a>>>,
 }
 
-impl<'a> ListNode<'a, UDPReceiver<'a>> for UDPReceiver<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UDPReceiver<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for UDPReceiver<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for UDPReceiver<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -128,7 +143,7 @@ impl<'a> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
             binding: MapCell::empty(),
-            next: ListLink::empty(),
+            next: Cell::new(None),
         }
     }
 

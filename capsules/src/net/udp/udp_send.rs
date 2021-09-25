@@ -25,14 +25,15 @@ use crate::net::udp::UDPHeader;
 use core::cell::Cell;
 
 use kernel::capabilities::UdpDriverCapability;
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::debug;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
-    sender_list: List<'a, UDPSendStruct<'a, T>>,
+    sender_list: GenericLinkedList<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a dyn IP6Sender<'a>,
 }
 
@@ -40,7 +41,7 @@ impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
     pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> MuxUdpSender<'a, T> {
         // similar to UdpSendStruct new()
         MuxUdpSender {
-            sender_list: List::new(),
+            sender_list: GenericLinkedList::new(),
             ip_sender: ip6_sender,
         }
     }
@@ -242,7 +243,7 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     udp_mux_sender: &'a MuxUdpSender<'a, T>,
     client: OptionalCell<&'a dyn UDPSendClient>,
-    next: ListLink<'a, UDPSendStruct<'a, T>>,
+    next: Cell<Option<&'a UDPSendStruct<'a, T>>>,
     tx_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
@@ -251,9 +252,21 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     net_cap: OptionalCell<&'static NetworkCapability>,
 }
 
-impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
-    fn next(&'a self) -> &'a ListLink<'a, UDPSendStruct<'a, T>> {
-        &self.next
+impl<'a, T: IP6Sender<'a>> ListNode<'a> for UDPSendStruct<'a, T> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, T: IP6Sender<'a>> ModifyableListNode<'a> for UDPSendStruct<'a, T> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -351,7 +364,7 @@ impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,
             client: OptionalCell::empty(),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             tx_buffer: MapCell::empty(),
             next_dest: Cell::new(IPAddr::new()),
             next_th: OptionalCell::empty(),

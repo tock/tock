@@ -1,6 +1,8 @@
 // Virtualizer for the RNG
 use core::cell::Cell;
-use kernel::collections::list::{List, ListLink, ListNode};
+
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::rng::{Client, Continue, Rng};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -14,7 +16,7 @@ enum Op {
 // Struct to manage multiple rng requests
 pub struct MuxRngMaster<'a> {
     rng: &'a dyn Rng<'a>,
-    devices: List<'a, VirtualRngMasterDevice<'a>>,
+    devices: GenericLinkedList<'a, VirtualRngMasterDevice<'a>>,
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a>>,
 }
 
@@ -22,7 +24,7 @@ impl<'a> MuxRngMaster<'a> {
     pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a> {
         MuxRngMaster {
             rng: rng,
-            devices: List::new(),
+            devices: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -91,15 +93,27 @@ pub struct VirtualRngMasterDevice<'a> {
     mux: &'a MuxRngMaster<'a>,
 
     // Pointer to next element in the list of devices
-    next: ListLink<'a, VirtualRngMasterDevice<'a>>,
+    next: Cell<Option<&'a VirtualRngMasterDevice<'a>>>,
     client: OptionalCell<&'a dyn Client>,
     operation: Cell<Op>,
 }
 
 // Implement ListNode trait for virtual rng device
-impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
-    fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for VirtualRngMasterDevice<'a> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for VirtualRngMasterDevice<'a> {
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -107,7 +121,7 @@ impl<'a> VirtualRngMasterDevice<'a> {
     pub const fn new(mux: &'a MuxRngMaster<'a>) -> VirtualRngMasterDevice<'a> {
         VirtualRngMasterDevice {
             mux: mux,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),
         }

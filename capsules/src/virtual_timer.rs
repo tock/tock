@@ -3,7 +3,8 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
 use kernel::utilities::cells::{NumericCellExt, OptionalCell};
 use kernel::ErrorCode;
@@ -29,14 +30,26 @@ pub struct VirtualTimer<'a, A: Alarm<'a>> {
     /// Current mode of this timer.
     mode: Cell<Mode>,
     /// Next timer in the list.
-    next: ListLink<'a, VirtualTimer<'a, A>>,
+    next: Cell<Option<&'a VirtualTimer<'a, A>>>,
     /// Timer client for this node in the list.
     client: OptionalCell<&'a dyn time::TimerClient>,
 }
 
-impl<'a, A: Alarm<'a>> ListNode<'a, VirtualTimer<'a, A>> for VirtualTimer<'a, A> {
-    fn next(&self) -> &'a ListLink<VirtualTimer<'a, A>> {
-        &self.next
+impl<'a, A: Alarm<'a>> ListNode<'a> for VirtualTimer<'a, A> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: Alarm<'a>> ModifyableListNode<'a> for VirtualTimer<'a, A> {
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -49,7 +62,7 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
             when: Cell::new(zero),
             interval: Cell::new(zero),
             mode: Cell::new(Mode::Disabled),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         };
         v
@@ -181,7 +194,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualTimer<'a, A> {
 /// Structure to control a set of virtual timers multiplexed together on top of a single alarm.
 pub struct MuxTimer<'a, A: Alarm<'a>> {
     /// Head of the linked list of virtual timers multiplexed together.
-    timers: List<'a, VirtualTimer<'a, A>>,
+    timers: GenericLinkedList<'a, VirtualTimer<'a, A>>,
     /// Number of virtual timers that are currently enabled.
     enabled: Cell<usize>,
     /// Underlying alarm, over which the virtual timers are multiplexed.
@@ -191,7 +204,7 @@ pub struct MuxTimer<'a, A: Alarm<'a>> {
 impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
     pub const fn new(alarm: &'a VirtualMuxAlarm<'a, A>) -> MuxTimer<'a, A> {
         MuxTimer {
-            timers: List::new(),
+            timers: GenericLinkedList::new(),
             enabled: Cell::new(0),
             alarm: alarm,
         }

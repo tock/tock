@@ -3,7 +3,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::digest::{self, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -28,7 +29,7 @@ pub enum Mode {
 
 pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxDigest<'a, A, L>,
-    next: ListLink<'a, VirtualMuxDigest<'a, A, L>>,
+    next: Cell<Option<&'a VirtualMuxDigest<'a, A, L>>>,
     sha_client: OptionalCell<&'a dyn digest::Client<L>>,
     hmac_client: OptionalCell<&'a dyn digest::Client<L>>,
     key: TakeCell<'static, [u8]>,
@@ -40,11 +41,23 @@ pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     id: u32,
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxDigest<'a, A, L>>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a> for VirtualMuxDigest<'a, A, L> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ModifyableListNode<'a>
     for VirtualMuxDigest<'a, A, L>
 {
-    fn next(&self) -> &'a ListLink<VirtualMuxDigest<'a, A, L>> {
-        &self.next
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -58,7 +71,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
 
         VirtualMuxDigest {
             mux: mux_digest,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             sha_client: OptionalCell::empty(),
             hmac_client: OptionalCell::empty(),
             key: TakeCell::new(key),
@@ -430,7 +443,7 @@ pub struct MuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     running: Cell<bool>,
     running_id: Cell<u32>,
     next_id: Cell<u32>,
-    users: List<'a, VirtualMuxDigest<'a, A, L>>,
+    users: GenericLinkedList<'a, VirtualMuxDigest<'a, A, L>>,
 }
 
 impl<
@@ -451,7 +464,7 @@ impl<
             running: Cell::new(false),
             running_id: Cell::new(0),
             next_id: Cell::new(0),
-            users: List::new(),
+            users: GenericLinkedList::new(),
         }
     }
 

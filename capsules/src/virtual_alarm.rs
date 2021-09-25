@@ -3,7 +3,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -39,14 +40,26 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     /// elapsed.
     armed: Cell<bool>,
     /// Next alarm in the list.
-    next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
+    next: Cell<Option<&'a VirtualMuxAlarm<'a, A>>>,
     /// Alarm client for this node in the list.
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
-    fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
-        &self.next
+impl<'a, A: Alarm<'a>> ListNode<'a> for VirtualMuxAlarm<'a, A> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: Alarm<'a>> ModifyableListNode<'a> for VirtualMuxAlarm<'a, A> {
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -62,7 +75,7 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
                 extended: false,
             }),
             armed: Cell::new(false),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         }
     }
@@ -201,7 +214,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
 /// Structure to control a set of virtual alarms multiplexed together on top of a single alarm.
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
     /// Head of the linked list of virtual alarms multiplexed together.
-    virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
+    virtual_alarms: GenericLinkedList<'a, VirtualMuxAlarm<'a, A>>,
     /// Number of virtual alarms that are currently enabled.
     enabled: Cell<usize>,
     /// Underlying alarm, over which the virtual alarms are multiplexed.
@@ -215,7 +228,7 @@ pub struct MuxAlarm<'a, A: Alarm<'a>> {
 impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
     pub const fn new(alarm: &'a A) -> MuxAlarm<'a, A> {
         MuxAlarm {
-            virtual_alarms: List::new(),
+            virtual_alarms: GenericLinkedList::new(),
             enabled: Cell::new(0),
             alarm: alarm,
             firing: Cell::new(false),

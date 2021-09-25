@@ -236,7 +236,8 @@ use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 use core::cell::Cell;
 use core::cmp::min;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::{Frequency, Ticks};
@@ -638,12 +639,24 @@ pub struct RxState<'a> {
     // The time when packet reassembly started for the current packet.
     start_time: Cell<u32>,
 
-    next: ListLink<'a, RxState<'a>>,
+    next: Cell<Option<&'a RxState<'a>>>,
 }
 
-impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
-    fn next(&'a self) -> &'a ListLink<RxState<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for RxState<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for RxState<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -664,7 +677,7 @@ impl<'a> RxState<'a> {
             dgram_size: Cell::new(0),
             busy: Cell::new(false),
             start_time: Cell::new(0),
-            next: ListLink::empty(),
+            next: Cell::new(None),
         }
     }
 
@@ -796,7 +809,7 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
     rx_client: Cell<Option<&'a dyn SixlowpanRxClient>>,
 
     // Receive state
-    rx_states: List<'a, RxState<'a>>,
+    rx_states: GenericLinkedList<'a, RxState<'a>>,
 }
 
 // This function is called after receiving a frame
@@ -873,7 +886,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             tx_dgram_tag: Cell::new(0),
             rx_client: Cell::new(None),
 
-            rx_states: List::new(),
+            rx_states: GenericLinkedList::new(),
         }
     }
 

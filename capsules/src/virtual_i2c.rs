@@ -5,7 +5,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -15,8 +16,8 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 pub struct MuxI2C<'a> {
     i2c: &'a dyn i2c::I2CMaster,
     smbus: Option<&'a dyn i2c::SMBusMaster>,
-    i2c_devices: List<'a, I2CDevice<'a>>,
-    smbus_devices: List<'a, SMBusDevice<'a>>,
+    i2c_devices: GenericLinkedList<'a, I2CDevice<'a>>,
+    smbus_devices: GenericLinkedList<'a, SMBusDevice<'a>>,
     enabled: Cell<usize>,
     i2c_inflight: OptionalCell<&'a I2CDevice<'a>>,
     smbus_inflight: OptionalCell<&'a SMBusDevice<'a>>,
@@ -48,8 +49,8 @@ impl<'a> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
             smbus,
-            i2c_devices: List::new(),
-            smbus_devices: List::new(),
+            i2c_devices: GenericLinkedList::new(),
+            smbus_devices: GenericLinkedList::new(),
             enabled: Cell::new(0),
             i2c_inflight: OptionalCell::empty(),
             smbus_inflight: OptionalCell::empty(),
@@ -214,7 +215,7 @@ pub struct I2CDevice<'a> {
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, I2CDevice<'a>>,
+    next: Cell<Option<&'a I2CDevice<'a>>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
@@ -226,7 +227,7 @@ impl<'a> I2CDevice<'a> {
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         }
     }
@@ -245,9 +246,21 @@ impl I2CClient for I2CDevice<'_> {
     }
 }
 
-impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for I2CDevice<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for I2CDevice<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -311,7 +324,7 @@ pub struct SMBusDevice<'a> {
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, SMBusDevice<'a>>,
+    next: Cell<Option<&'a SMBusDevice<'a>>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
@@ -327,7 +340,7 @@ impl<'a> SMBusDevice<'a> {
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         }
     }
@@ -346,9 +359,21 @@ impl<'a> I2CClient for SMBusDevice<'a> {
     }
 }
 
-impl<'a> ListNode<'a, SMBusDevice<'a>> for SMBusDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for SMBusDevice<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for SMBusDevice<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

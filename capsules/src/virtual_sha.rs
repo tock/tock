@@ -3,7 +3,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil::digest::{self, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -16,7 +17,7 @@ use crate::virtual_digest::{Mode, Operation};
 
 pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxSha<'a, A, L>,
-    next: ListLink<'a, VirtualMuxSha<'a, A, L>>,
+    next: Cell<Option<&'a VirtualMuxSha<'a, A, L>>>,
     client: OptionalCell<&'a dyn digest::Client<L>>,
     data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
     data_len: Cell<usize>,
@@ -26,11 +27,23 @@ pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     id: u32,
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxSha<'a, A, L>>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a> for VirtualMuxSha<'a, A, L> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ModifyableListNode<'a>
     for VirtualMuxSha<'a, A, L>
 {
-    fn next(&self) -> &'a ListLink<VirtualMuxSha<'a, A, L>> {
-        &self.next
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -41,7 +54,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
 
         VirtualMuxSha {
             mux: mux_sha,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
             data: OptionalCell::empty(),
             data_len: Cell::new(0),
@@ -290,7 +303,7 @@ pub struct MuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     running: Cell<bool>,
     running_id: Cell<u32>,
     next_id: Cell<u32>,
-    users: List<'a, VirtualMuxSha<'a, A, L>>,
+    users: GenericLinkedList<'a, VirtualMuxSha<'a, A, L>>,
 }
 
 impl<
@@ -305,7 +318,7 @@ impl<
             running: Cell::new(false),
             running_id: Cell::new(0),
             next_id: Cell::new(0),
-            users: List::new(),
+            users: GenericLinkedList::new(),
         }
     }
 

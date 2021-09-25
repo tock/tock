@@ -82,7 +82,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
@@ -140,7 +141,7 @@ impl CryptFunctionParameters {
 pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     aes: &'a A,
     client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
-    ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
+    ccm_clients: GenericLinkedList<'a, VirtualAES128CCM<'a, A>>,
     inflight: OptionalCell<&'a VirtualAES128CCM<'a, A>>,
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -152,7 +153,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
         MuxAES128CCM {
             aes: aes,
             client: OptionalCell::empty(),
-            ccm_clients: List::new(),
+            ccm_clients: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
             deferred_caller: deferred_caller,
             handle: OptionalCell::empty(),
@@ -246,7 +247,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
 pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     mux: &'a MuxAES128CCM<'a, A>,
     aes: &'a A,
-    next: ListLink<'a, VirtualAES128CCM<'a, A>>,
+    next: Cell<Option<&'a VirtualAES128CCM<'a, A>>>,
 
     crypt_buf: TakeCell<'static, [u8]>,
     crypt_auth_len: Cell<usize>,
@@ -273,7 +274,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         VirtualAES128CCM {
             mux: mux,
             aes: &mux.aes,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
@@ -911,10 +912,24 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
 }
 
 // Fit in the linked list
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> ListNode<'a, VirtualAES128CCM<'a, A>>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> ListNode<'a>
     for VirtualAES128CCM<'a, A>
 {
-    fn next(&'a self) -> &'a ListLink<'a, VirtualAES128CCM<'a, A>> {
-        &self.next
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> ModifyableListNode<'a>
+    for VirtualAES128CCM<'a, A>
+{
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }

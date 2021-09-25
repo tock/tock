@@ -28,7 +28,8 @@
 
 use core::cell::Cell;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -38,7 +39,7 @@ use kernel::ErrorCode;
 /// is another flash user with an outstanding read, write, or erase request.
 pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
     flash: &'a F,
-    users: List<'a, FlashUser<'a, F>>,
+    users: GenericLinkedList<'a, FlashUser<'a, F>>,
     inflight: OptionalCell<&'a FlashUser<'a, F>>,
 }
 
@@ -69,7 +70,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
             flash: flash,
-            users: List::new(),
+            users: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
         }
     }
@@ -135,7 +136,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     mux: &'a MuxFlash<'a, F>,
     buffer: TakeCell<'static, F::Page>,
     operation: Cell<Op>,
-    next: ListLink<'a, FlashUser<'a, F>>,
+    next: Cell<Option<&'a FlashUser<'a, F>>>,
     client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,
 }
 
@@ -145,7 +146,7 @@ impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
             mux: mux,
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
         }
     }
@@ -180,9 +181,21 @@ impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
-    fn next(&'a self) -> &'a ListLink<'a, FlashUser<'a, F>> {
-        &self.next
+impl<'a, F: hil::flash::Flash> ListNode<'a> for FlashUser<'a, F> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a, F: hil::flash::Flash> ModifyableListNode<'a> for FlashUser<'a, F> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 

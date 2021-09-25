@@ -44,7 +44,8 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::collections::list::generic_linked_list::GenericLinkedList;
+use kernel::collections::list::{ListNode, ModifyableListNode, SinglyLinkedList};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -58,7 +59,7 @@ pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 pub struct MuxUart<'a> {
     uart: &'a dyn uart::Uart<'a>,
     speed: u32,
-    devices: List<'a, UartDevice<'a>>,
+    devices: GenericLinkedList<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
     buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
@@ -199,7 +200,7 @@ impl<'a> MuxUart<'a> {
         MuxUart {
             uart: uart,
             speed: speed,
-            devices: List::new(),
+            devices: GenericLinkedList::new(),
             inflight: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             completing_read: Cell::new(false),
@@ -333,7 +334,7 @@ pub struct UartDevice<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, UartDevice<'a>>,
+    next: Cell<Option<&'a UartDevice<'a>>>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
@@ -350,7 +351,7 @@ impl<'a> UartDevice<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             operation: OptionalCell::empty(),
-            next: ListLink::empty(),
+            next: Cell::new(None),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
         }
@@ -397,9 +398,21 @@ impl<'a> uart::ReceiveClient for UartDevice<'a> {
     }
 }
 
-impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UartDevice<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for UartDevice<'a> {
+    type Content = Self;
+
+    fn next(&'a self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for UartDevice<'a> {
+    fn set_next(&'a self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
