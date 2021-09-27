@@ -47,13 +47,19 @@
 #
 # Author: Hudson Ayers <hayers@.stanford.edu>
 
-import subprocess
-import re
-import sys
 import argparse
+import platform
+import re
+import subprocess
+import sys
 
 
-DWARFDUMP = "llvm-dwarfdump"
+if platform.system() == 'Darwin':
+    DWARFDUMP = "dwarfdump"
+elif platform.system() == 'Linux':
+    DWARFDUMP = "llvm-dwarfdump"
+else:
+    raise NotImplementedError("Unknown platform")
 # Note: In practice, GCC objdumps are better at symbol resolution than LLVM objdump
 ARM_OBJDUMP = "arm-none-eabi-objdump"
 RISCV_OBJDUMP = "riscv64-unknown-elf-objdump"
