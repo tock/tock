@@ -408,8 +408,11 @@ pub unsafe fn main() {
         components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None, dynamic_deferred_caller)
             .finalize(components::i2c_mux_component_helper!());
 
-    let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new()
-        .finalize(components::lsm6ds_i2c_component_helper!(mux_i2c));
+    let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
+        board_kernel,
+        capsules::lsm6dsoxtr::DRIVER_NUM,
+    )
+    .finalize(components::lsm6ds_i2c_component_helper!(mux_i2c));
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)

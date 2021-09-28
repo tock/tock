@@ -1,6 +1,6 @@
 //! LSM6DSOXTR sensors
 //!
-//! Author: Cristiana Andrei <cristiana.andrei@stud.fils.upb.ro>
+//! Author: Cristiana Andrei <cristiana.andrei05@gmail.com>
 
 #![allow(non_camel_case_types)]
 
@@ -8,7 +8,6 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 
 use kernel::utilities::registers::register_bitfields;
-//use kernel::common::registers::register_bitfields;
 
 pub const CHIP_ID: u8 = 0x6C;
 pub const ACCELEROMETER_BASE_ADDRESS: u8 = 0x6A;

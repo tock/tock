@@ -1,6 +1,14 @@
 //! LSM6DSOXTR Sensor
 //!
-//! Author: Cristiana Andrei <cristiana.andrei@stud.fils.upb.ro>
+//! Driver for the LSM6DSOXTR 3D accelerometer and 3D gyroscope sensor.
+//!
+//! May be used with NineDof and Temperature
+//!
+//! I2C Interface
+//!
+//! Datasheet: <https://www.digikey.sg/product-detail/en/stmicroelectronics/LSM6DSOXTR/497-18367-1-ND/9841887>
+//!
+//! Author: Cristiana Andrei <cristiana.andrei05@gmail.com>
 
 #![allow(non_camel_case_types)]
 use crate::driver;
@@ -11,7 +19,8 @@ use crate::lsm6ds::{
 };
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
-use kernel::debug;
+use kernel::errorcode::into_statuscode;
+use kernel::grant::Grant;
 use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::hil::sensors::{NineDof, NineDofClient};
@@ -32,6 +41,9 @@ enum State {
     SetPowerModeAccel,
     SetPowerModeGyro,
 }
+#[derive(Default)]
+pub struct App {}
+
 pub struct Lsm6dsoxtrI2C<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
@@ -46,13 +58,16 @@ pub struct Lsm6dsoxtrI2C<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     is_present: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
+    apps: Grant<App, 1>,
+    syscall_process: OptionalCell<ProcessId>,
 }
 
-#[derive(Default)]
-pub struct App {}
-
 impl<'a> Lsm6dsoxtrI2C<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> Lsm6dsoxtrI2C<'a> {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CDevice,
+        buffer: &'static mut [u8],
+        grant: Grant<App, 1>,
+    ) -> Lsm6dsoxtrI2C<'a> {
         Lsm6dsoxtrI2C {
             i2c: i2c,
             state: Cell::new(State::Idle),
@@ -67,6 +82,8 @@ impl<'a> Lsm6dsoxtrI2C<'a> {
             temperature_client: OptionalCell::empty(),
             is_present: Cell::new(false),
             buffer: TakeCell::new(buffer),
+            apps: grant,
+            syscall_process: OptionalCell::empty(),
         }
     }
 
@@ -109,7 +126,6 @@ impl<'a> Lsm6dsoxtrI2C<'a> {
                     self.i2c.disable();
                     Err(error.into())
                 } else {
-                    //self.buffer.replace(buf);
                     Ok(())
                 }
             })
@@ -243,30 +259,43 @@ impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
-                if status == Ok(()) && buffer[0] == 108 {
-                    debug!("is present ");
+                let id = buffer[0];
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                self.state.set(State::Idle);
+                if status == Ok(()) && id == 108 {
                     self.is_present.set(true);
-                    self.buffer.replace(buffer);
-                    self.i2c.disable();
-                    self.state.set(State::Idle);
-
-                    if status == Ok(()) {
-                        if self.config_in_progress.get() {
-                            if let Err(_error) = self.set_accelerometer_power_mode(
-                                self.accel_data_rate.get(),
-                                self.low_power.get(),
-                            ) {
-                                self.config_in_progress.set(false);
-                            }
+                    if self.config_in_progress.get() {
+                        if let Err(_error) = self.set_accelerometer_power_mode(
+                            self.accel_data_rate.get(),
+                            self.low_power.get(),
+                        ) {
+                            self.config_in_progress.set(false);
                         }
                     }
+                } else {
+                    self.is_present.set(false);
+                    self.config_in_progress.set(false);
                 }
+
+                self.syscall_process.take().map(|pid| {
+                    let _res = self.apps.enter(pid, |_app, upcalls| {
+                        upcalls
+                            .schedule_upcall(
+                                0,
+                                (
+                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                    if self.is_present.get() { 1 } else { 0 },
+                                    0,
+                                ),
+                            )
+                            .ok();
+                    });
+                });
             }
             State::Idle => {
-                if status != Ok(()) {
-                    //status; // Err(status.into)? statusul in sine poate fi de tip i2c::Error
-                }
-            } //should never get here
+                //should never get here
+            }
             State::ReadAccelerationXYZ => {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
@@ -361,7 +390,23 @@ impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
                             self.config_in_progress.set(false);
                         }
                     }
+                } else {
+                    self.config_in_progress.set(false);
                 }
+                self.syscall_process.take().map(|pid| {
+                    let _res = self.apps.enter(pid, |_app, upcalls| {
+                        upcalls
+                            .schedule_upcall(
+                                0,
+                                (
+                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                    if status == Ok(()) { 1 } else { 0 },
+                                    0,
+                                ),
+                            )
+                            .ok();
+                    });
+                });
             }
 
             State::SetPowerModeGyro => {
@@ -369,6 +414,20 @@ impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
                 self.config_in_progress.set(false);
+                self.syscall_process.take().map(|pid| {
+                    let _res = self.apps.enter(pid, |_app, upcalls| {
+                        upcalls
+                            .schedule_upcall(
+                                0,
+                                (
+                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                    if status == Ok(()) { 1 } else { 0 },
+                                    0,
+                                ),
+                            )
+                            .ok();
+                    });
+                });
             }
         }
     }
@@ -380,7 +439,7 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        _process_id: ProcessId,
+        process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
             // Handle this first as it should be returned
@@ -389,17 +448,22 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
         }
 
         match command_num {
-            // Check is sensor is correctly connected
+            // Check if the sensor is correctly connected
             1 => {
                 if self.state.get() == State::Idle {
                     match self.send_is_present() {
-                        Ok(()) => CommandReturn::success(),
+                        Ok(()) => {
+                            self.syscall_process.set(process_id);
+                            CommandReturn::success()
+                        }
                         Err(error) => CommandReturn::failure(error),
                     }
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
+
+            //Set Accelerometer Power Mode
 
             2 => {
                 if self.state.get() == State::Idle {
@@ -408,16 +472,22 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
                             data_rate,
                             if data2 != 0 { true } else { false },
                         ) {
-                            Ok(()) => CommandReturn::success(),
+                            Ok(()) => {
+                                self.syscall_process.set(process_id);
+                                CommandReturn::success()
+                            }
                             Err(error) => CommandReturn::failure(error),
                         }
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
+
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
+
+            //Set Gyroscope Power Mode
 
             3 => {
                 if self.state.get() == State::Idle {
@@ -426,7 +496,10 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
                             data_rate,
                             if data2 != 0 { true } else { false },
                         ) {
-                            Ok(()) => CommandReturn::success(),
+                            Ok(()) => {
+                                self.syscall_process.set(process_id);
+                                CommandReturn::success()
+                            }
                             Err(error) => CommandReturn::failure(error),
                         }
                     } else {
@@ -440,8 +513,8 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
-    fn allocate_grant(&self, _: ProcessId) -> Result<(), kernel::process::Error> {
-        Ok(())
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }
 
