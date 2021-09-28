@@ -80,7 +80,8 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         // debug entries.
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
-            tx_buffer.copy_from_slice(MESSAGE);
+            tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
+
             let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
                 |(_, returned_buffer)| {
                     self.buffer.set(Some(returned_buffer));
