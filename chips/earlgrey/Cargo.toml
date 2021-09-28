@@ -2,7 +2,7 @@
 name = "earlgrey"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2018"
+edition = "2021"
 
 [features]
 # Compiling this crate requires enabling one of these features, otherwise
