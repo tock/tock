@@ -667,7 +667,7 @@ impl<
                 }
             }
 
-            // veryify
+            // verify
             // Use key and data to compute hash and comapre it against
             // the digest
             4 => {
