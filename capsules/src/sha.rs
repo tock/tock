@@ -24,6 +24,7 @@
 //! ```
 
 use crate::driver;
+use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 
@@ -168,13 +169,28 @@ impl<
 
         Ok(())
     }
+
+    fn verify_digest(&self) -> Result<(), ErrorCode> {
+        self.data_copied.set(0);
+
+        if let Err(e) = self.sha.verify(self.dest_buffer.take().unwrap()) {
+            // Error, clear the appid and data
+            self.sha.clear_data();
+            self.appid.clear();
+            self.dest_buffer.replace(e.1);
+
+            return Err(e.0);
+        }
+
+        Ok(())
+    }
 }
 
 impl<
         'a,
         H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::Client<'a, L> for ShaDriver<'a, H, L>
+    > digest::ClientData<'a, L> for ShaDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -255,10 +271,31 @@ impl<
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
                             upcalls
-                                .schedule_upcall(
-                                    0,
-                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                )
+                                .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
+                                .ok();
+                        }
+                    } else if app.op.get().unwrap() == UserSpaceOp::Verify {
+                        let _ = app.compare.enter(|compare| {
+                            let mut static_buffer_len = 0;
+                            self.dest_buffer.map(|buf| {
+                                // Determine the size of the static buffer we have
+                                static_buffer_len = buf.len();
+
+                                if static_buffer_len > compare.len() {
+                                    static_buffer_len = compare.len()
+                                }
+
+                                self.data_copied.set(static_buffer_len);
+
+                                // Copy the data into the static buffer
+                                compare[..static_buffer_len]
+                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                            });
+                        });
+
+                        if let Err(e) = self.verify_digest() {
+                            upcalls
+                                .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else {
@@ -276,7 +313,14 @@ impl<
 
         self.check_queue();
     }
+}
 
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
+    > digest::ClientHash<'a, L> for ShaDriver<'a, H, L>
+{
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
@@ -298,14 +342,7 @@ impl<
                     match result {
                         Ok(_) => upcalls.schedule_upcall(0, (0, pointer as usize, 0)).ok(),
                         Err(e) => upcalls
-                            .schedule_upcall(
-                                0,
-                                (
-                                    kernel::errorcode::into_statuscode(e.into()),
-                                    pointer as usize,
-                                    0,
-                                ),
-                            )
+                            .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0))
                             .ok(),
                     };
 
@@ -323,6 +360,41 @@ impl<
 
         self.check_queue();
         self.dest_buffer.replace(digest);
+    }
+}
+
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
+    > digest::ClientVerify<'a, L> for ShaDriver<'a, H, L>
+{
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+        self.appid.map(|id| {
+            self.apps
+                .enter(*id, |_app, upcalls| {
+                    self.sha.clear_data();
+
+                    match result {
+                        Ok(equal) => upcalls.schedule_upcall(1, (0, equal as usize, 0)),
+                        Err(e) => upcalls.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
+                    }
+                    .ok();
+
+                    // Clear the current appid as it has finished running
+                    self.appid.clear();
+                })
+                .map_err(|err| {
+                    if err == kernel::process::Error::NoSuchApp
+                        || err == kernel::process::Error::InactiveApp
+                    {
+                        self.appid.clear();
+                    }
+                })
+        });
+
+        self.check_queue();
+        self.dest_buffer.replace(compare);
     }
 }
 
@@ -370,6 +442,15 @@ impl<
                 .apps
                 .enter(appid, |app, _| {
                     mem::swap(&mut app.data, &mut slice);
+                    Ok(())
+                })
+                .unwrap_or(Err(ErrorCode::FAIL)),
+
+            // Compare buffer for verify
+            2 => self
+                .apps
+                .enter(appid, |app, _| {
+                    mem::swap(&mut app.compare, &mut slice);
                     Ok(())
                 })
                 .unwrap_or(Err(ErrorCode::FAIL)),
@@ -573,10 +654,86 @@ impl<
                         .enter(appid, |_app, upcalls| {
                             if let Err(e) = self.calculate_digest() {
                                 upcalls
-                                    .schedule_upcall(
-                                        0,
-                                        (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                    )
+                                    .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
+                                    .ok();
+                            }
+                        })
+                        .unwrap();
+                    CommandReturn::success()
+                } else {
+                    // We don't queue this request, the user has to call
+                    // `update` first.
+                    CommandReturn::failure(ErrorCode::OFF)
+                }
+            }
+
+            // verify
+            // Use key and data to compute hash and comapre it against
+            // the digest
+            4 => {
+                if match_or_empty_or_nonexistant {
+                    self.appid.set(appid);
+                    let _ = self.apps.enter(appid, |app, _| {
+                        app.op.set(Some(UserSpaceOp::Verify));
+                    });
+                    let ret = self.run();
+
+                    if let Err(e) = ret {
+                        self.sha.clear_data();
+                        self.appid.clear();
+                        self.check_queue();
+                        CommandReturn::failure(e)
+                    } else {
+                        CommandReturn::success()
+                    }
+                } else {
+                    // There is an active app, so queue this request (if possible).
+                    self.apps
+                        .enter(appid, |app, _| {
+                            // Some app is using the storage, we must wait.
+                            if app.pending_run_app.is_some() {
+                                // No more room in the queue, nowhere to store this
+                                // request.
+                                CommandReturn::failure(ErrorCode::NOMEM)
+                            } else {
+                                // We can store this, so lets do it.
+                                app.pending_run_app = Some(appid);
+                                app.op.set(Some(UserSpaceOp::Verify));
+                                CommandReturn::success()
+                            }
+                        })
+                        .unwrap_or_else(|err| err.into())
+                }
+            }
+
+            // verify_finish
+            // Use key and data to compute hash and comapre it against
+            // the digest, useful after a update command
+            5 => {
+                if app_match {
+                    self.apps
+                        .enter(appid, |app, upcalls| {
+                            let _ = app.compare.enter(|compare| {
+                                let mut static_buffer_len = 0;
+                                self.dest_buffer.map(|buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
+
+                                    if static_buffer_len > compare.len() {
+                                        static_buffer_len = compare.len()
+                                    }
+
+                                    self.data_copied.set(static_buffer_len);
+
+                                    // Copy the data into the static buffer
+                                    compare[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                });
+                            });
+
+                            if let Err(e) = self.verify_digest() {
+                                upcalls
+                                    .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                     .ok();
                             }
                         })
@@ -603,6 +760,7 @@ impl<
 enum UserSpaceOp {
     Run,
     Update,
+    Verify,
 }
 
 #[derive(Default)]
@@ -612,4 +770,5 @@ pub struct App {
     op: Cell<Option<UserSpaceOp>>,
     data: ReadOnlyProcessBuffer,
     dest: ReadWriteProcessBuffer,
+    compare: ReadOnlyProcessBuffer,
 }
