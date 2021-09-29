@@ -665,13 +665,23 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
                         } else {
                             (16, 0x0000_FFFF)
                         };
+                        // Fully clear the PMP config
                         csr::CSR.pmpconfig_set(
                             x / 2,
-                            (disable_val | cfg_val << 8) << region_shift
+                            (disable_val << region_shift)
                                 | (csr::CSR.pmpconfig_get(x / 2) & other_region_mask),
                         );
+
+                        // Set the address *before* we enable the config
+                        // Otherwise this could take effect and block the kernel from running
                         csr::CSR.pmpaddr_set(x * 2, (start) >> 2);
                         csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+
+                        // Enable the configs
+                        csr::CSR.pmpconfig_set(
+                            x / 2,
+                            (cfg_val << 8) << region_shift | (csr::CSR.pmpconfig_get(x / 2)),
+                        );
                     }
                     None => {}
                 };
