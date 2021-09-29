@@ -291,8 +291,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // In asm!() we can't use the shorthand `li` pseudo-instruction, as it
           // complains about _return_to_kernel (100) not being a constant in the
           // required range.
-          lui  t0, %hi(100)
-          addi t0, t0, %lo(100)
+          lui  t0, %hi(100f)
+          addi t0, t0, %lo(100f)
           sw   t0, 2*4(sp)
 
           csrw 0x340, sp      // Save stack pointer in mscratch. This allows
