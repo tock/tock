@@ -1,7 +1,7 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::hil::digest::{self, Digest, HMACSha256};
+use kernel::hil::digest::{self, Digest, DigestData, DigestVerify, HMACSha256};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::{debug, ErrorCode};
 
@@ -33,20 +33,24 @@ impl<'a> HmacTestCallback {
     }
 }
 
-impl<'a> digest::Client<'a, 32> for HmacTestCallback {
+impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
         self.add_data_done.set(true);
         assert_eq!(result, Ok(()));
     }
+}
 
+impl<'a> digest::ClientHash<'a, 32> for HmacTestCallback {
     fn hash_done(&'a self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
         unimplemented!()
     }
+}
 
+impl<'a> digest::ClientVerify<'a, 32> for HmacTestCallback {
     fn verification_done(
         &'a self,
         result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; 32],
+        _compare: &'static mut [u8; 32],
     ) {
         self.verification_done.set(true);
         assert_eq!(result, Ok(true));
@@ -65,6 +69,7 @@ fn hmac_check_load_binary() {
     run_kernel_op(100);
 
     hmac.set_client(&CALLBACK);
+    CALLBACK.reset();
     assert_eq!(hmac.add_data(buf), Ok(32));
 
     run_kernel_op(1000);
@@ -86,12 +91,14 @@ fn hmac_check_verify() {
     run_kernel_op(100);
 
     hmac.set_client(&CALLBACK);
+    CALLBACK.reset();
     hmac.set_mode_hmacsha256(&KEY).unwrap();
     assert_eq!(hmac.add_data(buf), Ok(32));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
     assert_eq!(CALLBACK.add_data_done.get(), true);
+    CALLBACK.reset();
 
     unsafe {
         assert_eq!(hmac.verify(&mut DIGEST), Ok(()));
