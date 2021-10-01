@@ -2,7 +2,7 @@
 //!
 //! <https://docs.opentitan.org/hw/ip/csrng/doc>
 
-use kernel::hil::entropy::{Client32, Entropy32};
+use kernel::hil::entropy::{Client32, Continue, Entropy32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
@@ -46,9 +46,12 @@ register_bitfields![u32,
     ],
     CTRL [
         ENABLE OFFSET(0) NUMBITS(4) [
-            ENABLE = 1,
+            ENABLE = 0xA,
         ],
-        SW_APP_ENABLE OFFSET(4) NUMBITS(4) [],
+        SW_APP_ENABLE OFFSET(4) NUMBITS(4) [
+            ENABLE = 0xA,
+        ],
+        READ_INT_STATE OFFSET(4) NUMBITS(4) [],
     ],
     COMMAND [
         ACMD OFFSET(0) NUMBITS(4) [
@@ -80,7 +83,12 @@ impl Iterator for CsRngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        Some(self.0.registers.genbits.get())
+        let ret = self.0.registers.genbits.get();
+        if ret == 0 {
+            None
+        } else {
+            Some(ret)
+        }
     }
 }
 
@@ -136,9 +144,18 @@ impl<'a> CsRng<'a> {
         }
 
         if irqs.is_set(INTR::CMD_REQ_DONE) {
-            self.client.map(move |client| {
-                client.entropy_available(&mut CsRngIter(self), Ok(()));
-            });
+            if self
+                .client
+                .map(move |client| client.entropy_available(&mut CsRngIter(self), Ok(())))
+                == Some(Continue::More)
+            {
+                // We need more
+                if let Err(e) = self.get() {
+                    self.client.map(move |client| {
+                        client.entropy_available(&mut (0..0), Err(e));
+                    });
+                }
+            }
         }
     }
 }
@@ -156,15 +173,22 @@ impl<'a> Entropy32<'a> for CsRng<'a> {
             return Err(ErrorCode::FAIL);
         }
 
-        self.registers.ctrl.write(CTRL::ENABLE::ENABLE);
-        self.enable_interrupts();
+        self.registers
+            .ctrl
+            .write(CTRL::ENABLE::ENABLE + CTRL::SW_APP_ENABLE::ENABLE);
 
         self.registers
             .cmd_req
             .write(COMMAND::ACMD::INSTANTIATE + COMMAND::CLEN.val(0));
+        while !self.registers.sw_cmd_sts.is_set(SW_CMD_STS::CMD_RDY) {}
+
+        self.disable_interrupts();
+        self.enable_interrupts();
+
+        // Get 256 bits of entropy
         self.registers
             .cmd_req
-            .write(COMMAND::ACMD::GENERATE + COMMAND::GLEN.val(0x8));
+            .write(COMMAND::ACMD::GENERATE + COMMAND::GLEN.val(0x2));
 
         Ok(())
     }
