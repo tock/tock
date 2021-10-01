@@ -733,9 +733,15 @@ pub unsafe fn main() {
             ));
 
     // PROCESS CONSOLE
-    let _process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f412g::tim2::Tim2
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
@@ -769,7 +775,6 @@ pub unsafe fn main() {
     // debug!("id {}", base_peripherals.fsmc.read(0x05));
 
     debug!("Initialization complete. Entering main loop");
-    let _ = _process_console.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

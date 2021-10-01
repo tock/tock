@@ -482,9 +482,14 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //---------------------------------------------------------------------------
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, lpuart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        lpuart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        imxrt1050::gpt::Gpt1
+    ));
     let _ = process_console.start();
 
     debug!("Tock OS initialization complete. Entering main loop");

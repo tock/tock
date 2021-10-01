@@ -699,9 +699,14 @@ pub unsafe fn main() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        nrf52840::rtc::Rtc
+    ));
     let _ = pconsole.start();
 
     //--------------------------------------------------------------------------

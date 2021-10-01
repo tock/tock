@@ -127,6 +127,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
@@ -364,9 +365,14 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(());
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        nrf52::rtc::Rtc<'static>
+    ));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
