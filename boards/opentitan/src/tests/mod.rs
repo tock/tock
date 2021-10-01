@@ -51,5 +51,6 @@ mod csrng;
 mod hmac;
 mod multi_alarm;
 mod otbn;
+mod rsa;
 mod sip_hash;
 mod tickv_test;
