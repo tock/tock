@@ -61,7 +61,7 @@
 //!     SomeCapsule::new(dynamic_deferred_call)
 //! ) };
 //! some_capsule.set_deferred_call_handle(
-//!     dynamic_deferred_call.register(some_capsule).expect("no deferred call slot available")
+//!     dynamic_deferred_call.register(some_capsule).unwrap() // Unwrap fail = no deferred call slot available
 //! );
 //! ```
 

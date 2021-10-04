@@ -344,9 +344,7 @@ pub unsafe fn main() {
     );
     base_peripherals.ecb.set_client(aes_mux);
     aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(aes_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(

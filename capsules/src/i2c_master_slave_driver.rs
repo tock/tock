@@ -326,7 +326,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
         } else {
             return CommandReturn::failure(ErrorCode::NOMEM);
         }
-        let app = self.app.expect("cannot fail");
+        let app = self.app.unwrap_or_panic(); // Unwrap fail = cannot fail
 
         match command_num {
             // Do a write to another I2C device

@@ -80,9 +80,7 @@ impl Component for I2CMuxComponent {
         );
 
         mux_i2c.initialize_callback_handle(
-            self.deferred_caller
-                .register(mux_i2c)
-                .expect("no deferred call slot available for I2C mux"),
+            self.deferred_caller.register(mux_i2c).unwrap(), // Unwrap fail = no deferred call slot available for I2C mux
         );
 
         self.i2c.set_master_client(mux_i2c);

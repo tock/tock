@@ -398,9 +398,7 @@ unsafe fn setup() -> (
     peripherals.i2c0.set_master_client(i2c_master);
 
     peripherals.aes.initialise(
-        dynamic_deferred_caller
-            .register(&peripherals.aes)
-            .expect("dynamic deferred caller out of slots"),
+        dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
     // USB support is currently broken in the OpenTitan hardware
@@ -462,9 +460,7 @@ unsafe fn setup() -> (
         .finalize(otbn_mux_component_helper!(1024));
 
     peripherals.otbn.initialise(
-        dynamic_deferred_caller
-            .register(&peripherals.otbn)
-            .expect("dynamic deferred caller out of slots"),
+        dynamic_deferred_caller.register(&peripherals.otbn).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
     // Convert hardware RNG to the Random interface.
@@ -494,9 +490,7 @@ unsafe fn setup() -> (
     );
     peripherals.aes.set_client(ccm_mux);
     ccm_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(ccm_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(ccm_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
 
     let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);

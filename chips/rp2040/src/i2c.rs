@@ -326,7 +326,7 @@ impl<'a> I2c<'a> {
         let freq_in = self
             .clocks
             .map(|clocks| clocks.get_frequency(clocks::Clock::System))
-            .expect("You should call resolve_dependencies before set_baudrate.");
+            .unwrap(); // Unwrap fail = You should call resolve_dependencies before set_baudrate.
 
         // TODO: as per the comments in the pico-sdk, this block is not 100% correct
         let period = (freq_in + baudrate / 2) / baudrate;
@@ -485,7 +485,7 @@ impl<'a> I2c<'a> {
         let byte = self
             .buf
             .map_or(None, |buf| Some(buf[idx as usize]))
-            .expect("I2C buffer was not set before a write.");
+            .unwrap(); // Unwrap fail = I2C buffer was not set before a write.
 
         let data_cmd = IC_DATA_CMD::DAT.val(byte as u32) + IC_DATA_CMD::RESTART::CLEAR;
         let data_cmd = {

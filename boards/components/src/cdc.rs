@@ -116,9 +116,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
         );
         self.usb.set_client(cdc);
         cdc.initialize_callback_handle(
-            self.deferred_caller
-                .register(cdc)
-                .expect("no deferred call slot available for USB-CDC"),
+            self.deferred_caller.register(cdc).unwrap(), // Unwrap fail = no deferred call slot available for USB-CDC
         );
         cdc_alarm.set_alarm_client(cdc);
 

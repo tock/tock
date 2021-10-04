@@ -344,9 +344,7 @@ pub unsafe fn main() {
         )
     );
     uart0.initialize(
-        dynamic_deferred_caller
-            .register(uart0)
-            .expect("dynamic deferred caller out of slots"),
+        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
     PANIC_REFERENCES.uart = Some(uart0);

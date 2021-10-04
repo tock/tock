@@ -9,7 +9,7 @@
 //!     peripherals.otbn.initialise(
 //!         dynamic_deferred_caller
 //!             .register(&peripherals.otbn)
-//!             .expect("dynamic deferred caller out of slots"),
+//!             .unwrap(), // Unwrap fail = dynamic deferred caller out of slots
 //!     );
 //! ```
 

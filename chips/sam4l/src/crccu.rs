@@ -371,7 +371,7 @@ impl Crccu<'_> {
         // client
         let result = post_process(
             self.registers.sr.read(Status::CRC),
-            self.algorithm.expect("crccu deferred call: no algorithm"),
+            self.algorithm.unwrap_or_panic(), // Unwrap fail = crccu deferred call: no algorithm
         );
 
         // Reset the internal CRC state such that the next call to

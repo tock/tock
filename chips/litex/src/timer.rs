@@ -387,7 +387,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
         // at least once (even if the alarm time has already passed).
 
         let reference = self.reference_time.get();
-        let alarm_time = self.alarm_time.expect("alarm not set");
+        let alarm_time = self.alarm_time.unwrap_or_panic(); // Unwrap fail = alarm not set
 
         if !self.now().within_range(reference, alarm_time) {
             // It's time, ring the alarm

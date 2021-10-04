@@ -60,7 +60,7 @@
 //!         )
 //!     );
 //!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
-//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).expect("no deferred call slot available for log storage"));
+//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).unwrap()); // Unwrap fail = no deferred call slot available for log storage
 //!
 //!     log.set_read_client(log_storage_read_client);
 //!     log.set_append_client(log_storage_append_client);

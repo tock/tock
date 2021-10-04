@@ -469,13 +469,14 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
     fn call(&self, _handle: DeferredCallHandle) {
         let _ = self
             .apps
-            .enter(self.saved_appid.expect("missing appid"), |_app, upcalls| {
+            .enter(self.saved_appid.unwrap_or_panic(), |_app, upcalls| {
+                // Unwrap fail = missing appid
                 upcalls
                     .schedule_upcall(
                         1,
                         (
                             kernel::errorcode::into_statuscode(
-                                self.saved_result.expect("missing result"),
+                                self.saved_result.unwrap_or_panic(), // Unwrap fail = missing result
                             ),
                             0,
                             0,

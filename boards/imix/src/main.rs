@@ -529,9 +529,7 @@ pub unsafe fn main() {
     );
     peripherals.aes.set_client(aes_mux);
     aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(aes_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
 
     // Can this initialize be pushed earlier, or into component? -pal

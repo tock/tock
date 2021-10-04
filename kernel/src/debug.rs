@@ -376,7 +376,7 @@ unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
 }
 
 unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    try_get_debug_writer().expect("Must call `set_debug_writer_wrapper` in board initialization.")
+    try_get_debug_writer().unwrap() // Unwrap fail = Must call `set_debug_writer_wrapper` in board initialization.
 }
 
 /// Function used by board main.rs to set a reference to the writer.
