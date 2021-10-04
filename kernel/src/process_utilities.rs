@@ -253,13 +253,14 @@ pub fn load_processes_advanced<C: Chip>(
             };
             process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
+                    let addresses = process.get_addresses();
                     debug!(
                         "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
                         index,
                         entry_flash.as_ptr() as usize,
                         entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                        process.mem_start() as usize,
-                        process.mem_end() as usize - 1,
+                        addresses.sram_start,
+                        addresses.sram_end - 1,
                         process.get_process_name()
                     );
                 }
