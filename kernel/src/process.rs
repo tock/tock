@@ -162,9 +162,8 @@ impl ProcessId {
     /// or any space that the kernel is using for any potential bookkeeping.
     pub fn get_editable_flash_range(&self) -> (usize, usize) {
         self.kernel.process_map_or((0, 0), *self, |process| {
-            let start = process.flash_non_protected_start() as usize;
-            let end = process.flash_end() as usize;
-            (start, end)
+            let addresses = process.get_addresses();
+            (addresses.flash_non_protected_start, addresses.flash_end)
         })
     }
 }
@@ -292,22 +291,6 @@ pub trait Process {
     /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
-    /// The start address of allocated RAM for this process.
-    fn mem_start(&self) -> *const u8;
-
-    /// The first address after the end of the allocated RAM for this process.
-    fn mem_end(&self) -> *const u8;
-
-    /// The start address of the flash region allocated for this process.
-    fn flash_start(&self) -> *const u8;
-
-    /// The first address after the end of the flash region allocated for this
-    /// process.
-    fn flash_end(&self) -> *const u8;
-
-    /// The lowest address of the grant region for the process.
-    fn kernel_memory_break(&self) -> *const u8;
-
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
     fn number_writeable_flash_regions(&self) -> usize;
@@ -324,12 +307,6 @@ pub trait Process {
     /// Debug function to update the kernel on where the process heap starts.
     /// Also optional.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
-
-    // additional memop like functions
-
-    /// Return the highest address the process has access to, or the current
-    /// process memory brk.
-    fn app_memory_break(&self) -> *const u8;
 
     /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
     /// process memory.
@@ -387,12 +364,6 @@ pub trait Process {
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
-
-    /// Get the first address of process's flash that isn't protected by the
-    /// kernel. The protected range of flash contains the TBF header and
-    /// potentially other state the kernel is storing on behalf of the process,
-    /// and cannot be edited by the process.
-    fn flash_non_protected_start(&self) -> *const u8;
 
     // mpu
 
@@ -581,15 +552,6 @@ pub trait Process {
     /// Return the last syscall the process called. Returns `None` if the
     /// process has not called any syscalls or the information is unknown.
     fn debug_syscall_last(&self) -> Option<Syscall>;
-
-    /// Return the address of the start of the process heap, if known.
-    fn debug_heap_start(&self) -> Option<*const u8>;
-
-    /// Return the address of the start of the process stack, if known.
-    fn debug_stack_start(&self) -> Option<*const u8>;
-
-    /// Return the lowest recorded address of the process stack, if known.
-    fn debug_stack_end(&self) -> Option<*const u8>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
