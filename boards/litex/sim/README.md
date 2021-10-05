@@ -5,26 +5,39 @@ This board is targeting a
 [verilated](https://www.veripool.org/wiki/verilator) SoC bitstream
 built using [LiteX](https://github.com/enjoy-digital/litex).
 
-Since LiteX is a SoC builder, the individual generated bitstreams can
-differ significantly depending on the release and configuration
-options used. This board definition currently targets and has been
-tested with
+Since LiteX is a SoC builder, the individual generated SoCs can differ
+significantly depending on the release and configuration options
+used. This board definition currently targets and has been tested with
 - [the LiteX SoC generator, revision
-  e0d5a7bff5](https://github.com/enjoy-digital/litex/tree/e0d5a7bff55923)
+  c43132f81f1113](https://github.com/enjoy-digital/litex/tree/c43132f81f1113)
 - using the included
-  [lxsim](https://github.com/enjoy-digital/litex/blob/e0d5a7bff55923/litex/tools/litex_sim.py)
-- built around a VexRiscv-CPU
+  [`litex_sim`](https://github.com/enjoy-digital/litex/blob/c43132f81f1113/litex/tools/litex_sim.py)
+- built around a VexRiscv-CPU with PMP, hardware multiplication and
+  compressed instruction support (named `TockSecureIMC`)
 - featuring a TIMER0 with 64-bit wide hardware uptime
-- along with the following configuration options:
+- using the following configuration options:
 
   ```
   --csr-data-width=32
   --integrated-rom-size=0x100000
-  --cpu-variant=secure
+  --integrated-main-ram-size=0x10000000
+  --cpu-variant=tock+secure+imc
   --with-ethernet
   --timer-uptime
+  --with-gpio
   --rom-init $PATH_TO_TOCK_BINARY
   ```
+
+The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
+build infrastructure in
+[pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv),
+which is patched to introduce a CPU with physical memory protection,
+hardware multiplication and compressed instruction support (such that
+it is compatible with the `rv32imc` arch).
+
+The [`tock-litex`](https://github.com/lschuermann/tock-litex)
+repository contains helpful instructions for how to set up the local
+LiteX development and simulation environment.
 
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in
@@ -37,7 +50,7 @@ CSR locations in memory. The companion repository
 [tock-litex](https://github.com/lschuermann/tock-litex) provides
 access to an environment with the required LiteX Python packages in
 their targeted versions. This board currently targets the release
-[2021081101](https://github.com/lschuermann/tock-litex/releases/tag/2021081101)
+[2021100501](https://github.com/lschuermann/tock-litex/releases/tag/2021100501)
 of `tock-litex`.
 
 
