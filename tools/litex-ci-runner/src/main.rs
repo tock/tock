@@ -93,7 +93,8 @@ where
             --with-gpio \
             --rom-init {} \
             --non-interactive \
-            --with-simctrl",
+            --with-simctrl \
+            --no-compile-software",
             flash_file.to_string_lossy(),
         ),
         // The initial build might take a while, which is why we're
