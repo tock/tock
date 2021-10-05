@@ -35,7 +35,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::convert::TryInto;
 use kernel::hil;
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -121,9 +120,9 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
 
                 match self.driver.read_page(address / page_size, pagebuffer) {
                     Ok(()) => Ok(()),
-                    Err((return_code, pagebuffer)) => {
+                    Err((error_code, pagebuffer)) => {
                         self.pagebuffer.replace(pagebuffer);
-                        Err(return_code.try_into().unwrap()) // Unwrap fail = Result<(), ErrorCode> success variant in error case
+                        Err(error_code)
                     }
                 }
             })
@@ -163,9 +162,9 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
 
                     match self.driver.write_page(address / page_size, pagebuffer) {
                         Ok(()) => Ok(()),
-                        Err((return_code, pagebuffer)) => {
+                        Err((error_code, pagebuffer)) => {
                             self.pagebuffer.replace(pagebuffer);
-                            Err(return_code.try_into().unwrap()) // Unwrap fail = Result<(), ErrorCode> success variant in error case
+                            Err(error_code)
                         }
                     }
                 } else {
@@ -177,9 +176,9 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'sta
 
                     match self.driver.read_page(address / page_size, pagebuffer) {
                         Ok(()) => Ok(()),
-                        Err((return_code, pagebuffer)) => {
+                        Err((error_code, pagebuffer)) => {
                             self.pagebuffer.replace(pagebuffer);
-                            Err(return_code.try_into().unwrap()) // Unwrap fail = Result<(), ErrorCode> success variant in error case
+                            Err(error_code)
                         }
                     }
                 }
