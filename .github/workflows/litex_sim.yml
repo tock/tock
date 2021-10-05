@@ -50,15 +50,6 @@ jobs:
           echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
           popd
 
-      # Unfortunately we also need to provision an ARM toolchain. While we don't
-      # want to actively use it, some apps override the TOCK_TARGETS in their
-      # Makefile and thus do build for cortex-m platforms. This breaks badly
-      # when no matching toolchain is installed.
-      - name: Setup ARM GCC toolchain
-        uses: fiam/arm-none-eabi-gcc@v1
-        with:
-          release: '10-2020-q4' # The arm-none-eabi-gcc release to use.
-
       # Setup a Rust toolchain (pulls version from rust-toolchain file)
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -128,11 +119,19 @@ jobs:
           export TOCK_TARGETS="\
             rv32i|rv32i.0x00080060.0x40008000|0x00080060|0x40008000
             rv32i|rv32i.0x00088060.0x40010000|0x00088060|0x40010000"
+          export LIBTOCK_C_APPS="\
+            c_hello \
+            tests/console_timeout \
+            tests/mpu_walk_region \
+            tests/printf_long \
+            rot13_service \
+            rot13_client \
+            tests/console_recv_short \
+            tests/console_recv_long"
           pushd libtock-c/examples
-          # Ignore build errors, given not all apps can be built for
-          # RISC-V targets and might have their own target definition
-          # in their makefile, which we override
-          bash build_all.sh || true
+          for APP in $LIBTOCK_C_APPS; do
+            make -C "$APP"
+          done
           popd
 
       # Run the LiteX simulation with required options for Tock
