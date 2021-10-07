@@ -462,9 +462,7 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
-
-            //Set Accelerometer Power Mode
-
+            // Set Accelerometer Power Mode
             2 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = LSM6DSOXAccelDataRate::from_usize(data1) {
@@ -481,14 +479,11 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
-
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
             }
-
-            //Set Gyroscope Power Mode
-
+            // Set Gyroscope Power Mode
             3 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = LSM6DSOXGyroDataRate::from_usize(data1) {
