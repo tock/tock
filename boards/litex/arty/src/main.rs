@@ -360,7 +360,6 @@ pub unsafe fn main() {
         >,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     // ---------- UART ----------
 

@@ -26,7 +26,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
-use kernel::hil::time::Alarm;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -302,7 +301,6 @@ unsafe fn setup() -> (
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
         VirtualSchedulerTimer::new(scheduler_timer_virtual_alarm)
     );
-    scheduler_timer_virtual_alarm.set_alarm_client(scheduler_timer);
 
     let chip = static_init!(
         earlgrey::chip::EarlGrey<

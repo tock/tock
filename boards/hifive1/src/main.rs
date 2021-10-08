@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
-use kernel::hil::time::Alarm;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -271,7 +270,6 @@ pub unsafe fn main() {
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     let hifive1 = HiFive1 {
         console: console,
