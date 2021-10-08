@@ -7,8 +7,8 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
 **Draft-Created:** August 5, 2021<br/>
-**Draft-Modified:** September 17, 2021<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** October 7, 2021<br/>
+**Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -159,12 +159,12 @@ operating speed of the UART (e.g., 16MHz).
 ===============================
 
 The `Transmit` and `TransmitClient` traits allow a client to transmit
-bytes over the UART.
+over the UART.
 
 ```rust
 enum AbortResult {
-    Failure,
-    Success,
+    Callback(bool),
+    NoCallback,
 }
 
 pub trait Transmit<'a> {
@@ -176,12 +176,12 @@ pub trait Transmit<'a> {
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
-    fn transmit_abort(&self) -> Result<AbortResult, ()>;
+    fn transmit_character(&self, character: u32) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> AbortResult;
 }
 
 pub trait TransmitClient {
-    fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
+    fn transmitted_character(&self, rval: Result<(), ErrorCode>) {}
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -191,29 +191,38 @@ pub trait TransmitClient {
 }
 ```
 
-The `Transmit` trait has two data paths: `transmit_word` and
-`transmit_buffer`.  The `transmit_word` method is used in narrow use
-cases where the cost and complexity of buffer management is not
-needed. Generally, software should use the `transmit_buffer`
-method. Most software implementations use DMA, such that a call to
-`transmit_buffer` triggers a single interrupt when the transfer
-completes; this saves energy and CPU cycles over per-byte transfers
-and also improves transfer speeds because hardware can keep the UART
-busy.
+The `Transmit` trait has two data paths: `transmit_character` and
+`transmit_buffer`.  The `transmit_character` method is used in narrow
+use cases in which buffer management is not needed or when the client
+transmits 9-bit characters.  Generally, software should use the
+`transmit_buffer` method. Most software implementations use DMA, such
+that a call to `transmit_buffer` triggers a single interrupt when the
+transfer completes; this saves energy and CPU cycles over per-byte
+transfers and also improves transfer speeds because hardware can keep
+the UART busy.
 
-Each byte transmitted is a data word for the UART. If the UART is
-using 8-bit data words, each data word is a byte. If the UART is using
-smaller data words, it MUST ignore the high order bits of the data
-values. For example, if the UART is using 6-bit data words and is told
-to transmit `0xff`, it will transmit `0x3f`, ignoring the first two
-bits. If a client needs to transmit data words larger than 8 bits, it
-should use `transmit_word`, as `transmit_buffer` is a buffer of 8-bit
+Each `u32` passed to `transmit_character` is a single UART character.
+The UART MUST ignore then high order bits of the `u32` that are
+outside the current character width. For example, if the UART is
+configured to use 9-bit characters, it must ignore bits 31-9: if the
+client passes `0xffffffff`, the UART will transmit `0x1ff`.
+
+
+Each byte transmitted with `transmit_buffer` is a UART character. If
+the UART is using 8-bit characters, each character is a byte. If the
+UART is using smaller characters, it MUST ignore the high order bits
+of the bytes passed in the buffer. For example, if the UART is using
+6-bit characters and is told to transmit `0xff`, it will transmit
+`0x3f`, ignoring the first two bits.
+
+If a client needs to transmit characters larger than 8 bits, it should
+use `transmit_character`, as `transmit_buffer` is a buffer of 8-bit
 bytes and cannot store 9-bit values.
 
 There can be a single transmit operation ongoing at any
 time. Successfully calling either `transmit_buffer` or
-`transmit_word` causes the UART to become busy until it issues the
-callback corresponding to the outstanding operation.
+`transmit_character` causes the UART to become busy until it issues
+the callback corresponding to the outstanding operation.
 
 3.1 `transmit_buffer` and `transmitted_buffer`
 ===============================
@@ -340,8 +349,8 @@ bits.  If the UART is using 9-bit words and receives `0x1ea`, it
 stores this in a 32-bit value for `receive_word` as `0x000001ea`.
 
 `Receive` supports a single outstanding receive request. A successful
-call to `receive_buffer` or `receive_word` causes the UART to be busy
-until the callback for the outstanding operation is issued.
+call to `receive_buffer` or `receive_word` causes UART reception to be
+busy until the callback for the outstanding operation is issued.
 
 If the UART returns `Ok` to a call to `receive_buffer` or
 `receive_word`, it MUST return `Err(BUSY)` to subsequent calls to
@@ -366,7 +375,7 @@ pub trait Receive<'a> {
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
     fn receive_word(&self) -> Result<(), ErrorCode>;
-    fn receive_abort(&self) -> Result<AbortResult, ()>;
+    fn receive_abort(&self) -> AbortResult;
 }
 
 pub trait ReceiveClient {
@@ -477,8 +486,7 @@ single reference and ensure that their implementations are coupled.
 ```rust
 pub trait Uart<'a>: Configure + Configuration + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Configuration + Transmit<'a> + Receive<'a> {}
-pub trait UartAdvanced<'a>: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a> {}
-pub trait Client: Configuration+ ReceiveClient + TransmitClient {}
+pub trait Client: Configuration + ReceiveClient + TransmitClient {}
 ```
 
 The HIL provides blanket implementations of these four traits: any
@@ -507,12 +515,15 @@ request. If multiple clients make `receive_buffer` calls that overlap
 with one another, they each receive copies of the received data.
 
 Suppose, for example, that there are two clients. One of them calls
-`receive_buffer` for 8 bytes. A user starts typing "1234567890"
-at the console. After the third byte, another client calls `receive_buffer`
-for 4 bytes. After the user types "7", the second client will
-receive a `received_buffer` callback with a buffer containing "4567".
-After the user types "8", the first client will receive a callback
-with a buffer containing "12345678".
+`receive_buffer` for 8 bytes. A user starts typing "1234567890" at the
+console. After the third byte, another client calls `receive_buffer`
+for 4 bytes. After the user types "7", the second client will receive
+a `received_buffer` callback with a buffer containing "4567".  After
+the user types "8", the first client will receive a callback with a
+buffer containing "12345678". If the second client then calls
+`receive_buffer` with a 1-byte buffer, it will receive "9". It never
+sees "8", since that has been consumed by the time it makes this
+second receive call.
 
 
 7 Authors' Address
