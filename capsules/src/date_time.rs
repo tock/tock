@@ -31,9 +31,6 @@ use kernel::{ErrorCode, ProcessId};
 
 pub const DRIVER_NUM: usize = NUM::DateTime as usize;
 
-pub const UPCALL_OK: u32 = 0;
-pub const UPCALL_ERR: u32 = 1;
-
 pub enum DateTimeCommand {
     ReadDateTime,
     SetDateTime,
@@ -143,6 +140,18 @@ impl<'a> DateTime<'a> {
         }
     }
 
+    /// Transforms Date structure (year, month, dotm, dotw, hour, minute, seconds)
+    /// into two u32 numbers:
+    ///         first number (year<<month<<day_of_the_month):
+    ///                 -last 5 bits store the day_of_the_month
+    ///                 -previous 4 bits store the month
+    ///                 -previous 12 bits store the year
+    ///         second number (day_of_the_week, hour, minute, seconds):
+    ///                 -last 6 bits store the seconds
+    ///                 -previous 6 store the minute
+    ///                 -previous 5 store the hour
+    ///                 -previous 3 store the day_of_the_week
+    ///the two u32 numbers are returned as a tuple
     fn date_as_u32_tuple(&self, date: date_time::Date) -> Result<(u32, u32), ErrorCode> {
         let month = self.month_as_u32(date.month);
 
@@ -171,7 +180,10 @@ impl<'a> DateTime<'a> {
             DateTimeCommand::ReadDateTime => {
                 let date_result = self.date_time.get_date_time();
                 match date_result {
-                    Result::Ok(()) => CommandReturn::success(),
+                    Result::Ok(()) => {
+                        self.in_progress.set(true);
+                        CommandReturn::success()
+                    }
                     Result::Err(e) => CommandReturn::failure(e),
                 }
             }
@@ -206,7 +218,10 @@ impl<'a> DateTime<'a> {
                 let get_date_result = self.date_time.set_date_time(date);
 
                 match get_date_result {
-                    Result::Ok(()) => CommandReturn::success(),
+                    Result::Ok(()) => {
+                        self.in_progress.set(true);
+                        CommandReturn::success()
+                    }
                     Result::Err(e) => CommandReturn::failure(e),
                 }
             }
@@ -221,25 +236,19 @@ impl<'a> DateTime<'a> {
         appid: ProcessId,
     ) -> CommandReturn {
         if !self.in_progress.get() {
-            self.in_progress.set(true);
             let grant_enter_res = self.apps.enter(appid, |app, _| {
                 app.subscribed = true;
             });
             match grant_enter_res {
-                Ok(()) => {}
-                Err(_e) => {
-                    return CommandReturn::failure(ErrorCode::FAIL);
-                }
+                Ok(()) => self
+                    .call_driver(
+                        command,
+                        year_month_dotm as usize,
+                        dotw_hour_min_sec as usize,
+                    )
+                    .into(),
+                Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
             }
-
-            let driver_call_status = self.call_driver(
-                command,
-                year_month_dotm as usize,
-                dotw_hour_min_sec as usize,
-            );
-
-            self.in_progress.set(false);
-            driver_call_status
         } else {
             let grant_enter_res = self.apps.enter(appid, |app, _| {
                 app.subscribed = true;
