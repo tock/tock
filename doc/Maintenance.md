@@ -3,12 +3,20 @@
 This document describes some elements of how the Tock [core working
 group](../wg/core/README.md) maintains the Tock project.
 
-<!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
+<!-- npm i -g markdown-toc; markdown-toc -i Maintenance.md -->
 
 <!-- toc -->
 
-<!-- tocstop -->
+- [Roadmap and Feature Planning](#roadmap-and-feature-planning)
+- [Outreach and Education](#outreach-and-education)
+- [Preparing a Release](#preparing-a-release)
+  * [Release Tasks](#release-tasks)
+    + [Before the release](#before-the-release)
+    + [Tagging a release candidate](#tagging-a-release-candidate)
+    + [Release testing](#release-testing)
+    + [Tagging a release](#tagging-a-release)
 
+<!-- tocstop -->
 
 ## Roadmap and Feature Planning
 
@@ -53,7 +61,7 @@ major features which might be in-flight at a release point.
 
 ### Release Tasks
 
-#### Before the release:
+#### Before the release
 
 - Decide on what features should be included in the release.
 - Mark relevant issues and pull requests with the `release-blocker` tag.
@@ -63,24 +71,26 @@ major features which might be in-flight at a release point.
 	- A sign-off checklist for each core working group member.
 - Work through issues and pull requests with the `release-blocker` tag.
 
-#### Tagging a release candidate:
-- Once most blocking PRs are merged, the core working group will often decide on a
-  "freeze", where any new PRs will not be merged until after a release.
+#### Tagging a release candidate
+
+- Once most blocking PRs are merged, the core working group will often decide on
+  a "freeze", where any new PRs will not be merged until after a release.
   Typically, this freeze should only last about a week.
 - Once all issues and pull requests marked `release-blocker` are closed/merged,
   a release candidate can be tagged by a member of the core working group. The
-  tagging of a release candidate marks the beginning of the release testing phase.
-- Release candidates are named release-<version>-rc-x, where x is the release candidate
-  in question.
+  tagging of a release candidate marks the beginning of the release testing
+  phase.
+- Release candidates are named release-<version>-rc-x, where x is the release
+  candidate in question.
 
 #### Release testing
 
-During the release testing period, members of the core working group
-and maintainers of various boards will run release tests, checking off individual
-tests as they are run for each board. Rather than maintain a list of tests in the
-repository, each release involves running all of the tests that were run for a board
-at a previous release, plus any new tests the maintainer of that board wants to
-run. Accordingly, the release testing process is generally as follows:
+During the release testing period, members of the core working group and
+maintainers of various boards will run release tests, checking off individual
+tests as they are run for each board. Rather than maintain a list of tests in
+the repository, each release involves running all of the tests that were run for
+a board at a previous release, plus any new tests the maintainer of that board
+wants to run. Accordingly, the release testing process is generally as follows:
 - Select a board to test
 - Copy the release testing checklist for that board from the tracking issue of
   the previous release, but uncheck all the boxes.
@@ -90,16 +100,16 @@ run. Accordingly, the release testing process is generally as follows:
   if that board has added a new capsule since the last release, it is reasonable
   to add tests for that new capsule.
 - Run the tests, checking off each item as it is completed. If a test fails,
-  edit your comment on the issue to mark that test with an `X` to indicate
-  that the test failed, and add a description of how it failed.
+  edit your comment on the issue to mark that test with an `X` to indicate that
+  the test failed, and add a description of how it failed.
 - For all failing tests, either submit a PR with a fix, or post an issue
   describing the failure to ask for help
 
-If significant changes need to be made to fix bugs discovered by the testing process,
-additional release candidates can be tagged. The core working group will decide
-whether new release candidates require re-testing all boards or not.
+If significant changes need to be made to fix bugs discovered by the testing
+process, additional release candidates can be tagged. The core working group
+will decide whether new release candidates require re-testing all boards or not.
 
 #### Tagging a release
 
-Once all tests pass for all boards, and the changelog is updated, a release can be
-tagged.
+Once all tests pass for all boards, and the changelog is updated, a release can
+be tagged.
