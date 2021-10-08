@@ -249,7 +249,7 @@ pub trait Alarm: Time {
   fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
   fn get_alarm(&self) -> Self::Ticks;
   fn disarm(&self) -> Result<(), ErrorCode>;
-  fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
+  fn set_alarm_client(&self, client: &'a dyn AlarmClient);
 }
 ```
 

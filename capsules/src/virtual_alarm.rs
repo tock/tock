@@ -84,7 +84,7 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
-    fn set_alarm_client(&'a self, client: &'a dyn time::AlarmClient) {
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         // Reset the alarm state: should it do this? Does not seem
         // to be semantically correct. What if you just wanted to
         // change the callback. Keeping it but skeptical. -pal
@@ -336,7 +336,7 @@ mod tests {
     }
 
     impl<'a> Alarm<'a> for FakeAlarm<'a> {
-        fn set_alarm_client(&'a self, client: &'a dyn AlarmClient) {
+        fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
             self.client.set(client);
         }
 
