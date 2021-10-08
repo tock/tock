@@ -39,7 +39,7 @@ main traits:
   * `kernel::hil::uart::Configuration`: allows a client to query how a
     UART is configured.
   * `kernel::hil::uart::Configure`: allows a client to configure a UART,
-    setting its speed, data width, parity, and stop bit configuration.
+    setting its speed, character width, parity, and stop bit configuration.
   * `kernel::hil::uart::Transmit`: is for transmitting data.
   * `kernel::hil::uart::TransmitClient`: is for handling callbacks
     when a data transmission is complete.
@@ -69,7 +69,7 @@ is a good reference.
 
 The `Configuration` trait allows a client to query how a UART is
 configured. The `Configure` trait allows a client to configure a UART,
-by setting is baud date, data width, parity, stop bits, and whether
+by setting is baud date, character width, parity, stop bits, and whether
 hardware flow control is enabled.
 
 These two traits are separate because there are cases when clients
@@ -82,7 +82,7 @@ the UART configuration but do not need to check it.
 
 Most devices using serial ports today use 8-bit data, but some older
 devices use more or fewer bits, and hardware implementations support
-this. If the data width of a UART is set to less than 8 bits, data is
+this. If the character width of a UART is set to less than 8 bits, data is
 still partitioned into bytes, and the UART sends the least significant
 bits of each byte. Suppose a UART is configured to send 7-bit
 words. If a client sends 5 bytes, the UART will send 35 bits,
@@ -235,7 +235,7 @@ callback in the future when the transmission completes or fails. If
 `transmit_buffer` returns `Err` it MUST NOT issue a callback in the
 future in response to this call. If the error is `BUSY`, this is
 because there is an outstanding call to `transmit_buffer` or
-`transmit_word`: the implementation will continue to handle
+`transmit_character`: the implementation will continue to handle
 the original call and issue the originally scheduled callback
 (as if the call that `Err`'d with `BUSY` never happened). However,
  it does not issue a callback for the call to `transmit_buffer`
@@ -251,15 +251,15 @@ The valid error codes for `transmit_buffer` are:
   - `FAIL`: some other failure.
 
 Calling `transmit_buffer` while there is an outstanding
-`transmit_buffer` or `transmit_word` operation MUST return `Err(BUSY)`.
+`transmit_buffer` or `transmit_character` operation MUST return `Err(BUSY)`.
 
 The `TransmitClient::transmitted_buffer` callback indicates completion
 of a buffer transmission.  The `Result` indicates whether the buffer
 was successfully transmitted.  The `tx_len` argument specifies how
-many data words (defined by `Configure`) were transmitted. If the
+many characters (defined by `Configure`) were transmitted. If the
 `rval` of `transmitted_buffer` is `Ok(())`, `tx_len` MUST be equal to
 the size of the transmission started by `transmit_buffer`, defined
-above.  A call to `transmit_word` or `transmit_buffer` made within
+above.  A call to `transmit_character` or `transmit_buffer` made within
 this callback MUST NOT return `Err(BUSY)` unless it is because this is
 not the first call to one of these methods in the callback.  When this
 callback is made, the UART MUST be ready to receive another call. The
@@ -269,51 +269,51 @@ returned by `transmit_buffer` plus:
     to `abort` and the entire buffer was not transmitted.
   - `SIZE` if the buffer could only be partially transmitted.
 
-3.2 `transmit_word` and `transmitted_word`
+3.2 `transmit_character` and `transmitted_character`
 ===============================
 
-The `transmit_word` method transmits a single data word of data
+The `transmit_character` method transmits a single character of data
 asynchronously.  The word length is determined by the UART
 configuration.  A UART implementation MAY choose to not implement
-`transmit_word` and `transmitted_word`.  There is a default
-implementation of `transmitted_word` so clients that do not use
-`receive_word` do not have to implement a callback.
+`transmit_character` and `transmitted_character`.  There is a default
+implementation of `transmitted_character` so clients that do not use
+`receive_character` do not have to implement a callback.
 
-If `transmit_word` returns `Ok(())`, the implementation MUST call the
-`transmitted_word` callback in the future. If a call to
-`transmit_word` returns `Err`, the implementation MUST NOT issue a
+If `transmit_character` returns `Ok(())`, the implementation MUST call the
+`transmitted_character` callback in the future. If a call to
+`transmit_character` returns `Err`, the implementation MUST NOT issue a
 callback for this call, although if the it is `Err(BUSY)` is will
 issue a callback for the outstanding operation.  Valid `ErrorCode`
-results for `transmit_word` are:
+results for `transmit_character` are:
   - `OFF`: The underlying hardware is not available, perhaps because
     it has not been initialized or in the case of a shared
     hardware USART controller because it is set up for SPI.
   - `BUSY`: the UART is already transmitting and has not made a
     transmission callback yet.
-  - `NOSUPPORT`: the implementation does not support `transmit_word`
+  - `NOSUPPORT`: the implementation does not support `transmit_character`
     operations.
   - `FAIL`: some other error.
 
-The `TransmitClient::transmitted_word` method indicates that a single
+The `TransmitClient::transmitted_character` method indicates that a single
 word transmission completed.  The `Result` indicates whether the word
-was successfully transmitted. A call to `transmit_word` or
+was successfully transmitted. A call to `transmit_character` or
 `transmit_buffer` made within this callback MUST NOT return BUSY
 unless it is because this is not the first call to one of these
 methods in the callback.  When this callback is made, the UART MUST be
 ready to receive another call. The valid `ErrorCode` values for
-`transmitted_word` are all of those returned by `transmit_word` plus:
-  - `CANCEL` if the call to `transmit_word` was cancelled by a call to
+`transmitted_character` are all of those returned by `transmit_character` plus:
+  - `CANCEL` if the call to `transmit_character` was cancelled by a call to
     `abort` and the word was not transmitted.
 
 3.3 `transmit_abort`
 ===============================
 
 The `transmit_abort` method allows a UART implementation to terminate
-an outstanding call to `transmit_word` or `transmit_buffer` early. The
+an outstanding call to `transmit_character` or `transmit_buffer` early. The
 result of `transmit_abort` indicates whether the abort was
 successful. Cancelled calls to `transmit_buffer` MUST always make a
 callback, to return the transmit buffer to the caller. Cancelled calls
-to `transmit_word` MAY issue a callback.
+to `transmit_character` MAY issue a callback.
 
 If `transmit_abort` returns `Ok`, there will be be a future callback
 for the completion of the outstanding request. The value of `AbortResult`
@@ -327,7 +327,7 @@ denotes whether it will be cancelled:
   - `Err(()):` there was no outstanding request and there will be no future
     callback.
 
-If there is no outstanding call to `transmit_word` or
+If there is no outstanding call to `transmit_character` or
 `transmit_buffer`, `transmit_abort` MUST return `Err(())`.
 
 4 `Receive` and `ReceiveClient` traits
@@ -336,27 +336,27 @@ If there is no outstanding call to `transmit_word` or
 The `Receive` and `ReceiveClient` traits are used to receive data from the
 UART. They support both single-word and buffer reception. Buffer-based
 reception is more efficient, as it allows an MCU to handle only one
-interrupt for many data words. However, buffer-based reception only supports
-data words of 6, 7, and 8 bits, so clients using 9-bit words need to use
+interrupt for many characters. However, buffer-based reception only supports
+characters of 6, 7, and 8 bits, so clients using 9-bit words need to use
 word operations.
 
-Each byte received is a data word for the UART. If the UART is using
-8-bit data words, each data word is a byte. If the UART is using
-smaller data words, it MUST zero the high order bits of the data
-values. For example, if the UART is using 6-bit data words and
+Each byte received is a character for the UART. If the UART is using
+8-bit characters, each character is a byte. If the UART is using
+smaller characters, it MUST zero the high order bits of the data
+values. For example, if the UART is using 6-bit characters and
 receives `0x1f`, it must store `0x1f` in a byte and not set high order
 bits.  If the UART is using 9-bit words and receives `0x1ea`, it
-stores this in a 32-bit value for `receive_word` as `0x000001ea`.
+stores this in a 32-bit value for `receive_character` as `0x000001ea`.
 
 `Receive` supports a single outstanding receive request. A successful
-call to `receive_buffer` or `receive_word` causes UART reception to be
+call to `receive_buffer` or `receive_character` causes UART reception to be
 busy until the callback for the outstanding operation is issued.
 
 If the UART returns `Ok` to a call to `receive_buffer` or
-`receive_word`, it MUST return `Err(BUSY)` to subsequent calls to
+`receive_character`, it MUST return `Err(BUSY)` to subsequent calls to
 those methods until it issues the callback corresponding to the
 outstanding operation. The first call to `receive_buffer` or
-`receive_word` from within a receive callback MUST NOT return
+`receive_character` from within a receive callback MUST NOT return
 `Err(BUSY)`: when it makes a callback, a UART must be ready to handle
 another reception request.
 
@@ -374,12 +374,12 @@ pub trait Receive<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
-    fn receive_word(&self) -> Result<(), ErrorCode>;
+    fn receive_character(&self) -> Result<(), ErrorCode>;
     fn receive_abort(&self) -> AbortResult;
 }
 
 pub trait ReceiveClient {
-    fn received_word(&self, _word: u32, _rval: Result<(), ErrorCode>, _error: Error) {}
+    fn received_character(&self, _character: u32, _rval: Result<(), ErrorCode>, _error: Error) {}
 
     fn received_buffer(
         &self,
@@ -439,7 +439,7 @@ The valid return values for `receive_abort` are:
   - `Err(())`: there was no reception outstanding and the implementation will
     not issue a callback.
 
-If there is no outstanding call to `receive_buffer` or `receive_word`,
+If there is no outstanding call to `receive_buffer` or `receive_character`,
 `receive_abort` MUST return `Err(())`.
 
 If `receive_abort` triggers a callback with `Err(CANCEL)`, this
@@ -449,30 +449,31 @@ a low-level chip implementation may not have a ready interrupt source
 for this case (e.g., stopping a DMA transfer) and requiring it to
 implement software deferred procedure calls is heavyweight. This
 does not violate Rule 1 of the HIL design TRD because the callback
-`received_buffer` or `received_word` is in response to calls to
+`received_buffer` or `received_character` is in response to calls to
 `receive`, and not `receive_abort`.
 
-4.2 `receive_word` and `received_word`
+4.2 `receive_character` and `received_character`
 ===============================
 
-The `receive_word` method and `received_word` callback allow a client
-to perform data word operations without buffer management. They
-receive a single UART data word, where the word length is defined by
-the UART configuration and can be wider than 8 bits.
+The `receive_character` method and `received_character` callback allow
+a client to perform character operations without buffer
+management. They receive a single UART character, where the character width
+is defined by the UART configuration and can be wider than 8
+bits.
 
-A UART implementation MAY choose to not implement `receive_word` and
-`received_word`.  There is a default implementation of `received_word`
-so clients that do not use `receive_word` do not have to implement a
+A UART implementation MAY choose to not implement `receive_character` and
+`received_character`.  There is a default implementation of `received_character`
+so clients that do not use `receive_character` do not have to implement a
 callback.
 
-If the UART returns `Ok(())` to a call to `receive_word`, it MUST make
-a `received_word` callback in the future, when it receives a data word
-or some error occurs. Valid `Err` values of `receive_word` are:
+If the UART returns `Ok(())` to a call to `receive_character`, it MUST make
+a `received_character` callback in the future, when it receives a character
+or some error occurs. Valid `Err` values of `receive_character` are:
   - `BUSY`: the UART is busy with an outstanding call to
-    `receive_buffer` or `receive_word`.
+    `receive_buffer` or `receive_character`.
   - `OFF`: the UART is powered down or in a configuration that does
     not allow UART reception (e.g., it is a USART in SPI mode).
-  - `NOSUPPORT`: `receive_word` operations are not supported.
+  - `NOSUPPORT`: `receive_character` operations are not supported.
   - `FAIL`: some other error.
 
 5 Composite Traits
