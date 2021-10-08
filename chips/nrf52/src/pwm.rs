@@ -189,6 +189,11 @@ impl Pwm {
         frequency_hz: usize,
         duty_cycle: usize,
     ) -> Result<(), ErrorCode> {
+        // If frequency is 0, we can just stop the PWM and have it do nothing.
+        if frequency_hz == 0 {
+            return self.stop_pwm(pin);
+        }
+
         let prescaler = 0;
         let counter_top = (16000000 / frequency_hz) >> prescaler;
 

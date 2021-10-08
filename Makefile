@@ -32,22 +32,21 @@ usage:
 	@echo "Tock currently includes support for the following platforms:"
 	@for f in $(ALL_BOARDS); do printf " - $$f\n"; done
 	@echo
-	@echo "Run 'make' in a board directory to build Tock for that board,"
-	@echo "and usually 'make program' or 'make flash' to load Tock onto hardware."
-	@echo "Check out the README in your board's folder for more information."
+	@echo "Run 'make' in a board directory to build Tock for that board, and then"
+	@echo "run 'make install' to load Tock onto hardware. Check out the README in"
+	@echo "your board's folder for more information."
 	@echo
-	@echo "There are a few helpful targets that can be run for all individual boards."
-	@echo "To run these, run 'make {target}' from the board directory for any of the"
-	@echo "following targets:"
-	@echo "        cargobloat: Runs the cargo-bloat tool for attributing binary size"
-	@echo "        stack-analysis: Prints the 5 largest stack frames for the board"
+	@echo "There are a few helpful targets that can be run for individual boards. To"
+	@echo "run these, run 'make {target}' from the board directory for these targets:"
+	@echo "      cargobloat: Runs the cargo-bloat tool for attributing binary size"
+	@echo "  stack-analysis: Prints the 5 largest stack frames for the board"
 	@echo
 	@echo "This root Makefile has a few useful targets as well:"
-	@echo "        allaudit: Audit Cargo dependencies for all kernel sources"
-	@echo "       allboards: Compiles Tock for all supported boards"
-	@echo "        allcheck: Checks, but does not compile, Tock for all supported boards"
-	@echo "          alldoc: Builds Tock documentation for all boards"
-	@echo "        allstack: Prints a basic stack frame analysis for all boards"
+	@echo "           audit: Audit Cargo dependencies for all kernel sources"
+	@echo "          boards: Compiles Tock for all supported boards"
+	@echo "           check: Checks, but does not compile, Tock for all supported boards"
+	@echo "             doc: Builds Tock documentation for all boards"
+	@echo "           stack: Prints a basic stack frame analysis for all boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
 	@echo "            list: Lists available boards"
@@ -127,33 +126,33 @@ endef
 ##
 
 ## Aggregate targets
-.PHONY: allaudit
-allaudit:
+.PHONY: allaudit audit
+allaudit audit:
 	@for f in `./tools/list_lock.sh`;\
 		do echo "$$(tput bold)Auditing $$f";\
 		(cd "$$f" && cargo audit || exit 1);\
 		done
 
-.PHONY: allboards
-allboards:
+.PHONY: allboards boards
+allboards boards:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Build $$f";\
 		$(MAKE) -C "boards/$$f" || exit 1;\
 		done
 
-.PHONY: allcheck
-allcheck:
+.PHONY: allcheck check
+allcheck check:
 	@cargo check
 
-.PHONY: alldoc
-alldoc:
+.PHONY: alldoc doc
+alldoc doc:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Documenting $$f";\
 		$(MAKE) -C "boards/$$f" doc || exit 1;\
 		done
 
-.PHONY: allstack
-allstack:
+.PHONY: allstack stack stack-analysis
+allstack stack stack-analysis:
 	@for f in $(ALL_BOARDS);\
 		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
@@ -510,7 +509,7 @@ ci-job-miri: ci-setup-miri
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=e77c8b8b8e933414ef07dbed04e02973fccffeb0
+QEMU_COMMIT_HASH=2c3e83f92d93fbab071b8a96b8ab769b01902475
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support

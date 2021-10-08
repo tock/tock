@@ -71,7 +71,8 @@ pub unsafe fn run(
     // test 1
     let data1 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
     let t1 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client1, data1));
-    ccm_client1.set_client(t1);
+    AES128CCM::set_client(ccm_client1, t1);
+
     // ---------------- ANOTHER CLIENT ---------------------
     // client 2
     let crypt_buf2 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -83,7 +84,7 @@ pub unsafe fn run(
     // test 2
     let data2 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
     let t2 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client2, data2));
-    ccm_client2.set_client(t2);
+    AES128CCM::set_client(ccm_client2, t2);
 
     // client 3
     let crypt_buf3 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -95,7 +96,7 @@ pub unsafe fn run(
     // test 3
     let data3 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
     let t3 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client3, data3));
-    ccm_client3.set_client(t3);
+    AES128CCM::set_client(ccm_client3, t3);
     // ----------------- RUN TESTS NOW ----------------------
     // run
     t1.run();

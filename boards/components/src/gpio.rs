@@ -3,6 +3,13 @@
 //!
 //! Usage
 //! -----
+//!
+//! The `gpio_component_helper!` macro takes 'static references to
+//! GPIO pins. When GPIO instances are owned values, the
+//! `gpio_component_helper_owned!` can be used, indicating that the
+//! passed values are owned values. This macro will perform static
+//! allocation of the passed in GPIO pins internally.
+//!
 //! ```rust
 //! let gpio = components::gpio::GpioComponent::new(
 //!     board_kernel,
@@ -53,6 +60,21 @@ macro_rules! gpio_component_helper_max_pin {
     () => { 0usize };
     ($a:expr, $b:expr, $($tail:expr),* $(,)?) => { $crate::gpio_component_helper_max_pin! (max ($a, $b), $($tail,)*) };
     ($a:expr $(,)?) => { $a };
+}
+
+#[macro_export]
+macro_rules! gpio_component_helper_owned {
+    (
+        $Pin:ty,
+        $($nr:literal => $pin:expr),* $(,)?
+    ) => {
+        $crate::gpio_component_helper!(
+            $Pin,
+            $(
+                $nr => static_init!($Pin, $pin),
+            )*
+        )
+    };
 }
 
 #[macro_export]

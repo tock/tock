@@ -4,7 +4,7 @@
 use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::digest::{self, Client, Digest};
+use kernel::hil::digest::{self, ClientData, ClientHash, ClientVerify, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
@@ -18,6 +18,7 @@ pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     data: TakeCell<'static, [u8]>,
     data_len: Cell<usize>,
     digest: TakeCell<'static, [u8; L]>,
+    verify: Cell<bool>,
     mode: Cell<Mode>,
     id: u32,
 }
@@ -42,25 +43,16 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
             data: TakeCell::empty(),
             data_len: Cell::new(0),
             digest: TakeCell::empty(),
+            verify: Cell::new(false),
             mode: Cell::new(Mode::None),
             id: id,
         }
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
-    /// Set the client instance which will receive `add_data_done()` and
-    /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
-        let node = self.mux.users.iter().find(|node| node.id == self.id);
-        if node.is_none() {
-            self.mux.users.push_head(self);
-        }
-        self.mux.sha.set_client(client);
-    }
-
     /// Add data to the sha IP.
     /// All data passed in is fed to the SHA hardware block.
     /// Returns the number of bytes written on success
@@ -85,6 +77,20 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
         }
     }
 
+    /// Disable the SHA hardware and clear the keys and any other sensitive
+    /// data
+    fn clear_data(&self) {
+        if self.mux.running_id.get() == self.id {
+            self.mux.running.set(false);
+            self.mode.set(Mode::None);
+            self.mux.sha.clear_data()
+        }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
+    for VirtualMuxSha<'a, A, L>
+{
     /// Request the hardware block to generate a SHA
     /// This doesn't return anything, instead the client needs to have
     /// set a `hash_done` handler.
@@ -106,15 +112,43 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
             }
         }
     }
+}
 
-    /// Disable the SHA hardware and clear the keys and any other sensitive
-    /// data
-    fn clear_data(&self) {
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
+    for VirtualMuxSha<'a, A, L>
+{
+    fn verify(
+        &self,
+        compare: &'static mut [u8; L],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; L])> {
+        // Check if any mux is enabled
         if self.mux.running_id.get() == self.id {
-            self.mux.running.set(false);
-            self.mode.set(Mode::None);
-            self.mux.sha.clear_data()
+            self.mux.sha.verify(compare)
+        } else {
+            // Another app is already running, queue this app as long as we
+            // don't already have data queued.
+            if self.digest.is_none() {
+                self.digest.replace(compare);
+                self.verify.set(true);
+                Ok(())
+            } else {
+                Err((ErrorCode::BUSY, compare))
+            }
         }
+    }
+}
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+    for VirtualMuxSha<'a, A, L>
+{
+    /// Set the client instance which will receive `add_data_done()` and
+    /// `hash_done()` callbacks
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+        let node = self.mux.users.iter().find(|node| node.id == self.id);
+        if node.is_none() {
+            self.mux.users.push_head(self);
+        }
+        self.mux.sha.set_client(client);
     }
 }
 
@@ -122,17 +156,40 @@ impl<
         'a,
         A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::Client<'a, L> for VirtualMuxSha<'a, A, L>
+    > digest::ClientData<'a, L> for VirtualMuxSha<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
             .map(move |client| client.add_data_done(result, data));
         self.mux.do_next_op();
     }
+}
 
+impl<
+        'a,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
+    > digest::ClientHash<'a, L> for VirtualMuxSha<'a, A, L>
+{
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.client
             .map(move |client| client.hash_done(result, digest));
+
+        // Forcefully clear the data to allow other apps to use the HMAC
+        self.clear_data();
+        self.mux.do_next_op();
+    }
+}
+
+impl<
+        'a,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
+    > digest::ClientVerify<'a, L> for VirtualMuxSha<'a, A, L>
+{
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, digest: &'static mut [u8; L]) {
+        self.client
+            .map(move |client| client.verification_done(result, digest));
 
         // Forcefully clear the data to allow other apps to use the HMAC
         self.clear_data();
@@ -251,8 +308,14 @@ impl<
             }
 
             if node.digest.is_some() {
-                if let Err((err, data)) = self.sha.run(node.digest.take().unwrap()) {
-                    node.hash_done(Err(err), data);
+                if node.verify.get() {
+                    if let Err((err, compare)) = self.sha.verify(node.digest.take().unwrap()) {
+                        node.verification_done(Err(err), compare);
+                    }
+                } else {
+                    if let Err((err, data)) = self.sha.run(node.digest.take().unwrap()) {
+                        node.hash_done(Err(err), data);
+                    }
                 }
             }
         });

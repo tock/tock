@@ -1,15 +1,11 @@
 Design of Kernel Hardware Interface Layers (HILs)
 ========================================
 
-**TRD:** <br/>
+**TRD: 2** <br/>
 **Working Group:** Kernel<br/>
 **Type:** Best Current Practice<br/>
-**Status:** Draft <br/>
+**Status:** Final<br/>
 **Author:** Brad Campbell, Philip Levis <br/>
-**Draft-Created:** April 1, 2021<br/>
-**Draft-Modified:** May 27, 2021<br/>
-**Draft-Version:** 6<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
@@ -27,24 +23,25 @@ Introduction
 In Tock, a hardware interface layer (HIL) is a collection of Rust
 traits and types that provide a standardized API to a hardware
 resource such as a sensor, flash chip, cryptographic accelerator, bus,
-or a radio. Capsules typically use HILs to provide their
-functionality. For example, a system call driver capsule that gives
-processes access to a temperature sensor relies on having a reference
-to an implementation of the `kernel::hil::sensors::TemperatureDriver`
-trait. This allows the system call driver capsule to work on top of
-any implementation of the `TemperatureDriver` trait, whether it is a
-local, on-chip sensor, an analog sensor connected to an ADC, or a
-digital sensor over a bus.
+or a radio. 
 
-HILs are used for many purposes within the kernel. They can be
-directly accessed by kernel services, such as the in-kernel process
-console using the UART HIL. They can be exposed to processes with
-system driver capsules, such as with GPIO. They can be virtualized to
-allow multiple clients to share a single resource, such as with the
-virtual timer capsule.
+Capsules use HILs to implement their functionality. For example, a
+system call driver capsule that gives processes access to a
+temperature sensor relies on having a reference to an implementation
+of the `kernel::hil::sensors::TemperatureDriver` trait. This allows
+the system call driver capsule to work on top of any implementation of
+the `TemperatureDriver` trait, whether it is a local, on-chip sensor,
+an analog sensor connected to an ADC, or a digital sensor over a bus.
 
-This variety of use cases places a complex set of requirements on how a
-HIL must behave. For example, Tock expects that every HIL is
+Capsules use HILs in many different ways. They can be directly
+accessed by kernel services, such as the in-kernel process console
+using the UART HIL. They can be exposed to processes with system
+driver capsules, such as with GPIO. They can be virtualized to allow
+multiple clients to share a single resource, such as with the virtual
+timer capsule.
+
+This variety of use cases places a complex set of requirements on how
+a HIL must behave. For example, Tock expects that every HIL is
 virtualizable: it is possible to take one instance of the trait and
 allow multiple clients to use it simultaneously, such that each one
 thinks it has its own, independent instance of the trait. Because
@@ -56,7 +53,7 @@ and ownership.
 This document describes these requirements and describes a set of
 design rules for HILs. They are:
 
-1. Do not issue synchronous callbacks.
+1. Don't make synchronous callbacks.
 2. Split-phase operations return a synchronous `Result` type which
    includes an error code in its `Err` value.
 3. For split-phase operations, `Ok` means a callback will occur
@@ -84,26 +81,27 @@ design rules for HILs. They are:
 The rest of this document describes each of these rules and their
 reasoning.
 
-While these are design rules, they are not sacrosanct. There are reasons or
-edge cases why a particular HIL might need to break
-one (or more) of them. In such cases, be sure to
-understand the reasoning behind the rule; if those considerations
-don't apply in your use case, then it might be OK to break it. But it's
-important to realize the exception is true for *all*
-implementations of the HIL, not just yours; a HIL is intended to be a
-general, reusable API, not a specific implementation.
+While these are design rules, they are not sacrosanct. There are
+reasons or edge cases why a particular HIL might need to break one (or
+more) of them. In such cases, be sure to understand the reasoning
+behind the rule; if those considerations don't apply in your use case,
+then it might be acceptable to break it. But it's important to realize
+the exception is true for *all* implementations of the HIL, not just
+yours; a HIL is intended to be a general, reusable API, not a specific
+implementation.
 
-A key recurring point in these guidelines is that a HIL should
+The key recurring point in these guidelines is that a HIL should
 encapsulate a wide range of possible implementations and use cases. It
 might be that the hardware you are using or designing a HIL for has
 particular properties or behavior. That does not mean all hardware
-does. For example, a software pseudo-random generator can synchronously
-return random numbers. However, a hardware-based one typically cannot
-(without blocking). If you write a blocking random number HIL because
-you are working with a software one, you are precluding hardware
-implementations from using your HIL. This means that a developer must
-decide to use either the blocking HIL (which in some cases can't exist)
-or the non-blocking one, making software less reusable.
+does. For example, a software pseudo-random generator can
+synchronously return random numbers. However, a hardware-based one
+typically cannot (without blocking). If you write a blocking random
+number HIL because you are working with a software one, you are
+precluding hardware implementations from using your HIL. This means
+that a developer must decide to use either the blocking HIL (which in
+some cases can't exist) or the non-blocking one, making software less
+reusable.
 
 Rule 1: Don't Make Synchronous Callbacks
 ===============================
@@ -351,6 +349,22 @@ did not start a new operation but there will be a callback in response
 to a prior call, and any other `Err` means there will not be a
 callback.
 
+Cancellation calls are a slight variation on this approach. A call to
+a `cancel` method (such as `uart::Transmit::transmit_abort`) also
+returns a `Result` type, for which an `Ok` value means there will be a
+callback in the future while an `Err` value means there will not be a
+callback. In this way the return type reflects the original call.
+The `Ok` value of a cancel method, however, needs to distinguish between
+two cases:
+  1. There was an outstanding operation, so there will be a callback, but
+  it was not cancelled.
+  2. There was an outstanding operation, so there will be a callback, and
+  it was cancelled.
+  
+  
+The `Result::Ok` type for cancel calls therefore often contains
+information that signals whether the operation was successfully
+cancelled.
 
 Rule 4: Return Passed Buffers in Error Results
 ===============================
@@ -374,39 +388,40 @@ The `send` method follows Rule 2: it returns a synchronous error. But
 suppose that calling it returns an `Err(ErrorCode)`: what happens to
 the buffer?
 
-Rust's ownership rules mean that the caller can't still hold the reference:
-it passed the reference to the implementer of `send`. But since the
-operation did not succeed, the caller does not expect a callback. Forcing
-the callee to issue a callback on a failed operation typically forces it
-to include an alarm or other timer. Following Rule 1 means it can't do
-so synchronously, so it needs an asynchronous event to invoke the callback
-from. This leads to every implementer of the HIL requiring an alarm or
-timer, which use RAM, has more complex logic, and makes initialization more
-complex.
+Rust's ownership rules mean that the caller can't still hold the
+reference: it passed the reference to the implementer of `send`. But
+since the operation did not succeed, the caller does not expect a
+callback. Forcing the callee to issue a callback on a failed operation
+typically forces it to include an alarm or other timer. Following Rule
+1 means it can't do so synchronously, so it needs an asynchronous
+event to invoke the callback from. This leads to every implementer of
+the HIL requiring an alarm or timer, which use RAM, has more complex
+logic, and makes initialization more complex.
 
-As a result, in the above interface, if there is an error on `send`, the buffer
-is lost. It's passed into the callee, but the callee
-has no way to pass it back.
+As a result, in the above interface, if there is an error on `send`,
+the buffer is lost. It's passed into the callee, but the callee has no
+way to pass it back.
 
-If a split-phase operation takes a reference to a buffer as a parameter, it
-should return a reference to a buffer in the `Err` case:
+If a split-phase operation takes a reference to a buffer as a
+parameter, it should return a reference to a buffer in the `Err` case:
 
 ```rust
 fn send(&self, buf: &'static mut [u8]) -> Result<(), (ErrorCode, &'static mut [u8])>;
 ```
 
-Before Tock transitioned to using `Result`, this calling pattern was typically
-implemented with an `Option`:
+Before Tock transitioned to using `Result`, this calling pattern was
+typically implemented with an `Option`:
 
 
 ```rust
 fn send(&self, buf: &'static mut [u8]) -> (ReturnCode, Option<&'static mut [u8]>);
 ```
 
-In this approach, when the `ReturnCode` is `SUCCESS`, the `Option` is always supposed
-to be `None`; it the `ReturnCode` has an error value, the `Option` contains the passed
-buffer. This invariant, however, cannot be checked. Transitioning to using `Result`
-both makes Tock more in line with standard Rust code and enforces the invariant.
+In this approach, when the `ReturnCode` is `SUCCESS`, the `Option` is
+always supposed to be `None`; it the `ReturnCode` has an error value,
+the `Option` contains the passed buffer. This invariant, however,
+cannot be checked. Transitioning to using `Result` both makes Tock
+more in line with standard Rust code and enforces the invariant.
 
 
 Rule 5: Always Pass a Mutable Reference to Buffers

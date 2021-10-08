@@ -557,6 +557,14 @@ impl Default for ReadWriteProcessBuffer {
     }
 }
 
+/// A shareable region of userspace memory.
+///
+/// This trait can be used to gain read-write access to memory regions
+/// wrapped in a ProcessBuffer type.
+// We currently don't need any special functionality in the kernel for this
+// type so we alias it as `ReadWriteProcessBuffer`.
+pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
+
 /// Read-only wrapper around a [`Cell`]
 ///
 /// This type is used in providing the [`ReadableProcessSlice`]. The
@@ -599,6 +607,37 @@ impl ReadableProcessByte {
 #[repr(transparent)]
 pub struct ReadableProcessSlice {
     slice: [ReadableProcessByte],
+}
+
+fn cast_byte_slice_to_process_slice<'a>(
+    byte_slice: &'a [ReadableProcessByte],
+) -> &'a ReadableProcessSlice {
+    // As ReadableProcessSlice is a transparent wrapper around its inner type,
+    // [ReadableProcessByte], we can safely transmute a reference to the inner type as a reference
+    // to the outer type with the same lifetime
+    unsafe { core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(byte_slice) }
+}
+
+// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
+// authored once and accept either [u8] or ReadableProcessSlice
+impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
+    fn from(val: &'a [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
+        //         This also extends the lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
+}
+
+// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
+// authored once and accept either [u8] or ReadableProcessSlice
+impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
+    fn from(val: &'a mut [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
+        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
 }
 
 impl ReadableProcessSlice {
@@ -651,8 +690,13 @@ impl ReadableProcessSlice {
         self.slice.iter()
     }
 
-    pub fn chunks(&self, chunk_size: usize) -> core::slice::Chunks<'_, ReadableProcessByte> {
-        self.slice.chunks(chunk_size)
+    pub fn chunks(
+        &self,
+        chunk_size: usize,
+    ) -> impl core::iter::Iterator<Item = &ReadableProcessSlice> {
+        self.slice
+            .chunks(chunk_size)
+            .map(cast_byte_slice_to_process_slice)
     }
 }
 
@@ -661,15 +705,7 @@ impl Index<Range<usize>> for ReadableProcessSlice {
     type Output = Self;
 
     fn index(&self, idx: Range<usize>) -> &Self::Output {
-        // As ReadableProcessSlice is a transparent wrapper around
-        // its inner type, [ReadableProcessByte], we can use the
-        // regular slicing operator here with its usual
-        // semantics. However, we need to use mem::transmute to
-        // convert it back from a [ReadableProcessByte] to a
-        // ReadableProcessSlice.
-        unsafe {
-            core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(&self.slice[idx])
-        }
+        cast_byte_slice_to_process_slice(&self.slice[idx])
     }
 }
 
@@ -717,6 +753,23 @@ impl Index<usize> for ReadableProcessSlice {
 #[repr(transparent)]
 pub struct WriteableProcessSlice {
     slice: [Cell<u8>],
+}
+
+fn cast_cell_slice_to_process_slice<'a>(cell_slice: &'a [Cell<u8>]) -> &'a WriteableProcessSlice {
+    // As WriteableProcessSlice is a transparent wrapper around its inner type, [Cell<u8>], we can
+    // safely transmute a reference to the inner type as the outer type with the same lifetime.
+    unsafe { core::mem::transmute(cell_slice) }
+}
+
+// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow client code to be
+// authored once and accept either [u8] or WriteableProcessSlice
+impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
+    fn from(val: &'a mut [u8]) -> Self {
+        // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be the same.
+        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
+        //         thus maintained properly.
+        unsafe { core::mem::transmute(val) }
+    }
 }
 
 impl WriteableProcessSlice {
@@ -808,8 +861,13 @@ impl WriteableProcessSlice {
         self.slice.iter()
     }
 
-    pub fn chunks(&self, chunk_size: usize) -> core::slice::Chunks<'_, Cell<u8>> {
-        self.slice.chunks(chunk_size)
+    pub fn chunks(
+        &self,
+        chunk_size: usize,
+    ) -> impl core::iter::Iterator<Item = &WriteableProcessSlice> {
+        self.slice
+            .chunks(chunk_size)
+            .map(cast_cell_slice_to_process_slice)
     }
 }
 
@@ -818,12 +876,7 @@ impl Index<Range<usize>> for WriteableProcessSlice {
     type Output = Self;
 
     fn index(&self, idx: Range<usize>) -> &Self::Output {
-        // As WriteableProcessSlice is a transparent wrapper around
-        // its inner type, [Cell<u8>], we can use the regular slicing
-        // operator here with its usual semantics. However, we need to
-        // use mem::transmute to convert it back from a [Cell<u8>] to
-        // a WriteableProcessSlice.
-        unsafe { core::mem::transmute::<&[Cell<u8>], &WriteableProcessSlice>(&self.slice[idx]) }
+        cast_cell_slice_to_process_slice(&self.slice[idx])
     }
 }
 

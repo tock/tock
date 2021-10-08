@@ -212,14 +212,14 @@ as the return address (`ra`) register.
 After a system call is made, the call is handled and routed by the Tock kernel
 in [`sched.rs`](../kernel/src/kernel.rs) through a series of steps.
 
-1. For Command, Subscribe, Allow Read-Write and Allow Read-Only system
+1. For Command, Subscribe, Allow Read-Write, and Allow Read-Only system
 call classes, the kernel calls a platform-defined system call filter
 function. This function determines if the kernel should handle the
 system call or not. Yield, Exit, and Memop system calls are not
 filtered. This filter function allows the kernel to impose security
 policies that limit which system calls a process might invoke. The
 filter function takes the system call and which process issued the system call
-to return a `Result((), ErrorCode)` to signal if the system call should be
+to return a `Result<(), ErrorCode>` to signal if the system call should be
 handled or if an error should be returned to the process. If the
 filter function disallows the system call it returns `Err(ErrorCode)` and
 the `ErrorCode` is provided to the process as the return code for the
@@ -234,14 +234,14 @@ which implements the Memop class.
 4. Allow Read-Write, Allow Read-Only, Subscribe, and Command follow a
 more complex execution path because are implemented by drivers.  To
 route these system calls, the scheduler loop calls a struct that
-implements the `Platform` trait. This trait has a `with_driver()`
+implements the `SyscallDriverLookup` trait. This trait has a `with_driver()`
 function that the driver number as an argument and returns either a
 reference to the corresponding driver or `None` if it is not
 installed. The kernel uses the returned reference to call the
 appropriate system call function on that driver with the remaining
 system call arguments.
 
-An example board that implements the `Platform` trait looks something like
+An example board that implements the `SyscallDriverLookup` trait looks something like
 this:
 
    ```rust
@@ -249,9 +249,9 @@ this:
        console: &'static Console<'static, usart::USART>,
    }
 
-   impl Platform for TestBoard {
+   impl SyscallDriverLookup for TestBoard {
        fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-           where F: FnOnce(Option<&kernel::Driver>) -> R
+           where F: FnOnce(Option<&kernel::syscall::SyscallDriver>) -> R
        {
 
            match driver_num {

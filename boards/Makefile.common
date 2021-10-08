@@ -13,6 +13,10 @@ MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # This is currently the parent directory of MAKEFILE_COMMON_PATH.
 TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
+# The path to the root of the rust installation used for this build.
+# Useful for remapping paths and for finding already-installed llvm tools.
+RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
+
 # Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
 CARGO     ?= cargo
@@ -30,6 +34,7 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 # RUSTC_FLAGS allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 #
+# - `relocation-model=static`: See https://github.com/tock/tock/pull/2853
 # - `-nmagic`: lld by default uses a default page size to align program
 #   sections. Tock expects that program sections are set back-to-back. `-nmagic`
 #   instructs the linker to not page-align sections.
@@ -42,7 +47,7 @@ RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
-  -C relocation-model=dynamic-no-pic \
+  -C relocation-model=static \
   -C link-arg=-nmagic \
   -C link-arg=-icf=all \
 
@@ -58,10 +63,14 @@ endif
 # that are global to all Tock boards.
 #
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
-# reporting from appearing in the generated binary.
+# reporting from appearing in the generated binary. The first line is used for
+# remapping the tock directory, and the second line is for remapping paths to the
+# source code of the core library, which end up in the binary as a result of our use
+# of -Zbuild-std=core.
 RUSTC_FLAGS_TOCK ?= \
   $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
+  --remap-path-prefix=$(RUSTC_SYSROOT)/lib/rustlib/src/rust/library/core=/core/
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -161,7 +170,7 @@ endif # $(NO_RUSTUP) ?
 # rustup should take care of this for us by putting in a proxy in .cargo/bin,
 # but until that is setup we workaround it.
 ifeq ($(TOOLCHAIN),llvm)
-  TOOLCHAIN = "$(shell dirname $(shell find `rustc --print sysroot` -name llvm-size))/llvm"
+  TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
 endif
 
 # Set variables of the key tools we need to compile a Tock kernel.
@@ -182,7 +191,16 @@ OBJCOPY_FLAGS ?= --strip-sections -S --remove-section .apps
 # Cargo.toml.
 CARGO_FLAGS ?=
 # Add default flags to cargo. Boards can add additional options in CARGO_FLAGS
-CARGO_FLAGS_TOCK ?= $(VERBOSE) --target=$(TARGET) --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
+# We use build-std=core,compiler_builtins to build the std library from source using
+# our optimization settings. This leads to significantly smaller binary sizes, and
+# makes debugging easier since debug information for the core library is included in
+# the resulting .elf file. See https://github.com/tock/tock/pull/2847 for more details.
+CARGO_FLAGS_TOCK ?= \
+  $(VERBOSE) \
+  -Z build-std=core,compiler_builtins \
+  --target=$(TARGET) \
+  --package $(PLATFORM) \
+  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size

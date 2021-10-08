@@ -506,3 +506,10 @@ impl hil::symmetric_encryption::AES128CBC for Aes<'_> {
         Ok(())
     }
 }
+
+impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
+    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        self.set_mode(encrypting, ConfidentialityMode::ECB);
+        Ok(())
+    }
+}

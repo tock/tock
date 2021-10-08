@@ -41,7 +41,7 @@ Verilog files) can be obtained from the [Tock on LiteX companion
 repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2021072001](https://github.com/lschuermann/tock-litex/releases/tag/2021072001). The
+2021081101](https://github.com/lschuermann/tock-litex/releases/tag/2021081101). The
 bitstream for this board is located in `digilent_arty_a7-35t.zip`
 under `gateware/digilent_arty.bit`.
 

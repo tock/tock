@@ -347,7 +347,7 @@ impl<'a> Adc<'a> {
                 self.status.set(ADCStatus::Idle);
             }
             self.client
-                .map(|client| client.sample_ready(self.registers.dr.read(DR::DATA) as u16));
+                .map(|client| client.sample_ready((self.registers.dr.read(DR::DATA) as u16) << 4));
         }
     }
 

@@ -176,7 +176,8 @@ pub fn load_processes_advanced<C: Chip>(
     let mut remaining_memory = app_memory;
 
     // Try to discover up to `procs.len()` processes in flash.
-    for i in 0..procs.len() {
+    let mut index = 0;
+    while index < procs.len() {
         // Get the first eight bytes of flash to check if there is another
         // app.
         let test_header_slice = match remaining_flash.get(0..8) {
@@ -247,14 +248,14 @@ pub fn load_processes_advanced<C: Chip>(
                     remaining_memory,
                     fault_policy,
                     require_kernel_version,
-                    i,
+                    index,
                 )?
             };
             process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
-                        i,
+                        index,
                         entry_flash.as_ptr() as usize,
                         entry_flash.as_ptr() as usize + entry_flash.len() - 1,
                         process.mem_start() as usize,
@@ -264,7 +265,11 @@ pub fn load_processes_advanced<C: Chip>(
                 }
 
                 // Save the reference to this process in the processes array.
-                procs[i] = Some(process);
+                procs[index] = Some(process);
+                // Can now increment index to use the next spot in the processes
+                // array. Padding apps mean we might detect valid headers but
+                // not actually insert a new process in the array.
+                index += 1;
             });
             unused_memory
         } else {

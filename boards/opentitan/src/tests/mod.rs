@@ -47,6 +47,7 @@ fn trivial_assertion() {
 }
 
 mod aes_test;
+mod csrng;
 mod hmac;
 mod multi_alarm;
 // OTBN is no longer included in the FPGA build, so we disable the tests

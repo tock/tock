@@ -10,6 +10,8 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
 use capsules::virtual_sha::VirtualMuxSha;
@@ -19,8 +21,11 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::digest::Digest;
+use kernel::hil::entropy::Entropy32;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::rng::Rng;
+use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
@@ -114,6 +119,11 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
+    aes: &'static capsules::symmetric_encryption::aes::AesDriver<
+        'static,
+        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+    >,
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
@@ -134,6 +144,8 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -149,6 +161,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -166,6 +179,9 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -186,7 +202,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -414,10 +430,22 @@ unsafe fn setup() -> (
     );
 
     // TicKV
+    #[cfg(not(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
         &mux_flash,                                  // Flash controller
-        0x20040000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x40000,                                     // Region size
+        0x20090000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x70000,                                     // Region size
+        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
+        page_buffer,                                 // Buffer used with the flash controller
+    )
+    .finalize(components::tickv_component_helper!(
+        lowrisc::flash_ctrl::FlashCtrl
+    ));
+    #[cfg(any(feature = "fpga_nexysvideo"))]
+    let tickv = components::tickv::TicKVComponent::new(
+        &mux_flash,                                  // Flash controller
+        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x20000,                                     // Region size
         flash_ctrl_read_buf,                         // Buffer used internally in TicKV
         page_buffer,                                 // Buffer used with the flash controller
     )
@@ -438,6 +466,65 @@ unsafe fn setup() -> (
             .register(&peripherals.otbn)
             .expect("dynamic deferred caller out of slots"),
     );
+
+    // Convert hardware RNG to the Random interface.
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&peripherals.rng)
+    );
+    peripherals.rng.set_client(entropy_to_random);
+    // Setup RNG for userspace
+    let rng = static_init!(
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
+            board_kernel.create_grant(capsules::rng::DRIVER_NUM, &memory_allocation_cap)
+        )
+    );
+    entropy_to_random.set_client(rng);
+
+    const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
+
+    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
+    let aes_dest_buffer = static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
+
+    let ccm_mux = static_init!(
+        virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes, dynamic_deferred_caller)
+    );
+    peripherals.aes.set_client(ccm_mux);
+    ccm_mux.initialize_callback_handle(
+        dynamic_deferred_caller
+            .register(ccm_mux)
+            .expect("no deferred call slot available for ccm mux"),
+    );
+
+    let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
+    let ccm_client1 = static_init!(
+        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf1)
+    );
+    ccm_client1.setup();
+    // ccm_mux.set_client(ccm_client1);
+
+    let aes = static_init!(
+        capsules::symmetric_encryption::aes::AesDriver<
+            'static,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        >,
+        capsules::symmetric_encryption::aes::AesDriver::new(
+            ccm_client1,
+            aes_source_buffer,
+            aes_dest_buffer,
+            board_kernel.create_grant(
+                capsules::symmetric_encryption::aes::DRIVER_NUM,
+                &memory_allocation_cap
+            )
+        )
+    );
+
+    hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
+    hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -480,8 +567,10 @@ unsafe fn setup() -> (
             alarm: alarm,
             hmac,
             sha,
+            rng,
             lldb: lldb,
             i2c_master,
+            aes,
             scheduler,
             scheduler_timer,
         }

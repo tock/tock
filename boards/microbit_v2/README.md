@@ -32,15 +32,17 @@ There are two ways for flashing the bootloader:
 This step is optional, as a prebuilt bootloader is provided as a [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin).
 
 To build the bootloader yourself, please follow the instructions in the Tock Bootloader's [documentation](https://github.com/tock/tock-bootloader/tree/master/boards/microbit_v2-bootloader) for Micro:bit v2.
+
 ### Using the MicroBit USB Drive
 
-> **NOTE** Uploading the bootloader will not change any ability to upload software to the MicroBit. The microbit board has another bootloader in the debug chip that provides normal software upload capabilites and that will not be overwritten. All other software will work as expected.
+> **NOTE** Uploading the bootloader will not change any ability to upload software to the MicroBit. The Microbit board has another bootloader in the debug chip that provides normal software upload capabilities and that will not be overwritten. All other software will work as expected.
 
 Connect then MicroBit to the computer. A USB drive labeled `MICROBIT` should show up.
 
 Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin) to the `MICROBIT` drive and wait for a few seconds.
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
+
 ### Using openocd
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
@@ -48,7 +50,7 @@ Use the `make flash-bootloader` command to flash [Tock Bootloader](https://githu
 $ make flash-bootloader
 ```
 
-## Uploading the kernal
+## Uploading the kernel
 
 Make sure you have flashed [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
@@ -63,24 +65,10 @@ In bootloader mode, run the `make program` command.
 $ make program
 ```
 
-Programming the kernal might take some time.
-
-## Manage applications
-
-Make sure you have flashed [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
-
-Make sure you have [Tockloader](https://github.com/tock/tockloader) installed.
-
-To manage applications, please read the [Tockloader documentation](https://github.com/tock/tockloader/blob/master/docs/index.md).
-
-> **_NOTE:_**  If you are using an older version of Tockloader, add `--page-size 512` at the end of the command line.
->
-> ```bash
-> $ tockloader ... --page-size 512
-> ```
+Programming the kernel might take some time.
 
 
-## Flashing without bootloader
+## Flashing the kernel without a bootloader
 
 ### Memory layout
 
@@ -112,21 +100,36 @@ $ make flash
 $ make flash-debug
 ```
 
-### Flashing app
+## Managing applications
 
-Please refer to the [tockloader](https://github.com/tock/tockloader) documentation to flash apps.
+Make sure you have flashed the
+[Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
-With bootloader
+Make sure you have [Tockloader](https://github.com/tock/tockloader) installed
+(version 1.8.0 is required to automatically detect and handle Microbit
+applications correctly).
+
+Please refer to the [tockloader](https://github.com/tock/tockloader)
+documentation to install apps.
+
+
+To install apps by automatically detecting the Microbit v2:
 ```bash
 $ tockloader install app.tab
 ```
 
-Without bootloader
+To manually inform Tockloader of the board configuration:
 ```bash
-$ tockloader --openocd --board microbit_v2 --bundle-apps install app.tab
+$ tockloader install --openocd --board microbit_v2 --bundle-apps app.tab
 ```
 
-> `--bundle-apps` seems to be needed due to an [openocd issue](https://github.com/tock/tockloader/issues/67)
+> `--bundle-apps` seems to be needed due to an [openocd issue](https://github.com/tock/tockloader/issues/67).
+
+> If you are using an older version of Tockloader, add `--page-size 512` at the end of the command.
+>
+> ```bash
+> $ tockloader ... --page-size 512
+> ```
 
 ## Troubleshooting
 

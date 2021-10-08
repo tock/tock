@@ -19,10 +19,11 @@ To install `elf2uf2`, run the commands:
 
 ```bash
 $ git clone https://github.com/raspberrypi/pico-sdk
-$ mkdir build
-$ cd mkdir
-$ cmake ..
+$ cd pico-sdk
 $ cd tools/elf2uf2
+$ mkdir build
+$ cd build
+$ cmake ..
 $ make
 $ sudo cp elf2uf2 /usr/local/bin
 ```
@@ -67,7 +68,7 @@ Enter BOOTSEL mode.
 
 Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
-$ APP="<path to app's tbf file>" make program
+$ APP="<path to app's tbf file>" make flash-app
 ```
 
 ## Serial Interface

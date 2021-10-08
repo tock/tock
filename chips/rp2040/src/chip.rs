@@ -8,6 +8,7 @@ use kernel::platform::chip::InterruptService;
 use crate::adc;
 use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
+use crate::i2c;
 use crate::interrupts;
 use crate::resets::Resets;
 use crate::spi;
@@ -123,6 +124,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
+    pub i2c0: i2c::I2c<'a>,
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
@@ -139,11 +141,14 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
+            i2c0: i2c::I2c::new_i2c0(),
         }
     }
 
-    pub fn set_clocks(&'a self) {
+    pub fn resolve_dependencies(&'a self) {
         self.spi0.set_clocks(&self.clocks);
+        self.uart0.set_clocks(&self.clocks);
+        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
     }
 }
 
@@ -176,6 +181,10 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::IO_IRQ_BANK0 => {
                 self.pins.handle_interrupt();
+                true
+            }
+            interrupts::I2C0_IRQ => {
+                self.i2c0.handle_interrupt();
                 true
             }
             _ => false,

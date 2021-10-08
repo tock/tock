@@ -2,7 +2,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::digest;
+use kernel::hil::digest::{self, DigestHash};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -77,6 +77,8 @@ pub struct Hmac<'a> {
     data_len: Cell<usize>,
     data_index: Cell<usize>,
 
+    verify: Cell<bool>,
+
     digest: Cell<Option<&'static mut [u8; 32]>>,
 }
 
@@ -88,6 +90,7 @@ impl Hmac<'_> {
             data: Cell::new(None),
             data_len: Cell::new(0),
             data_index: Cell::new(0),
+            verify: Cell::new(false),
             digest: Cell::new(None),
         }
     }
@@ -150,20 +153,40 @@ impl Hmac<'_> {
             self.client.map(|client| {
                 let digest = self.digest.take().unwrap();
 
-                for i in 0..8 {
-                    let d = regs.digest[i].get().to_ne_bytes();
-
-                    let idx = i * 4;
-
-                    digest[idx + 0] = d[0];
-                    digest[idx + 1] = d[1];
-                    digest[idx + 2] = d[2];
-                    digest[idx + 3] = d[3];
-                }
-
                 regs.intr_state.modify(INTR_STATE::HMAC_DONE::SET);
 
-                client.hash_done(Ok(()), digest);
+                if self.verify.get() {
+                    let mut equal = true;
+
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        if digest[idx + 0] != d[0]
+                            || digest[idx + 1] != d[1]
+                            || digest[idx + 2] != d[2]
+                            || digest[idx + 3] != d[3]
+                        {
+                            equal = false;
+                        }
+                    }
+
+                    client.verification_done(Ok(equal), digest);
+                } else {
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        digest[idx + 0] = d[0];
+                        digest[idx + 1] = d[1];
+                        digest[idx + 2] = d[2];
+                        digest[idx + 3] = d[3];
+                    }
+
+                    client.hash_done(Ok(()), digest);
+                }
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
             // Clear the FIFO empty interrupt
@@ -187,17 +210,17 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                if self.verify.get() {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                } else {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                }
             });
         }
     }
 }
 
-impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
-        self.client.set(client);
-    }
-
+impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
@@ -227,6 +250,15 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
         Ok(self.data_len.get())
     }
 
+    fn clear_data(&self) {
+        let regs = self.registers;
+
+        regs.cmd.modify(CMD::START::CLEAR);
+        regs.wipe_secret.set(1 as u32);
+    }
+}
+
+impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
     fn run(
         &'a self,
         digest: &'static mut [u8; 32],
@@ -246,12 +278,22 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
 
         Ok(())
     }
+}
 
-    fn clear_data(&self) {
-        let regs = self.registers;
+impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
+    fn verify(
+        &'a self,
+        compare: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        self.verify.set(true);
 
-        regs.cmd.modify(CMD::START::CLEAR);
-        regs.wipe_secret.set(1 as u32);
+        self.run(compare)
+    }
+}
+
+impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
+        self.client.set(client);
     }
 }
 

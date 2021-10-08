@@ -14,7 +14,6 @@ use kernel::ErrorCode;
 
 pub static BASE_ADDR: u8 = 0x44;
 
-#[repr(u16)]
 enum_from_primitive! {
     enum Registers {
         /// Measurement High Repeatability with Clock Stretch Enabled
