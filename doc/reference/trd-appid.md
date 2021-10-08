@@ -139,26 +139,31 @@ decides whether to load it into a process and run it.
 There is a relationship between application identifiers and
 credentials, but they are not the same thing. An application
 identifier is a numerical representation of the application's
-identity, while credentials are the data that, combined with
-a verifier policy, bind identifiers to 
-binaries. Suppose there are two versions (v1.1 and v1.2) of the same 
-application. They have different binaries. Their application credentials
-consist of a cryptographic hash of their binary signed by a known 
-public key. The public key defines the application identifier: all
-versions of this application have credentials signed by this key.
-The two versions have different credentials, because their hashes
-differ, but they have the same application identifier. 
+identity, while credentials are the data that, combined with a
+verifier policy, bind identifiers to binaries. Suppose there are two
+versions (v1.1 and v1.2) of the same application. They have different
+binaries. Their application credentials consist of a cryptographic
+hash of their binary signed by a known public key. The public key
+defines the application identifier: all versions of this application
+have credentials signed by this key.  The two versions have different
+credentials, because their hashes differ, but they have the same
+application identifier.
 
-Every running Tock process MUST have an application identifier.  
+Every running Tock process MUST have an application identifier.
 Application identifiers MUST be unique across running processes in a
-single Tock system.  Global application identifiers MUST persist 
-across process restarts or reloads.  
+single Tock system.  Global application identifiers MUST persist
+across process restarts or reloads.
 
-If the verifier policy assigns the same application
-identifier to multiple process binaries, then the Tock kernel MUST NOT
-run more than one of them at any given time. Following the above example,
-the Tock kernel can run v1.1 or v1.2 of the application, but will not
-run both simultaneously.
+If the verifier policy assigns the same application identifier to
+multiple process binaries, then the Tock kernel MUST NOT run more than
+one of them at any given time. Following the above example, the Tock
+kernel can run v1.1 or v1.2 of the application, but will not run both
+simultaneously. A kernel MAY perform this check by comparing Short IDs
+generated from application identifiers using the `Compress` trait
+(described below). Kernels using Short IDs to test collisions between
+application identifiers SHOULD implement `Compress` in a manner that
+minimizes cases when two different valid application identifiers
+compress to the same Short ID.
 
 In cases when a process does not have any application
 credentials, the verifier policy MAY assign it a global or local
@@ -244,7 +249,7 @@ global application identifier.
 ===============================
 
 To support credentials in Tock binaries, the Tock Binary Format has
-a `TbfHeaderV2Credentials` header. This header is variable length
+a `TbfHeaderV2Credentials` TLV. This TLV is variable length
 and has two fields:
 
 ```rust
@@ -280,26 +285,56 @@ The `Rsa3072Key` value has a data of length of 768 bytes. It contains
 a public 3072-bit RSA key (384 bytes), followed by a 384-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary, signed by the private key of the public
-key in the header.
+key in the TLV.
 
 The `Rsa4096Key` value has a data of length of 1024 bytes. It contains
 a public 4096-bit RSA key (512 bytes), followed by a 512-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary, encrypted by the private key of the
-public key in the header.
+public key in the TLV.
 
 The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It
 contains a public 3072-bit RSA key (384 bytes), followed by a 384-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary followed by a 32-bit application ID,
-encrypted by the private key of the public key in the header.
+encrypted by the private key of the public key in the TLV.
 
 The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It
 contains a public 4096-bit RSA key (512 bytes), followed by a 512-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary followed by a 32-bit application ID,
-encrypted by the private key of the public key in the header.
+encrypted by the private key of the public key in the TLV.
 
+`TbfHeaderV2Credentials` headers MUST come after all other headers;
+the last `TbfHeaderV2Credentials` header immediately precedes the
+compiled application binary. If a `TbfHeaderV2Credentials` header
+includes a cryptographic hash, signature, or other value to check the
+integrity of a process binary, the computation of this value MUST include
+
+  - the compiled app binary,
+  - the TBF header base,
+  - writeable flash regions TLVs,
+  - package name TLVs,
+  - fixed address TLVs,
+  - permissions TLVs, and
+  - persistent ACL TLVs.
+
+**We need to be more precise here about how this calculated.**
+
+Computing an integrity value in a credentials TLV MUST NOT include the
+contents of credentials TLVs. Instead, integrity values MUST be
+computed as if all credentials TLVs were filled with zeroes.  Note,
+however, that since the total size of the TBF object is included in
+the integrity value, a TBF object cannot change in size. Use cases
+that need to be able to add or change credentials in a given process
+binary need to pre-allocate enough space to do so.
+
+Any future specification of a TLV MUST include a statement of whether
+the TLV is included in the computation of integrity values. If the TLV
+is not included, the computation MUST execute as if the TLV were
+filled with zeroes. It is RECOMMENDED that new TLVs be included in
+integrity value computations unless technical reasons make this
+impossible.
 
 4 `Verifier` trait
 ===============================
@@ -317,8 +352,8 @@ pub enum VerificationResult {
     Reject
 }
 
-pub trait Verifier {
-    fn require_credential(&self) -> bool;
+pub trait Verify {
+    fn require_credentials(&self) -> bool;
     fn check_credentials(&self,
                          credentials: &TbfHeaderV2Credentials,
                          binary: &mut [u8]) -> VerificationResult;
@@ -334,6 +369,11 @@ continues loading the process binary. If the `Verifier` returns `Reject`,
 the kernel stops processing credentials and terminates loading the
 process binary. If the `Verifier` returns `Pass`, the kernel tries the
 next `TbfHeaderV2Credentials`, if there is one.
+
+
+The `binary` argument to `check_credentials` is a reference to the
+beginning of the process binary. The Verifier implementation is
+responsible for parsing the TBF object. 
 
 If the kernel reaches the end of the TBF headers without encountering
 a `Reject` or `Accept` result, it calls `require_credentials` to ask
@@ -380,7 +420,7 @@ RSA key. The `Compress` trait can map all such
 stored in the process structure. Access control systems within the
 kernel can define their policies in terms of these identifiers, such
 that they can check access by comparing 32-bit integers rather than
-512-byte keys.
+384-byte keys.
 
 ```rust
 #[derive(Clone, Copy, Eq)]
