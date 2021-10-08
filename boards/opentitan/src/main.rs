@@ -281,10 +281,14 @@ unsafe fn setup() -> (
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let scheduler_timer_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    scheduler_timer_virtual_alarm.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(

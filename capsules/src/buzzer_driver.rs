@@ -24,6 +24,7 @@
 //!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
 //! );
+//! virtual_alarm_buzzer.setup();
 //!
 //! let buzzer = static_init!(
 //!     capsules::buzzer_driver::Buzzer<

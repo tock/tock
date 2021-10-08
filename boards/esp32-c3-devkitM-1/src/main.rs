@@ -197,6 +197,8 @@ unsafe fn setup() -> (
         VirtualMuxAlarm<'static, esp32::timg::TimG>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32::timg::TimG>>,
         capsules::alarm::AlarmDriver::new(

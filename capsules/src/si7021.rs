@@ -27,6 +27,8 @@
 //! let si7021_virtual_alarm = static_init!(
 //!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
 //!     VirtualMuxAlarm::new(mux_alarm));
+//! si7021_virtual_alarm.setup();
+//!
 //! let si7021 = static_init!(
 //!     capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
 //!     capsules::si7021::SI7021::new(si7021_i2c,

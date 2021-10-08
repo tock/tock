@@ -28,6 +28,7 @@
 //! let sdcard_virtual_alarm = static_init!(
 //!      capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
 //!      capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
+//! sdcard_virtual_alarm.setup();
 //!
 //! let sdcard = static_init!(
 //!     capsules::sdcard::SDCard<

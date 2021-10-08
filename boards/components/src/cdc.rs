@@ -100,6 +100,8 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        cdc_alarm.setup();
+
         let cdc = static_init_half!(
             s.1,
             capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,

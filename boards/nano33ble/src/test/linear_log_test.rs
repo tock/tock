@@ -67,10 +67,16 @@ pub unsafe fn run(
             .expect("no deferred call slot available for log storage"),
     );
 
+    let alarm = static_init!(
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    alarm.setup();
+
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Rtc>>,
-        LogTest::new(log, &mut BUFFER, VirtualMuxAlarm::new(mux_alarm), &TEST_OPS)
+        LogTest::new(log, &mut BUFFER, alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -112,19 +118,19 @@ enum TestOp {
 
 type Log = log::Log<'static, Nvmc>;
 
-struct LogTest<A: Alarm<'static>> {
+struct LogTest<A: 'static + Alarm<'static>> {
     log: &'static Log,
     buffer: TakeCell<'static, [u8]>,
-    alarm: A,
+    alarm: &'static A,
     ops: &'static [TestOp],
     op_index: Cell<usize>,
 }
 
-impl<A: Alarm<'static>> LogTest<A> {
+impl<A: 'static + Alarm<'static>> LogTest<A> {
     fn new(
         log: &'static Log,
         buffer: &'static mut [u8],
-        alarm: A,
+        alarm: &'static A,
         ops: &'static [TestOp],
     ) -> LogTest<A> {
         debug_verbose!(

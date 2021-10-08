@@ -114,6 +114,8 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        virtual_alarm1.setup();
+
         let alarm = static_init_half!(
             static_buffer.1,
             AlarmDriver<'static, VirtualMuxAlarm<'static, A>>,

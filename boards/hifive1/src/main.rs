@@ -198,10 +198,14 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(

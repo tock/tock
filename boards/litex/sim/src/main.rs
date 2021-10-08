@@ -279,6 +279,8 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
@@ -312,6 +314,7 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<

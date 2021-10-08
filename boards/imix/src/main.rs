@@ -691,6 +691,7 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_timer.setup();
 
     let mux_timer = static_init!(
         MuxTimer<'static, sam4l::ast::Ast>,
