@@ -90,21 +90,25 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                 key[..static_buffer_len]
                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                match app.aes_operation.as_ref().unwrap() {
-                                    AesOperation::AES128Ctr(_)
-                                    | AesOperation::AES128CBC(_)
-                                    | AesOperation::AES128ECB(_) => {
-                                        if let Err(e) = AES128::set_key(self.aes, buf) {
-                                            return Err(e);
+                                if let Some(op) = app.aes_operation.as_ref() {
+                                    match op {
+                                        AesOperation::AES128Ctr(_)
+                                        | AesOperation::AES128CBC(_)
+                                        | AesOperation::AES128ECB(_) => {
+                                            if let Err(e) = AES128::set_key(self.aes, buf) {
+                                                return Err(e);
+                                            }
+                                            Ok(())
                                         }
-                                        Ok(())
-                                    }
-                                    AesOperation::AES128CCM(_) => {
-                                        if let Err(e) = AES128CCM::set_key(self.aes, buf) {
-                                            return Err(e);
+                                        AesOperation::AES128CCM(_) => {
+                                            if let Err(e) = AES128CCM::set_key(self.aes, buf) {
+                                                return Err(e);
+                                            }
+                                            Ok(())
                                         }
-                                        Ok(())
                                     }
+                                } else {
+                                    Err(ErrorCode::FAIL)
                                 }
                             })
                         })
@@ -125,21 +129,25 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                 iv[..static_buffer_len]
                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                match app.aes_operation.as_ref().unwrap() {
-                                    AesOperation::AES128Ctr(_)
-                                    | AesOperation::AES128CBC(_)
-                                    | AesOperation::AES128ECB(_) => {
-                                        if let Err(e) = self.aes.set_iv(buf) {
-                                            return Err(e);
+                                if let Some(op) = app.aes_operation.as_ref() {
+                                    match op {
+                                        AesOperation::AES128Ctr(_)
+                                        | AesOperation::AES128CBC(_)
+                                        | AesOperation::AES128ECB(_) => {
+                                            if let Err(e) = self.aes.set_iv(buf) {
+                                                return Err(e);
+                                            }
+                                            Ok(())
                                         }
-                                        Ok(())
-                                    }
-                                    AesOperation::AES128CCM(_) => {
-                                        if let Err(e) = self.aes.set_nonce(&buf[0..13]) {
-                                            return Err(e);
+                                        AesOperation::AES128CCM(_) => {
+                                            if let Err(e) = self.aes.set_nonce(&buf[0..13]) {
+                                                return Err(e);
+                                            }
+                                            Ok(())
                                         }
-                                        Ok(())
                                     }
+                                } else {
+                                    Err(ErrorCode::FAIL)
                                 }
                             })
                         })
@@ -149,58 +157,65 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                         .enter(|source| {
                             let mut static_buffer_len = 0;
 
-                            match app.aes_operation.as_ref().unwrap() {
-                                AesOperation::AES128Ctr(_)
-                                | AesOperation::AES128CBC(_)
-                                | AesOperation::AES128ECB(_) => {
-                                    self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                        // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.len();
+                            if let Some(op) = app.aes_operation.as_ref() {
+                                match op {
+                                    AesOperation::AES128Ctr(_)
+                                    | AesOperation::AES128CBC(_)
+                                    | AesOperation::AES128ECB(_) => {
+                                        self.source_buffer.map_or(
+                                            Err(ErrorCode::NOMEM),
+                                            |buf| {
+                                                // Determine the size of the static buffer we have
+                                                static_buffer_len = buf.len();
 
-                                        if static_buffer_len > source.len() {
-                                            static_buffer_len = source.len()
-                                        }
+                                                if static_buffer_len > source.len() {
+                                                    static_buffer_len = source.len()
+                                                }
 
-                                        // Copy the data into the static buffer
-                                        source[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                // Copy the data into the static buffer
+                                                source[..static_buffer_len]
+                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                        self.data_copied.set(static_buffer_len);
+                                                self.data_copied.set(static_buffer_len);
 
-                                        Ok(())
-                                    })?;
+                                                Ok(())
+                                            },
+                                        )?;
+                                    }
+                                    AesOperation::AES128CCM(_) => {
+                                        self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                            // Determine the size of the static buffer we have
+                                            static_buffer_len = buf.len();
+
+                                            if static_buffer_len > source.len() {
+                                                static_buffer_len = source.len()
+                                            }
+
+                                            // Copy the data into the static buffer
+                                            source[..static_buffer_len]
+                                                .copy_to_slice(&mut buf[..static_buffer_len]);
+
+                                            self.data_copied.set(static_buffer_len);
+
+                                            Ok(())
+                                        })?;
+                                    }
                                 }
-                                AesOperation::AES128CCM(_) => {
-                                    self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                        // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.len();
 
-                                        if static_buffer_len > source.len() {
-                                            static_buffer_len = source.len()
-                                        }
-
-                                        // Copy the data into the static buffer
-                                        source[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                        self.data_copied.set(static_buffer_len);
-
-                                        Ok(())
-                                    })?;
+                                if let Err(e) = self.calculate_output(
+                                    op,
+                                    app.aoff.get(),
+                                    app.moff.get(),
+                                    app.mlen.get(),
+                                    app.mic_len.get(),
+                                    app.confidential.get(),
+                                ) {
+                                    return Err(e);
                                 }
+                                Ok(())
+                            } else {
+                                Err(ErrorCode::FAIL)
                             }
-
-                            if let Err(e) = self.calculate_output(
-                                app.aes_operation.as_ref().unwrap(),
-                                app.aoff.get(),
-                                app.moff.get(),
-                                app.mlen.get(),
-                                app.mic_len.get(),
-                                app.confidential.get(),
-                            ) {
-                                return Err(e);
-                            }
-                            Ok(())
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))?;
 
@@ -223,40 +238,49 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
             AesOperation::AES128Ctr(_)
             | AesOperation::AES128CBC(_)
             | AesOperation::AES128ECB(_) => {
-                if let Some((e, source, dest)) = AES128::crypt(
-                    self.aes,
-                    Some(self.source_buffer.take().unwrap()),
-                    self.dest_buffer.take().unwrap(),
-                    0,
-                    AES128_BLOCK_SIZE,
-                ) {
-                    // Error, clear the appid and data
-                    self.aes.disable();
-                    self.appid.clear();
-                    self.source_buffer.replace(source.unwrap());
-                    self.dest_buffer.replace(dest);
+                if let Some(dest_buf) = self.dest_buffer.take() {
+                    if let Some((e, source, dest)) = AES128::crypt(
+                        self.aes,
+                        self.source_buffer.take(),
+                        dest_buf,
+                        0,
+                        AES128_BLOCK_SIZE,
+                    ) {
+                        // Error, clear the appid and data
+                        self.aes.disable();
+                        self.appid.clear();
+                        if let Some(source_buf) = source {
+                            self.source_buffer.replace(source_buf);
+                        }
+                        self.dest_buffer.replace(dest);
 
-                    return e;
+                        return e;
+                    }
+                } else {
+                    return Err(ErrorCode::FAIL);
                 }
             }
             AesOperation::AES128CCM(encrypting) => {
-                let buf = self.dest_buffer.take().unwrap();
-                if let Err((e, dest)) = AES128CCM::crypt(
-                    self.aes,
-                    buf,
-                    aoff,
-                    moff,
-                    mlen,
-                    mic_len,
-                    confidential,
-                    *encrypting,
-                ) {
-                    // Error, clear the appid and data
-                    self.aes.disable();
-                    self.appid.clear();
-                    self.dest_buffer.replace(dest);
+                if let Some(buf) = self.dest_buffer.take() {
+                    if let Err((e, dest)) = AES128CCM::crypt(
+                        self.aes,
+                        buf,
+                        aoff,
+                        moff,
+                        mlen,
+                        mic_len,
+                        confidential,
+                        *encrypting,
+                    ) {
+                        // Error, clear the appid and data
+                        self.aes.disable();
+                        self.appid.clear();
+                        self.dest_buffer.replace(dest);
 
-                    return Err(e);
+                        return Err(e);
+                    }
+                } else {
+                    return Err(ErrorCode::FAIL);
                 }
             }
         }
@@ -291,7 +315,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
     Client<'static> for AesDriver<'static, A>
 {
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
-        self.source_buffer.replace(source.unwrap());
+        if let Some(source_buf) = source {
+            self.source_buffer.replace(source_buf);
+        }
         self.dest_buffer.replace(destination);
 
         self.appid.map(|id| {
@@ -384,22 +410,24 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             // Update the amount of data copied
                             self.data_copied.set(copied_data + static_buffer_len);
 
-                            if self
-                                .calculate_output(
-                                    app.aes_operation.as_ref().unwrap(),
-                                    app.aoff.get(),
-                                    app.moff.get(),
-                                    app.mlen.get(),
-                                    app.mic_len.get(),
-                                    app.confidential.get(),
-                                )
-                                .is_err()
-                            {
-                                // Error, clear the appid and data
-                                self.aes.disable();
-                                self.appid.clear();
-                                self.check_queue();
-                                return;
+                            if let Some(op) = app.aes_operation.as_ref() {
+                                if self
+                                    .calculate_output(
+                                        op,
+                                        app.aoff.get(),
+                                        app.moff.get(),
+                                        app.mlen.get(),
+                                        app.mic_len.get(),
+                                        app.confidential.get(),
+                                    )
+                                    .is_err()
+                                {
+                                    // Error, clear the appid and data
+                                    self.aes.disable();
+                                    self.appid.clear();
+                                    self.check_queue();
+                                    return;
+                                }
                             }
 
                             // Return as we don't want to run the digest yet
@@ -526,40 +554,35 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         allow_num: usize,
         mut slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the key to be in
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.key, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+        let res = self
+            .apps
+            .enter(appid, |app, _| {
+                match allow_num {
+                    // Pass buffer for the key to be in
+                    0 => {
+                        mem::swap(&mut app.key, &mut slice);
+                        Ok(())
+                    }
 
-            // Pass buffer for the IV to be in
-            // This also contains the nonce when doing AES CCM
-            1 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.iv, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+                    // Pass buffer for the IV to be in
+                    // This also contains the nonce when doing AES CCM
+                    1 => {
+                        mem::swap(&mut app.iv, &mut slice);
+                        Ok(())
+                    }
+                    // Pass buffer for the source to be in
+                    // If doing a CCM operation also set the mlen
+                    2 => {
+                        mem::swap(&mut app.source, &mut slice);
+                        app.mlen.set(app.source.len());
+                        Ok(())
+                    }
 
-            // Pass buffer for the source to be in
-            // If doing a CCM operation also set the mlen
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.source, &mut slice);
-                    app.mlen.set(app.source.len());
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or(Err(ErrorCode::FAIL));
 
         match res {
             Ok(()) => Ok(slice),
@@ -622,77 +645,72 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
             }
         });
 
-        match command_num {
-            // check if present
-            0 => CommandReturn::success(),
+        // Try the commands where we want to start an operation *not* entered in
+        // an app grant first.
+        if match_or_empty_or_nonexistant && command_num == 2 {
+            self.appid.set(appid);
+            let ret = self.run();
 
-            // set_algorithm
-            1 => self
-                .apps
-                .enter(appid, |app, _| match data1 {
-                    0 => {
-                        app.aes_operation = Some(AesOperation::AES128Ctr(data2 != 0));
-                        CommandReturn::success()
-                    }
-                    1 => {
-                        app.aes_operation = Some(AesOperation::AES128CBC(data2 != 0));
-                        CommandReturn::success()
-                    }
+            return if let Err(e) = ret {
+                self.aes.disable();
+                self.appid.clear();
+                self.check_queue();
+                CommandReturn::failure(e)
+            } else {
+                CommandReturn::success()
+            };
+        }
+
+        let ret = self
+            .apps
+            .enter(appid, |app, upcalls| {
+                match command_num {
+                    // check if present
+                    0 => CommandReturn::success(),
+
+                    // set_algorithm
+                    1 => match data1 {
+                        0 => {
+                            app.aes_operation = Some(AesOperation::AES128Ctr(data2 != 0));
+                            CommandReturn::success()
+                        }
+                        1 => {
+                            app.aes_operation = Some(AesOperation::AES128CBC(data2 != 0));
+                            CommandReturn::success()
+                        }
+                        2 => {
+                            app.aes_operation = Some(AesOperation::AES128ECB(data2 != 0));
+                            CommandReturn::success()
+                        }
+                        3 => {
+                            app.aes_operation = Some(AesOperation::AES128CCM(data2 != 0));
+                            CommandReturn::success()
+                        }
+                        _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                    },
+
+                    // setup
+                    // Copy in the key and IV and run the first encryption operation
+                    // This will trigger a callback
                     2 => {
-                        app.aes_operation = Some(AesOperation::AES128ECB(data2 != 0));
-                        CommandReturn::success()
+                        // Some app is using the storage, we must wait.
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            CommandReturn::success()
+                        }
                     }
+
+                    // crypt
+                    // Generate the encrypted output
+                    // Multiple calls to crypt will re-use the existing state
+                    // This will trigger a callback
                     3 => {
-                        app.aes_operation = Some(AesOperation::AES128CCM(data2 != 0));
-                        CommandReturn::success()
-                    }
-                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                })
-                .unwrap_or_else(|err| err.into()),
-
-            // setup
-            // Copy in the key and IV and run the first encryption operation
-            // This will trigger a callback
-            2 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.aes.disable();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
-                    }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
-
-            // crypt
-            // Generate the encrypted output
-            // Multiple calls to crypt will re-use the existing state
-            // This will trigger a callback
-            3 => {
-                if app_match {
-                    self.apps
-                        .enter(appid, |app, upcalls| {
+                        if app_match {
                             if let Err(e) = app
                                 .source
                                 .enter(|source| {
@@ -714,17 +732,21 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                         Ok(())
                                     })?;
 
-                                    if let Err(e) = self.calculate_output(
-                                        app.aes_operation.as_ref().unwrap(),
-                                        app.aoff.get(),
-                                        app.moff.get(),
-                                        app.mlen.get(),
-                                        app.mic_len.get(),
-                                        app.confidential.get(),
-                                    ) {
-                                        return Err(e);
+                                    if let Some(op) = app.aes_operation.as_ref() {
+                                        if let Err(e) = self.calculate_output(
+                                            op,
+                                            app.aoff.get(),
+                                            app.moff.get(),
+                                            app.mlen.get(),
+                                            app.mic_len.get(),
+                                            app.confidential.get(),
+                                        ) {
+                                            return Err(e);
+                                        }
+                                        Ok(())
+                                    } else {
+                                        Err(ErrorCode::FAIL)
                                     }
-                                    Ok(())
                                 })
                                 .unwrap_or(Err(ErrorCode::RESERVE))
                             {
@@ -735,87 +757,74 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                     )
                                     .ok();
                             }
-                        })
-                        .unwrap();
-                    CommandReturn::success()
-                } else {
-                    // We don't queue this request, the user has to call
-                    // `setup` first.
-                    CommandReturn::failure(ErrorCode::OFF)
-                }
-            }
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `setup` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
+                    }
 
-            // Finish
-            // Complete the operation and reset the AES
-            // This will not trigger a callback and will not process any data from userspace
-            4 => {
-                if app_match {
-                    self.apps
-                        .enter(appid, |_app, _upcalls| {
+                    // Finish
+                    // Complete the operation and reset the AES
+                    // This will not trigger a callback and will not process any data from userspace
+                    4 => {
+                        if app_match {
                             self.aes.disable();
                             self.appid.clear();
-                        })
-                        .unwrap();
-                    self.check_queue();
-                    CommandReturn::success()
-                } else {
-                    // We don't queue this request, the user has to call
-                    // `setup` first.
-                    CommandReturn::failure(ErrorCode::OFF)
-                }
-            }
 
-            // Set aoff for CCM
-            // This will not trigger a callback and will not process any data from userspace
-            5 => {
-                self.apps
-                    .enter(appid, |app, _upcalls| {
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `setup` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
+                    }
+
+                    // Set aoff for CCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    5 => {
                         app.aoff.set(data1);
-                    })
-                    .unwrap();
-                self.check_queue();
-                CommandReturn::success()
-            }
+                        CommandReturn::success()
+                    }
 
-            // Set moff for CCM
-            // This will not trigger a callback and will not process any data from userspace
-            6 => {
-                self.apps
-                    .enter(appid, |app, _upcalls| {
+                    // Set moff for CCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    6 => {
                         app.moff.set(data1);
-                    })
-                    .unwrap();
-                self.check_queue();
-                CommandReturn::success()
-            }
+                        CommandReturn::success()
+                    }
 
-            // Set mic_len for CCM
-            // This will not trigger a callback and will not process any data from userspace
-            7 => {
-                self.apps
-                    .enter(appid, |app, _upcalls| {
+                    // Set mic_len for CCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    7 => {
                         app.mic_len.set(data1);
-                    })
-                    .unwrap();
-                self.check_queue();
-                CommandReturn::success()
-            }
+                        CommandReturn::success()
+                    }
 
-            // Set confidential boolean for CCM
-            // This will not trigger a callback and will not process any data from userspace
-            8 => {
-                self.apps
-                    .enter(appid, |app, _upcalls| {
+                    // Set confidential boolean for CCM
+                    // This will not trigger a callback and will not process any data from userspace
+                    8 => {
                         app.confidential.set(data1 > 0);
-                    })
-                    .unwrap();
-                self.check_queue();
-                CommandReturn::success()
-            }
+                        CommandReturn::success()
+                    }
 
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                    // default
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|err| err.into());
+
+        if command_num == 4
+            || command_num == 5
+            || command_num == 6
+            || command_num == 7
+            || command_num == 8
+        {
+            self.check_queue();
         }
+
+        ret
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
