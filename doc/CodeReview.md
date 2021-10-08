@@ -20,7 +20,6 @@ merges pull requests for the main Tock repository.
       - [`ci-runner-*[-*]`](#ci-runner--)
       - [`ci-all`](#ci-all)
 - [4. Reviews](#4-reviews)
-- [5. Release Process](#5-release-process)
 - [Other Tock Repositories](#other-tock-repositories)
   * [Userland Repositories](#userland-repositories)
   * [Tertiary Repositories](#tertiary-repositories)
