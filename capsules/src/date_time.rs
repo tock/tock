@@ -16,26 +16,25 @@
 //!     capsules::date_time::DateTime<'static>,
 //!     capsules::date_time::DateTime::new(&peripherals.rtc, grant_date_time)
 //!  );
-//!  kernel::hil::time::Rtc::set_client(&peripherals.rtc, date_time);
+//!  kernel::hil::date_time::DateTime::set_client(&peripherals.rtc, date_time);
 //! ```
 
 use crate::driver::NUM;
 use core::cell::Cell;
 use kernel::grant::Grant;
-use kernel::hil::time::{
-    DateTime as HilDateTime, DayOfWeek as HilDayOfWeek, Month as HilMonth, Rtc, RtcClient,
-};
+use kernel::hil::date_time;
+
+use kernel::errorcode::into_statuscode;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::{ErrorCode, ProcessId};
 
-pub const DRIVER_NUM: usize = NUM::Rtc as usize;
+pub const DRIVER_NUM: usize = NUM::DateTime as usize;
 
-pub const UPCALL_OK: u32 = 1;
-pub const UPCALL_ERR: u32 = 0;
+pub const UPCALL_OK: u32 = 0;
+pub const UPCALL_ERR: u32 = 1;
 
 pub enum DateTimeCommand {
-    Exists,
     ReadDateTime,
     SetDateTime,
 }
@@ -46,7 +45,7 @@ pub struct AppData {
 }
 
 pub struct DateTime<'a> {
-    date_time: &'a dyn Rtc<'a>,
+    date_time: &'a dyn date_time::DateTime<'a>,
     apps: Grant<AppData, 1>,
     in_progress: Cell<bool>,
 }
@@ -73,7 +72,10 @@ register_bitfields![u32,
 ];
 
 impl<'a> DateTime<'a> {
-    pub fn new(date_time: &'a dyn Rtc<'a>, grant: Grant<AppData, 1>) -> DateTime<'a> {
+    pub fn new(
+        date_time: &'a dyn date_time::DateTime<'a>,
+        grant: Grant<AppData, 1>,
+    ) -> DateTime<'a> {
         DateTime {
             date_time,
             apps: grant,
@@ -81,67 +83,67 @@ impl<'a> DateTime<'a> {
         }
     }
 
-    fn month_as_u32(&self, month: HilMonth) -> u32 {
+    fn month_as_u32(&self, month: date_time::Month) -> u32 {
         match month {
-            HilMonth::January => 1,
-            HilMonth::February => 2,
-            HilMonth::March => 3,
-            HilMonth::April => 4,
-            HilMonth::May => 5,
-            HilMonth::June => 6,
-            HilMonth::July => 7,
-            HilMonth::August => 8,
-            HilMonth::September => 9,
-            HilMonth::October => 10,
-            HilMonth::November => 11,
-            HilMonth::December => 12,
+            date_time::Month::January => 1,
+            date_time::Month::February => 2,
+            date_time::Month::March => 3,
+            date_time::Month::April => 4,
+            date_time::Month::May => 5,
+            date_time::Month::June => 6,
+            date_time::Month::July => 7,
+            date_time::Month::August => 8,
+            date_time::Month::September => 9,
+            date_time::Month::October => 10,
+            date_time::Month::November => 11,
+            date_time::Month::December => 12,
         }
     }
 
-    fn u32_as_month(&self, month_num: u32) -> Result<HilMonth, ErrorCode> {
+    fn u32_as_month(&self, month_num: u32) -> Result<date_time::Month, ErrorCode> {
         match month_num {
-            1 => Ok(HilMonth::January),
-            2 => Ok(HilMonth::February),
-            3 => Ok(HilMonth::March),
-            4 => Ok(HilMonth::April),
-            5 => Ok(HilMonth::May),
-            6 => Ok(HilMonth::June),
-            7 => Ok(HilMonth::July),
-            8 => Ok(HilMonth::August),
-            9 => Ok(HilMonth::September),
-            10 => Ok(HilMonth::October),
-            11 => Ok(HilMonth::November),
-            12 => Ok(HilMonth::December),
+            1 => Ok(date_time::Month::January),
+            2 => Ok(date_time::Month::February),
+            3 => Ok(date_time::Month::March),
+            4 => Ok(date_time::Month::April),
+            5 => Ok(date_time::Month::May),
+            6 => Ok(date_time::Month::June),
+            7 => Ok(date_time::Month::July),
+            8 => Ok(date_time::Month::August),
+            9 => Ok(date_time::Month::September),
+            10 => Ok(date_time::Month::October),
+            11 => Ok(date_time::Month::November),
+            12 => Ok(date_time::Month::December),
             _ => Err(ErrorCode::INVAL),
         }
     }
 
-    fn dotw_as_u32(&self, dotw: HilDayOfWeek) -> u32 {
+    fn dotw_as_u32(&self, dotw: date_time::DayOfWeek) -> u32 {
         match dotw {
-            HilDayOfWeek::Sunday => 0,
-            HilDayOfWeek::Monday => 1,
-            HilDayOfWeek::Tuesday => 2,
-            HilDayOfWeek::Wednesday => 3,
-            HilDayOfWeek::Thursday => 4,
-            HilDayOfWeek::Friday => 5,
-            HilDayOfWeek::Saturday => 6,
+            date_time::DayOfWeek::Sunday => 0,
+            date_time::DayOfWeek::Monday => 1,
+            date_time::DayOfWeek::Tuesday => 2,
+            date_time::DayOfWeek::Wednesday => 3,
+            date_time::DayOfWeek::Thursday => 4,
+            date_time::DayOfWeek::Friday => 5,
+            date_time::DayOfWeek::Saturday => 6,
         }
     }
 
-    fn u32_as_dotw(&self, dotw_num: u32) -> Result<HilDayOfWeek, ErrorCode> {
+    fn u32_as_dotw(&self, dotw_num: u32) -> Result<date_time::DayOfWeek, ErrorCode> {
         match dotw_num {
-            0 => Ok(HilDayOfWeek::Sunday),
-            1 => Ok(HilDayOfWeek::Monday),
-            2 => Ok(HilDayOfWeek::Tuesday),
-            3 => Ok(HilDayOfWeek::Wednesday),
-            4 => Ok(HilDayOfWeek::Thursday),
-            5 => Ok(HilDayOfWeek::Friday),
-            6 => Ok(HilDayOfWeek::Saturday),
+            0 => Ok(date_time::DayOfWeek::Sunday),
+            1 => Ok(date_time::DayOfWeek::Monday),
+            2 => Ok(date_time::DayOfWeek::Tuesday),
+            3 => Ok(date_time::DayOfWeek::Wednesday),
+            4 => Ok(date_time::DayOfWeek::Thursday),
+            5 => Ok(date_time::DayOfWeek::Friday),
+            6 => Ok(date_time::DayOfWeek::Saturday),
             _ => Err(ErrorCode::INVAL),
         }
     }
 
-    fn date_as_u32_tuple(&self, date: HilDateTime) -> Result<(u32, u32), ErrorCode> {
+    fn date_as_u32_tuple(&self, date: date_time::Date) -> Result<(u32, u32), ErrorCode> {
         let month = self.month_as_u32(date.month);
 
         let mut year_month_dotm: LocalRegisterCopy<u32, YEAR_MONTH_DOTM::Register> =
@@ -179,7 +181,7 @@ impl<'a> DateTime<'a> {
                 let dotw_hour_min_sec: LocalRegisterCopy<u32, DOTW_HOUR_MIN_SEC::Register> =
                     LocalRegisterCopy::new(r3 as u32);
 
-                let date = HilDateTime {
+                let date = date_time::Date {
                     year: year_month_dotm.read(YEAR_MONTH_DOTM::YEAR) as u16,
                     month: match self.u32_as_month(year_month_dotm.read(YEAR_MONTH_DOTM::MONTH)) {
                         Result::Ok(t) => t,
@@ -208,8 +210,6 @@ impl<'a> DateTime<'a> {
                     Result::Err(e) => CommandReturn::failure(e),
                 }
             }
-
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -222,11 +222,9 @@ impl<'a> DateTime<'a> {
     ) -> CommandReturn {
         if !self.in_progress.get() {
             self.in_progress.set(true);
-
             let grant_enter_res = self.apps.enter(appid, |app, _| {
                 app.subscribed = true;
             });
-
             match grant_enter_res {
                 Ok(()) => {}
                 Err(_e) => {
@@ -234,12 +232,14 @@ impl<'a> DateTime<'a> {
                 }
             }
 
-            self.call_driver(
+            let driver_call_status = self.call_driver(
                 command,
                 year_month_dotm as usize,
                 dotw_hour_min_sec as usize,
-            )
-            .into()
+            );
+
+            self.in_progress.set(false);
+            driver_call_status
         } else {
             let grant_enter_res = self.apps.enter(appid, |app, _| {
                 app.subscribed = true;
@@ -253,10 +253,10 @@ impl<'a> DateTime<'a> {
     }
 }
 
-impl RtcClient for DateTime<'_> {
-    fn callback_get_date(&self, datetime: Result<HilDateTime, ErrorCode>) {
+impl date_time::DateTimeClient for DateTime<'_> {
+    fn callback_get_date(&self, datetime: Result<date_time::Date, ErrorCode>) {
         self.in_progress.set(false);
-        let mut upcall_status: u32 = UPCALL_OK;
+        let mut upcall_status: usize = into_statuscode(Ok(()));
         let mut upcall_r1: usize = 0;
         let mut upcall_r2: usize = 0;
 
@@ -269,8 +269,8 @@ impl RtcClient for DateTime<'_> {
                             let (year_month_dotm, dotw_hour_min_sec) =
                                 match self.date_as_u32_tuple(date) {
                                     Result::Ok(t) => t,
-                                    Result::Err(_e) => {
-                                        upcall_status = UPCALL_ERR;
+                                    Result::Err(e) => {
+                                        upcall_status = into_statuscode(Result::Err(e));
                                         (0, 0)
                                     }
                                 };
@@ -278,13 +278,13 @@ impl RtcClient for DateTime<'_> {
                             upcall_r1 = year_month_dotm as usize;
                             upcall_r2 = dotw_hour_min_sec as usize;
                         }
-                        Result::Err(_e) => {
-                            upcall_status = UPCALL_ERR;
+                        Result::Err(e) => {
+                            upcall_status = into_statuscode(Result::Err(e));
                         }
                     }
 
                     upcalls
-                        .schedule_upcall(0, (upcall_status as usize, upcall_r1, upcall_r2))
+                        .schedule_upcall(0, (upcall_status, upcall_r1, upcall_r2))
                         .ok();
                 }
             });
@@ -295,18 +295,13 @@ impl RtcClient for DateTime<'_> {
         self.in_progress.set(false);
 
         for cntr in self.apps.iter() {
-            let mut upcall_status = UPCALL_OK;
+            //let mut upcall_status = UPCALL_OK;
             cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     app.subscribed = false;
-                    match result {
-                        Result::Ok(()) => {}
-                        Result::Err(_e) => {
-                            upcall_status = UPCALL_ERR;
-                        }
-                    }
+
                     upcalls
-                        .schedule_upcall(0, (upcall_status as usize, 0, 0))
+                        .schedule_upcall(0, (into_statuscode(result) as usize, 0, 0))
                         .ok();
                 }
             });

@@ -6,6 +6,7 @@ pub mod ble_advertising;
 pub mod bus8080;
 pub mod crc;
 pub mod dac;
+pub mod date_time;
 pub mod digest;
 pub mod eic;
 pub mod entropy;

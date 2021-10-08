@@ -2,8 +2,8 @@ use crate::clocks;
 use crate::deferred_calls::DeferredCallTask;
 use core::cell::Cell;
 use kernel::deferred_call::DeferredCall;
-use kernel::hil::time;
-use kernel::hil::time::{DateTime, DayOfWeek, Month, RtcClient};
+use kernel::hil::date_time;
+use kernel::hil::date_time::{Date, DateTimeClient, DayOfWeek, Month};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
@@ -28,7 +28,7 @@ register_structs! {
         /// RTC register 1.
         (0x018 => rtc_1: ReadWrite<u32, RTC_1::Register>),
         /// RTC register 0\n
-/// Read this before RTC 1!
+        /// Read this before RTC 1!
         (0x01C => rtc_0: ReadWrite<u32, RTC_0::Register>),
         /// Raw Interrupts
         (0x020 => intr: ReadWrite<u32>),
@@ -66,7 +66,7 @@ SETUP_1 [
 ],
 CTRL [
     /// If set, leapyear is forced off.\n
-/// Useful for years divisible by 100 but not by 400
+    /// Useful for years divisible by 100 but not by 400
     FORCE_NOTLEAPYEAR OFFSET(8) NUMBITS(1) [],
     /// Load RTC
     LOAD OFFSET(4) NUMBITS(1) [],
@@ -157,9 +157,9 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    client: OptionalCell<&'a dyn kernel::hil::time::RtcClient>,
+    client: OptionalCell<&'a dyn date_time::DateTimeClient>,
     clocks: OptionalCell<&'a clocks::Clocks>,
-    time: Cell<DateTime>,
+    time: Cell<Date>,
 }
 
 impl<'a> Rtc<'a> {
@@ -168,7 +168,7 @@ impl<'a> Rtc<'a> {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
             clocks: OptionalCell::empty(),
-            time: Cell::new(DateTime {
+            time: Cell::new(Date {
                 year: 0,
                 month: Month::January,
                 day: 1,
@@ -253,7 +253,7 @@ impl<'a> Rtc<'a> {
         self.clocks.replace(clocks);
     }
 
-    fn date_time_setup(&self, datetime: time::DateTime) -> Result<(), ErrorCode> {
+    fn date_time_setup(&self, datetime: date_time::Date) -> Result<(), ErrorCode> {
         let month_val: u32 = self.month_into_u32(datetime.month);
         let day_val: u32 = self.dotw_into_u32(datetime.day_of_week);
 
@@ -311,7 +311,7 @@ impl<'a> Rtc<'a> {
 
         while hw_ctrl & self.registers.ctrl.read(CTRL::RTC_ACTIVE) > 0 {}
 
-        let datetime = time::DateTime {
+        let datetime = date_time::Date {
             year: 1970,
             month: Month::January,
             day: 1,
@@ -348,7 +348,7 @@ impl<'a> Rtc<'a> {
     }
 }
 
-impl<'a> time::Rtc<'a> for Rtc<'a> {
+impl<'a> date_time::DateTime<'a> for Rtc<'a> {
     fn get_date_time(&self) -> Result<(), ErrorCode> {
         let month_num: u32 = self.registers.setup_0.read(SETUP_0::MONTH);
         let month_name: Month = match self.month_try_from_u32(month_num) {
@@ -365,7 +365,7 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
             }
         };
 
-        let datetime = time::DateTime {
+        let datetime = date_time::Date {
             hour: self.registers.rtc_0.read(RTC_0::HOUR) as u8,
             minute: self.registers.rtc_0.read(RTC_0::MIN) as u8,
             seconds: self.registers.rtc_0.read(RTC_0::SEC) as u8,
@@ -383,14 +383,14 @@ impl<'a> time::Rtc<'a> for Rtc<'a> {
         Ok(())
     }
 
-    fn set_date_time(&self, date_time: time::DateTime) -> Result<(), ErrorCode> {
+    fn set_date_time(&self, date_time: date_time::Date) -> Result<(), ErrorCode> {
         self.date_time_setup(date_time)?;
 
         DEFERRED_CALL_SET.set();
         Ok(())
     }
 
-    fn set_client(&self, client: &'a dyn RtcClient) {
+    fn set_client(&self, client: &'a dyn DateTimeClient) {
         self.client.set(client);
     }
 }

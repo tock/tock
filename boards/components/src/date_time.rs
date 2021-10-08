@@ -16,20 +16,20 @@ use capsules::date_time::DateTime;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::time::Rtc;
+use kernel::hil::date_time;
 use kernel::static_init;
 
 pub struct DateTimeComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    rtc: &'static dyn Rtc<'static>,
+    rtc: &'static dyn date_time::DateTime<'static>,
 }
 
 impl DateTimeComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        rtc: &'static dyn Rtc<'static>,
+        rtc: &'static dyn date_time::DateTime<'static>,
     ) -> DateTimeComponent {
         DateTimeComponent {
             board_kernel,
@@ -51,7 +51,7 @@ impl Component for DateTimeComponent {
             capsules::date_time::DateTime<'static>,
             capsules::date_time::DateTime::new(self.rtc, grant_date_time)
         );
-        kernel::hil::time::Rtc::set_client(self.rtc, date_time);
+        date_time::DateTime::set_client(self.rtc, date_time);
         date_time
     }
 }

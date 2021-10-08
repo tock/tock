@@ -22,7 +22,6 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 
-
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -87,7 +86,6 @@ pub struct RaspberryPiPico {
 
     date_time: &'static capsules::date_time::DateTime<'static>,
 
-
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
 }
@@ -108,8 +106,7 @@ impl SyscallDriverLookup for RaspberryPiPico {
 
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
 
-            capsules::date_time::DRIVER_NUM =>f(Some(self.date_time)),
-
+            capsules::date_time::DRIVER_NUM => f(Some(self.date_time)),
 
             _ => f(None),
         }

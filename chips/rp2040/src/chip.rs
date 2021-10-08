@@ -134,7 +134,6 @@ pub struct Rp2040DefaultPeripherals<'a> {
 
     pub i2c0: i2c::I2c<'a>,
     pub rtc: rtc::Rtc<'a>,
-
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
@@ -155,7 +154,6 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             i2c0: i2c::I2c::new_i2c0(),
 
             rtc: rtc::Rtc::new(),
-
         }
     }
 
@@ -166,7 +164,6 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
         self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
 
         self.rtc.set_clocks(&self.clocks);
-
     }
 }
 

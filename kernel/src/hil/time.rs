@@ -714,6 +714,8 @@ impl PartialEq for Ticks64 {
 
 impl Eq for Ticks64 {}
 
+/*
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DayOfWeek {
     Sunday,
@@ -783,6 +785,8 @@ pub trait RtcClient {
     /// Takes  `Err(ErrorCode)` in case of an error
     fn callback_set_date(&self, result: Result<(), ErrorCode>);
 }
+
+ */
 
 #[cfg(test)]
 mod tests {
