@@ -443,28 +443,27 @@ impl<
         allow_num: usize,
         mut slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the data to be in
-            1 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.data, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+        let res = self
+            .apps
+            .enter(appid, |app, _| {
+                match allow_num {
+                    // Pass buffer for the data to be in
+                    1 => {
+                        mem::swap(&mut app.data, &mut slice);
+                        Ok(())
+                    }
 
-            // Compare buffer for verify
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.compare, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+                    // Compare buffer for verify
+                    2 => {
+                        mem::swap(&mut app.compare, &mut slice);
+                        Ok(())
+                    }
 
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or(Err(ErrorCode::FAIL));
 
         match res {
             Ok(()) => Ok(slice),
