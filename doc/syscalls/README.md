@@ -36,12 +36,12 @@ Details of the [application binary interface](../Syscalls.md).
 ## Capsule Provided Drivers
 
 Each driver type that has been allocated a permanent driver number is listed in
-the tables below. The "1.0" column indicates whether the driver has been
-stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
+the tables below. The "2.0" column indicates whether the driver has been
+stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 
 ### Base
 
-|1.0| Driver Number | Driver                      | Description                                |
+|2.0| Driver Number | Driver                      | Description                                |
 |---|---------------|-----------------------------|--------------------------------------------|
 | ✓ | 0x00000       | [Alarm](00000_alarm.md)     | Used for timers in userspace               |
 | ✓ | 0x00001       | [Console](00001_console.md) | UART console                               |
@@ -51,16 +51,17 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |   | 0x00006       | DAC                         | Digital to analog converter                |
 |   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator       |
 |   | 0x00008       | [Low-Level Debug](00008_low_level_debug.md) | Low-level debugging tools  |
+|   | 0x00009       | [ROS](00009_ros.md)         | Read Only State, access system information |
 
 ### Kernel
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x10000       | IPC              | Inter-process communication                |
 
 ### Hardware Access
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x00004       | [GPIO](00004_gpio.md) | Set and read GPIO pins                |
 |   | 0x20000       | UART             | UART                                       |
@@ -74,7 +75,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Radio
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x30000       | BLE              | Bluetooth Low Energy                       |
 |   | 0x30001       | 802.15.4         | IEEE 802.15.4                              |
@@ -82,7 +83,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Cryptography
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x40000       | AES              | AES Symmetric Key Cryptography             |
 |   | 0x40001       | RNG              | Random number generator                    |
@@ -90,7 +91,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Storage
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x50000       | App Flash        | Allow apps to write their own flash        |
 |   | 0x50001       | Nonvolatile Storage | Generic interface for persistent storage |
@@ -98,7 +99,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Sensors
 
-|1.0| Driver Number | Driver                                        | Description                                |
+|2.0| Driver Number | Driver                                        | Description                                |
 |---|---------------|-----------------------------------------------|--------------------------------------------|
 | ✓ | 0x60000       | [Ambient Temp.](60000_ambient_temperature.md) | Ambient temperature (centigrate)           |
 | ✓ | 0x60001       | [Humidity](60001_humidity.md)                 | Humidity Sensor (percent)                  |
@@ -110,7 +111,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Sensor ICs
 
-|1.0| Driver Number | Driver                            | Description                                               |
+|2.0| Driver Number | Driver                            | Description                                               |
 |---|---------------|-----------------------------------|-----------------------------------------------------------|
 |   | 0x70000       | TSL2561                           | Light sensor                                              |
 |   | 0x70001       | TMP006                            | Temperature sensor                                        |
@@ -120,7 +121,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
 ### Other ICs
 
-|1.0| Driver Number | Driver           | Description                                |
+|2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x80000       | LTC294X          | Battery gauge IC                           |
 |   | 0x80001       | MAX17205         | Battery gauge IC                           |

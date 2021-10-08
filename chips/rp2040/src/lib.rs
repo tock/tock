@@ -5,6 +5,7 @@ pub mod adc;
 pub mod chip;
 pub mod clocks;
 pub mod gpio;
+pub mod i2c;
 pub mod interrupts;
 pub mod resets;
 pub mod spi;

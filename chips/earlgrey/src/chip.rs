@@ -32,6 +32,7 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a>,
     pub i2c0: lowrisc::i2c::I2c<'a>,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
+    pub rng: lowrisc::csrng::CsRng<'a>,
 }
 
 impl<'a> EarlGreyDefaultPeripherals<'a> {
@@ -51,6 +52,7 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
                 crate::flash_ctrl::FLASH_CTRL_BASE,
                 lowrisc::flash_ctrl::FlashRegion::REGION0,
             ),
+            rng: lowrisc::csrng::CsRng::new(crate::csrng::CSRNG_BASE),
         }
     }
 }
@@ -78,6 +80,9 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
                 self.i2c0.handle_interrupt()
             }
             interrupts::OTBN_DONE => self.otbn.handle_interrupt(),
+            interrupts::CSRNG_CSCMDREQDONE..=interrupts::CSRNG_CSFATALERR => {
+                self.rng.handle_interrupt()
+            }
             _ => return false,
         }
         true
@@ -209,9 +214,6 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
         loop {
             let mip = CSR.mip.extract();
 
-            if mip.is_set(mip::mtimer) {
-                self.timer.service_interrupt();
-            }
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
@@ -251,7 +253,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
-            "\r\n---| EarlGrey configuration for {} |---",
+            "\r\n---| OpenTitan Earlgrey configuration for {} |---",
             CONFIG.name
         ));
         rv32i::print_riscv_state(writer);

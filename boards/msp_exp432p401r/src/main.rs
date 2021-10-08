@@ -71,6 +71,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -89,6 +90,9 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     }
     fn watchdog(&self) -> &Self::WatchDog {
         &self.wdt
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
     }
 }
 

@@ -25,48 +25,104 @@ You will need Adafruit's nrfutil bootloader tool:
 $ pip3 install --user adafruit-nrfutil
 ```
 
-## Programming the Kernel
+## Bootloader
 
-To program the kernel we use the Adafruit version of nRFUtil tool to communicate with the bootloader
+Tock uses [Tock Bootloader](https://github.com/tock/tock-bootloader) to program devices.
+
+The CLUE nRF52840 is shipped with the Adafruit nRF52 bootloader.
+
+As the board has no integrated debugger, tock-bootloader will be installed on top
+of the original bootloader. Flashing a wrong bootloader prevents the board from
+being updated without a hardware debugger. Keeping the original bootloader
+assures that in case of an error, the board can be fully reflashed. However,
+keeping the original bootloader takes up 152 KB.
+
+### Using the CLUEBOOT USB Drive
+
+> **NOTE** Uploading the bootloader will not change any ability to upload software to the Clue nRF52840. The original bootloader
+will not be overwrittn. All other software will work as expected.
+
+Connect the Clue nRF52840 to the computer and double press the RESET button. A USB drive labeled `CLUEBOOT` should show up.
+
+Drag and drop the [bootloader](https://github.com/tock/tock-bootloader/releases/download/clue_nrf52840-1.1.2/tock-bootloader.clue_nrf52840.1.1.2.uf2) to the `CLUEBOOT` drive and wait for a few seconds.
+
+The board will reset and the bootloader should be running on it. The red LED should light up.
+
+### Using the Adafruit nRF52 bootloader
+
+To flash the tock-bootloader we use the Adafruit version of nRFUtil tool to communicate with the bootloader
 on the board which then flashes the kernel. This requires that the bootloader be
 active. To force the board into bootloader mode, press the button on the back of the board
 twice in rapid succession. You should see the red LED pulse on and off.
 
+Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
+
+```bash
+$ make flash-bootloader
+```
+
+If the flashing is sucessful, the LED on the back should turn on.
+
+### Building the bootloader
+
+This step is optional, as a prebuilt bootloader is provided as a [tock-bootloader.clue_nrf52.v1.1.0.bin](bootloader/tock-bootloader.clue_nrf52.v1.1.0.bin).
+
+To build the bootloader yourself, please follow the instructions in the Tock Bootloader's [documentation](https://github.com/tock/tock-bootloader/tree/master/boards) for CLUE nRF52840.
+
+
+## Programming the Kernel
+
+
 At this point you should be able to simply run `make program` in this directory
 to install a fresh kernel.
 
-You will need to specify the port like so:
-
-```
-$ make program PORT=<serial port path>
-```
-
 ## Programming Applications
 
-For now, flashing apps is only available together with the kernel
+After building an application, you can use `tockloader install` to install it.
 
-```
-$ git clone https://github.com/tock/libtock-c
+For example:
+
+```shell
 $ cd libtock-c/examples/blink
 $ make
+$ tockloader install
 ```
+## Using without tock-bootloader
 
-This previous step will create a TAB (`.tab` file) that normally tockloader
-would use to program on the board. However, tockloader is currently not
-supported.
-
-Define the `APP` variable to point towards the TBF file.
-
-At this point you should be able to simply run `make program-apps` in this directory
-to install a fresh kernel with the app(s).
-
-You will need to specify the port and the app as shown in the example:
+Make the following changes to use Tock directly with the original bootloader:
 
 ```
-$ make program-apps PORT=<serial port path> APP=<path to TBF>
+# edit layout.ld
+rom (rx)  : ORIGIN = 0x00026000, LENGTH = 360K
+prog (rx) : ORIGIN = 0x00080000, LENGTH = 512K
+
+# edit main.rs
+fn baud_rate_reset_bootloader_enter() {
+    unsafe {
+        // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
+        // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
+        // NRF52_POWER.unwrap().set_gpregret(0x90);
+        // uncomment to use with Adafruit nRF52 Bootloader
+        NRF52_POWER.unwrap().set_gpregret(0x4e);
+        cortexm4::scb::reset();
+    }
+}
+
+# flash
+make flash-kernel
 ```
 
-### Userspace Resource Mapping
+## Kernel Panic
+
+If the kernel panics, it might be difficult to enter the bootloader to replace the kernel. 
+Use the following steps:
+
+1. Enter the Adafruit nRF52 bootloader by double pressing RESET
+2. Drag and drop another UF2 file that is larger than 70 KB to the `CLUEBOOT` drive. This will overwrite the tock-bootloader kernel that paniced.
+3. Enter the Adafruit nRF52 bootloader by double pressing RESET
+4. Drag and drop the tock bootloader UF2 file
+5. Use tockloader to flash a new kernel
+## Userspace Resource Mapping
 
 This table shows the mappings between resources available in userspace
 and the physical elements on the CLUE nRF52480 board.

@@ -3,7 +3,7 @@ name = "pico_explorer_base"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cortexm0p = { path = "../../arch/cortex-m0p" }

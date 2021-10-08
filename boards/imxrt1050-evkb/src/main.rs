@@ -41,11 +41,12 @@ pub mod io;
 pub mod boot_header;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 1;
+const NUM_PROCS: usize = 4;
 const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
@@ -111,6 +112,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -128,6 +130,9 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -473,6 +478,19 @@ pub unsafe fn main() {
     //
     // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+
+    //--------------------------------------------------------------------------
+    // Process Console
+    //---------------------------------------------------------------------------
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        lpuart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        imxrt1050::gpt::Gpt1
+    ));
+    let _ = process_console.start();
 
     debug!("Tock OS initialization complete. Entering main loop");
 

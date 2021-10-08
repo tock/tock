@@ -232,4 +232,6 @@ pub unsafe fn init() {
     cortexm7::scb::set_vector_table_offset(
         &BASE_VECTORS as *const [unsafe extern "C" fn(); 16] as *const (),
     );
+
+    cortexm7::nvic::enable_all();
 }

@@ -90,6 +90,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -107,6 +108,9 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -143,11 +147,9 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f401cc::syscfg::Syscfg,
-    exti: &stm32f401cc::exti::Exti,
     gpio_ports: &'static stm32f401cc::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
-    use stm32f401cc::exti::LineId;
     use stm32f401cc::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -156,15 +158,13 @@ unsafe fn set_pin_primary_functions(
 
     // On-board KEY button is connected on PA0
     gpio_ports.get_pin(PinId::PA00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, &pin);
+        pin.enable_interrupt();
     });
-    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    cortexm4::nvic::Nvic::new(stm32f401cc::nvic::EXTI0).enable();
+
+    // enable interrupt for D3
+    gpio_ports.get_pin(PinId::PC14).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // PA2 (tx) and PA3 (rx) (USART2)
     gpio_ports.get_pin(PinId::PA02).map(|pin| {
@@ -245,7 +245,7 @@ pub unsafe fn main() {
 
     setup_peripherals(&base_peripherals.tim2);
 
-    set_pin_primary_functions(syscfg, &base_peripherals.exti, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
     setup_dma(
         dma1,
@@ -422,6 +422,17 @@ pub unsafe fn main() {
                 adc_channel_4,
                 adc_channel_5
             ));
+
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f401cc::tim2::Tim2
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));

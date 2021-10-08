@@ -17,7 +17,7 @@ use core::mem;
 use kernel::grant::Grant;
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
-use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
+use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -102,13 +102,28 @@ impl<'a> Touch<'a> {
                 break;
             }
         }
-        self.touch.map_or(Err(ErrorCode::NODEVICE), |touch| {
-            if enabled {
-                touch.enable()
-            } else {
-                touch.disable()
-            }
-        })
+        self.touch.map_or_else(
+            || {
+                // if there is no single touch device
+                // try to use the multi touch device and
+                // report only a single touch
+                self.multi_touch
+                    .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
+                        if enabled {
+                            multi_touch.enable()
+                        } else {
+                            multi_touch.disable()
+                        }
+                    })
+            },
+            |touch| {
+                if enabled {
+                    touch.enable()
+                } else {
+                    touch.disable()
+                }
+            },
+        )
     }
 
     fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
@@ -203,80 +218,82 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
         } else {
             num_events
         };
-        // debug!("{} touch(es)", len);
-        for app in self.apps.iter() {
-            app.enter(|app, upcalls| {
-                if app.ack {
-                    app.dropped_events = 0;
+        if len > 0 {
+            // report the first touch as single touch
+            // for applications that only use single touches
+            self.touch_event(touch_events[0]);
+            // debug!("{} touch(es)", len);
+            for app in self.apps.iter() {
+                app.enter(|app, upcalls| {
+                    if app.ack {
+                        app.dropped_events = 0;
 
-                    let num = app
-                        .events_buffer
-                        .mut_enter(|buffer| {
-                            let num = if buffer.len() / 8 < len {
-                                buffer.len() / 8
-                            } else {
-                                len
-                            };
+                        let num = app
+                            .events_buffer
+                            .mut_enter(|buffer| {
+                                let num = if buffer.len() / 8 < len {
+                                    buffer.len() / 8
+                                } else {
+                                    len
+                                };
 
-                            for event_index in 0..num {
-                                let mut event = touch_events[event_index].clone();
-                                self.update_rotation(&mut event);
-                                let event_status = touch_status_to_number(&event.status);
-                                // debug!(
-                                //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
-                                //     event.status, event.x, event.y, event.size, event.pressure
-                                // );
-                                // one touch entry is 8 bytes long
-                                let offset = event_index * 8;
-                                if buffer.len() > event_index + 8 {
-                                    buffer[offset].set(event.id as u8);
-                                    buffer[offset + 1].set(event_status as u8);
-                                    buffer[offset + 2].set(((event.x & 0xFFFF) >> 8) as u8);
-                                    buffer[offset + 3].set((event.x & 0xFF) as u8);
-                                    buffer[offset + 4].set(((event.y & 0xFFFF) >> 8) as u8);
-                                    buffer[offset + 5].set((event.y & 0xFF) as u8);
-                                    buffer[offset + 6].set(if let Some(size) = event.size {
-                                        size as u8
-                                    } else {
-                                        0
-                                    });
-                                    buffer[offset + 7].set(
-                                        if let Some(pressure) = event.pressure {
-                                            pressure as u8
+                                for event_index in 0..num {
+                                    let mut event = touch_events[event_index].clone();
+                                    self.update_rotation(&mut event);
+                                    let event_status = touch_status_to_number(&event.status);
+                                    // debug!(
+                                    //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
+                                    //     event.status, event.x, event.y, event.size, event.pressure
+                                    // );
+                                    // one touch entry is 8 bytes long
+                                    let offset = event_index * 8;
+                                    if buffer.len() > event_index + 8 {
+                                        buffer[offset].set(event.id as u8);
+                                        buffer[offset + 1].set(event_status as u8);
+                                        buffer[offset + 2].set((event.x & 0xFF) as u8);
+                                        buffer[offset + 3].set(((event.x & 0xFFFF) >> 8) as u8);
+                                        buffer[offset + 4].set((event.y & 0xFF) as u8);
+                                        buffer[offset + 5].set(((event.y & 0xFFFF) >> 8) as u8);
+                                        buffer[offset + 6].set(if let Some(size) = event.size {
+                                            size as u8
                                         } else {
                                             0
-                                        },
-                                    );
-                                } else {
-                                    break;
+                                        });
+                                        buffer[offset + 7].set(
+                                            if let Some(pressure) = event.pressure {
+                                                pressure as u8
+                                            } else {
+                                                0
+                                            },
+                                        );
+                                    } else {
+                                        break;
+                                    }
                                 }
-                            }
-                            num
-                        })
-                        .unwrap_or(0);
-                    let dropped_events = app.dropped_events;
-                    if num > 0 {
-                        app.ack = false;
-                        upcalls
-                            .schedule_upcall(
-                                2,
-                                (num, dropped_events, if num < len { len - num } else { 0 }),
-                            )
-                            .ok();
+                                num
+                            })
+                            .unwrap_or(0);
+                        let dropped_events = app.dropped_events;
+                        if num > 0 {
+                            app.ack = false;
+                            upcalls
+                                .schedule_upcall(
+                                    2,
+                                    (num, dropped_events, if num < len { len - num } else { 0 }),
+                                )
+                                .ok();
+                        }
+                    } else {
+                        app.dropped_events = app.dropped_events + 1;
                     }
-
-                // app.ack == false;
-                } else {
-                    app.dropped_events = app.dropped_events + 1;
-                }
-            });
+                });
+            }
         }
     }
 }
 
 impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
-        // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
             app.enter(|_app, upcalls| {
                 let gesture_id = match event {

@@ -127,6 +127,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
@@ -134,6 +135,7 @@ pub struct Platform {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
+    adc: &'static capsules::adc::AdcVirtualized<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -158,6 +160,7 @@ impl SyscallDriverLookup for Platform {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
@@ -177,6 +180,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -194,6 +198,9 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -358,9 +365,14 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(());
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        nrf52::rtc::Rtc<'static>
+    ));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -384,6 +396,67 @@ pub unsafe fn main() {
     .finalize(());
 
     //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+    base_peripherals.adc.calibrate();
+
+    let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
+        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                // A0
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A1
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A2
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A3
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A4
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A5
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A6
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                // A7
+                components::adc::AdcComponent::new(
+                    &adc_mux,
+                    nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
+                )
+                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+            ));
+
+    //--------------------------------------------------------------------------
     // SENSORS
     //--------------------------------------------------------------------------
 
@@ -397,8 +470,8 @@ pub unsafe fn main() {
     );
     base_peripherals.twi0.set_master_client(sensors_i2c_bus);
 
-    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
@@ -544,6 +617,7 @@ pub unsafe fn main() {
         proximity,
         temperature,
         humidity,
+        adc: adc_syscall,
         led,
         gpio,
         rng,

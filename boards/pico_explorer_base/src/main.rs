@@ -112,6 +112,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -129,6 +130,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -243,7 +247,7 @@ pub unsafe fn main() {
     rp2040::init();
 
     let peripherals = get_peripherals();
-    peripherals.set_clocks();
+    peripherals.resolve_dependencies();
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);
@@ -405,16 +409,19 @@ pub unsafe fn main() {
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(Spi));
 
-    let bus = components::bus::SpiMasterBusComponent::new().finalize(
-        components::spi_bus_component_helper!(
-            // spi type
-            Spi,
-            // chip select
-            &peripherals.pins.get_pin(RPGpio::GPIO17),
-            // spi mux
-            mux_spi
-        ),
-    );
+    let bus = components::bus::SpiMasterBusComponent::new(
+        20_000_000,
+        kernel::hil::spi::ClockPhase::SampleLeading,
+        kernel::hil::spi::ClockPolarity::IdleLow,
+    )
+    .finalize(components::spi_bus_component_helper!(
+        // spi type
+        Spi,
+        // chip select
+        &peripherals.pins.get_pin(RPGpio::GPIO17),
+        // spi mux
+        mux_spi
+    ));
 
     let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
         components::st77xx_component_helper!(
@@ -491,9 +498,12 @@ pub unsafe fn main() {
                 adc_channel_2,
             ));
     // PROCESS CONSOLE
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(RPTimer));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)

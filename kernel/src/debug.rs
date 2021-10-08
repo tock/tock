@@ -527,7 +527,14 @@ impl Write for DebugWriterWrapper {
     }
 }
 
-pub fn begin_debug_fmt(args: Arguments) {
+pub fn debug_print(args: Arguments) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write(writer, args);
+    writer.publish_bytes();
+}
+
+pub fn debug_println(args: Arguments) {
     let writer = unsafe { get_debug_writer() };
 
     let _ = write(writer, args);
@@ -535,14 +542,24 @@ pub fn begin_debug_fmt(args: Arguments) {
     writer.publish_bytes();
 }
 
-pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
-
+fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();
     let count = writer.get_count();
+    writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
+}
 
-    let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
+pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write_header(writer, file_line);
+    let _ = write(writer, args);
+    writer.publish_bytes();
+}
+
+pub fn debug_verbose_println(args: Arguments, file_line: &(&'static str, u32)) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write_header(writer, file_line);
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
     writer.publish_bytes();
@@ -556,10 +573,10 @@ macro_rules! debug {
         debug!("")
     });
     ($msg:expr $(,)?) => ({
-        $crate::debug::begin_debug_fmt(format_args!($msg))
+        $crate::debug::debug_println(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::begin_debug_fmt(format_args!($fmt, $($arg)+))
+        $crate::debug::debug_println(format_args!($fmt, $($arg)+))
     });
 }
 
@@ -571,7 +588,7 @@ macro_rules! debug_verbose {
         debug_verbose!("")
     });
     ($msg:expr $(,)?) => ({
-        $crate::debug::begin_debug_verbose_fmt(format_args!($msg), {
+        $crate::debug::debug_verbose_println(format_args!($msg), {
             // TODO: Maybe make opposite choice of panic!, no `static`, more
             // runtime code for less static data
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
@@ -579,7 +596,7 @@ macro_rules! debug_verbose {
         })
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::begin_debug_verbose_fmt(format_args!($fmt, $($arg)+), {
+        $crate::debug::debug_verbose_println(format_args!($fmt, $($arg)+), {
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
             &_FILE_LINE
         })

@@ -27,7 +27,7 @@ macro_rules! otbn_mux_component_helper {
         use lowrisc::virtual_otbn::MuxAccel;
         static mut BUF1: MaybeUninit<MuxAccel<'static, $T>> = MaybeUninit::uninit();
         &mut BUF1
-    };};
+    }};
 }
 
 pub struct AccelMuxComponent<const T: usize> {

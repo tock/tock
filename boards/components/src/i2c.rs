@@ -40,7 +40,7 @@ macro_rules! i2c_component_helper {
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<I2CDevice<'static>> = MaybeUninit::uninit();
         &mut BUF
-    };};
+    }};
 }
 
 pub struct I2CMuxComponent {

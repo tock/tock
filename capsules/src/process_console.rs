@@ -13,6 +13,8 @@
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
 //!  - 'panic' causes the kernel to run the panic handler
+//!  - 'process n' prints the memory map of process with name n
+//!  - 'kernel' prints the kernel memory map
 //!
 //! ### `list` Command Fields:
 //!
@@ -22,7 +24,7 @@
 //! - `Quanta`: How many times this process has exceeded its alloted time
 //!   quanta.
 //! - `Syscalls`: The number of system calls the process has made to the kernel.
-//! - `Dropped Upcalls`: How many callbacks were dropped for this process
+//! - `Dropped Upcalls`: How many upcalls were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
 //!   the kernel.
@@ -54,16 +56,8 @@
 //!                  Capability));
 //! hil::uart::UART::set_client(&usart::USART0, pconsole);
 //!
-//! pconsole.initialize();
 //! pconsole.start();
 //! ```
-//!
-//! Buffer use and output
-//! ---------------------
-//! `ProcessConsole` does not use its own write buffer for output:
-//! it uses the debug!() buffer, so as not to repeat all of its buffering and
-//! to maintain a correct ordering with debug!() calls. The write buffer of
-//! `ProcessConsole` is used solely for echoing what someone types.
 //!
 //! Using ProcessConsole
 //! --------------------
@@ -118,10 +112,12 @@ use core::fmt;
 use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
+use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
 use kernel::debug;
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::ErrorCode;
@@ -186,8 +182,9 @@ pub struct KernelAddresses {
     pub bss_end: *const u8,
 }
 
-pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
+pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     uart: &'a dyn uart::UartData<'a>,
+    alarm: &'a A,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
     queue_buffer: TakeCell<'static, [u8]>,
@@ -249,9 +246,10 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
     }
 }
 
-impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
+impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
+        alarm: &'a A,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
@@ -259,9 +257,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
-    ) -> ProcessConsole<'a, C> {
+    ) -> ProcessConsole<'a, A, C> {
         ProcessConsole {
             uart: uart,
+            alarm: alarm,
             tx_in_progress: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
             queue_buffer: TakeCell::new(queue_buffer),
@@ -271,6 +270,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
+
             running: Cell::new(false),
             execute: Cell::new(false),
             kernel: kernel,
@@ -282,11 +282,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     /// Start the process console listening for user commands.
     pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
-            self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(true);
-                let _ = self.uart.receive_buffer(buffer, 1);
-                self.running.set(true);
-            });
+            self.alarm
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
+            self.running.set(true);
         }
         Ok(())
     }
@@ -308,8 +306,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         let _ = write(
             &mut console_writer,
             format_args!(
-                "Kernel version: {}\r\n",
-                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+                "Kernel version: {}.{} (build {})\r\n",
+                kernel::MAJOR,
+                kernel::MINOR,
+                option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
             ),
         );
         let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
@@ -317,6 +317,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         let _ = self.write_bytes(b"Welcome to the process console.\n");
         let _ = self
             .write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+        self.prompt();
     }
 
     /// Simple state machine helper function that identifies the next state for
@@ -799,7 +800,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}\n",
+                                    "  {:?}\t{:<20}{:6}{:10}{:17}{:10}  {:?}{:5}/{}\n",
                                     process_id,
                                     pname,
                                     process.debug_timeslice_expiration_count(),
@@ -815,6 +816,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
                         }
                     });
+            }
+            WriterState::Empty => {
+                self.prompt();
             }
             _ => {}
         }
@@ -909,7 +913,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             });
                         } else if clean_str.starts_with("list") {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");
-                            let _ = self.write_bytes(b"Syscalls  Dropped Callbacks  ");
+                            let _ = self.write_bytes(b"Syscalls  Dropped Upcalls  ");
                             let _ = self.write_bytes(b"Restarts    State  Grants\n");
 
                             // Count the number of current processes.
@@ -918,11 +922,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 count += 1;
                             });
 
-                            // Start the state machine to print each separately.
-                            self.write_state(WriterState::List {
-                                index: -1,
-                                total: count,
-                            });
+                            if count > 0 {
+                                // Start the state machine to print each separately.
+                                self.write_state(WriterState::List {
+                                    index: -1,
+                                    total: count,
+                                });
+                            }
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
                             let mut console_writer = ConsoleWriter::new();
@@ -978,7 +984,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "Kernel version: {}\r\n",
+                                    "Kernel version: {}.{} (build {})\r\n",
+                                    kernel::MAJOR,
+                                    kernel::MINOR,
                                     option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
                                 ),
                             );
@@ -987,7 +995,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 
                             // Prints kernel memory by moving the writer to the
                             // start state.
-                            self.write_state(WriterState::KernelStart);
+                            self.writer_state.replace(WriterState::KernelStart);
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self
@@ -1009,6 +1017,13 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             command[0] = 0;
         });
         self.command_index.set(0);
+        if self.writer_state.get() == WriterState::Empty {
+            self.prompt();
+        }
+    }
+
+    fn prompt(&self) {
+        let _ = self.write_bytes(b"tock$ ");
     }
 
     /// Start or iterate the state machine for an asynchronous write operation
@@ -1102,7 +1117,19 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 }
 
-impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
+impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient for ProcessConsole<'a, A, C> {
+    fn alarm(&self) {
+        self.prompt();
+        self.rx_buffer.take().map(|buffer| {
+            self.rx_in_progress.set(true);
+            let _ = self.uart.receive_buffer(buffer, 1);
+        });
+    }
+}
+
+impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::TransmitClient
+    for ProcessConsole<'a, A, C>
+{
     fn transmitted_buffer(
         &self,
         buffer: &'static mut [u8],
@@ -1135,7 +1162,10 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
         }
     }
 }
-impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
+
+impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
+    for ProcessConsole<'a, A, C>
+{
     fn received_buffer(
         &self,
         read_buf: &'static mut [u8],
@@ -1152,12 +1182,14 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
                             self.execute.set(true);
                             let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
-                        } else if read_buf[0] == ('\x08' as u8) && index > 0 {
-                            // Backspace, echo and remove last byte
-                            // Note echo is '\b \b' to erase
-                            let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                            command[index - 1] = '\0' as u8;
-                            self.command_index.set(index - 1);
+                        } else if read_buf[0] == ('\x08' as u8) {
+                            if index > 0 {
+                                // Backspace, echo and remove last byte
+                                // Note echo is '\b \b' to erase
+                                let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                                command[index - 1] = '\0' as u8;
+                                self.command_index.set(index - 1);
+                            }
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
                             // For some reason, sometimes reads return > 127 but no error,
                             // which causes utf-8 decoding failure, so check byte is < 128. -pal

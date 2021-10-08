@@ -13,7 +13,7 @@ use kernel::{ErrorCode, ProcessId};
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
 
-pub const DRIVER_NUM: usize = 0x8;
+pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
@@ -80,7 +80,8 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         // debug entries.
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
-            tx_buffer.copy_from_slice(MESSAGE);
+            tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
+
             let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
                 |(_, returned_buffer)| {
                     self.buffer.set(Some(returned_buffer));
