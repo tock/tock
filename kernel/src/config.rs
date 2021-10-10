@@ -65,8 +65,10 @@ pub(crate) struct Config {
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
+/// Notably, this is the only location in the Tock kernel where we permit `#[cfg(x)]`
+/// to be used to configure code based on Cargo features.
 pub(crate) const CONFIG: Config = Config {
-    trace_syscalls: false,
-    debug_load_processes: false,
-    debug_panics: true,
+    trace_syscalls: cfg!(feature = "trace_syscalls"),
+    debug_load_processes: cfg!(feature = "debug_load_processes"),
+    debug_panics: !cfg!(feature = "no_debug_panics"),
 };
