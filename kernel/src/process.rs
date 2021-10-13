@@ -547,6 +547,14 @@ pub trait Process {
     /// switched to.
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
+    /// Return process state information related to the location in memory
+    /// of various process data structures.
+    fn get_addresses(&self) -> ProcessAddresses;
+
+    /// Return process state information related to the size in memory of
+    /// various process data structures.
+    fn get_sizes(&self) -> ProcessSizes;
+
     /// Print out the memory map (Grant region, heap, stack, program
     /// memory, BSS, and data sections) of this process.
     fn print_memory_map(&self, writer: &mut dyn Write);
@@ -789,4 +797,64 @@ pub struct FunctionCall {
     pub argument2: usize,
     pub argument3: usize,
     pub pc: usize,
+}
+
+/// Collection of process state information related to the memory addresses
+/// of different elements of the process.
+pub struct ProcessAddresses {
+    /// The address of the beginning of the process's region in nonvolatile
+    /// memory.
+    pub flash_start: usize,
+    /// The address of the beginning of the region the process has access to in
+    /// nonvolatile memory. This is after the TBF header and any other memory
+    /// the kernel has reserved for its own use.
+    pub flash_non_protected_start: usize,
+    /// The address immediately after the end of the region allocated for this
+    /// process in nonvolatile memory.
+    pub flash_end: usize,
+
+    /// The address of the beginning of the process's allocated region in
+    /// memory.
+    pub sram_start: usize,
+    /// The address of the application break. This is the address immediately
+    /// after the end of the memory the process has access to.
+    pub sram_app_brk: usize,
+    /// The lowest address of any allocated grant. This is the start of the
+    /// region the kernel is using for its own internal state on behalf of this
+    /// process.
+    pub sram_grant_start: usize,
+    /// The address immediately after the end of the region allocated for this
+    /// process in memory.
+    pub sram_end: usize,
+
+    /// The address of the start of the process's heap, if known. Note, managing
+    /// this is completely up to the process, and the kernel relies on the
+    /// process explicitly notifying it of this address. Therefore, its possible
+    /// the kernel does not know the start address, or its start address could
+    /// be incorrect.
+    pub sram_heap_start: Option<usize>,
+    /// The address of the top (or start) of the process's stack, if known.
+    /// Note, managing the stack is completely up to the process, and the kernel
+    /// relies on the process explicitly notifying it of where it started its
+    /// stack. Therefore, its possible the kernel does not know the start
+    /// address, or its start address could be incorrect.
+    pub sram_stack_top: Option<usize>,
+    /// The lowest address the kernel has seen the stack pointer. Note, the
+    /// stack is entirely managed by the process, and the process could
+    /// intentionally obscure this address from the kernel. Also, the stack may
+    /// have reached a lower address, this is only the lowest address seen when
+    /// the process calls a syscall.
+    pub sram_stack_bottom: Option<usize>,
+}
+
+/// Collection of process state related to the size in memory of various process
+/// structures.
+pub struct ProcessSizes {
+    /// The number of bytes used for the grant pointer table.
+    pub grant_pointers: usize,
+    /// The number of bytes used for the pending upcall queue.
+    pub upcall_list: usize,
+    /// The number of bytes used for the process control block (i.e. the
+    /// `ProcessX` struct).
+    pub process_control_block: usize,
 }
