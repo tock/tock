@@ -679,7 +679,7 @@ impl<'a> PortQuery for UDPDriver<'a> {
             app.enter(|other_app, _| {
                 if other_app.bound_port.is_some() {
                     let other_addr_opt = other_app.bound_port.clone();
-                    let other_addr = other_addr_opt.expect("Missing other_addr");
+                    let other_addr = other_addr_opt.unwrap(); // Unwrap fail = Missing other_addr
                     if other_addr.port == port {
                         port_bound = true;
                     }

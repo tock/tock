@@ -534,9 +534,7 @@ pub unsafe fn main() {
     );
     base_peripherals.ecb.set_client(aes_mux);
     aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(aes_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
     use capsules::net::ieee802154::MacAddress;
     use capsules::virtual_alarm::VirtualMuxAlarm;

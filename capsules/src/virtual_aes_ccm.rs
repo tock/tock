@@ -54,7 +54,7 @@
 //! ccm_mux.initialize_callback_handle(
 //!     dynamic_deferred_caller
 //!         .register(ccm_mux)
-//!         .expect("no deferred call slot available for ccm mux"),
+//!         .unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
 //! );
 //! const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 //! let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -163,7 +163,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
     /// ```rust
     /// mux.initialize_callback_handle(
     ///     dynamic_deferred_caller.register(mux)
-    ///     .expect("no deferred call slot available for ccm mux")
+    ///     .unwrap() // Unwrap fail = no deferred call slot available for ccm mux
     /// );
     /// ```
     /// after the creation of the mux

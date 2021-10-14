@@ -63,9 +63,7 @@ impl Component for UartMuxComponent {
             )
         );
         uart_mux.initialize_callback_handle(
-            self.deferred_caller
-                .register(uart_mux)
-                .expect("no deferred call slot available for uart mux"),
+            self.deferred_caller.register(uart_mux).unwrap(), // Unwrap fail = no deferred call slot available for uart mux
         );
 
         uart_mux.initialize();

@@ -749,7 +749,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn get_mode(&self) -> Mode {
-        let port = self.ports_ref.expect("Err").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail = Err
 
         let val = match self.pinid.get_pin_number() {
             0b0000 => port.registers.moder.read(MODER::MODER0),
@@ -775,7 +775,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_mode(&self, mode: Mode) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.moder.modify(MODER::MODER0.val(mode as u32)),
@@ -799,7 +799,7 @@ impl<'a> Pin<'a> {
     }
 
     pub fn set_alternate_function(&self, af: AlternateFunction) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.afrl.modify(AFRL::AFRL0.val(af as u32)),
@@ -837,7 +837,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_mode_output_pushpull(&self) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.otyper.modify(OTYPER::OT0::CLEAR),
@@ -861,7 +861,7 @@ impl<'a> Pin<'a> {
     }
 
     fn get_pullup_pulldown(&self) -> PullUpPullDown {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         let val = match self.pinid.get_pin_number() {
             0b0000 => port.registers.pupdr.read(PUPDR::PUPDR0),
@@ -887,7 +887,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_pullup_pulldown(&self, pupd: PullUpPullDown) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.pupdr.modify(PUPDR::PUPDR0.val(pupd as u32)),
@@ -911,7 +911,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_output_high(&self) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.bsrr.write(BSRR::BS0::SET),
@@ -935,7 +935,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_output_low(&self) {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.bsrr.write(BSRR::BR0::SET),
@@ -959,7 +959,7 @@ impl<'a> Pin<'a> {
     }
 
     fn is_output_high(&self) -> bool {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.odr.is_set(ODR::ODR0),
@@ -993,7 +993,7 @@ impl<'a> Pin<'a> {
     }
 
     fn read_input(&self) -> bool {
-        let port = self.ports_ref.expect("").get_port(self.pinid);
+        let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
 
         match self.pinid.get_pin_number() {
             0b0000 => port.registers.idr.is_set(IDR::IDR0),

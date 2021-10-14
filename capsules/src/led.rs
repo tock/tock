@@ -132,7 +132,7 @@ impl<L: led::Led> SyscallDriver for LedDriver<'_, L> {
                     _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                 }
             })
-            .expect("LEDs slice taken")
+            .unwrap() // Unwrap fail = LEDs slice taken
     }
 
     fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {

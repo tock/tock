@@ -458,14 +458,14 @@ impl<'a> Usbc<'a> {
     where
         F: FnOnce(&mut State) -> R,
     {
-        let mut state = self.state.take().expect("map_state: state value is in use");
+        let mut state = self.state.take().unwrap(); // Unwrap fail = map_state: state value is in use
         let result = closure(&mut state);
         self.state.set(state);
         result
     }
 
     fn get_state(&self) -> State {
-        self.state.expect("get_state: state value is in use")
+        self.state.unwrap_or_panic() // Unwrap fail = get_state: state value is in use
     }
 
     fn set_state(&self, state: State) {
