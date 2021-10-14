@@ -33,11 +33,12 @@ register_structs! {
         (0x08 => intr_test: WriteOnly<u32, INTR::Register>),
         (0x0C => alert_test: WriteOnly<u32, ALERT_TEST::Register>),
         (0x10 => cmd: ReadWrite<u32, CMD::Register>),
-        (0x14 => status: ReadOnly<u32, STATUS::Register>),
-        (0x18 => err_bits: ReadOnly<u32, ERR_BITS::Register>),
-        (0x1C => start_addr: ReadWrite<u32, START_ADDR::Register>),
+        (0x14 => ctrl: ReadOnly<u32>),
+        (0x18 => status: ReadOnly<u32, STATUS::Register>),
+        (0x1C => err_bits: ReadOnly<u32, ERR_BITS::Register>),
         (0x20 => fatal_alert_cause: ReadOnly<u32, FATAL_ALERT_CAUSE::Register>),
-        (0x24 => _reserved0),
+        (0x24 => insn_cnt: ReadWrite<u32>),
+        (0x28 => _reserved0),
         (0x4000 => imem: [ReadWrite<u32>; 1024]),
         (0x5000 => _reserved1),
         (0x8000 => dmem: [ReadWrite<u32>; 1024]),
@@ -110,6 +111,9 @@ impl<'a> Otbn<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        self.registers.intr_enable.set(0x00);
+        self.registers.intr_state.set(0xFFFF_FFFF);
+
         // Check if there is an error
         if self.registers.err_bits.get() > 0 {
             self.client.map(|client| {
@@ -125,9 +129,6 @@ impl<'a> Otbn<'a> {
                 client.op_done(Ok(()), self.out_buffer.take().unwrap());
             });
         }
-
-        self.registers.intr_enable.set(0x00);
-        self.registers.intr_state.set(0xFFFF_FFFF);
     }
 
     pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
@@ -181,18 +182,13 @@ impl<'a> Otbn<'a> {
 
     /// Set the OTBN properties
     /// key values:
-    ///  `0` -> Start Address, set the start address
-    pub fn set_property(&self, key: usize, value: usize) -> Result<(), ErrorCode> {
+    pub fn set_property(&self, key: usize, _value: usize) -> Result<(), ErrorCode> {
         if self.registers.status.is_set(STATUS::BUSY) {
             // OTBN is performing and operation
             return Err(ErrorCode::BUSY);
         }
 
         match key {
-            0 => {
-                self.registers.start_addr.set(value as u32);
-                Ok(())
-            }
             _ => Err(ErrorCode::NOSUPPORT),
         }
     }
