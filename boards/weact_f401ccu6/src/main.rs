@@ -50,6 +50,7 @@ struct WeactF401CC {
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
+        1,
     >,
     button: &'static capsules::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
@@ -303,12 +304,9 @@ pub unsafe fn main() {
     // Clock to Port A, B, C are enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, stm32f401cc::gpio::Pin>,
         LedLow::new(gpio_ports.get_pin(stm32f401cc::gpio::PinId::PC13).unwrap()),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, stm32f401cc::gpio::Pin>
     ));
 
     // BUTTONs

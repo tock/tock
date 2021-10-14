@@ -47,8 +47,11 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedLow<'static, stm32f412g::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, stm32f412g::gpio::Pin<'static>>,
+        4,
+    >,
     button: &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -462,7 +465,7 @@ pub unsafe fn main() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, stm32f412g::gpio::Pin>,
         LedLow::new(
             base_peripherals
@@ -488,9 +491,6 @@ pub unsafe fn main() {
                 .get_pin(stm32f412g::gpio::PinId::PE03)
                 .unwrap()
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, stm32f412g::gpio::Pin>
     ));
 
     // BUTTONs

@@ -59,6 +59,7 @@ struct STM32F3Discovery {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
+        8,
     >,
     button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
@@ -435,7 +436,7 @@ pub unsafe fn main() {
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
         LedHigh::new(
             &peripherals
@@ -485,9 +486,6 @@ pub unsafe fn main() {
                 .get_pin(stm32f303xc::gpio::PinId::PE13)
                 .unwrap()
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>
     ));
 
     // BUTTONs

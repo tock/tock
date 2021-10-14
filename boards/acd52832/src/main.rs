@@ -71,6 +71,7 @@ pub struct Platform {
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
+        4,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -227,15 +228,12 @@ pub unsafe fn main() {
     //
     // LEDs
     //
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED4_PIN]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52832::gpio::GPIOPin>
     ));
 
     //

@@ -69,7 +69,11 @@ struct Hail {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, sam4l::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, sam4l::gpio::GPIOPin<'static>>,
+        3,
+    >,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
@@ -387,14 +391,11 @@ pub unsafe fn main() {
     .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, sam4l::gpio::GPIOPin>,
         LedLow::new(&peripherals.pa[13]), // Red
         LedLow::new(&peripherals.pa[15]), // Green
         LedLow::new(&peripherals.pa[14]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, sam4l::gpio::GPIOPin>
     ));
 
     // BUTTONs

@@ -75,7 +75,7 @@ pub struct RaspberryPiPico {
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
+    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
@@ -386,12 +386,9 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, RPGpioPin<'static>>
     ));
 
     peripherals.adc.init();

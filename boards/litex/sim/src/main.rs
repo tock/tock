@@ -120,6 +120,7 @@ struct LiteXSim {
             'static,
             litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
         >,
+        8,
     >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
@@ -465,20 +466,18 @@ pub unsafe fn main() {
         ]
     );
 
-    let led_driver = components::led::LedsComponent::new(components::led_component_helper!(
-        kernel::hil::led::LedHigh<GPIOPin>,
-        LedHigh::new(&led_gpios[0]),
-        LedHigh::new(&led_gpios[1]),
-        LedHigh::new(&led_gpios[2]),
-        LedHigh::new(&led_gpios[3]),
-        LedHigh::new(&led_gpios[4]),
-        LedHigh::new(&led_gpios[5]),
-        LedHigh::new(&led_gpios[6]),
-        LedHigh::new(&led_gpios[7]),
-    ))
-    .finalize(components::led_component_buf!(
-        kernel::hil::led::LedHigh<GPIOPin>,
-    ));
+    let led_driver =
+        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+            kernel::hil::led::LedHigh<GPIOPin>,
+            LedHigh::new(&led_gpios[0]),
+            LedHigh::new(&led_gpios[1]),
+            LedHigh::new(&led_gpios[2]),
+            LedHigh::new(&led_gpios[3]),
+            LedHigh::new(&led_gpios[4]),
+            LedHigh::new(&led_gpios[5]),
+            LedHigh::new(&led_gpios[6]),
+            LedHigh::new(&led_gpios[7]),
+        ));
 
     // ---------- BUTTON ----------
 

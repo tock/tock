@@ -147,8 +147,11 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
+        2,
+    >,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -324,13 +327,10 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_WHITE_PIN])
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, nrf52840::gpio::GPIOPin>
     ));
 
     //--------------------------------------------------------------------------

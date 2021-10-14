@@ -116,8 +116,11 @@ struct Imix {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
+        1,
+    >,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
@@ -457,12 +460,9 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedsComponent::new(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, sam4l::gpio::GPIOPin>,
         LedHigh::new(&peripherals.pc[10]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, sam4l::gpio::GPIOPin>
     ));
 
     let button = components::button::ButtonComponent::new(
