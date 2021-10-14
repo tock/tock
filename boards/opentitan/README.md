@@ -85,7 +85,7 @@ the Python dependencies are installed.
 python3 pip install -r python-requirements.txt
 ```
 
-Next connect to the boards serieal with a second terminal:
+Next connect to the board's serial with a second terminal:
 
 ```shell
 screen /dev/ttyACM1 115200,cs8,-ixon,-ixoff
@@ -175,7 +175,7 @@ $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_ne
 ```
 
 The TBF must be compiled for the OpenTitan board. For example, you can build
-the Hello World exmple app from the libtock-rs repository by running:
+the Hello World example app from the libtock-rs repository by running:
 
 ```
 $ cd [LIBTOCK-RS-DIR]
