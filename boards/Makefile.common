@@ -345,6 +345,11 @@ stack-analysis:
 	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" $(DEVNULL) 2>&1
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
+# Run the `print_tock_memory_usage.py` script for this board.
+.PHONY: memory
+memory: $(TARGET_PATH)/release/$(PLATFORM).elf
+	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $<
+
 # Support rules
 
 target:
