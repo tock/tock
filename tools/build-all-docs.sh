@@ -21,8 +21,19 @@ else
 fi
 rm -f _COW _COW2
 
-# Make the documentation for all the boards and move it to doc/rustdoc.
+# Make the documentation for all the boards.
 make alldoc
+
+# Replace the default rust logo with our own Tock logo and the favicon with our
+# own favicon. Note, it is also possible to set this using a `#[doc]` attribute
+# (https://doc.rust-lang.org/rustdoc/the-doc-attribute.html#html_logo_url) but
+# doing it this way avoids having to set the attribute for every crate.
+curl https://www.tockos.org/assets/img/tocklogo.png --output target/doc/rust-logo.png
+curl https://www.tockos.org/assets/img/icons/favicon-32x32.png --output target/doc/favicon-32x32.png
+curl https://www.tockos.org/assets/img/icons/favicon-16x16.png --output target/doc/favicon-16x16.png
+curl https://www.tockos.org/assets/img/icons/safari-pinned-tab.svg --output target/doc/favicon.svg
+
+# Move the docs to doc/rustdoc.
 $CP_COW -r target/doc doc/rustdoc
 
 # Temporary redirect rule
