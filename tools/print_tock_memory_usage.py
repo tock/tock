@@ -62,6 +62,7 @@ Options:
   -s, --size          Sort symbols by size (normally lexicographic)
   -v, --verbose       Print verbose output (RAM waste and embedded flash data)
   -w, --show-waste    Show where RAM is wasted (due to padding)
+      --objdump       Path to the llvm-objdump executable
 
 Note: depends on llvm-objdump to extract symbols"""
     )
@@ -435,9 +436,9 @@ def compute_padding(symbols):
 
 def parse_options(opts):
     """Parse command line options."""
-    global symbol_depth, verbose, show_waste, sort_by_size
+    global symbol_depth, verbose, show_waste, sort_by_size, OBJDUMP
     valid = "d:vsw"
-    long_valid = ["depth=", "verbose", "show-waste", "size"]
+    long_valid = ["depth=", "verbose", "show-waste", "size", "objdump="]
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
         if opt == "-d" or opt == "--depth":
@@ -449,6 +450,8 @@ def parse_options(opts):
         elif opt == "-s" or opt == "--size":
             print("sorting by size")
             sort_by_size = True
+        elif opt == "--objdump":
+            OBJDUMP = val
         else:
             usage("unrecognized option: " + opt)
             return []
