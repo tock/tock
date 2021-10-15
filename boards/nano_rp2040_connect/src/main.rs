@@ -399,7 +399,7 @@ pub unsafe fn main() {
         ));
 
     peripherals.i2c0.init(100 * 1000);
-    //set RX and TX pins in UART mode
+    //set SDA and SCL pins in I2C mode
     let gpio_sda = peripherals.pins.get_pin(RPGpio::GPIO12);
     let gpio_scl = peripherals.pins.get_pin(RPGpio::GPIO13);
     gpio_sda.set_function(GpioFunction::I2C);
@@ -427,7 +427,24 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
 
-    //Uncomment this block in order to use the temperature sensor from lsm6dsoxtr
+    let _ = lsm6dsoxtr
+        .configure(
+            capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+            capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+            capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+            capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+            true,
+        )
+        .map_err(|e| {
+            panic!(
+                "ERROR Failed to start LSM6DSOXTR sensor configuration ({:?})",
+                e
+            )
+        });
+
+    // The Nano_RP2040 board has its own integrated temperature sensor, as well as a temperature sensor integrated in the lsm6dsoxtr sensor.
+    // There is only a single driver, thus either for userspace is exclusive.
+    // Uncomment this block in order to use the temperature sensor from lsm6dsoxtr
 
     // let temp = static_init!(
     //     capsules::temperature::TemperatureSensor<'static>,
@@ -435,16 +452,6 @@ pub unsafe fn main() {
     // );
 
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
-
-    let _ = lsm6dsoxtr
-        .configure(
-            capsules::lsm6ds::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
-            capsules::lsm6ds::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
-            capsules::lsm6ds::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
-            capsules::lsm6ds::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
-            true,
-        )
-        .map_err(|e| panic!("ERROR Failed LSM6DSOXTR sensor configuration ({:?})", e));
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));

@@ -1,4 +1,4 @@
-//! LSM6DSOXTR sensors
+//! LSM6DS sensors
 //!
 //! Author: Cristiana Andrei <cristiana.andrei05@gmail.com>
 
@@ -88,9 +88,9 @@ enum_from_primitive! {
     }
 }
 
-pub(crate) const SCALE_FACTOR_ACCEL: [u16; 4] = [61, 488, 122, 244];
-pub(crate) const SCALE_FACTOR_GYRO: [u16; 4] = [875, 1750, 3500, 7000];
-pub(crate) const TEMP_SENSITIVITY_FACTOR: u16 = 256;
+pub const SCALE_FACTOR_ACCEL: [u16; 4] = [61, 488, 122, 244];
+pub const SCALE_FACTOR_GYRO: [u16; 4] = [875, 1750, 3500, 7000];
+pub const TEMP_SENSITIVITY_FACTOR: u16 = 256;
 
 enum_from_primitive! {
     #[derive(Clone, Copy, PartialEq)]

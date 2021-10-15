@@ -12,7 +12,7 @@
 
 #![allow(non_camel_case_types)]
 use crate::driver;
-use crate::lsm6ds::{
+use crate::lsm6ds_definitions::{
     LSM6DSOXAccelDataRate, LSM6DSOXAccelRange, LSM6DSOXGyroDataRate, LSM6DSOXTRAccelRegisters,
     LSM6DSOXTRGyroRange, LSM6DSOXTRGyroRegisters, LSM6DSOXTRTempRegisters, CTRL1_XL, CTRL2_G,
     SCALE_FACTOR_ACCEL, SCALE_FACTOR_GYRO, TEMP_SENSITIVITY_FACTOR,

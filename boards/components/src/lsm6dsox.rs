@@ -6,10 +6,10 @@
 //! ```rust
 //! let _ = lsm6dsoxtr
 //!          .configure(
-//!              capsules::lsm6ds::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
-//!              capsules::lsm6ds::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
-//!              capsules::lsm6ds::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
-//!              capsules::lsm6ds::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+//!              capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+//!              capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+//!              capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+//!              capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
 //!              true,
 //!          )
 //!          .map_err(|e| panic!("ERROR Failed LSM6DSOXTR sensor configuration ({:?})", e));
@@ -42,7 +42,10 @@ macro_rules! lsm6ds_i2c_component_helper {
     }};
 
     ($i2c_mux:expr $(,)?) => {{
-        $crate::lsm6ds_i2c_component_helper!($i2c_mux, capsules::lsm6ds::ACCELEROMETER_BASE_ADDRESS)
+        $crate::lsm6ds_i2c_component_helper!(
+            $i2c_mux,
+            capsules::lsm6ds_definitions::ACCELEROMETER_BASE_ADDRESS
+        )
     }};
 }
 

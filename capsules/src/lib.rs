@@ -47,7 +47,7 @@ pub mod lps25hb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod lsm303xx;
-pub mod lsm6ds;
+pub mod lsm6ds_definitions;
 pub mod lsm6dsoxtr;
 pub mod ltc294x;
 pub mod max17205;
