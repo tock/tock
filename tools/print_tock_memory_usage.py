@@ -481,7 +481,7 @@ if __name__ == "__main__":
         usage(str(err))
         sys.exit(-1)
 
-    header_lines = os.popen(OBJDUMP + " -section-headers " + elf_name).readlines()
+    header_lines = os.popen(OBJDUMP + " --section-headers " + elf_name).readlines()
 
     print("Tock memory usage report for " + elf_name)
     arch = "UNKNOWN"
@@ -496,7 +496,7 @@ if __name__ == "__main__":
         usage("could not detect architecture of ELF")
         sys.exit(-1)
 
-    objdump_lines = os.popen(OBJDUMP + " -t -section-headers " + elf_name).readlines()
+    objdump_lines = os.popen(OBJDUMP + " -t --section-headers " + elf_name).readlines()
     objdump_output_section = "start"
 
     for oline in objdump_lines:
