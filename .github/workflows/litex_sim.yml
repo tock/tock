@@ -1,0 +1,141 @@
+# This workflow contains the litex-ci-runner job, which uses the LiteX Verilated
+# simulation to run a Tock kernel and perform various tests using libtock-c
+# example applications.
+
+name: litex-sim-ci
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on push or pull
+# request events but only for the master branch
+on:
+  push:
+    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  pull_request: # Run CI for PRs on any branch
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
+jobs:
+  litex-sim-ci:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    # The type of runner that the job will run on
+    runs-on: ${{ matrix.os }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checkout the Tock repo, needs to happen at the beginning given
+      # that other steps (such as the Rust toolchain) depend on files
+      # in this repo.
+      - name: Checkout the current repository
+        uses: actions/checkout@v2
+
+      # Install basic packages required for the GitHub actions workflow
+      - name: Update packages and install dependencies
+        run: |
+          sudo apt update
+          sudo apt install python3-pip python3-venv \
+            verilator libevent-dev libjson-c-dev libz-dev libzmq3-dev
+
+      # Uses a custom RISCV toolchain containing the required headers. This
+      # follows the libtock-c GitHub actions definition.
+      - name: Setup RISC-V GCC toolchain
+        run: |
+          pushd $HOME
+          wget -q http://cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip
+          echo "2c82a8f3ac77bf2b24d66abff3aa5e873750c76de24c77e12dae91b9d2f4da27 gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" | sha256sum -c
+          unzip gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip
+          echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
+          popd
+
+      # Setup a Rust toolchain (pulls version from rust-toolchain file)
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt, clippy
+
+      # Install tockloader, which is used to prepare binaries with userspace
+      # applications.
+      - name: Install tockloader
+        run: |
+          pip3 install "tockloader==1.8.0"
+
+      # Clone tock-litex support repository under ./tock-litex, check out the
+      # targeted release.
+      - name: Checkout the tock-litex repository
+        uses: actions/checkout@v2
+        with:
+          repository: lschuermann/tock-litex
+          # Currently pointing to a fixed commit, switch to a tag on the next
+          # release with the Python requirements.txt included.
+          #
+          # Also, currently using the dev/litex-sim-ci branch, which
+          # pulls in a forked LiteX with GPIO support in the
+          # simulation and the simctrl modules
+          ref: da3f33968ae018c33dd10d705fd7e3ca04e5e056
+          path: tock-litex
+
+      # Install all of the required Python packages from the tock-litex'
+      # requirements.txt file
+      - name: Install Python packages pinned by the tock-litex revision
+        run: |
+          pushd tock-litex
+          # Unfortunately the valentyusb package fails to install because
+          # it does not have a setup.py. Thus ignore it, we don't need it
+          # here anyways (would need it for LiteX unit tests though).
+          sed -i '/valentyusb/d' ./requirements.txt
+          pip3 install -r requirements.txt
+          popd
+
+      # Build the LiteX simulator Tock kernel. This kernel is never touched, the
+      # litex-ci-runner will use its own temporary flash files.
+      - name: Build the LiteX simulator Tock kernel
+        run: |
+          pushd boards/litex/sim
+          make
+          popd
+
+      # Revision to checkout defined in the main tock repository in
+      # .libtock_c_ci_rev
+      - name: Checkout libtock-c CI revision
+        uses: actions/checkout@v2
+        with:
+          repository: tock/libtock-c
+          # Pins a libtock-c revision for LiteX CI tests. In case of
+          # bugs fixed in libtock-c, backwards-incompatible changes in
+          # Tock or new tests this might need to be updated.
+          #
+          # libtock-c of Aug 25, 2021, 6:37 PM GMT+2
+          ref: 17601d28fa3652a124abf373c86143c2532d3f3c
+          path: libtock-c
+
+      - name: Build libtock-c apps
+        run: |
+          # We only need to build for a single target, but at multiple flash and
+          # memory addresses such that tockloader can place the non-PIC apps
+          # into the kernel binary properly.
+          export TOCK_TARGETS="\
+            rv32i|rv32i.0x00080060.0x40008000|0x00080060|0x40008000
+            rv32i|rv32i.0x00088060.0x40010000|0x00088060|0x40010000"
+          export LIBTOCK_C_APPS="\
+            c_hello \
+            tests/console_timeout \
+            tests/mpu_walk_region \
+            tests/printf_long \
+            rot13_service \
+            rot13_client \
+            tests/console_recv_short \
+            tests/console_recv_long"
+          pushd libtock-c/examples
+          for APP in $LIBTOCK_C_APPS; do
+            make -C "$APP"
+          done
+          popd
+
+      # Run the LiteX simulation with required options for Tock
+      - name: Run various tests in the LiteX simulation using the litex-ci-runner
+        run: |
+          pushd tools/litex-ci-runner
+          cargo run

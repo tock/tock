@@ -138,6 +138,7 @@ struct LiteXSim {
             >,
         >,
     >,
+    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -165,6 +166,7 @@ impl SyscallDriverLookup for LiteXSim {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -605,6 +607,11 @@ pub unsafe fn main() {
         console: console,
         alarm: alarm,
         lldb: lldb,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
         scheduler,
         scheduler_timer,
     };
@@ -629,10 +636,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &litex_sim,
-        chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&litex_sim, chip, Some(&litex_sim.ipc), &main_loop_cap);
 }
