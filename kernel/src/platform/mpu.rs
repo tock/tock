@@ -48,6 +48,12 @@ impl Region {
     pub fn size(&self) -> usize {
         self.size
     }
+
+    /// Returns true if the specified buffer is wholly contained within this region
+    pub fn contains(&self, other_address: *const u8, other_size: usize) -> bool {
+        self.start_address <= other_address
+            && other_address.wrapping_add(other_size) <= self.start_address.wrapping_add(self.size)
+    }
 }
 
 /// Null type for the default type of the `MpuConfig` type in an implementation

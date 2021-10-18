@@ -579,7 +579,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
-        } else if self.in_app_owned_memory(buf_start_addr, size) {
+        } else if self.in_app_owned_memory(buf_start_addr, size)
+            || self.in_mpu_accessible_memory(buf_start_addr, size)
+        {
             // TODO: Check for buffer aliasing here
 
             // Valid buffer, we need to adjust the app's watermark
@@ -647,6 +649,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
+            || self.in_mpu_accessible_memory(buf_start_addr, size)
         {
             // TODO: Check for buffer aliasing here
 
@@ -2031,6 +2034,21 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.flash_non_protected_start()
             && buf_end_addr <= self.flash_end()
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are within the allowed read/write accessible memory of the process as determined by
+    /// the mpu
+    fn in_mpu_accessible_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        for region in &self.mpu_regions {
+            if region
+                .get()
+                .map_or(false, |r| r.contains(buf_start_addr, size))
+            {
+                return true;
+            }
+        }
+        false
     }
 
     /// Reset all `grant_ptr`s to NULL.
