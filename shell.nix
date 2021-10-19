@@ -36,24 +36,44 @@ let
   moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
   nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
 
-  rust_toolchain = builtins.replaceStrings ["\n" "\r" " " "\t"] ["" "" "" ""] (
-    builtins.readFile ./rust-toolchain);
-  rust_date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rust_toolchain));
-  rust_channel = lib.head (lib.splitString "-" rust_toolchain);
-  rust_targets = [
-    "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi"
-    "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv32i-unknown-none-elf"
-  ];
-  rust_build = nixpkgs.rustChannelOfTargets rust_channel rust_date rust_targets;
+  # Get a custom cross-compile capable Rust install of a specific channel and
+  # build. Tock expects a specific version of Rust with a selection of targets
+  # and components to be present.
+  rustBuild = (
+    nixpkgs.rustChannelOf (
+      let
+        # Read the ./rust-toolchain (and trim whitespace) so we can extrapolate
+        # the channel and date information. This makes it more convenient to
+        # update the Rust toolchain used.
+        rustToolchain = builtins.replaceStrings ["\n" "\r" " " "\t"] ["" "" "" ""] (
+          builtins.readFile ./rust-toolchain
+        );
+      in
+        {
+          channel = lib.head (lib.splitString "-" rustToolchain);
+          date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rustToolchain));
+        }
+    )
+  ).rust.override {
+    targets = [
+      "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi"
+      "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv32i-unknown-none-elf"
+    ];
+    extensions = [
+      "rust-src" # required to compile the core library
+      "llvm-tools-preview" # currently required to support recently added flags
+    ];
+  };
+
 in
   with pkgs;
   stdenv.mkDerivation {
     name = "tock-dev";
 
     buildInputs = [
+      rustBuild
       python3Full
       pythonPackages.tockloader
-      rust_build
       llvm
       qemu
 
