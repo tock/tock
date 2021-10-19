@@ -7,7 +7,7 @@ use crate::ErrorCode;
 /// Implement this trait and use `set_client()` in order to receive callbacks from an `AES128`
 /// instance.
 pub trait Client<'a> {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]);
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]);
 }
 
 /// The number of bytes used for AES block operations.  Keys and IVs must have this length,
@@ -78,12 +78,16 @@ pub trait AES128<'a> {
     /// across calls to `crypt()`.
     ///
     fn crypt(
-        &'a self,
-        source: Option<&'a mut [u8]>,
-        dest: &'a mut [u8],
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])>;
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )>;
 }
 
 pub trait AES128Ctr {
