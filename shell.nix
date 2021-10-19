@@ -66,30 +66,33 @@ let
   };
 
 in
-  with pkgs;
-  stdenv.mkDerivation {
+  pkgs.mkShell {
     name = "tock-dev";
 
-    buildInputs = [
+    buildInputs = with pkgs; [
+      # --- Toolchains ---
       rustBuild
+
+      # --- Convenience and support packages ---
       python3Full
       pythonPackages.tockloader
-      llvm
-      qemu
 
       # Required for tools/print_tock_memory_usage.py
       pythonPackages.cxxfilt
+
+
+      # --- CI support packages ---
+      qemu
     ];
 
     LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";
 
-    # Instruct the Tock gnumake-based build system to not check for
-    # rustup and assume all required tools are installed and available
-    # in the $PATH
+    # Instruct the Tock gnumake-based build system to not check for rustup and
+    # assume all requirend tools are installed and available in the $PATH
     NO_RUSTUP = "1";
 
-    # The defaults "objcopy" and "objdump" are wrong (for x86), use
-    # "llvm-obj{copy,dump}" as defined in the makefile
+    # The defaults "objcopy" and "objdump" are wrong (stem from the standard
+    # environment for x86), use "llvm-obj{copy,dump}" as defined in the makefile
     shellHook = ''
       unset OBJCOPY
       unset OBJDUMP
