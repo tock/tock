@@ -18,7 +18,13 @@ TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 
 # Common defaults that specific boards can override, but likely do not need to.
-TOOLCHAIN ?= llvm
+#
+# The TOOLCHAIN parameter is set to the magic value "llvm-tools-preview", which
+# will cause the Makefile to resolve the llvm toolchain installed as part of the
+# rustup component "llvm-tools-preview". In case a system toolchain shall be
+# used, this can be overridden to specify the toolchain prefix, e.g. "llvm" for
+# llvm-{objdump,objcopy,...} or "arm-none-eabi".
+TOOLCHAIN ?= llvm-tools-preview
 CARGO     ?= cargo
 
 ifeq ($(NO_RUSTUP),)
@@ -166,10 +172,11 @@ ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (
 endif
 endif # $(NO_RUSTUP) ?
 
-# If the user is using the standard toolchain we need to get the full path.
-# rustup should take care of this for us by putting in a proxy in .cargo/bin,
-# but until that is setup we workaround it.
-ifeq ($(TOOLCHAIN),llvm)
+# If the user is using the standard toolchain provided as part of the
+# llvm-tools-preview rustup component we need to get the full path. rustup
+# should take care of this for us by putting in a proxy in .cargo/bin, but until
+# that is setup we workaround it.
+ifeq ($(TOOLCHAIN),llvm-tools-preview)
   TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
 endif
 
