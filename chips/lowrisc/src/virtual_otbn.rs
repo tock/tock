@@ -54,19 +54,6 @@ impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
         }
     }
 
-    pub fn set_property(&self, key: usize, value: usize) -> Result<(), ErrorCode> {
-        // Check if any mux is enabled. If it isn't we enable it for us.
-        if self.mux.running.get() == false {
-            self.mux.running.set(true);
-            self.mux.running_id.set(self.id);
-            self.mux.accel.set_property(key, value)
-        } else if self.mux.running_id.get() == self.id {
-            self.mux.accel.set_property(key, value)
-        } else {
-            Err(ErrorCode::BUSY)
-        }
-    }
-
     pub fn run(
         &'a self,
         output: &'static mut [u8; 1024],

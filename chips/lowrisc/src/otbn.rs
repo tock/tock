@@ -180,19 +180,6 @@ impl<'a> Otbn<'a> {
         Ok(())
     }
 
-    /// Set the OTBN properties
-    /// key values:
-    pub fn set_property(&self, key: usize, _value: usize) -> Result<(), ErrorCode> {
-        if self.registers.status.is_set(STATUS::BUSY) {
-            // OTBN is performing and operation
-            return Err(ErrorCode::BUSY);
-        }
-
-        match key {
-            _ => Err(ErrorCode::NOSUPPORT),
-        }
-    }
-
     /// Run the acceleration operation.
     /// This doesn't return any data, instead the client needs to have
     /// set a `op_done` handler to determine when this is complete.

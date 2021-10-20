@@ -64,20 +64,6 @@ fn otbn_check_load_empty_binary() {
 }
 
 #[test_case]
-fn otbn_check_invalid_prop() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
-    let otbn = &perf.otbn;
-
-    debug!("check otbn invalid prop... ");
-    run_kernel_op(100);
-
-    assert_eq!(otbn.set_property(100, 0), Err(ErrorCode::NOSUPPORT));
-
-    debug!("    [ok]");
-    run_kernel_op(100);
-}
-
-#[test_case]
 fn otbn_check_run_empty_binary() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let otbn = &perf.otbn;
