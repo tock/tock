@@ -248,7 +248,14 @@ pub trait Process {
     /// restarted and run again. This function instead frees grants and any
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
-    fn terminate(&self, completion_code: u32);
+    ///
+    /// When a process is terminated, an optional `completion_code` should be
+    /// stored for the process. If the process provided the completion code
+    /// (e.g. via the exit syscall), then this function should be called with
+    /// a completion code of `Some(u32)`. If the kernel is terminating the
+    /// process and therefore has no completion code from the process, it should
+    /// provide `None`.
+    fn terminate(&self, completion_code: Option<u32>);
 
     /// Terminates and attempts to restart the process. The process and current
     /// application always terminate. The kernel may, based on its own policy,
@@ -271,7 +278,14 @@ pub trait Process {
     /// After `restart()` runs the process will either be queued to run its the
     /// application's `_start` function, terminated, or queued to run a
     /// different application's `_start` function.
-    fn try_restart(&self, completion_code: u32);
+    ///
+    /// As the process will be terminated before being restarted, this function
+    /// accepts an optional `completion_code`. If the process provided a
+    /// completion code (e.g. via the exit syscall), then this should be called
+    /// with `Some(u32)`. If the kernel is trying to restart the process and the
+    /// process did not provide a completion code, then this should be called
+    /// with `None`.
+    fn try_restart(&self, completion_code: Option<u32>);
 
     // memop operations
 

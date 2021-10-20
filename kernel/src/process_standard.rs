@@ -25,10 +25,7 @@ use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
-use crate::utilities::cells::{MapCell, NumericCellExt};
-
-// The completion code for a process if it faulted.
-const COMPLETION_FAULT: u32 = 0xffffffff;
+use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 /// State for helping with debugging apps.
 ///
@@ -203,6 +200,16 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// determine if the process should be restarted or not.
     restart_count: Cell<usize>,
 
+    /// The completion code set by the process when it last exited, restarted,
+    /// or was terminated. If the process is has never terminated, then the
+    /// `OptionalCell` will be empty (i.e. `None`). If the process has exited,
+    /// restarted, or terminated, the `OptionalCell` will contain an optional 32
+    /// bit value. The option will be `None` if the process crashed or was
+    /// stopped by the kernel and there is no provided completion code. If the
+    /// process called the exit syscall then the provided completion code will
+    /// be stored as `Some(completion code)`.
+    completion_code: OptionalCell<Option<u32>>,
+
     /// Name of the app.
     process_name: &'static str,
 
@@ -324,7 +331,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 panic!("Process {} had a fault", self.process_name);
             }
             FaultAction::Restart => {
-                self.try_restart(COMPLETION_FAULT);
+                self.try_restart(None);
             }
             FaultAction::Stop => {
                 // This looks a lot like restart, except we just leave the app
@@ -332,13 +339,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-                self.terminate(COMPLETION_FAULT);
+                self.terminate(None);
                 self.state.update(State::Faulted);
             }
         }
     }
 
-    fn try_restart(&self, completion_code: u32) {
+    fn try_restart(&self, completion_code: Option<u32>) {
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -351,7 +358,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // want to reclaim the process resources.
     }
 
-    fn terminate(&self, _completion_code: u32) {
+    fn terminate(&self, completion_code: Option<u32>) {
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -368,6 +375,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         unsafe {
             self.grant_ptrs_reset();
         }
+
+        // Save the completion code.
+        self.completion_code.set(completion_code);
 
         // Mark the app as stopped so the scheduler won't try to run it.
         self.state.update(State::Terminated);
@@ -1165,6 +1175,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);
         let restart_count = self.restart_count.get();
+        let completion_code = self.completion_code.extract();
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1182,6 +1193,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let _ = match last_syscall {
             Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}\r\n", syscall)),
             None => writer.write_str(" Last Syscall: None\r\n"),
+        };
+
+        let _ = match completion_code {
+            Some(opt_cc) => match opt_cc {
+                Some(cc) => writer.write_fmt(format_args!(" Completion Code: {}\r\n", cc)),
+                None => writer.write_str(" Completion Code: Faulted\r\n"),
+            },
+            None => writer.write_str(" Completion Code: None\r\n"),
         };
 
         let _ = writer.write_fmt(format_args!(
@@ -1772,6 +1791,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.state = ProcessStateCell::new(process.kernel);
         process.fault_policy = fault_policy;
         process.restart_count = Cell::new(0);
+        process.completion_code = OptionalCell::empty();
 
         process.mpu_config = MapCell::new(mpu_config);
         process.mpu_regions = [
