@@ -33,7 +33,7 @@ register_structs! {
         (0x08 => intr_test: WriteOnly<u32, INTR::Register>),
         (0x0C => alert_test: WriteOnly<u32, ALERT_TEST::Register>),
         (0x10 => cmd: ReadWrite<u32, CMD::Register>),
-        (0x14 => ctrl: ReadOnly<u32>),
+        (0x14 => ctrl: ReadWrite<u32, CTRL::Register>),
         (0x18 => status: ReadOnly<u32, STATUS::Register>),
         (0x1C => err_bits: ReadOnly<u32, ERR_BITS::Register>),
         (0x20 => fatal_alert_cause: ReadOnly<u32, FATAL_ALERT_CAUSE::Register>),
@@ -55,10 +55,23 @@ register_bitfields![u32,
         RECOV OFFSET(1) NUMBITS(1) [],
     ],
     CMD [
-        START OFFSET(0) NUMBITS(1) [],
+        CMD OFFSET(0) NUMBITS(8) [
+            EXECUTE = 0x01,
+            SEC_WIPE_DMEM = 0x02,
+            SEC_WIPE_IMEM = 0x03,
+        ],
+    ],
+    CTRL [
+        SOFTWARE_ERRS_FATAL OFFSET(0) NUMBITS(1) [],
     ],
     STATUS [
-        BUSY OFFSET(0) NUMBITS(1) [],
+        STATUS OFFSET(0) NUMBITS(8) [
+            IDLE = 0x00,
+            BUSY_EXECUTE = 0x01,
+            BUSY_SEC_WIPE_DMEM = 0x02,
+            BUSY_SEC_WIPE_IMEM = 0x03,
+            LOCKED = 0xFF,
+        ],
     ],
     ERR_BITS [
         BAD_DATA_ADDR OFFSET(0) NUMBITS(1) [],
@@ -66,18 +79,22 @@ register_bitfields![u32,
         CALL_STACK OFFSET(2) NUMBITS(1) [],
         ILLEGAL_INSN OFFSET(3) NUMBITS(1) [],
         LOOP_BIT OFFSET(4) NUMBITS(1) [],
-        FATAL_IMEM OFFSET(5) NUMBITS(1) [],
-        FATAL_DMEM OFFSET(6) NUMBITS(1) [],
-        FATAL_REG OFFSET(7) NUMBITS(1) [],
-    ],
-    START_ADDR [
-        START_ADDR OFFSET(0) NUMBITS(32) [],
+        IMEM_INTG_VIOLATION OFFSET(16) NUMBITS(1) [],
+        DMEM_INTG_VIOLATION OFFSET(17) NUMBITS(1) [],
+        REG_INTG_VIOLATION OFFSET(18) NUMBITS(1) [],
+        BUS_INTG_VIOLATION OFFSET(19) NUMBITS(1) [],
+        ILLEGAL_BUS_ACCESS OFFSET(20) NUMBITS(1) [],
+        LIFECYCLE_ESCALATION OFFSET(21) NUMBITS(1) [],
+        FATAL_SOFTWARE OFFSET(22) NUMBITS(1) [],
     ],
     FATAL_ALERT_CAUSE [
-        BUS_INTEGRITY_ERROR OFFSET(0) NUMBITS(1) [],
-        IMEM_ERROR OFFSET(1) NUMBITS(1) [],
-        DMEM_ERROR OFFSET(2) NUMBITS(1) [],
-        REG_ERROR OFFSET(3) NUMBITS(1) [],
+        IMEM_INTG_VIOLATION OFFSET(0) NUMBITS(1) [],
+        DMEM_INTG_VIOLATION OFFSET(1) NUMBITS(1) [],
+        REG_INTG_VIOLATION OFFSET(2) NUMBITS(1) [],
+        BUS_INTG_VIOLATION OFFSET(3) NUMBITS(1) [],
+        ILLEGAL_BUS_ACCESS OFFSET(4) NUMBITS(1) [],
+        LIFECYCLE_ESCALATION OFFSET(5) NUMBITS(1) [],
+        FATAL_SOFTWARE OFFSET(6) NUMBITS(1) [],
     ],
 ];
 
@@ -124,7 +141,7 @@ impl<'a> Otbn<'a> {
             return;
         }
 
-        if !self.registers.status.is_set(STATUS::BUSY) {
+        if self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             self.client.map(|client| {
                 client.op_done(Ok(()), self.out_buffer.take().unwrap());
             });
@@ -153,7 +170,7 @@ impl<'a> Otbn<'a> {
         &self,
         input: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.registers.status.is_set(STATUS::BUSY) {
+        if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
             return Err((ErrorCode::BUSY, input.take()));
         }
@@ -190,10 +207,12 @@ impl<'a> Otbn<'a> {
         &'a self,
         output: &'static mut [u8; 1024],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 1024])> {
-        if self.registers.status.is_set(STATUS::BUSY) {
-            // OTBN is performing and operation
+        if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
+            // OTBN is performing an operation
             return Err((ErrorCode::BUSY, output));
         }
+
+        self.registers.ctrl.modify(CTRL::SOFTWARE_ERRS_FATAL::CLEAR);
 
         // Clear and enable interrupts
         self.registers.intr_state.modify(INTR::DONE::SET);
@@ -201,7 +220,7 @@ impl<'a> Otbn<'a> {
 
         self.out_buffer.replace(output);
 
-        self.registers.cmd.modify(CMD::START::SET);
+        self.registers.cmd.modify(CMD::CMD::EXECUTE);
 
         Ok(())
     }
