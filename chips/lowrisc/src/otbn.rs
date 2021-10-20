@@ -15,10 +15,15 @@ use kernel::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<'a, const T: usize> {
-    /// This callback is called when the binary data has been loaded
+    /// This callback is called when the binary has been loaded
     /// On error or success `input` will contain a reference to the original
-    /// data supplied to `load_binary()`.
+    /// buffer supplied to `load_binary()`.
     fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]);
+
+    /// This callback is called when the data has been loaded
+    /// On error or success `data` will contain a reference to the original
+    /// buffer supplied to `load_data()`.
+    fn data_load_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
 
     /// This callback is called when a operation is computed.
     /// On error or success `output` will contain a reference to the original
@@ -103,6 +108,7 @@ pub struct Otbn<'a> {
     client: OptionalCell<&'a dyn Client<'a, 1024>>,
 
     in_buffer: Cell<Option<LeasableBuffer<'static, u8>>>,
+    data_buffer: TakeCell<'static, [u8]>,
     out_buffer: TakeCell<'static, [u8; 1024]>,
 
     add_data_deferred_call: Cell<bool>,
@@ -119,6 +125,7 @@ impl<'a> Otbn<'a> {
             registers: base,
             client: OptionalCell::empty(),
             in_buffer: Cell::new(None),
+            data_buffer: TakeCell::empty(),
             out_buffer: TakeCell::empty(),
 
             add_data_deferred_call: Cell::new(false),
@@ -197,6 +204,38 @@ impl<'a> Otbn<'a> {
         Ok(())
     }
 
+    pub fn load_data(
+        &self,
+        address: usize,
+        data: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
+            // OTBN is performing an operation, we can't make any changes
+            return Err((ErrorCode::BUSY, data));
+        }
+
+        for i in 0..(data.len() / 4) {
+            let idx = i * 4;
+
+            let mut d = (data[idx + 0] as u32) << 0;
+            d |= (data[idx + 1] as u32) << 8;
+            d |= (data[idx + 2] as u32) << 16;
+            d |= (data[idx + 3] as u32) << 24;
+
+            self.registers.dmem[(address / 4) + i].set(d);
+        }
+
+        self.data_buffer.replace(data);
+
+        // Schedule a deferred call as there are no interrupts to monitor
+        // the binary loading.
+        self.add_data_deferred_call.set(true);
+        self.deferred_handle
+            .map(|handle| self.deferred_caller.set(*handle));
+
+        Ok(())
+    }
+
     /// Run the acceleration operation.
     /// This doesn't return any data, instead the client needs to have
     /// set a `op_done` handler to determine when this is complete.
@@ -239,6 +278,10 @@ impl<'a> DynamicDeferredCallClient for Otbn<'a> {
             self.client.map(|client| {
                 self.in_buffer.take().map(|buffer| {
                     client.binary_load_done(Ok(()), buffer.take());
+                });
+
+                self.data_buffer.take().map(|buffer| {
+                    client.data_load_done(Ok(()), buffer);
                 });
             });
         }

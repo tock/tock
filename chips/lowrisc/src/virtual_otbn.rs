@@ -54,6 +54,23 @@ impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
         }
     }
 
+    pub fn load_data(
+        &self,
+        address: usize,
+        data: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running.get() == false {
+            self.mux.running.set(true);
+            self.mux.running_id.set(self.id);
+            self.mux.accel.load_data(address, data)
+        } else if self.mux.running_id.get() == self.id {
+            self.mux.accel.load_data(address, data)
+        } else {
+            Err((ErrorCode::BUSY, data))
+        }
+    }
+
     pub fn run(
         &'a self,
         output: &'static mut [u8; 1024],
@@ -84,6 +101,11 @@ impl<'a, const T: usize> Client<'a, T> for VirtualMuxAccel<'a, T> {
     fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
         self.client
             .map(move |client| client.binary_load_done(result, input));
+    }
+
+    fn data_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
+        self.client
+            .map(move |client| client.data_load_done(result, input));
     }
 
     fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8; T]) {
