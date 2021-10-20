@@ -32,7 +32,7 @@ impl<'a> OtbnTestCallback {
     }
 }
 
-impl<'a> Client<'a, 1024> for OtbnTestCallback {
+impl<'a> Client<'a> for OtbnTestCallback {
     fn binary_load_done(&'a self, result: Result<(), ErrorCode>, _input: &'static mut [u8]) {
         self.binary_load_done.set(true);
         assert_eq!(result, Ok(()));
@@ -43,7 +43,7 @@ impl<'a> Client<'a, 1024> for OtbnTestCallback {
         assert_eq!(result, Ok(()));
     }
 
-    fn op_done(&'a self, result: Result<(), ErrorCode>, _output: &'static mut [u8; 1024]) {
+    fn op_done(&'a self, result: Result<(), ErrorCode>, _output: &'static mut [u8]) {
         self.op_done.set(true);
         assert_eq!(result, Err(ErrorCode::FAIL));
     }
@@ -81,7 +81,7 @@ fn otbn_check_run_empty_binary() {
 
     CALLBACK.reset();
     otbn.set_client(&CALLBACK);
-    assert_eq!(unsafe { otbn.run(&mut OUTPUT) }, Ok(()));
+    assert_eq!(unsafe { otbn.run(0, &mut OUTPUT) }, Ok(()));
 
     run_kernel_op(100000);
 

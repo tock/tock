@@ -14,7 +14,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait Client<'a, const T: usize> {
+pub trait Client<'a> {
     /// This callback is called when the binary has been loaded
     /// On error or success `input` will contain a reference to the original
     /// buffer supplied to `load_binary()`.
@@ -28,7 +28,7 @@ pub trait Client<'a, const T: usize> {
     /// This callback is called when a operation is computed.
     /// On error or success `output` will contain a reference to the original
     /// data supplied to `run()`.
-    fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8; T]);
+    fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]);
 }
 
 register_structs! {
@@ -105,11 +105,13 @@ register_bitfields![u32,
 
 pub struct Otbn<'a> {
     registers: StaticRef<OtbnRegisters>,
-    client: OptionalCell<&'a dyn Client<'a, 1024>>,
+    client: OptionalCell<&'a dyn Client<'a>>,
 
     in_buffer: Cell<Option<LeasableBuffer<'static, u8>>>,
     data_buffer: TakeCell<'static, [u8]>,
-    out_buffer: TakeCell<'static, [u8; 1024]>,
+    out_buffer: TakeCell<'static, [u8]>,
+
+    copy_address: Cell<usize>,
 
     add_data_deferred_call: Cell<bool>,
     deferred_caller: &'static DynamicDeferredCall,
@@ -127,6 +129,7 @@ impl<'a> Otbn<'a> {
             in_buffer: Cell::new(None),
             data_buffer: TakeCell::empty(),
             out_buffer: TakeCell::empty(),
+            copy_address: Cell::new(0),
 
             add_data_deferred_call: Cell::new(false),
             deferred_caller,
@@ -149,8 +152,22 @@ impl<'a> Otbn<'a> {
         }
 
         if self.registers.status.matches_all(STATUS::STATUS::IDLE) {
+            let out_buf = self.out_buffer.take().unwrap();
+
+            for i in 0..(out_buf.len() / 4) {
+                let idx = i * 4;
+                let d = self.registers.dmem[self.copy_address.get() + i]
+                    .get()
+                    .to_ne_bytes();
+
+                out_buf[idx + 0] = d[0];
+                out_buf[idx + 1] = d[1];
+                out_buf[idx + 2] = d[2];
+                out_buf[idx + 3] = d[3];
+            }
+
             self.client.map(|client| {
-                client.op_done(Ok(()), self.out_buffer.take().unwrap());
+                client.op_done(Ok(()), out_buf);
             });
         }
     }
@@ -160,7 +177,7 @@ impl<'a> Otbn<'a> {
     }
 
     /// Set the client instance which will receive
-    pub fn set_client(&'a self, client: &'a dyn Client<'a, 1024>) {
+    pub fn set_client(&'a self, client: &'a dyn Client<'a>) {
         self.client.set(client);
     }
 
@@ -239,13 +256,18 @@ impl<'a> Otbn<'a> {
     /// Run the acceleration operation.
     /// This doesn't return any data, instead the client needs to have
     /// set a `op_done` handler to determine when this is complete.
+    ///
+    /// The data returned via `op_done()` will be starting at `address` and of
+    /// the full length of `output`.
+    ///
     /// On error the return value will contain a return code and the original data
     /// If there is data from the `load_binary()` command asyncrously waiting to
     /// be written it will be written before the operation starts.
     pub fn run(
-        &'a self,
-        output: &'static mut [u8; 1024],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 1024])> {
+        &self,
+        address: usize,
+        output: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation
             return Err((ErrorCode::BUSY, output));
@@ -258,6 +280,7 @@ impl<'a> Otbn<'a> {
         self.registers.intr_enable.modify(INTR::DONE::SET);
 
         self.out_buffer.replace(output);
+        self.copy_address.set(address);
 
         self.registers.cmd.modify(CMD::CMD::EXECUTE);
 

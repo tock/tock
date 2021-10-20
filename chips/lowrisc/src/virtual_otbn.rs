@@ -8,21 +8,21 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
-pub struct VirtualMuxAccel<'a, const T: usize> {
-    mux: &'a MuxAccel<'a, T>,
-    next: ListLink<'a, VirtualMuxAccel<'a, T>>,
-    client: OptionalCell<&'a dyn Client<'a, T>>,
+pub struct VirtualMuxAccel<'a> {
+    mux: &'a MuxAccel<'a>,
+    next: ListLink<'a, VirtualMuxAccel<'a>>,
+    client: OptionalCell<&'a dyn Client<'a>>,
     id: u32,
 }
 
-impl<'a, const T: usize> ListNode<'a, VirtualMuxAccel<'a, T>> for VirtualMuxAccel<'a, T> {
-    fn next(&self) -> &'a ListLink<VirtualMuxAccel<'a, T>> {
+impl<'a> ListNode<'a, VirtualMuxAccel<'a>> for VirtualMuxAccel<'a> {
+    fn next(&self) -> &'a ListLink<VirtualMuxAccel<'a>> {
         &self.next
     }
 }
 
-impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
-    pub fn new(mux_accel: &'a MuxAccel<'a, T>) -> VirtualMuxAccel<'a, T> {
+impl<'a> VirtualMuxAccel<'a> {
+    pub fn new(mux_accel: &'a MuxAccel<'a>) -> VirtualMuxAccel<'a> {
         let id = mux_accel.next_id.get();
         mux_accel.next_id.set(id + 1);
 
@@ -34,7 +34,7 @@ impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a dyn Client<'a, T>) {
+    pub fn set_client(&'a self, client: &'a dyn Client<'a>) {
         self.client.set(client);
     }
 
@@ -72,16 +72,17 @@ impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
     }
 
     pub fn run(
-        &'a self,
-        output: &'static mut [u8; 1024],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 1024])> {
+        &self,
+        address: usize,
+        output: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
-            self.mux.accel.run(output)
+            self.mux.accel.run(address, output)
         } else if self.mux.running_id.get() == self.id {
-            self.mux.accel.run(output)
+            self.mux.accel.run(address, output)
         } else {
             Err((ErrorCode::BUSY, output))
         }
@@ -97,7 +98,7 @@ impl<'a, const T: usize> VirtualMuxAccel<'a, T> {
     }
 }
 
-impl<'a, const T: usize> Client<'a, T> for VirtualMuxAccel<'a, T> {
+impl<'a> Client<'a> for VirtualMuxAccel<'a> {
     fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
         self.client
             .map(move |client| client.binary_load_done(result, input));
@@ -108,7 +109,7 @@ impl<'a, const T: usize> Client<'a, T> for VirtualMuxAccel<'a, T> {
             .map(move |client| client.data_load_done(result, input));
     }
 
-    fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8; T]) {
+    fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]) {
         self.client
             .map(move |client| client.op_done(result, output));
     }
@@ -118,15 +119,15 @@ impl<'a, const T: usize> Client<'a, T> for VirtualMuxAccel<'a, T> {
 /// `VirtualMuxAccel` as the one that has been enabled and running. Until that
 /// Mux calls `clear_data()` it will be the only `VirtualMuxAccel` that can
 /// interact with the underlying device.
-pub struct MuxAccel<'a, const T: usize> {
+pub struct MuxAccel<'a> {
     accel: &'a Otbn<'a>,
     running: Cell<bool>,
     running_id: Cell<u32>,
     next_id: Cell<u32>,
 }
 
-impl<'a, const T: usize> MuxAccel<'a, T> {
-    pub const fn new(accel: &'a Otbn<'a>) -> MuxAccel<'a, T> {
+impl<'a> MuxAccel<'a> {
+    pub const fn new(accel: &'a Otbn<'a>) -> MuxAccel<'a> {
         MuxAccel {
             accel,
             running: Cell::new(false),
