@@ -107,6 +107,7 @@ struct LiteXArty {
     led_driver: &'static capsules::led::LedDriver<
         'static,
         litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
+        4,
     >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
@@ -418,16 +419,14 @@ pub unsafe fn main() {
     // ---------- LED DRIVER ----------
 
     // LEDs
-    let led_driver = components::led::LedsComponent::new(components::led_component_helper!(
-        litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
-        led0.get_led(0).unwrap(),
-        led0.get_led(1).unwrap(),
-        led0.get_led(2).unwrap(),
-        led0.get_led(3).unwrap(),
-    ))
-    .finalize(components::led_component_buf!(
-        litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>
-    ));
+    let led_driver =
+        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+            litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
+            led0.get_led(0).unwrap(),
+            led0.get_led(1).unwrap(),
+            led0.get_led(2).unwrap(),
+            led0.get_led(3).unwrap(),
+        ));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 

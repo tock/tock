@@ -134,7 +134,11 @@ pub struct Platform {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, nrf52::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, nrf52::gpio::GPIOPin<'static>>,
+        3,
+    >,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
@@ -286,14 +290,11 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_BLUE_PIN]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>
     ));
 
     //--------------------------------------------------------------------------
