@@ -184,3 +184,78 @@ $ tar xf target/riscv32imac-unknown-none-elf/tab/opentitan/hello_world.tab
 $ cd [TOCK_ROOT]/boards/opentitan
 $ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
 ```
+
+Unit tests
+----------
+The Tock OpenTitan boards include automated unit tests to test the kernel.
+
+To run the unit tests on QEMU, just run:
+
+```shell
+make test
+```
+
+in the specific board directory.
+
+To run the test on hardware use these commands to build the OTBN binary and run it on hardware:
+
+```shell
+elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --app-heap 0 --kernel-heap 0 --stack 0 ${OPENTITAN_TREE}/build-out/sw/otbn/rsa.elf
+OPENTITAN_TREE=<...> APP=${OPENTITAN_TREE}/build-out/sw/otbn/rsa.tbf make test-hardware
+```
+
+The output on a CW310 should look something like this:
+
+```
+OpenTitan initialisation complete. Entering main loop
+check run AES128 ECB...
+aes_test passed (ECB Enc Src/Dst)
+aes_test passed (ECB Dec Src/Dst)
+aes_test passed (ECB Enc In-place)
+aes_test passed (ECB Dec In-place)
+    [ok]
+check run AES128 CBC...
+aes_test passed (CBC Enc Src/Dst)
+aes_test passed (CBC Dec Src/Dst)
+aes_test passed (CBC Enc In-place)
+aes_test passed (CBC Dec In-place)
+    [ok]
+check run AES128 CTR...
+aes_test CTR passed: (CTR Enc Ctr Src/Dst)
+aes_test CTR passed: (CTR Dec Ctr Src/Dst)
+    [ok]
+check run CSRNG Entropy 32...
+Entropy32 test: first get Ok(())
+Entropy test: obtained all 8 values. They are:
+[00]: 11358ec6
+[01]: cad739e8
+[02]: 236b897e
+[03]: 707c0162
+[04]: 2627c579
+[05]: 86b6562c
+[06]: a8e0e4f8
+[07]: 4b298bcd
+    [ok]
+check hmac load binary...
+    [ok]
+check hmac check verify...
+    [ok]
+start multi alarm test...
+    [ok]
+check otbn run binary...
+    [ok]
+start TicKV append key test...
+---Starting TicKV Tests---
+Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48] was added
+Now retriving the key
+Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48, 0] was retrived
+Removed Key: [18, 52, 86, 120, 154, 188, 222, 240]
+Try to read removed key: [18, 52, 86, 120, 154, 188, 222, 240]
+Unable to find key: [18, 52, 86, 120, 154, 188, 222, 240]
+Let's start a garbage collection
+Finished garbage collection
+---Finished TicKV Tests---
+    [ok]
+trivial assertion...
+    [ok]
+```
