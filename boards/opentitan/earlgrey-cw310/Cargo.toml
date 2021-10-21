@@ -12,6 +12,7 @@ capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
+tock-tbf = { path = "../../../libraries/tock-tbf" }
 
 [features]
 # OpenTitan SoC design can be synthesized or compiled for different targets. A
