@@ -15,6 +15,7 @@ pub mod i2c;
 pub mod otbn;
 pub mod padctrl;
 pub mod pwrmgr;
+pub mod rsa;
 pub mod uart;
 pub mod usbdev;
 pub mod virtual_otbn;
