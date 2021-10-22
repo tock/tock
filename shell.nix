@@ -21,14 +21,14 @@ let
 
     tockloader = buildPythonPackage rec {
       pname = "tockloader";
-      version = "1.6.0";
+      version = "1.8.0";
       name = "${pname}-${version}";
 
-      propagatedBuildInputs = [ argcomplete colorama crcmod pyserial pytoml ];
+      propagatedBuildInputs = [ argcomplete colorama crcmod pyserial pytoml tqdm ];
 
       src = fetchPypi {
         inherit pname version;
-        sha256 = "1aqkj1nplcw3gmklrhq6vxy6v9ad5mqiw4y1svasak2zkqdk1wyc";
+        sha256 = "0qniwkhgiwm9bayf1l9s3i83k0f7qm0iqgvjljdj4pf86lqllbb7";
       };
     };
   });
