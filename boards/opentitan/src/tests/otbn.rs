@@ -119,7 +119,7 @@ fn otbn_run_rsa_binary() {
         let slice = unsafe { core::slice::from_raw_parts_mut(imem_start as *mut u8, imem_length) };
         let buf = LeasableBuffer::new(slice);
 
-        debug!("check otbn run binary...");
+        debug!("check otbn run rsa binary...");
         run_kernel_op(100);
 
         CALLBACK.reset();
