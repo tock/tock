@@ -115,6 +115,7 @@ impl<
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux_alarm)
         );
+        mx25r6435f_virtual_alarm.setup();
 
         let mx25r6435f = static_init_half!(
             static_buffer.2,

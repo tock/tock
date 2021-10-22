@@ -113,6 +113,7 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        console_alarm.setup();
 
         let console = static_init_half!(
             static_buffer.0,

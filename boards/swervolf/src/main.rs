@@ -157,6 +157,8 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,

@@ -64,6 +64,8 @@ impl<A: 'static + time::Alarm<'static>> Component for MultiAlarmTestComponent<A>
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux)
         );
+        virtual_alarm0.setup();
+
         let test0 = static_init_half!(
             buf0.1,
             TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,
@@ -76,6 +78,8 @@ impl<A: 'static + time::Alarm<'static>> Component for MultiAlarmTestComponent<A>
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux)
         );
+        virtual_alarm1.setup();
+
         let test1 = static_init_half!(
             buf1.1,
             TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,
@@ -88,6 +92,8 @@ impl<A: 'static + time::Alarm<'static>> Component for MultiAlarmTestComponent<A>
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux)
         );
+        virtual_alarm2.setup();
+
         let test2 = static_init_half!(
             buf2.1,
             TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,

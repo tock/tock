@@ -197,6 +197,8 @@ unsafe fn setup() -> (
         VirtualMuxAlarm<'static, esp32::timg::TimG>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32::timg::TimG>>,
         capsules::alarm::AlarmDriver::new(
@@ -215,7 +217,6 @@ unsafe fn setup() -> (
         VirtualSchedulerTimer<esp32::timg::TimG<'static>>,
         VirtualSchedulerTimer::new(timer1)
     );
-    hil::time::Alarm::set_alarm_client(timer1, scheduler_timer);
 
     let chip = static_init!(
         esp32_c3::chip::Esp32C3<

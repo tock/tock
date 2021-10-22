@@ -51,6 +51,7 @@ impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<
 }
 
 impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
+    /// After calling new, always call setup()
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
         let zero = A::Ticks::from(0);
         VirtualMuxAlarm {
@@ -65,6 +66,12 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
             client: OptionalCell::empty(),
         }
     }
+
+    /// Call this method immediately after new() to link this to the mux, otherwise alarms won't
+    /// fire
+    pub fn setup(&'a self) {
+        self.mux.virtual_alarms.push_head(self);
+    }
 }
 
 impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
@@ -77,8 +84,7 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
-    fn set_alarm_client(&'a self, client: &'a dyn time::AlarmClient) {
-        self.mux.virtual_alarms.push_head(self);
+    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         // Reset the alarm state: should it do this? Does not seem
         // to be semantically correct. What if you just wanted to
         // change the callback. Keeping it but skeptical. -pal
@@ -330,7 +336,7 @@ mod tests {
     }
 
     impl<'a> Alarm<'a> for FakeAlarm<'a> {
-        fn set_alarm_client(&'a self, client: &'a dyn AlarmClient) {
+        fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
             self.client.set(client);
         }
 
@@ -392,7 +398,7 @@ mod tests {
         alarm.set_alarm_client(&mux);
 
         let valarm = VirtualMuxAlarm::new(&mux);
-
+        valarm.setup();
         valarm.set_alarm_client(&client);
         valarm.set_alarm(valarm.now(), dt);
 
@@ -417,6 +423,7 @@ mod tests {
         ];
 
         for (i, v) in v_alarms.iter().enumerate() {
+            v.setup();
             v.set_alarm_client(&client);
             // Start with reference in the past since fake alarm now start with 1000 as now()
             v.set_alarm((i as u32).into(), dt);

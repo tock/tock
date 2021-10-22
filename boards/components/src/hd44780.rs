@@ -92,6 +92,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        lcd_alarm.setup();
 
         let hd44780 = static_init_half!(
             static_buffer.1,

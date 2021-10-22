@@ -209,17 +209,15 @@ pub unsafe fn initialize_all(
     )
     .finalize(());
 
+    let alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    alarm.setup();
+
     let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        LowpanTest::new(
-            static_init!(
-                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-                VirtualMuxAlarm::new(mux_alarm)
-            ),
-            port_table,
-            mock_udp1,
-            mock_udp2,
-        )
+        LowpanTest::new(alarm, port_table, mock_udp1, mock_udp2,)
     );
 
     udp_lowpan_test.alarm.set_alarm_client(udp_lowpan_test);

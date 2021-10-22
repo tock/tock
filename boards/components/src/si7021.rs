@@ -78,6 +78,8 @@ impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        si7021_alarm.setup();
+
         let si7021 = static_init_half!(
             static_buffer.1,
             SI7021<'static, VirtualMuxAlarm<'static, A>>,

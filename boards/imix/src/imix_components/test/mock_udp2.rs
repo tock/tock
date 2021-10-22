@@ -90,6 +90,8 @@ impl Component for MockUDPComponent2 {
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        udp_alarm.setup();
+
         let mock_udp = static_init!(
             capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
             capsules::test::udp::MockUdp::new(

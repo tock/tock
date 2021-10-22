@@ -215,17 +215,3 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         }
     }
 }
-
-impl<A: 'static + time::Alarm<'static>> time::AlarmClient for VirtualSchedulerTimer<A> {
-    fn alarm(&self) {
-        // No need to handle the interrupt! The entire purpose of the interrupt
-        // is to cause a transition to userspace, which already happens for any
-        // mtimer interrupt, and the overflow check is sufficient to determine
-        // that it was an mtimer interrupt.
-        //
-        // However, because of how the MuxAlarm code is written, if the passed
-        // alarm is a VirtualMuxAlarm, we must register as a client of the
-        // MuxAlarm in order to guarantee that requested interrupts are not
-        // dropped.
-    }
-}

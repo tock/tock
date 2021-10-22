@@ -61,6 +61,8 @@ impl<A: 'static + time::Alarm<'static>> Component for MLFQComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        scheduler_alarm.setup();
+
         let scheduler = static_init_half!(
             sched_buf,
             MLFQSched<'static, VirtualMuxAlarm<'static, A>>,

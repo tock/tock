@@ -292,6 +292,7 @@ pub unsafe fn main() {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+    alarm_driver_virtual_alarm.setup();
 
     // Userspace timer driver
     let alarm = static_init!(
@@ -505,6 +506,8 @@ pub unsafe fn main() {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_buzzer.setup();
+
     let buzzer = static_init!(
         capsules::buzzer_driver::Buzzer<
             'static,

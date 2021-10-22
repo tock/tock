@@ -13,8 +13,8 @@ pub struct TestAes128Ctr<'a, A: 'a> {
 
     key: TakeCell<'a, [u8]>,
     iv: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    source: TakeCell<'static, [u8]>,
+    data: TakeCell<'static, [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -25,8 +25,8 @@ pub struct TestAes128Cbc<'a, A: 'a> {
 
     key: TakeCell<'a, [u8]>,
     iv: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    source: TakeCell<'static, [u8]>,
+    data: TakeCell<'static, [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -36,8 +36,8 @@ pub struct TestAes128Ecb<'a, A: 'a> {
     aes: &'a A,
 
     key: TakeCell<'a, [u8]>,
-    source: TakeCell<'a, [u8]>,
-    data: TakeCell<'a, [u8]>,
+    source: TakeCell<'static, [u8]>,
+    data: TakeCell<'static, [u8]>,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -47,7 +47,12 @@ const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
 const DATA_LEN: usize = 4 * AES128_BLOCK_SIZE;
 
 impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
-    pub fn new(aes: &'a A, key: &'a mut [u8], source: &'a mut [u8], data: &'a mut [u8]) -> Self {
+    pub fn new(
+        aes: &'a A,
+        key: &'a mut [u8],
+        source: &'static mut [u8],
+        data: &'static mut [u8],
+    ) -> Self {
         TestAes128Ecb {
             aes: aes,
 
@@ -135,8 +140,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
         aes: &'a A,
         key: &'a mut [u8],
         iv: &'a mut [u8],
-        source: &'a mut [u8],
-        data: &'a mut [u8],
+        source: &'static mut [u8],
+        data: &'static mut [u8],
     ) -> Self {
         TestAes128Ctr {
             aes: aes,
@@ -232,7 +237,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for TestAes128Ctr<'a, A> {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
             self.source.put(source);
@@ -287,8 +292,8 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
         aes: &'a A,
         key: &'a mut [u8],
         iv: &'a mut [u8],
-        source: &'a mut [u8],
-        data: &'a mut [u8],
+        source: &'static mut [u8],
+        data: &'static mut [u8],
     ) -> Self {
         TestAes128Cbc {
             aes: aes,
@@ -385,7 +390,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
 }
 
 impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for TestAes128Cbc<'a, A> {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
             self.source.put(source);
@@ -440,7 +445,7 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
 }
 
 impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for TestAes128Ecb<'a, A> {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
             self.source.put(source);
