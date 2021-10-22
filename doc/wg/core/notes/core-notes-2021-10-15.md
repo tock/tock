@@ -108,7 +108,7 @@
     this on that.
   - Leon: Yes, makes sense. Thanks so much for providing these insights.
   - Pat: Cool
-  - Hudson: Yeah, I weighting on not blocking this on that, because I do think this is neat and tests stuff 
+  - Hudson: Yeah, I agree on not blocking this on that, because I do think this is neat and tests stuff 
     that currently none of the other QEMU tests cover so I think it would be nice to get it in.
   - Pat: Just as a micro update on the other side of the interest, the physical hardware CI ... . Each of 
     the individual tests works great, but when you try to wire up all of the wired connections permanently, 
