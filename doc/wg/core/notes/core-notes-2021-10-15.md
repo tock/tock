@@ -155,7 +155,7 @@
   happens in time. If we attempt to do this with `subscribe` then you have the additional challenge of dealing 
   with callbacks and injecting a function as a generic, which is really difficult.
   - Johnathan: I don't have a lot of examples. This is the only real code that I've really fully prototyped out. Which is 
-  why I was planning to pursue this in this week's meeting.
+  why I was not planning to pursue this in this week's meeting.
   - Johnathan: This design gets really messy when you try to extend it to `subscribe`. I am considering making all drivers
   that requires `subscribe` static objects, as `subscribe` works with static references, but have the `allow` system calls
   work with stack local types. That combination might be doable and that is the avenue that I am currently exploring.
