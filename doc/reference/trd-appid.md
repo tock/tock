@@ -265,17 +265,22 @@ data size and format. Currently supported values are:
 
 ```rust
 pub enum TbfHeaderV2CredentialsType {
-    CleartextID = 0,
-    Rsa3072Key = 1,
-    Rsa4096Key = 2,
-    Rsa3072KeyWithID = 3,
-    Rsa4096KeyWithID = 4,
+    Padding = 0,
+    CleartextID = 1,
+    Rsa3072Key = 2,
+    Rsa4096Key = 3,
+    Rsa3072KeyWithID = 4,
+    Rsa4096KeyWithID = 5,
 }
 ```
 
 **These are not intended to be final or prescriptive. They are merely some examples
 of what kind of information we might put here. Among other things, the exact format
 of the data blocks needs to be more precise. -pal**
+
+The `Padding` value has a variable length. It has a 32-bit field
+specifying its total length. This credentials type is used to
+reserve space for future credentials or pad their placement.
 
 The `CleartextID` value has a data length of 8 bytes. It contains a
 64-bit number in big-endian format representing an application
@@ -306,7 +311,7 @@ binary in this process binary followed by a 32-bit application ID,
 encrypted by the private key of the public key in the TLV.
 
 `TbfHeaderV2Credentials` headers MUST come after all other headers;
-the last `TbfHeaderV2Credentials` header immediately precedes the
+the last `TbfHeaderV2Credentials` header  precedes the
 compiled application binary. If a `TbfHeaderV2Credentials` header
 includes a cryptographic hash, signature, or other value to check the
 integrity of a process binary, the computation of this value MUST include
@@ -327,7 +332,9 @@ computed as if all credentials TLVs were filled with zeroes.  Note,
 however, that since the total size of the TBF object is included in
 the integrity value, a TBF object cannot change in size. Use cases
 that need to be able to add or change credentials in a given process
-binary need to pre-allocate enough space to do so.
+binary need to pre-allocate enough space to do so. The `Padding` type
+allows a process binary to reserve space for future credentials
+TLVs.
 
 Any future specification of a TLV MUST include a statement of whether
 the TLV is included in the computation of integrity values. If the TLV
