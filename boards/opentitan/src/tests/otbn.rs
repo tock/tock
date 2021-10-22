@@ -112,6 +112,7 @@ fn otbn_run_rsa_binary() {
     } {
         let slice = unsafe { core::slice::from_raw_parts(imem_start as *const u8, imem_length) };
 
+        debug!("check otbn run rsa binary...");
         run_kernel_op(100);
 
         cb.reset();
