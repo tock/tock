@@ -105,7 +105,7 @@ pub enum Width {
     Six = 6,
     Seven = 7,
     Eight = 8,
-	None = 9,
+	Nine = 9,
 }
 
 pub struct Parameters {
@@ -206,7 +206,6 @@ The UART MUST ignore then high order bits of the `u32` that are
 outside the current character width. For example, if the UART is
 configured to use 9-bit characters, it must ignore bits 31-9: if the
 client passes `0xffffffff`, the UART will transmit `0x1ff`.
-
 
 Each byte transmitted with `transmit_buffer` is a UART character. If
 the UART is using 8-bit characters, each character is a byte. If the
@@ -310,25 +309,37 @@ ready to receive another call. The valid `ErrorCode` values for
 
 The `transmit_abort` method allows a UART implementation to terminate
 an outstanding call to `transmit_character` or `transmit_buffer` early. The
-result of `transmit_abort` indicates whether the abort was
-successful. Cancelled calls to `transmit_buffer` MUST always make a
-callback, to return the transmit buffer to the caller. Cancelled calls
-to `transmit_character` MAY issue a callback.
+result of `transmit_abort` indicates two things:
 
-If `transmit_abort` returns `Ok`, there will be be a future callback
-for the completion of the outstanding request. The value of `AbortResult`
-denotes whether it will be cancelled:
-  - `Ok(AbortResult::Success)`: there was an outstanding operation, which
-    has been cancelled.  A callback will be made for that operation with an
+  1. whether a callback will occur (there is an oustanding operation), and 
+  2. if a callback will occur, whether the operation is cancelled.
+  
+If `transmit_abort` returns `Callback`, there will be be a future
+callback for the completion of the outstanding request. If there is
+an outstanding `transmit_buffer` or `transmit_character` operation,
+`transmit_abort` MUST return `Callback`. If there is no outstanding
+`transmit_buffer` or `transmit_abort` operation, `transmit_abort` MUST
+return `NoCallback`. 
+
+The three possible values of `AbortResult` have these meanings:
+  - `Callback(true)`: there was an outstanding operation, which
+    is now cancelled.  A callback will be made for that operation with an
     `ErrorCode` of `CANCEL`.
-  - `Ok(AbortResult::Failure)`: there was an outstanding operation, which
+  - `Callback(false)`: there was an outstanding operation, which
     has not been cancelled.  A callback will be made for that operation with
     a result other than `Err(CANCEL)`.
-  - `Err(()):` there was no outstanding request and there will be no future
+  - `NoCallack`: there was no outstanding request and there will be no future
     callback.
 
-If there is no outstanding call to `transmit_character` or
-`transmit_buffer`, `transmit_abort` MUST return `Err(())`.
+Note that the semantics of the boolean field in
+`AbortResult::Callback` refer to whether the operation is cancelled,
+not whether this particular call cancelled it: a `true` result
+indicates that there will be an `ErrorCode::CANCEL` in the
+callback. Therefore, if a client calls `transmit_abort` twice and the
+first call returns `Callback(true)`, the second call's return value of
+`Callback(true)` can involve no state transition within the sender, as
+it simply reports the curent state (of the call being cancelled).
+
 
 4 `Receive` and `ReceiveClient` traits
 ===============================
@@ -431,26 +442,16 @@ to terminate the 100-byte read, copying the bytes read from the
 resulting callback, then issuing a `receive_buffer` of 40 bytes.
 
 The valid return values for `receive_abort` are:
-  - `Ok(AbortResult::Success)`: there was a reception outstanding and
+  - `Callback(true)`: there was a reception outstanding and
      it has been cancelled.  A callback with `Err(CANCEL)` will be called.
-  - `Err(AbortResult::Failure)`: there was a reception outstanding but it
+  - `Callback(false)`: there was a reception outstanding but it
      was not cancelled.  A callback will be called with an `rval` other than
      `Err(CANCEL)`.
-  - `Err(())`: there was no reception outstanding and the implementation will
-    not issue a callback.
+  - `NoCallback`: there was no reception outstanding and the
+    implementation will not issue a callback.
 
-If there is no outstanding call to `receive_buffer` or `receive_character`,
-`receive_abort` MUST return `Err(())`.
-
-If `receive_abort` triggers a callback with `Err(CANCEL)`, this
-callback MAY be invoked while the call stack frame for `receive_abort`
-is still active. It MAY be triggered asynchronously.  This is because
-a low-level chip implementation may not have a ready interrupt source
-for this case (e.g., stopping a DMA transfer) and requiring it to
-implement software deferred procedure calls is heavyweight. This
-does not violate Rule 1 of the HIL design TRD because the callback
-`received_buffer` or `received_character` is in response to calls to
-`receive`, and not `receive_abort`.
+If there is no outstanding call to `receive_buffer` or
+`receive_character`, `receive_abort` MUST return `NoCallback`.
 
 4.2 `receive_character` and `received_character`
 ===============================
