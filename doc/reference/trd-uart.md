@@ -7,8 +7,8 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
 **Draft-Created:** August 5, 2021<br/>
-**Draft-Modified:** October 7, 2021<br/>
-**Draft-Version:** 3<br/>
+**Draft-Modified:** October 24, 2021<br/>
+**Draft-Version:** 4<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
