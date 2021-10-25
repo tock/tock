@@ -125,7 +125,7 @@ pub fn parse_tbf_header(
 
                 // Places to save fields that we parse out of the header
                 // options.
-                let mut main_pointer: Option<types::TbfHeaderV2Main> = None;
+                let mut binary_pointer: Option<types::TbfHeaderV2Binary> = None;
                 let mut wfr_pointer: [Option<types::TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
@@ -150,14 +150,30 @@ pub fn parse_tbf_header(
                             // Otherwise, we fail to parse this TBF header and
                             // throw an error.
                             if tlv_header.length as usize == entry_len {
-                                main_pointer = Some(remaining.try_into()?);
+                                let main_header = remaining.try_into()?;
+                                binary_pointer = Some(types::TbfHeaderV2Binary::Main{main: main_header});
                             } else {
                                 return Err(types::TbfParseError::BadTlvEntry(
                                     tlv_header.tipe as usize,
                                 ));
                             }
                         }
+                        types::TbfHeaderTypes::TbfHeaderProgram => {
+                            let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
 
+                            // Check that the size of the TLV entry matches the
+                            // size of the Main TLV. If so we can store it.
+                            // Otherwise, we fail to parse this TBF header and
+                            // throw an error.
+                            if tlv_header.length as usize == entry_len {
+                                let program_header = remaining.try_into()?;
+                                binary_pointer = Some(types::TbfHeaderV2Binary::Program{program: program_header});
+                            } else {
+                                return Err(types::TbfParseError::BadTlvEntry(
+                                    tlv_header.tipe as usize,
+                                ));
+                            }
+                        }
                         types::TbfHeaderTypes::TbfHeaderWriteableFlashRegions => {
                             // Length must be a multiple of the size of a region definition.
                             if tlv_header.length as usize
@@ -244,7 +260,7 @@ pub fn parse_tbf_header(
 
                 let tbf_header = types::TbfHeaderV2 {
                     base: tbf_header_base,
-                    main: main_pointer,
+                    binary: binary_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
                     fixed_addresses: fixed_address_pointer,

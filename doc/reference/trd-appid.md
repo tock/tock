@@ -8,7 +8,7 @@ Application IDs (AppID)
 **Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
 **Draft-Modified:** 2021/10/09 <br/>
-**Draft-Version:** 3 <br/>
+**Draft-Version:** 4 <br/>
 **Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
@@ -22,7 +22,7 @@ their code evolves and their binaries change. A board defines how the
 kernel verifies AppIDs and which AppIDs the kernel will load. This
 document describes the Rust traits and software architecture for
 AppIDs as well as the reasoning behind them. This document is in full
-compliance with [TRD1](./trd1-trds.md).
+compliance with [TRD1][TRD1].
 
 1 Introduction
 ===============================
@@ -86,7 +86,7 @@ overlap somewhat with general terminology in the Tock kernel, this
 section defines them for clarity. The Tock kernel often uses the term
 "application" to refer to what this document calls a "process binary."
 
-**Process binary**: a Tock binary format (TBF)[TBF] object stored on a
+**Process binary**: a [Tock binary format][TBF] object stored on a
 Tock device, containing TBF headers and an application binary.
 
 **Application**: userspace software developed and maintained by an
@@ -105,7 +105,7 @@ process binary.
 
 **Application credentials**: data that binds an application identifier
 to an application binary. Application credentials are usually stored
-in Tock binary format[TBF] headers.
+in [Tock Binary Format][TBF] footers.
 
 **Verifier**: a component of the Tock kernel which is responsible for
 validating application credentials and assigning application
@@ -245,26 +245,64 @@ A as the global application identifier, while Tock systems using a
 different verifier policy that accepts key B may assign B as the
 global application identifier.
 
-4 Credentials in Tock Binary Format Headers
+4 Credentials in Tock Binary Format Objects
 ===============================
 
+Application credentials are usually stored in a [Tock Binary
+Format][TBF] object, along with the process binary they are associated
+with. They are usually stored as footers (after the TBF header and
+application binary) to simplify computing integrity values such as
+checksums or hashes. This requires have a TBF header that specifies
+where the application binary ends and the footers begin, information
+which the previous `TbfHeaderV2Main` header (the Main Header) does not
+include.  Including application credentials in a process binary
+therefore requires using an alternative `TbfHeaderV2Program` header
+(the Program Header), which specifics where footers begin. This
+section describes the format and semantics of Program Headers and
+Credentials Footers.
+
+
+4.1 Program Header
+-------------------------------
+
+The Program Header is similar to the Main Header, in that it specifies the
+offset of the entry function of the executable and memory parameters. It
+adds one field, `binary_end_offset`, which indicates the offset at which
+the application binary ends within the TBF object. The space between
+this offset and the end of the TBF object is reserved for footers.
+
+```rust
+pub struct TbfHeaderV2Program {
+    init_fn_offset: u32,
+    protected_size: u32,
+    minimum_ram_size: u32,
+    binary_end_offset: u32,
+}
+```
+
+A TBF object MUST NOT have both a Program Header and a Main Header and
+MUST NOT have more than one Program Header.
+
+4.2 Credentials Footer
+-------------------------------
+
 To support credentials in Tock binaries, the Tock Binary Format has
-a `TbfHeaderV2Credentials` TLV. This TLV is variable length
+a `TbfFooterV2Credentials` TLV. This TLV is variable length
 and has two fields:
 
 ```rust
-pub struct TbfHeaderV2Credentials {
-    format: TbfHeaderV2CredentialsType,
+pub struct TbfFooterV2Credentials {
+    format: TbfFooterV2CredentialsType,
     data: &[u8],
 }
 ```
 
-The `TbfHeaderV2CredentialsType` defines the format and size of `data`
-field. A `TbfHeaderV2CredentialsType` value MUST have a fixed
+The `TbfFooterV2CredentialsType` defines the format and size of `data`
+field. A `TbfFooterV2CredentialsType` value MUST have a fixed
 data size and format. Currently supported values are:
 
 ```rust
-pub enum TbfHeaderV2CredentialsType {
+pub enum TbfFooterV2CredentialsType {
     Padding = 0,
     CleartextID = 1,
     Rsa3072Key = 2,
@@ -274,9 +312,10 @@ pub enum TbfHeaderV2CredentialsType {
 }
 ```
 
-**These are not intended to be final or prescriptive. They are merely some examples
-of what kind of information we might put here. Among other things, the exact format
-of the data blocks needs to be more precise. -pal**
+**These are not intended to be final or prescriptive. They are merely
+some examples of what kind of information we might put here. Among
+other things, the exact format of the data blocks needs to be more
+precise. -pal**
 
 The `Padding` value has a variable length. It has a 32-bit field
 specifying its total length. This credentials type is used to
@@ -310,40 +349,20 @@ ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary followed by a 32-bit application ID,
 encrypted by the private key of the public key in the TLV.
 
-`TbfHeaderV2Credentials` headers MUST come after all other headers;
-the last `TbfHeaderV2Credentials` header  precedes the
-compiled application binary. If a `TbfHeaderV2Credentials` header
-includes a cryptographic hash, signature, or other value to check the
-integrity of a process binary, the computation of this value MUST include
+`TbfFooterV2Credentials` headers follow the compiled app binary in a
+TBF object.  If a `TbfFooterV2Credentials` footer includes a
+cryptographic hash, signature, or other value to check the integrity
+of a process binary, the computation of this value MUST include the
+complete TBF Header and the compiled app binary.
 
-  - the compiled app binary,
-  - the TBF header base,
-  - writeable flash regions TLVs,
-  - package name TLVs,
-  - fixed address TLVs,
-  - permissions TLVs, and
-  - persistent ACL TLVs.
+Integrity values MUST be computed over the TBF Header and compiled app
+binary. Computing an integrity value in a Credentials Footer MUST NOT
+include the contents of Credentials Footers. If future extensions to
+the Tock Binary Format add new footers which should be included in
+integrity computations, it is RECOMMENDED that these footers are
+always placed before Credentials Footers.
 
-**We need to be more precise here about how this calculated.**
-
-Computing an integrity value in a credentials TLV MUST NOT include the
-contents of credentials TLVs. Instead, integrity values MUST be
-computed as if all credentials TLVs were filled with zeroes.  Note,
-however, that since the total size of the TBF object is included in
-the integrity value, a TBF object cannot change in size. Use cases
-that need to be able to add or change credentials in a given process
-binary need to pre-allocate enough space to do so. The `Padding` type
-allows a process binary to reserve space for future credentials
-TLVs.
-
-Any future specification of a TLV MUST include a statement of whether
-the TLV is included in the computation of integrity values. If the TLV
-is not included, the computation MUST execute as if the TLV were
-filled with zeroes. It is RECOMMENDED that new TLVs be included in
-integrity value computations unless technical reasons make this
-impossible.
-
-4 `Verifier` trait
+5 `Verifier` trait
 ===============================
 
 The `Verifier` trait defines an interface to a module that accepts,
@@ -362,20 +381,20 @@ pub enum VerificationResult {
 pub trait Verify {
     fn require_credentials(&self) -> bool;
     fn check_credentials(&self,
-                         credentials: &TbfHeaderV2Credentials,
+                         credentials: &TbfFooterV2Credentials,
                          binary: &mut [u8]) -> VerificationResult;
 }
 ```
 
 The kernel, when it loads a process binary, scans its headers in order
 from the beginning of the process binary. At each
-`TbfHeaderV2Credentials` header it encounters, it calls
+`TbfFooterV2Credentials` header it encounters, it calls
 `check_credentials` on the provided `Verifier`. If the `Verifier`
 returns `Accept`, the kernel stops processing credentials and
 continues loading the process binary. If the `Verifier` returns `Reject`,
 the kernel stops processing credentials and terminates loading the
 process binary. If the `Verifier` returns `Pass`, the kernel tries the
-next `TbfHeaderV2Credentials`, if there is one.
+next `TbfFooterV2Credentials`, if there is one.
 
 
 The `binary` argument to `check_credentials` is a reference to the
@@ -388,7 +407,7 @@ the `Verifier` what the default behavior is.  If `require_credentials`
 returns `true`, the kernel rejects the process binary and terminates
 loading it. If `require_credentials` returns `false`, the kernel
 accepts the process binary and continues loading it. If a process
-binary has no `TbfHeaderV2Credentials` headers then there will be no
+binary has no `TbfFooterV2Credentials` headers then there will be no
 `Accept` or `Reject` results and `require_credentials` defines whether
 to load such a binary.
 
@@ -397,15 +416,15 @@ loading by deciding which types of credentials, and which credentials,
 are acceptable and which are rejected.
 
 If `check_credentials` returns `Accept` for a
-`TbfHeaderV2Credentials`, the kernel stores a reference to this
-`TbfHeaderV2Credentials` in the process structure. This data
+`TbfFooterV2Credentials`, the kernel stores a reference to this
+`TbfFooterV2Credentials` in the process structure. This data
 represents the acting credentials of the process.
 
 
-5 Short IDs and the `Compress` trait
+6 Short IDs and the `Compress` trait
 ===============================
 
-While `TbfHeaderV2Credentials` define the identity and credentials of
+While `TbfFooterV2Credentials` define the identity and credentials of
 an application, they are typically large data structures that are too
 large to store in RAM. When parts of the kernel wish to apply
 application-based security or access policies, they need a concise way
@@ -423,7 +442,7 @@ integer, which can be used throughout the kernel as an identifier
 for security policies. For example, suppose that a device wants to
 grant access to all application binaries signed by a certain 3072-bit
 RSA key. The `Compress` trait can map all such
-`TbfHeaderV2Credentials` to a known identifier. This identifier is
+`TbfFooterV2Credentials` to a known identifier. This identifier is
 stored in the process structure. Access control systems within the
 kernel can define their policies in terms of these identifiers, such
 that they can check access by comparing 32-bit integers rather than
@@ -436,7 +455,7 @@ struct ShortID {
 }
 
 pub trait Compress {
-    fn to_short_id(credentials: &TbfHeaderV2Credentials) -> Option<ShortID>;
+    fn to_short_id(credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
 }
 ```
 
@@ -455,20 +474,20 @@ that the two are inconsistent, e.g., that credentials are correctly
 mapped to security policies via `Compress`.
 
 The mechanism by which kernel modules gain access to
-`TbfHeaderV2Credentials` with which to construct `ShortID`s for access
+`TbfFooterV2Credentials` with which to construct `ShortID`s for access
 tables is outside of scope for this document and is system-specific.
 The structure implementing `Verifier` and `Compress` typically has
 additional traits or methods that expose these.
 
 For example, suppose there is a system that wants to grant extra
-permissions to Tock binaries with a `TbfHeaderV2Credentials` of
+permissions to Tock binaries with a `TbfFooterV2Credentials` of
 `Rsa4096Key` with a certain public key. The public key is the global
 application identifier of the process binary. Note this means only one
 process signed with that key can run at any time. 
 
 A structure implementing `Verifier` and `Compress` stores a copy of
 this key, and returns `Accept` to calls to `check_credentials` with
-valid `TbfHeaderV2Credentials` using this key. Calls to `Compress`
+valid `TbfFooterV2Credentials` using this key. Calls to `Compress`
 return `None` for all credentials except a `Rsa4096Key` with this key,
 for which it returns `ShortID {id: 1}`. The structure also has a
 method `privileged_id`, which returns `ShortID {id: 1}`.
@@ -500,13 +519,13 @@ mapping from the identifier. `ShortID` values derived from local
 application identifiers, however, MAY be transient and not persist.
 
 
-6 Capsules
+7 Capsules
 ===============================
 
-7 Implementation Considerations
+8 Implementation Considerations
 ===============================
 
-8 Authors' Addresses
+9 Authors' Addresses
 ===============================
 ```
 Philip Levis

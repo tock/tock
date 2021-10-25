@@ -107,6 +107,7 @@ pub enum TbfHeaderTypes {
     TbfHeaderFixedAddresses = 5,
     TbfHeaderKernelVersion = 8,
 
+    TbfHeaderProgram = 9,
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
@@ -120,16 +121,37 @@ pub struct TbfHeaderTlv {
     pub(crate) length: u16,
 }
 
-/// The v2 main section for apps.
+/// The v2 Main Header for apps.
 ///
-/// All apps must have a main section. Without it, the header is considered as
-/// only padding.
+/// All apps must have either a Main Header or a Program Header. Without
+/// either, the TBF object is considered padding. Main and Program Headers
+/// differ in whether they specify the endpoint of the process binary; Main
+/// Headers do not, while Program Headers do. A TBF with a Main Header cannot
+/// have any Credentials Footers, while a TBF with a Program Header can.
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_size: u32,
     minimum_ram_size: u32,
 }
+
+/// The v2 Program Header for apps.
+///
+/// All apps must have either a Main Header or a Program Header. Without
+/// either, the TBF object is considered padding. Main and Program Headers
+/// differ in whether they specify the endpoint of the process binary; Main
+/// Headers do not, while Program Headers do. A Program Header includes
+/// the binary end offset so that a Verifier knows where Credentials Headers
+/// start. The region between the end of the binary and the end of the TBF
+/// is reserved for Credentials Footers.
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2Program {
+    init_fn_offset: u32,
+    protected_size: u32,
+    minimum_ram_size: u32,
+    binary_end_offset: u32,
+}
+
 
 /// Writeable flash regions only need an offset and size.
 ///
@@ -217,6 +239,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
             8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
+            9 => Ok(TbfHeaderTypes::TbfHeaderProgram),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -259,6 +282,35 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
             ),
             minimum_ram_size: u32::from_le_bytes(
                 b.get(8..12)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Program, Self::Error> {
+        Ok(TbfHeaderV2Program {
+            init_fn_offset: u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            protected_size: u32::from_le_bytes(
+                b.get(4..8)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            minimum_ram_size: u32::from_le_bytes(
+                b.get(8..12)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            binary_end_offset: u32::from_le_bytes(
+                b.get(12..16)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
@@ -323,6 +375,37 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
+/// Type to encapsulate either the Main or Program headers, which a valid
+/// process binary must have exactly one of.
+#[derive(Clone, Copy, Debug)]
+pub enum TbfHeaderV2Binary {
+    Main {main: TbfHeaderV2Main},
+    Program {program: TbfHeaderV2Program}
+}
+
+impl TbfHeaderV2Binary {
+    fn minimum_ram_size(&self) -> u32 {
+        match self {
+            TbfHeaderV2Binary::Main{main} =>  main.minimum_ram_size,
+            TbfHeaderV2Binary::Program{program} =>  program.minimum_ram_size,
+        }
+    }
+
+    fn protected_size(&self) -> u32 {
+        match self {
+            TbfHeaderV2Binary::Main{main} =>  main.protected_size,
+            TbfHeaderV2Binary::Program{program} =>  program.protected_size,
+        }
+    }
+
+    fn init_fn_offset(&self) -> u32 {
+        match self {
+            TbfHeaderV2Binary::Main{main} =>  main.init_fn_offset,
+            TbfHeaderV2Binary::Program{program} =>  program.init_fn_offset,
+        }
+    }
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -331,7 +414,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2 {
     pub(crate) base: TbfHeaderV2Base,
-    pub(crate) main: Option<TbfHeaderV2Main>,
+    pub(crate) binary: Option<TbfHeaderV2Binary>,
     pub(crate) package_name: Option<&'static str>,
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
@@ -376,7 +459,9 @@ impl TbfHeader {
     /// needed for this app.
     pub fn get_minimum_app_ram_size(&self) -> u32 {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.main.map_or(0, |m| m.minimum_ram_size),
+            TbfHeader::TbfHeaderV2(hd) => {
+                hd.binary.map_or(0, |m| m.minimum_ram_size())
+            }
             _ => 0,
         }
     }
@@ -386,7 +471,7 @@ impl TbfHeader {
     pub fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
-                hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32)
+                hd.binary.map_or(0, |m| m.protected_size()) + (hd.base.header_size as u32)
             }
             _ => 0,
         }
@@ -397,7 +482,7 @@ impl TbfHeader {
     pub fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
-                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32)
+                hd.binary.map_or(0, |m| m.init_fn_offset()) + (hd.base.header_size as u32)
             }
             _ => 0,
         }
