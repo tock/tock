@@ -1237,6 +1237,16 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             }
         });
     }
+
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode> {
+        self.stored_state
+            .map(|stored_state| {
+                self.chip
+                    .userspace_kernel_boundary()
+                    .store_context(stored_state, out)
+            })
+            .unwrap_or(Err(ErrorCode::FAIL))
+    }
 }
 
 impl<C: 'static + Chip> ProcessStandard<'_, C> {

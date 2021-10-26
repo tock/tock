@@ -623,6 +623,10 @@ pub trait Process {
 
     /// Return the lowest recorded address of the process stack, if known.
     fn debug_stack_end(&self) -> Option<*const u8>;
+
+    /// Export stored state as a binary blob. Returns the number of items
+    /// written on success.
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's

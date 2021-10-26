@@ -2,8 +2,10 @@
 //! system call interface.
 
 use core::fmt::Write;
-use core::mem;
+use core::mem::{self, size_of};
+use core::ops::Range;
 use core::ptr::{read_volatile, write_volatile};
+use kernel::errorcode::ErrorCode;
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -45,6 +47,56 @@ pub struct CortexMStoredState {
     yield_pc: usize,
     psr: usize,
     psp: usize,
+}
+
+const MAJOR_VER: usize = 1;
+const MINOR_VER: usize = size_of::<CortexMStoredState>();
+const TAG: [u8; 4] = [b'c', b't', b'x', b'm'];
+const METADATA_LEN: usize = 3;
+
+const USIZE_SZ: usize = size_of::<usize>();
+fn usize_byte_range(index: usize) -> Range<usize> {
+    index * USIZE_SZ..(index + 1) * USIZE_SZ
+}
+
+fn usize_from_u8_slice(slice: &[u8], index: usize) -> Result<usize, ErrorCode> {
+    let range = usize_byte_range(index);
+    if range.end < slice.len() {
+        Ok(usize::from_le_bytes(
+            slice[range].try_into().or(Err(ErrorCode::FAIL))?,
+        ))
+    } else {
+        Err(ErrorCode::SIZE)
+    }
+}
+
+fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
+    let range = usize_byte_range(index);
+    slice[range].copy_from_slice(&val.to_le_bytes());
+}
+
+impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
+    type Error = ErrorCode;
+    fn try_from(ss: &[u8]) -> Result<CortexMStoredState, Self::Error> {
+        if ss.len() >= size_of::<CortexMStoredState>() + METADATA_LEN * USIZE_SZ
+            && usize_from_u8_slice(ss, 0)? == MAJOR_VER
+            && usize_from_u8_slice(ss, 1)? == MINOR_VER
+            && usize_from_u8_slice(ss, 2)? == u32::from_le_bytes(TAG) as usize
+        {
+            let mut res = CortexMStoredState {
+                regs: [0; 8],
+                yield_pc: usize_from_u8_slice(ss, 3)?,
+                psr: usize_from_u8_slice(ss, 4)?,
+                psp: usize_from_u8_slice(ss, 5)?,
+            };
+            for (i, v) in (6..14).enumerate() {
+                res.regs[i] = usize_from_u8_slice(ss, v)?;
+            }
+            Ok(res)
+        } else {
+            Err(ErrorCode::FAIL)
+        }
+    }
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
@@ -346,5 +398,28 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 "!!ERROR - Cortex M Thumb only!"
             },
         ));
+    }
+
+    fn store_context(
+        &self,
+        state: &CortexMStoredState,
+        out: &mut [u8],
+    ) -> Result<usize, ErrorCode> {
+        // MINOR_VER is size_of CortexMStoredState.
+        if out.len() >= size_of::<CortexMStoredState>() + 3 * USIZE_SZ {
+            write_usize_to_u8_slice(MAJOR_VER, out, 0);
+            write_usize_to_u8_slice(MINOR_VER, out, 1);
+            write_usize_to_u8_slice(u32::from_le_bytes(TAG) as usize, out, 2);
+            write_usize_to_u8_slice(state.yield_pc, out, 3);
+            write_usize_to_u8_slice(state.psr, out, 4);
+            write_usize_to_u8_slice(state.psp, out, 5);
+            for (i, v) in state.regs.iter().enumerate() {
+                write_usize_to_u8_slice(*v, out, 6 + i);
+            }
+            // + 3 for yield_pc, psr, psp
+            Ok((state.regs.len() + 3 + METADATA_LEN) * USIZE_SZ)
+        } else {
+            Err(ErrorCode::SIZE)
+        }
     }
 }
