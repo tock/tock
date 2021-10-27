@@ -108,13 +108,13 @@ static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 // Function for the CDC/USB stack to use to enter the bootloader.
-fn baud_rate_reset_bootloader_enter() {
+/*fn baud_rate_reset_bootloader_enter() {
     unsafe {
         // 0x90 is the magic value the bootloader expects
         NRF52_POWER.unwrap().set_gpregret(0x90);
         cortexm4::scb::reset();
     }
-}
+}*/
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -332,21 +332,42 @@ pub unsafe fn main() {
     // Setup the CDC-ACM over USB driver that we will use for UART.
     // We use the Arduino Vendor ID and Product ID since the device is the same.
 
-    // Create the strings we include in the USB descriptor. We use the hardcoded
-    // DEVICEADDR register on the nRF52 to set the serial number.
-    let serial_number_buf = static_init!([u8; 17], [0; 17]);
-    let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
-    let strings = static_init!(
-        [&str; 3],
-        [
-            "Arduino",              // Manufacturer
-            "Nano 33 BLE - TockOS", // Product
-            serial_number_string,   // Serial number
-        ]
-    );
+    let bulk_simple = static_init!(capsules::usb::bulk_simple::BulkSimple<'static, nrf52::usbd::Usbd>,
+            capsules::usb::bulk_simple::BulkSimple::new(&nrf52840_peripherals.usbd));
+    let usb = {
+        use capsules::usb::{device, configuration};
+        // Create the strings we include in the USB descriptor. We use the hardcoded
+        // DEVICEADDR register on the nRF52 to set the serial number.
+        let serial_number_buf = static_init!([u8; 17], [0; 17]);
+        let serial_number_string: &'static str =
+            nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
 
-    let cdc = components::cdc::CdcAcmComponent::new(
+        let device_descriptor = device::DevDescriptor {
+            vendor_id: 0x6667,
+            product_id: 0xabcd,
+            manufacturer_string: "Arduino",
+            product_string: "Nano 33 BLE - TockOS",
+            serial_number_string: serial_number_string,
+            class: 0x2, // Class: CDC
+            usb_release: 0x0200,
+            subclass: 0,
+            protocol: 0,
+            device_release: 0x0001,
+        };
+
+        let configuration = configuration::SimpleConfiguration {
+            interfaces: [bulk_simple] as [&dyn configuration::Interface; 1],
+            is_self_powered: false,
+            supports_remote_wakeup: false,
+            max_power: 50,
+            _f: core::marker::PhantomData,
+        };
+        static_init!(
+            device::Device<'static, nrf52::usbd::Usbd, configuration::SimpleConfiguration<'static, [&'static dyn configuration::Interface; 1]>>,
+            device::Device::new(&nrf52840_peripherals.usbd, device_descriptor, configuration, 0x0409))
+    };
+    kernel::hil::usb::UsbController::set_client(&nrf52840_peripherals.usbd, usb);
+    /*let cdc = components::cdc::CdcAcmComponent::new(
         &nrf52840_peripherals.usbd,
         capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
         0x2341,
@@ -360,10 +381,10 @@ pub unsafe fn main() {
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
-    CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
+    CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler*/
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(bulk_simple, 115200, dynamic_deferred_caller)
         .finalize(());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -641,8 +662,8 @@ pub unsafe fn main() {
     chip.mpu().clear_mpu();
 
     // Configure the USB stack to enable a serial port over CDC-ACM.
-    cdc.enable();
-    cdc.attach();
+    usb.enable();
+    usb.attach();
 
     //--------------------------------------------------------------------------
     // TESTS

@@ -4,6 +4,7 @@ use crate::utilities::cells::VolatileCell;
 
 /// USB controller interface
 pub trait UsbController<'a> {
+    const MAX_CTRL_PACKET_SIZE: u8;
     fn set_client(&self, client: &'a dyn Client<'a>);
 
     // Should be called before `enable_as_device()`

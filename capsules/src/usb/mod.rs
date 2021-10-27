@@ -1,6 +1,10 @@
+pub mod bulk_echo;
+pub mod bulk_simple;
 pub mod cdc;
 pub mod ctap;
 pub mod descriptors;
+pub mod device;
+pub mod configuration;
 pub mod usb_user;
 pub mod usbc_client;
 pub mod usbc_client_ctrl;

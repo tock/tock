@@ -23,6 +23,14 @@ pub struct Buffer64 {
     pub buf: [VolatileCell<u8>; 64],
 }
 
+impl Buffer64 {
+    pub const fn empty() -> Self {
+        Self {
+            buf: [VolatileCell::new(0); 64],
+        }
+    }
+}
+
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {

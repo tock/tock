@@ -1059,6 +1059,7 @@ impl<'a> Usbd<'a> {
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
+        self.registers.size_epout[endpoint].set(0);
     }
 
     fn enable_in_out_endpoint_(&self, transfer_type: TransferType, endpoint: usize) {
@@ -1295,10 +1296,6 @@ impl<'a> Usbd<'a> {
                         in_state.map(|_| BulkInState::Init),
                         out_state.map(|_| BulkOutState::Init),
                     ));
-                    if out_state.is_some() {
-                        // Accept incoming OUT packets.
-                        self.registers.size_epout[ep].set(0);
-                    }
                 }
             }
             // Clear the DMA status.
@@ -1915,6 +1912,7 @@ impl<'a> power::PowerClient for Usbd<'a> {
 }
 
 impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
+    const MAX_CTRL_PACKET_SIZE: u8 = 64;
     fn set_client(&self, client: &'a dyn hil::usb::Client<'a>) {
         self.client.set(client);
     }
