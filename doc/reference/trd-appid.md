@@ -39,19 +39,19 @@ application and know whether a particular userspace binary belongs to
 an application.
 
 The mapping between binaries and applications can be
-many-to-many. Multiple binaries can be associated with a single application
-when there are software updates/versions or when an application needs
-to run in multiple processes. A program that migrates data from one
-application to another (e.g., transitions keys from an old U2F
-application to a new one) needs to be associated with both the source
-and destination applications.
+many-to-many. Multiple binaries can be associated with a single
+application when there are software updates/versions or when an
+application needs to run in multiple processes. A program that
+migrates data from one application to another (e.g., transitions keys
+from an old U2F application to a new one) needs to be associated with
+both the source and destination applications.
 
 To remain flexible and support many use cases, the Tock kernel makes
-minimal assumptions on the structure and form of
-application credentials that bind an application identifier to a
+minimal assumptions on the structure and form of application
+credentials that bind an application identifier to a
 binary. Application credentials are arbitrary k-byte sequences that
 are stored in an userspace binary's Tock binary format (TBF)
-headers. When a Tock board instantiates the kernel, it passes a
+footers. When a Tock board instantiates the kernel, it passes a
 reference to an AppID (application identifier) verifier, which the
 kernel uses to determine the AppIDs of each userspace binary it reads
 and decide whether to load the binary into a process.
@@ -59,7 +59,7 @@ and decide whether to load the binary into a process.
 Most of the complications in AppIDs stem from the fact that they are a
 general mechanism used for many different use cases. Therefore, the
 exact structure and semantics of application credentials can vary
-widely. Tock's TBF header formats, kernel interfaces and mechanisms
+widely. Tock's TBF footer formats, kernel interfaces and mechanisms
 must accommodate this wide range.
 
 The interfaces and standard implementations for AppIDs and AppID
@@ -271,6 +271,21 @@ adds one field, `binary_end_offset`, which indicates the offset at which
 the application binary ends within the TBF object. The space between
 this offset and the end of the TBF object is reserved for footers.
 
+This is the format of a Program Header:
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (9)    | Length (16) | init_fn_offset            |
++-------------+-------------+---------------------------+
+| protected_size            | min_ram_size              |
++---------------------------+---------------------------+
+| binary_end_offset         |
++---------------------------+
+```
+
+It is represented in the Tock kernel with this Rust structure:
+
 ```rust
 pub struct TbfHeaderV2Program {
     init_fn_offset: u32,
@@ -286,9 +301,24 @@ MUST NOT have more than one Program Header.
 4.2 Credentials Footer
 -------------------------------
 
-To support credentials in Tock binaries, the Tock Binary Format has
-a `TbfFooterV2Credentials` TLV. This TLV is variable length
-and has two fields:
+To support credentials in Tock binaries, the Tock Binary Format has a
+`TbfFooterV2Credentials` TLV. This TLV is variable length and has two
+fields, a 32-bit value specifying the `format` of the credentials and
+a variable length `data` field. The `format` field defines the format
+and size of the `data` field. Each value of the `format` field except
+`Padding` MUST have a fixed data size and format. This is the format
+of a Credentials Footer:
+
+```
+0             2             4                           8
++-------------+-------------+---------------------------+
+| Type (128)  | Length      | format                    |
++-------------+-------------+---------------------------+
+| data                      |
++-------------+--------...--+
+```
+
+It is represented in the Tock kernel with this structure:
 
 ```rust
 pub struct TbfFooterV2Credentials {
@@ -297,9 +327,7 @@ pub struct TbfFooterV2Credentials {
 }
 ```
 
-The `TbfFooterV2CredentialsType` defines the format and size of `data`
-field. A `TbfFooterV2CredentialsType` value MUST have a fixed
-data size and format. Currently supported values are:
+Currently supported values of `format` are:
 
 ```rust
 pub enum TbfFooterV2CredentialsType {
@@ -312,55 +340,52 @@ pub enum TbfFooterV2CredentialsType {
 }
 ```
 
-**These are not intended to be final or prescriptive. They are merely
-some examples of what kind of information we might put here. Among
-other things, the exact format of the data blocks needs to be more
-precise. -pal**
+The `Padding` type has a variable length. This credentials type is
+used to reserve space for future credentials or pad their placement.
 
-The `Padding` value has a variable length. It has a 32-bit field
-specifying its total length. This credentials type is used to
-reserve space for future credentials or pad their placement.
-
-The `CleartextID` value has a data length of 8 bytes. It contains a
+The `CleartextID` type has a data length of 8 bytes. It contains a
 64-bit number in big-endian format representing an application
 identifier.
 
-The `Rsa3072Key` value has a data of length of 768 bytes. It contains
+The `Rsa3072Key` type has a data of length of 768 bytes. It contains
 a public 3072-bit RSA key (384 bytes), followed by a 384-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary, signed by the private key of the public
 key in the TLV.
 
-The `Rsa4096Key` value has a data of length of 1024 bytes. It contains
+The `Rsa4096Key` type has a data of length of 1024 bytes. It contains
 a public 4096-bit RSA key (512 bytes), followed by a 512-byte
 ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary, encrypted by the private key of the
 public key in the TLV.
 
-The `Rsa3072KeyWithID` value has a data of length of 768 bytes. It
+The `Rsa3072KeyWithID` type has a data of length of 768 bytes. It
 contains a public 3072-bit RSA key (384 bytes), followed by a 384-byte
 ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary followed by a 32-bit application ID,
-encrypted by the private key of the public key in the TLV.
+binary in this process binary followed by a 32-bit application ID and
+padded with zeroes, encrypted by the private key of the public key in
+the TLV.
 
-The `Rsa4096KeyWithID` value has a data of length of 1024 bytes. It
+The `Rsa4096KeyWithID` type has a data of length of 1024 bytes. It
 contains a public 4096-bit RSA key (512 bytes), followed by a 512-byte
 ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary followed by a 32-bit application ID,
-encrypted by the private key of the public key in the TLV.
+binary in this process binary followed by a 32-bit application ID and
+padded with zeroes, encrypted by the private key of the public key in
+the TLV.
 
-`TbfFooterV2Credentials` headers follow the compiled app binary in a
+`TbfFooterV2Credentials` type follow the compiled app binary in a
 TBF object.  If a `TbfFooterV2Credentials` footer includes a
 cryptographic hash, signature, or other value to check the integrity
 of a process binary, the computation of this value MUST include the
 complete TBF Header and the compiled app binary.
 
-Integrity values MUST be computed over the TBF Header and compiled app
-binary. Computing an integrity value in a Credentials Footer MUST NOT
-include the contents of Credentials Footers. If future extensions to
-the Tock Binary Format add new footers which should be included in
-integrity computations, it is RECOMMENDED that these footers are
-always placed before Credentials Footers.
+Integrity values MUST be computed over the TBF Header and compiled
+application binary, i.e., from the start of the TBF object until
+`binary_end_offset`. Computing an integrity value in a Credentials
+Footer MUST NOT include the contents of Footers. If new metadata associated
+with an application binary needs to be covered by integrity, it MUST
+be a Header. If new metadata associated with an application binary needs to
+not be covered by integrity, it MUST be a Foorter.
 
 5 `Verifier` trait
 ===============================
@@ -382,7 +407,7 @@ pub trait Verify {
     fn require_credentials(&self) -> bool;
     fn check_credentials(&self,
                          credentials: &TbfFooterV2Credentials,
-                         binary: &mut [u8]) -> VerificationResult;
+                         binary: &[u8]) -> VerificationResult;
 }
 ```
 
@@ -396,20 +421,22 @@ the kernel stops processing credentials and terminates loading the
 process binary. If the `Verifier` returns `Pass`, the kernel tries the
 next `TbfFooterV2Credentials`, if there is one.
 
+The `binary` argument to `check_credentials` is a reference to slice
+covering the process binary, from the end of the TBF Header to the
+location indicated by the `binary_end_offset` fiel; in the Program
+Header. The size of this slice is therefore equal to
+`binary_end_offset`.
 
-The `binary` argument to `check_credentials` is a reference to the
-beginning of the process binary. The Verifier implementation is
-responsible for parsing the TBF object. 
-
-If the kernel reaches the end of the TBF headers without encountering
-a `Reject` or `Accept` result, it calls `require_credentials` to ask
-the `Verifier` what the default behavior is.  If `require_credentials`
-returns `true`, the kernel rejects the process binary and terminates
-loading it. If `require_credentials` returns `false`, the kernel
-accepts the process binary and continues loading it. If a process
-binary has no `TbfFooterV2Credentials` headers then there will be no
-`Accept` or `Reject` results and `require_credentials` defines whether
-to load such a binary.
+If the kernel reaches the end of the TBF Footers (or if there is a
+Main Header and so no Footers) without encountering a `Reject` or
+`Accept` result, it calls `require_credentials` to ask the `Verifier`
+what the default behavior is.  If `require_credentials` returns
+`true`, the kernel rejects the process binary and terminates loading
+it. If `require_credentials` returns `false`, the kernel accepts the
+process binary and continues loading it. If a process binary has no
+`TbfFooterV2Credentials` footers then there will be no `Accept` or
+`Reject` results and `require_credentials` defines whether to load
+such a binary.
 
 An implementer of `Verifier` sets the security policy of process binary
 loading by deciding which types of credentials, and which credentials,
@@ -512,7 +539,7 @@ through APIs and does not leak internal state.
 mapping between global application identifiers and `ShortID` values
 MUST be deterministic. 
 
-`ShortID`s MAY persist across boots and restarts of a process
+`ShortID` values MAY persist across boots and restarts of a process
 binary. If `ShortID` is derived from a global application identifier,
 then it is by definition persistent, since it is a determinstic
 mapping from the identifier. `ShortID` values derived from local

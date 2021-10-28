@@ -136,7 +136,7 @@ pub fn parse_tbf_header(
                 while remaining.len() > 0 {
                     // Get the T and L portions of the next header (if it is
                     // there).
-                    let tlv_header: types::TbfHeaderTlv = remaining.try_into()?;
+                    let tlv_header: types::TbfTlv = remaining.try_into()?;
                     remaining = remaining
                         .get(4..)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?;
@@ -145,11 +145,12 @@ pub fn parse_tbf_header(
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();
 
-                            // Check that the size of the TLV entry matches the
-                            // size of the Main TLV. If so we can store it.
-                            // Otherwise, we fail to parse this TBF header and
-                            // throw an error.
-                            if tlv_header.length as usize == entry_len {
+                            // Check that this is the first program or main header
+                            // and the TLV entry is correct.
+                            if binary_pointer.is_some() {
+                                return Err(types::TbfParseError::MoreThanOneBinaryHeader);
+                            }
+                            else if tlv_header.length as usize == entry_len {
                                 let main_header = remaining.try_into()?;
                                 binary_pointer = Some(types::TbfHeaderV2Binary::Main{main: main_header});
                             } else {
@@ -161,10 +162,11 @@ pub fn parse_tbf_header(
                         types::TbfHeaderTypes::TbfHeaderProgram => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
 
-                            // Check that the size of the TLV entry matches the
-                            // size of the Main TLV. If so we can store it.
-                            // Otherwise, we fail to parse this TBF header and
-                            // throw an error.
+                            // Check that this is the first program or main header
+                            // and the TLV entry is correct.
+                            if binary_pointer.is_some() {
+                                return Err(types::TbfParseError::MoreThanOneBinaryHeader);
+                            }
                             if tlv_header.length as usize == entry_len {
                                 let program_header = remaining.try_into()?;
                                 binary_pointer = Some(types::TbfHeaderV2Binary::Program{program: program_header});

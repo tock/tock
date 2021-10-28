@@ -56,6 +56,9 @@ pub enum TbfParseError {
     /// If the slice passed in is not long enough, then a `get()` call will
     /// fail and that will trigger a different error.
     InternalError,
+
+    /// There more than a single Binary (Main or Program) Header
+    MoreThanOneBinaryHeader,
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -82,6 +85,7 @@ impl fmt::Debug for TbfParseError {
             TbfParseError::BadTlvEntry(tipe) => write!(f, "TLV entry type {} is invalid", tipe),
             TbfParseError::BadProcessName => write!(f, "Process name not UTF-8"),
             TbfParseError::InternalError => write!(f, "Internal kernel error. This is a bug."),
+            TbfParseError::MoreThanOneBinaryHeader => write!(f, "More than one binary (Program or Main) Header. Bad TBF."),
         }
     }
 }
@@ -111,12 +115,15 @@ pub enum TbfHeaderTypes {
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
+
+    TbfFooterCredentials = 128,
+    
     Unknown,
 }
 
 /// The TLV header (T and L).
 #[derive(Clone, Copy, Debug)]
-pub struct TbfHeaderTlv {
+pub struct TbfTlv {
     pub(crate) tipe: TbfHeaderTypes,
     pub(crate) length: u16,
 }
@@ -193,6 +200,22 @@ pub struct TbfHeaderV2KernelVersion {
     minor: u16,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum TbfFooterV2CredentialsType {
+    Padding = 0,
+    CleartextID = 1,
+    Rsa3072Key = 2,
+    Rsa4096Key = 3,
+    Rsa3072KeyWithID = 4,
+    Rsa4096KeyWithID = 5,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TbfFooterV2Credentials {
+    format: TbfFooterV2CredentialsType,
+    data: &'static [u8],
+}
+
 // Conversion functions from slices to the various TBF fields.
 
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
@@ -245,11 +268,11 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
     }
 }
 
-impl core::convert::TryFrom<&[u8]> for TbfHeaderTlv {
+impl core::convert::TryFrom<&[u8]> for TbfTlv {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderTlv, Self::Error> {
-        Ok(TbfHeaderTlv {
+    fn try_from(b: &[u8]) -> Result<TbfTlv, Self::Error> {
+        Ok(TbfTlv {
             tipe: u16::from_le_bytes(
                 b.get(0..2)
                     .ok_or(TbfParseError::InternalError)?
@@ -371,6 +394,41 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
+        })
+    }
+}
+
+impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
+    type Error = TbfParseError;
+
+    fn try_from(b: &'static [u8]) -> Result<TbfFooterV2Credentials, Self::Error> {
+        let format = u32::from_le_bytes(
+            b.get(0..4)
+                .ok_or(TbfParseError::InternalError)?
+                .try_into()?);
+        let ftype = match format {
+            0 => TbfFooterV2CredentialsType::Padding,
+            1 => TbfFooterV2CredentialsType::CleartextID,
+            2 => TbfFooterV2CredentialsType::Rsa3072Key,
+            3 => TbfFooterV2CredentialsType::Rsa4096Key,
+            4 => TbfFooterV2CredentialsType::Rsa3072KeyWithID,
+            5 => TbfFooterV2CredentialsType::Rsa4096KeyWithID,
+            _ => {
+                return Err(TbfParseError::InternalError);
+            }
+        };
+        let length = match ftype {
+            TbfFooterV2CredentialsType::Padding => 0,
+            TbfFooterV2CredentialsType::CleartextID => 8,
+            TbfFooterV2CredentialsType::Rsa3072Key => 768,
+            TbfFooterV2CredentialsType::Rsa4096Key => 1024,
+            TbfFooterV2CredentialsType::Rsa3072KeyWithID => 768,
+            TbfFooterV2CredentialsType::Rsa4096KeyWithID => 1024,
+                
+        };
+        Ok(TbfFooterV2Credentials {
+            format: ftype,
+            data: &b[4..(length + 4)],
         })
     }
 }
