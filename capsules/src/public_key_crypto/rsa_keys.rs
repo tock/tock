@@ -1,14 +1,18 @@
 //! Helper library for RSA public and private keys
 
-use core::convert::TryInto;
+use core::cell::Cell;
 use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::mut_imut_buffer::MutImutBuffer;
 use kernel::ErrorCode;
 
+// Copy OpenSSL and use e as 65537
+const PUBLIC_EXPONENT: u32 = 65537;
+
 /// A Public/Private RSA 2048 key pair
 pub struct RSA2048Keys {
     public_key: OptionalCell<MutImutBuffer<'static, u8>>,
+    public_exponent: Cell<u32>,
     private_key: OptionalCell<MutImutBuffer<'static, u8>>,
 }
 
@@ -16,6 +20,7 @@ impl<'a> RSA2048Keys {
     pub const fn new() -> Self {
         Self {
             public_key: OptionalCell::empty(),
+            public_exponent: Cell::new(PUBLIC_EXPONENT),
             private_key: OptionalCell::empty(),
         }
     }
@@ -23,13 +28,12 @@ impl<'a> RSA2048Keys {
 
 impl PubKey for RSA2048Keys {
     /// `public_key` is a buffer containing the public key.
-    /// The first 4 bytes are the public_exponent (also called `e`).
-    /// The next 256 bytes is the modulus (also called `n`).
+    /// This is the 256 byte modulus (also called `n`).
     fn import_public_key(
         &self,
         public_key: MutImutBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, MutImutBuffer<'static, u8>)> {
-        if public_key.len() - 4 != 256 {
+        if public_key.len() != 256 {
             return Err((ErrorCode::SIZE, public_key));
         }
 
@@ -110,17 +114,16 @@ impl RsaKey for RSA2048Keys {
         }
     }
 
-    fn public_exponent(&self) -> Option<u32> {
-        if let Some(key) = self.public_key.take() {
-            let ret = Some(u32::from_be_bytes(match key {
-                MutImutBuffer::Mutable(ref buf) => buf[0..4].try_into().unwrap(),
-                MutImutBuffer::Immutable(ref buf) => buf[0..4].try_into().unwrap(),
-            }));
-            self.public_key.set(key);
-            ret
+    fn take_modulus(&self) -> Option<MutImutBuffer<'static, u8>> {
+        if let Some(public_key) = self.public_key.take() {
+            Some(public_key)
         } else {
             None
         }
+    }
+
+    fn public_exponent(&self) -> Option<u32> {
+        Some(self.public_exponent.get())
     }
 }
 
@@ -137,6 +140,14 @@ impl RsaPrivKey for RSA2048Keys {
             }
             self.private_key.replace(private_key);
             Some(())
+        } else {
+            None
+        }
+    }
+
+    fn take_exponent(&self) -> Option<MutImutBuffer<'static, u8>> {
+        if let Some(private_key) = self.private_key.take() {
+            Some(private_key)
         } else {
             None
         }

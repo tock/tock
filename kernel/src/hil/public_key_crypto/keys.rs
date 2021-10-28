@@ -138,6 +138,13 @@ pub trait RsaKey: PubKey {
     /// otherwise returns `None`.
     fn map_modulus(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()>;
 
+    /// The the modulus if it exists.
+    /// The modulus is returned MSB (big endian)
+    /// Returns `Some()` if the key exists otherwise returns `None`.
+    /// The modulus can be returned by calling `import_public_key()` with
+    /// the output of this function.
+    fn take_modulus(&self) -> Option<MutImutBuffer<'static, u8>>;
+
     /// Returns the public exponent of the key pair if it exists
     fn public_exponent(&self) -> Option<u32>;
 }
@@ -148,4 +155,11 @@ pub trait RsaPrivKey: PubPrivKey + RsaKey {
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
     fn map_exponent(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()>;
+
+    /// The the private exponent if it exists.
+    /// The exponent is returned MSB (big endian)
+    /// Returns `Some()` if the key exists otherwise returns `None`.
+    /// The exponent can be returned by calling `import_private_key()` with
+    /// the output of this function.
+    fn take_exponent(&self) -> Option<MutImutBuffer<'static, u8>>;
 }
