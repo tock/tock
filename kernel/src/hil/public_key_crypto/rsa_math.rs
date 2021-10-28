@@ -1,6 +1,6 @@
 //! Interface for RSA Public/Private key encryption math operations
 
-use crate::hil::public_key_crypto::keys::RsaPrivKey;
+use crate::utilities::mut_imut_buffer::MutImutBuffer;
 use crate::ErrorCode;
 
 /// Upcall from the `RsaCrypto` trait.
@@ -17,7 +17,8 @@ pub trait Client<'a> {
         &'a self,
         status: Result<bool, ErrorCode>,
         message: &'static mut [u8],
-        key: &'static mut dyn RsaPrivKey,
+        modulus: MutImutBuffer<'static, u8>,
+        exponent: MutImutBuffer<'static, u8>,
         result: &'static mut [u8],
     );
 }
@@ -29,8 +30,8 @@ pub trait RsaCryptoBase<'a> {
     /// Clear any confidential data.
     fn clear_data(&self);
 
-    /// Calculate (message ^ exponent) % modulus and store it in the
-    /// `result` buffer. exponent and modulus are supplied from the `key`.
+    /// Calculate (`message` ^ `exponent`) % `modulus` and store it in the
+    /// `result` buffer.
     ///
     /// On completion the `mod_exponent_done()` upcall will be scheduled.
     ///
@@ -43,14 +44,16 @@ pub trait RsaCryptoBase<'a> {
     fn mod_exponent(
         &self,
         message: &'static mut [u8],
-        key: &'static mut dyn RsaPrivKey,
+        modulus: MutImutBuffer<'static, u8>,
+        exponent: MutImutBuffer<'static, u8>,
         result: &'static mut [u8],
     ) -> Result<
         (),
         (
             ErrorCode,
             &'static mut [u8],
-            &'static mut dyn RsaPrivKey,
+            MutImutBuffer<'static, u8>,
+            MutImutBuffer<'static, u8>,
             &'static mut [u8],
         ),
     >;
