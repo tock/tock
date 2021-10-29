@@ -275,3 +275,26 @@ pub fn parse_tbf_header(
         _ => Err(types::TbfParseError::UnsupportedVersion(version)),
     }
 }
+
+pub fn parse_tbf_footer(
+    footers: &'static [u8],
+) -> Result<(types::TbfFooterV2Credentials, u32), types::TbfParseError> {
+    let mut remaining = footers;
+    let tlv_header: types::TbfTlv = remaining.try_into()?;
+    remaining = remaining
+        .get(4..)
+        .ok_or(types::TbfParseError::NotEnoughFlash)?;
+    match tlv_header.tipe {
+        types::TbfHeaderTypes::TbfFooterCredentials => {
+            let credential: types::TbfFooterV2Credentials = remaining.try_into()?;
+            // Check length here
+            let length = tlv_header.length;
+            Ok((credential, length as u32))
+        },
+        _ => {
+            Err(types::TbfParseError::BadTlvEntry(tlv_header.tipe as usize))
+        }
+    }
+}
+
+
