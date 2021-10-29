@@ -937,6 +937,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_name
     }
 
+    fn get_completion_code(&self) -> Option<Option<u32>> {
+        self.completion_code.extract()
+    }
+
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
             // Actually set the return value for a particular process.

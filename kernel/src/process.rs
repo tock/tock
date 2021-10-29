@@ -241,6 +241,18 @@ pub trait Process {
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
+    /// Get the completion code if the process has previously terminated.
+    ///
+    /// If the process has never terminated then there has been no opportunity
+    /// for a completion code to be set, and this will return `None`.
+    ///
+    /// If the process has previously terminated this will return `Some()`. If
+    /// the last time the process terminated it did not provide a completion
+    /// code (e.g. the process faulted), then this will return `Some(None)`. If
+    /// the last time the process terminated it did provide a completion code,
+    /// this will return `Some(Some(completion_code))`.
+    fn get_completion_code(&self) -> Option<Option<u32>>;
+
     /// Stop and clear a process's state, putting it into the `Terminated`
     /// state.
     ///
