@@ -95,7 +95,7 @@ Should Tock allow re-sharing?
  * Jett: Agree, that most interfaces are async, but they are logically sync
  * Leon: That's right, but if I get a, say, 500 byte buffer, but flash only accepts 100 byte writes, the interface requires that I yield and go to different stack frame; so monitoring the stack will not work
  * Jett: So, taking your example with 100 byte chunks, this could all work off the same nested dispatch upcall, no?
- * Loen: Oh, yeah, but does that get really hard for the kernel to enforce
+ * Leon: Oh, yeah, but does that get really hard for the kernel to enforce
  * Jett: Don't think so, once the dispatch stack frame is popped, the buffer is returned to the kernel
  * Phil: Think the takeway is that so long as kernel has final control, there's nothing philosophically opposed, but it's going to be very subtle / tricky to implement
  * Jett: {missed}
