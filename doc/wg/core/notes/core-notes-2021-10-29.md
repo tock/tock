@@ -102,7 +102,7 @@ Should Tock allow re-sharing?
  * Phil: If the shared buffer is associated with a particular device ID, and only available to that device ID, then it gets easier
  * Phil: What gets tricky is if it is an unlabeled buffer, and moved around
  * Jett: I think if allow ro/rw moves into the kernel core, then this simplifies
- * Leon: Don't have to do exhaustive searches if it's time-based
+ * Leon: Don't have to do exhaustive searches if it's time-based, because if we decide to forcefully kill the process in case it violates these constraints, we can make use of the regular process cleanup mechanisms (e.g. `ProcessBuffer`s won't be accessible any longer)
  * Jett: That simplifies, then can just rely on time
  * Jett: If we were to look at implementing this, and moving ZCB upstream, there's nothing upstream that uses it; is that okay?
  * Leon: It is nicer if CI, etc can test; is there nothing you could reasonably upstream
