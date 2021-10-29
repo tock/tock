@@ -38,7 +38,7 @@ Should Tock allow re-sharing?
  * Jett: context https://github.com/tock/tock/pull/2875
  * Jett: We have a ZeroCopyBuffer downstream which does this
  * Jett: Could address this via copying, but there's a philosophical question of whether Tock should allow this?
- * Leon: During development of 2.0, we determined that the kernel should be able to use app-provided buffers in an async manner; it is really hard to think about what should happen when the owner of a buffer dies
+ * Leon: During development of 2.0, we determined that the kernel should not be able to use app-provided buffers in an async manner (across the scheduler loop); it is really hard to think about what should happen when the owner of a buffer dies especially with respect to process resource cleanup
  * Leon: If we take an example of re-sharing the buffer from another app shared by IPC
  * Jett: In the IPC case, App A shares a buffer to B via IPC; while B is processing it dies; restarted B shouldn't have access to A; so problem of cleanup exists 
  * Leon: right, but when talking about IPC, need to recall that our current IPC is not considered a final design; e.g. right now, it's not a memroy handoff, both apps have access to the buffer in parallel
