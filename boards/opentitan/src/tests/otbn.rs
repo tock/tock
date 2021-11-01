@@ -1,7 +1,7 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::common::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::{debug, ErrorCode};
 use lowrisc::otbn::Client;
 
@@ -72,20 +72,6 @@ fn otbn_check_invalid_prop() {
     run_kernel_op(100);
 
     assert_eq!(otbn.set_property(100, 0), Err(ErrorCode::NOSUPPORT));
-
-    debug!("    [ok]");
-    run_kernel_op(100);
-}
-
-#[test_case]
-fn otbn_check_start_addr_prop() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
-    let otbn = &perf.otbn;
-
-    debug!("check otbn start addr prop... ");
-    run_kernel_op(100);
-
-    assert_eq!(otbn.set_property(0, 0x100), Ok(()));
 
     debug!("    [ok]");
     run_kernel_op(100);
