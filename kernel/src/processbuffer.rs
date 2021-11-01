@@ -20,6 +20,7 @@
 //! these slices, however.
 
 use core::cell::Cell;
+use core::mem::MaybeUninit;
 use core::ops::{Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
@@ -47,13 +48,12 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
     ptr: *const u8,
     len: usize,
 ) -> &'a ReadableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
+    // Transmute a reference to a slice of [u8]s into a reference
     // to a ReadableProcessSlice. This is possible as
     // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
     // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
+    // around a [MaybeUninit<u8>], which is a #[repr(transparent)] wrapper
+    // around [u8]
     core::mem::transmute::<&[u8], &ReadableProcessSlice>(
         // Rust has very strict requirements on pointer validity[1]
         // which also in part apply to accesses of length 0. We allow
@@ -108,13 +108,11 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     len: usize,
 ) -> &'a WriteableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &WriteableProcessSlice>(
+    // to a WritableProcessSlice. This is possible as WritableProcessSlice
+    // is a #[repr(transparent)] wrapper around  a [Cell<u8>], which is a
+    // #[repr(transparent)] wrapper around  an [UnsafeCell<u8>], which finally
+    // #[repr(transparent)] wraps a [u8]
+    core::mem::transmute::<&mut [u8], &WriteableProcessSlice>(
         // Rust has very strict requirements on pointer validity[1]
         // which also in part apply to accesses of length 0. We allow
         // an application to supply arbitrary pointers if the buffer
@@ -565,7 +563,7 @@ impl Default for ReadWriteProcessBuffer {
 // type so we alias it as `ReadWriteProcessBuffer`.
 pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 
-/// Read-only wrapper around a [`Cell`]
+/// Read-only wrapper around a [`MaybeUninit<u8>`]
 ///
 /// This type is used in providing the [`ReadableProcessSlice`]. The
 /// memory over which a [`ReadableProcessSlice`] exists must never be
@@ -575,22 +573,24 @@ pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 /// [`ReadOnlyProcessBuffer`] also simultaneously through a
 /// [`ReadWriteProcessBuffer`]. Hence, the kernel can have two
 /// references to the same memory, where one can lead to mutation of
-/// the memory contents. Therefore, the kernel must use [`Cell`]s
+/// the memory contents. Therefore, the kernel must use [`MaybeUninit`]s
 /// around the bytes shared with userspace, to avoid violating Rust's
 /// aliasing rules.
 ///
-/// This read-only wrapper around a [`Cell`] only exposes methods
-/// which are safe to call on a process-shared read-only `allow`
+/// This read-only wrapper around a [`MaybeUninit<u8>`] only exposes
+/// methods  which are safe to call on a process-shared read-only `allow`
 /// memory.
 #[repr(transparent)]
 pub struct ReadableProcessByte {
-    cell: Cell<u8>,
+    data: MaybeUninit<u8>,
 }
 
 impl ReadableProcessByte {
     #[inline]
     pub fn get(&self) -> u8 {
-        self.cell.get()
+        // Safe since we know that the u8 memory has been initializes and that all u8 values
+        // are valid.
+        unsafe { self.data.as_ptr().read() }
     }
 }
 
@@ -908,5 +908,45 @@ impl Index<usize> for WriteableProcessSlice {
         // its inner type, [Cell<u8>], we can use the regular slicing
         // operator here with its usual semantics.
         &self.slice[idx]
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_readable_convert() {
+        // Data represents readonly memory from application
+        let data = [10u8; 10];
+        let out: &ReadableProcessSlice = (&data[..]).into();
+
+        // Kernel should be able to read the application memory
+        assert_eq!(out[0].get(), 10);
+
+        // Kernel drops its reference (unallow) so application can access again
+        core::mem::drop(out);
+
+        // Kernel should be able to read the application memory
+        assert_eq!(data[0], 10);
+    }
+
+    #[test]
+    fn test_writable_convert() {
+        // Data represents memory from application that kernel can write to
+        let mut data = [10u8; 10];
+        let out: &WriteableProcessSlice = (&mut data[..]).into();
+
+        assert_eq!(out[0].get(), 10);
+
+        out[0].set(100);
+        assert_eq!(out[0].get(), 100);
+
+        // Kernel drops its reference (unallow) so application can access again
+        core::mem::drop(out);
+
+        // Now the kernel has stopped its share and the application has its mutable reference back
+        // The data should reflect what the kernel wrote
+        assert_eq!(data[0], 100);
     }
 }
