@@ -25,6 +25,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt};
+use crate::verifier::{Verify, VerificationResult};
 
 // The completion code for a process if it faulted.
 const COMPLETION_FAULT: u32 = 0xffffffff;
@@ -1363,6 +1364,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         fault_policy: &'static dyn ProcessFaultPolicy,
         require_kernel_version: bool,
         index: usize,
+        verifier: &dyn Verify,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
         // Get a slice for just the app header.
         let header_flash = app_flash
@@ -1372,7 +1374,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
-
+        debug!("TBF Header");
+        debug!("{:?}", tbf_header);
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1446,6 +1449,35 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
+        // Check the credentials. This code should be cleaned up, I formatted it this
+        // way to try to keep it very self contained in the diff.
+        let mut credentials_approved = false;
+        let binary_end = tbf_header.get_binary_end() as usize;
+        
+        let mut footer_position = tbf_header.get_binary_end() as usize;
+        let total_size = app_flash.len();
+        let _credentials_count = 0;
+        let require_credentials = false;
+        let mut remaining_flash = app_flash
+                .get(footer_position..)
+                .ok_or(ProcessLoadError::NotEnoughFlash)?;
+        // The portion of the application binary covered by integrity.
+        let covered_flash = app_flash.get(0..binary_end).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
+        while footer_position < (total_size - 4) { // There needs to be space for a TLV 
+            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
+            let (footer, len) = tock_tbf::parse::parse_tbf_footer(remaining_flash)?;
+            remaining_flash = remaining_flash.get(len as usize + 4..).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
+            
+            match verifier.check_credentials(&footer, covered_flash) {
+                _ => {}
+            }
+            footer_position += len as usize;
+        }
+        debug!("Footers parsed.");
+        if !credentials_approved && require_credentials {
+            return Err(ProcessLoadError::CredentialsNoAccept);
+        }
+            
         // Otherwise, actually load the app.
         let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
         let init_fn = app_flash

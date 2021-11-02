@@ -111,6 +111,7 @@ pub mod scheduler;
 pub mod syscall;
 pub mod upcall;
 pub mod utilities;
+pub mod verifier;
 
 mod config;
 mod kernel;

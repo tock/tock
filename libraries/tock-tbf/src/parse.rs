@@ -140,7 +140,7 @@ pub fn parse_tbf_header(
                     remaining = remaining
                         .get(4..)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?;
-
+                    
                     match tlv_header.tipe {
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();

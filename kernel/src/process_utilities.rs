@@ -11,6 +11,7 @@ use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
+use crate::verifier::VerifierStandard;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -59,6 +60,16 @@ pub enum ProcessLoadError {
     /// KernelVersion TBF header.
     IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
+    /// The process did not contain a credentials which the process binary verifier
+    /// accepted and the verifier requires credentials.
+    CredentialsNoAccept,
+
+    /// The process contained a credentials which was rejected by the verifier.
+    /// The u32 indicates which credentials was rejected: the first credentials
+    /// after the application binary is 0, and each subsequent credentials increments
+    /// this counter.
+    CredentialsReject(u32),
+    
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
     InternalError,
@@ -125,6 +136,10 @@ impl fmt::Debug for ProcessLoadError {
             },
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
+
+            ProcessLoadError::CredentialsNoAccept => write!(f, "No credentials accepted."),
+            
+            ProcessLoadError::CredentialsReject(index) => write!(f, "Credentials index {} rejected.", index),
         }
     }
 }
@@ -238,6 +253,7 @@ pub fn load_processes_advanced<C: Chip>(
             // Try to create a process object from that app slice. If we don't
             // get a process and we didn't get a loading error (aka we got to
             // this point), then the app is a disabled process or just padding.
+            let verifier: VerifierStandard = VerifierStandard {}; 
             let (process_option, unused_memory) = unsafe {
                 ProcessStandard::create(
                     kernel,
@@ -249,6 +265,7 @@ pub fn load_processes_advanced<C: Chip>(
                     fault_policy,
                     require_kernel_version,
                     index,
+                    &verifier,
                 )?
             };
             process_option.map(|process| {

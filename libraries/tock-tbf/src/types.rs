@@ -57,8 +57,14 @@ pub enum TbfParseError {
     /// fail and that will trigger a different error.
     InternalError,
 
-    /// There more than a single Binary (Main or Program) Header
+    /// There is more than a single Binary (Main or Program) Header.
     MoreThanOneBinaryHeader,
+
+    /// Found a non-Footer in the footer region.
+    InvalidFooter(usize),
+
+    /// Found a non-Header in the header region.
+    InvalidHeader(usize),
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -86,6 +92,8 @@ impl fmt::Debug for TbfParseError {
             TbfParseError::BadProcessName => write!(f, "Process name not UTF-8"),
             TbfParseError::InternalError => write!(f, "Internal kernel error. This is a bug."),
             TbfParseError::MoreThanOneBinaryHeader => write!(f, "More than one binary (Program or Main) Header. Bad TBF."),
+            TbfParseError::InvalidHeader(index) => write!(f, "Header {} is invalid.", index),
+            TbfParseError::InvalidFooter(index) => write!(f, "Footer {} is invalid.", index),
         }
     }
 }
@@ -263,6 +271,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
             8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             9 => Ok(TbfHeaderTypes::TbfHeaderProgram),
+            128 => Ok(TbfHeaderTypes::TbfFooterCredentials),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -615,6 +624,22 @@ impl TbfHeader {
                 _ => None,
             },
             _ => None,
+        }
+    }
+
+    /// Return the offset where the binary ends in the TBF or 0 if there
+    /// is no binary. If there is a Main header the end offset is the size
+    /// of the TBF, while if there is a Program header it can be smaller.
+    pub fn get_binary_end(&self) -> u32 {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.binary {
+                Some(bin) => match bin {
+                    TbfHeaderV2Binary::Main { main: _ } => hd.base.total_size as u32,
+                    TbfHeaderV2Binary::Program { program } => program.binary_end_offset,
+                },
+                None => 0
+            },
+            _ => 0
         }
     }
 }
