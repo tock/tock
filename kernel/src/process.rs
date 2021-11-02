@@ -14,6 +14,7 @@ use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
 pub use crate::process_policies::{
@@ -406,6 +407,12 @@ pub trait Process {
     /// potentially other state the kernel is storing on behalf of the process,
     /// and cannot be edited by the process.
     fn flash_non_protected_start(&self) -> *const u8;
+
+    fn get_command_permissions(
+        &self,
+        driver_num: usize,
+        offset: Option<usize>,
+    ) -> CommandPermissions;
 
     // mpu
 

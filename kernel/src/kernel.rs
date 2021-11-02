@@ -799,6 +799,15 @@ impl Kernel {
                 {
                     process.set_syscall_return_value(SyscallReturn::Failure(response));
 
+                    if config::CONFIG.trace_syscalls {
+                        debug!(
+                            "[{:?}] Filtered: {:?} was rejected with {:?}",
+                            process.processid(),
+                            syscall,
+                            response
+                        );
+                    }
+
                     return;
                 }
             }

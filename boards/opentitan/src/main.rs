@@ -29,7 +29,7 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::mpu;
 use kernel::platform::mpu::KernelMPU;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
-use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::platform::{KernelResources, SyscallDriverLookup, TbfHeaderFilterDefaultAllow};
 use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
@@ -124,6 +124,7 @@ struct EarlGreyNexysVideo {
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
     >,
+    syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
@@ -155,7 +156,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     for EarlGreyNexysVideo
 {
     type SyscallDriverLookup = Self;
-    type SyscallFilter = ();
+    type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer =
@@ -167,7 +168,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
-        &()
+        &self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
@@ -550,6 +551,7 @@ unsafe fn setup() -> (
         static _ezero: u8;
     }
 
+    let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
     let earlgrey_nexysvideo = static_init!(
@@ -565,6 +567,7 @@ unsafe fn setup() -> (
             lldb: lldb,
             i2c_master,
             aes,
+            syscall_filter,
             scheduler,
             scheduler_timer,
         }
