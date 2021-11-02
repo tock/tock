@@ -88,8 +88,9 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Description**: Subscribe to read transaction completion event. The
     callback will be called whenever a read transaction completes.
 
-    **Callback signature**: The callback receives a single argument, the number
-    of bytes read in the transaction. The value of the remaining arguments
+    **Callback signature**: The callback receives two arguments. The first
+    is a statuscode, containing any error if one occurred. The second is the
+    number of bytes read in the transaction. The value of the remaining arguments
     is undefined.
 
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
