@@ -23,6 +23,7 @@ members = [
     "boards/litex/sim",
     "boards/msp_exp432p401r",
     "boards/microbit_v2",
+    "boards/my410",
     "boards/nordic/nrf52840dk",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
