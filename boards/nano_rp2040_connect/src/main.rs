@@ -429,10 +429,10 @@ pub unsafe fn main() {
 
     let _ = lsm6dsoxtr
         .configure(
-            capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
-            capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
-            capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
-            capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+            capsules::lsm6dsoxtr::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+            capsules::lsm6dsoxtr::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+            capsules::lsm6dsoxtr::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+            capsules::lsm6dsoxtr::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
             true,
         )
         .map_err(|e| {

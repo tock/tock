@@ -44,7 +44,7 @@ macro_rules! lsm6ds_i2c_component_helper {
     ($i2c_mux:expr $(,)?) => {{
         $crate::lsm6ds_i2c_component_helper!(
             $i2c_mux,
-            capsules::lsm6ds_definitions::ACCELEROMETER_BASE_ADDRESS
+            capsules::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS
         )
     }};
 }
