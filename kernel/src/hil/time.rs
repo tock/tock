@@ -267,7 +267,7 @@ pub trait TimerClient {
 pub trait Timer<'a>: Time {
     /// Specify the callback to invoke when the timer interval expires.
     /// If there was a previously installed callback this call replaces it.    
-    fn set_timer_client(&'a self, client: &'a dyn TimerClient);
+    fn set_timer_client(&self, client: &'a dyn TimerClient);
 
     /// Start a one-shot timer that will invoke the callback at least
     /// `interval` ticks in the future. If there is a timer currently pending,
@@ -276,14 +276,14 @@ pub trait Timer<'a>: Time {
     /// unless a new timer is started (either with repeating or one shot).
     /// Returns the actual interval for the timer that was registered.
     /// This MUST NOT be smaller than `interval` but MAY be larger.
-    fn oneshot(&'a self, interval: Self::Ticks) -> Self::Ticks;
+    fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
 
     /// Start a repeating timer that will invoke the callback every
     /// `interval` ticks in the future. If there is a timer currently
     /// pending, calling this cancels that previous timer.
     /// Returns the actual interval for the timer that was registered.
     /// This MUST NOT be smaller than `interval` but MAY be larger.
-    fn repeating(&'a self, interval: Self::Ticks) -> Self::Ticks;
+    fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
 
     /// Return the interval of the last requested timer.
     fn interval(&self) -> Option<Self::Ticks>;

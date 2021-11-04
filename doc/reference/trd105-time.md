@@ -303,7 +303,7 @@ pub trait TimerClient {
 }
 
 pub trait Timer<'a>: Time {
-  fn set_timer_client(&'a self, &'a dyn TimerClient);
+  fn set_timer_client(&self, &'a dyn TimerClient);
   fn oneshot(&self, interval: Self::Ticks) -> Self::Ticks;
   fn repeating(&self, interval: Self::Ticks) -> Self::Ticks;
 
