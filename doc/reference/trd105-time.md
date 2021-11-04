@@ -188,7 +188,7 @@ pub trait Counter<'a>: Time {
   fn stop(&self) -> Result<(), ErrorCode>;
   fn reset(&self) -> Result<(), ErrorCode>;
   fn is_running(&self) -> bool;
-  fn set_overflow_client(&'a self, &'a dyn OverflowClient);
+  fn set_overflow_client(&self, &'a dyn OverflowClient);
 }
 ```
 

@@ -157,7 +157,7 @@ impl time::Time for TimG<'_> {
 }
 
 impl<'a> Counter<'a> for TimG<'a> {
-    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {
         // We have no way to know when this happens
     }
 
