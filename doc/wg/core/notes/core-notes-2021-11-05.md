@@ -50,11 +50,11 @@
   with the particular security profile you have.
 
 ## Issue #2882
-- Hudson: We have an item that Jeff put on which is talking about issue 2882 and
+- Hudson: We have an item that Jett put on which is talking about issue 2882 and
   some of the associated PRs around that as well. We're talking about solutions
   for a Miri issue from casting a reference to a `u8` to a reference to a
   `Cell<u8>`.
-- Jeff: I can kind of summarize like what happened and how we found that. We're
+- Jett: I can kind of summarize like what happened and how we found that. We're
   running Miri locally and found this issue. It is exposed by something I added
   in terms of having immutable references to `u8` slices and we wanted to single
   source code and have everything use `ReadOnlyProcessBuffer`. I added a casting
