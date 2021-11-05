@@ -1374,8 +1374,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
-        debug!("TBF Header");
-        debug!("{:?}", tbf_header);
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1464,7 +1462,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // The portion of the application binary covered by integrity.
         let covered_flash = app_flash.get(0..binary_end).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
         while footer_position < (total_size - 4) { // There needs to be space for a TLV 
-            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
+//            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
             let (footer, len) = tock_tbf::parse::parse_tbf_footer(remaining_flash)?;
             remaining_flash = remaining_flash.get(len as usize + 4..).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
             
@@ -1473,7 +1471,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
             footer_position += len as usize;
         }
-        debug!("Footers parsed.");
+            //debug!("Footers parsed.");
         if !credentials_approved && require_credentials {
             return Err(ProcessLoadError::CredentialsNoAccept);
         }
