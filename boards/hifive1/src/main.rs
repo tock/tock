@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
-use kernel::hil::time::Alarm;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -48,8 +47,11 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led:
-        &'static capsules::led::LedDriver<'static, LedLow<'static, sifive::gpio::GpioPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, sifive::gpio::GpioPin<'static>>,
+        3,
+    >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -88,6 +90,7 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -105,6 +108,9 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -162,14 +168,11 @@ pub unsafe fn main() {
     .finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, sifive::gpio::GpioPin>,
         LedLow::new(&peripherals.gpio_port[22]), // Red
         LedLow::new(&peripherals.gpio_port[19]), // Green
         LedLow::new(&peripherals.gpio_port[21]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, sifive::gpio::GpioPin>
     ));
 
     peripherals
@@ -194,10 +197,14 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
@@ -263,7 +270,6 @@ pub unsafe fn main() {
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     let hifive1 = HiFive1 {
         console: console,

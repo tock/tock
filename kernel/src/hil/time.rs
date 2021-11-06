@@ -216,7 +216,7 @@ pub trait Alarm<'a>: Time {
     /// Specify the callback for when the counter reaches the alarm
     /// value. If there was a previously installed callback this call
     /// replaces it.
-    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient);
+    fn set_alarm_client(&self, client: &'a dyn AlarmClient);
 
     /// Specify when the callback should be called and enable it. The
     /// callback will be enqueued when `Time::now() == reference + dt`. The

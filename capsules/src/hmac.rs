@@ -24,6 +24,7 @@
 //! ```
 
 use crate::driver;
+use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 
@@ -138,8 +139,9 @@ impl<
                             });
 
                             // Add the data from the static buffer to the HMAC
-                            let mut lease_buf =
-                                LeasableBuffer::new(self.data_buffer.take().unwrap());
+                            let mut lease_buf = LeasableBuffer::new(
+                                self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
+                            );
                             lease_buf.slice(0..static_buffer_len);
                             if let Err(e) = self.hmac.add_data(lease_buf) {
                                 self.data_buffer.replace(e.1);
@@ -156,7 +158,28 @@ impl<
     fn calculate_digest(&self) -> Result<(), ErrorCode> {
         self.data_copied.set(0);
 
-        if let Err(e) = self.hmac.run(self.dest_buffer.take().unwrap()) {
+        if let Err(e) = self
+            .hmac
+            .run(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
+        {
+            // Error, clear the appid and data
+            self.hmac.clear_data();
+            self.appid.clear();
+            self.dest_buffer.replace(e.1);
+
+            return Err(e.0);
+        }
+
+        Ok(())
+    }
+
+    fn verify_digest(&self) -> Result<(), ErrorCode> {
+        self.data_copied.set(0);
+
+        if let Err(e) = self
+            .hmac
+            .verify(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
+        {
             // Error, clear the appid and data
             self.hmac.clear_data();
             self.appid.clear();
@@ -195,7 +218,7 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
-    > digest::Client<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -275,10 +298,31 @@ impl<
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
                             upcalls
-                                .schedule_upcall(
-                                    0,
-                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                )
+                                .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
+                                .ok();
+                        }
+                    } else if app.op.get().unwrap() == UserSpaceOp::Verify {
+                        let _ = app.compare.enter(|compare| {
+                            let mut static_buffer_len = 0;
+                            self.dest_buffer.map(|buf| {
+                                // Determine the size of the static buffer we have
+                                static_buffer_len = buf.len();
+
+                                if static_buffer_len > compare.len() {
+                                    static_buffer_len = compare.len()
+                                }
+
+                                self.data_copied.set(static_buffer_len);
+
+                                // Copy the data into the static buffer
+                                compare[..static_buffer_len]
+                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                            });
+                        });
+
+                        if let Err(e) = self.verify_digest() {
+                            upcalls
+                                .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else {
@@ -296,7 +340,14 @@ impl<
 
         self.check_queue();
     }
+}
 
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
+{
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
@@ -317,14 +368,8 @@ impl<
 
                     match result {
                         Ok(_) => upcalls.schedule_upcall(0, (0, pointer as usize, 0)),
-                        Err(e) => upcalls.schedule_upcall(
-                            0,
-                            (
-                                kernel::errorcode::into_statuscode(e.into()),
-                                pointer as usize,
-                                0,
-                            ),
-                        ),
+                        Err(e) => upcalls
+                            .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0)),
                     }
                     .ok();
 
@@ -342,6 +387,41 @@ impl<
 
         self.check_queue();
         self.dest_buffer.replace(digest);
+    }
+}
+
+impl<
+        'a,
+        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        const L: usize,
+    > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
+{
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+        self.appid.map(|id| {
+            self.apps
+                .enter(*id, |_app, upcalls| {
+                    self.hmac.clear_data();
+
+                    match result {
+                        Ok(equal) => upcalls.schedule_upcall(1, (0, equal as usize, 0)),
+                        Err(e) => upcalls.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
+                    }
+                    .ok();
+
+                    // Clear the current appid as it has finished running
+                    self.appid.clear();
+                })
+                .map_err(|err| {
+                    if err == kernel::process::Error::NoSuchApp
+                        || err == kernel::process::Error::InactiveApp
+                    {
+                        self.appid.clear();
+                    }
+                })
+        });
+
+        self.check_queue();
+        self.dest_buffer.replace(compare);
     }
 }
 
@@ -398,28 +478,33 @@ impl<
         allow_num: usize,
         mut slice: ReadOnlyProcessBuffer,
     ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the key to be in
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.key, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+        let res = self
+            .apps
+            .enter(appid, |app, _| {
+                match allow_num {
+                    // Pass buffer for the key to be in
+                    0 => {
+                        mem::swap(&mut app.key, &mut slice);
+                        Ok(())
+                    }
 
-            // Pass buffer for the data to be in
-            1 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.data, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
+                    // Pass buffer for the data to be in
+                    1 => {
+                        mem::swap(&mut app.data, &mut slice);
+                        Ok(())
+                    }
 
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
+                    // Compare buffer for verify
+                    2 => {
+                        mem::swap(&mut app.compare, &mut slice);
+                        Ok(())
+                    }
+
+                    // default
+                    _ => Err(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or(Err(ErrorCode::FAIL));
 
         match res {
             Ok(()) => Ok(slice),
@@ -510,11 +595,47 @@ impl<
             }
         });
 
-        match command_num {
-            // set_algorithm
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
+        // Try the commands where we want to start an operation *not* entered in
+        // an app grant first.
+        if match_or_empty_or_nonexistant
+            && (command_num == 1 || command_num == 2 || command_num == 4)
+        {
+            self.appid.set(appid);
+
+            let _ = self.apps.enter(appid, |app, _| {
+                if command_num == 1 {
+                    // run
+                    // Use key and data to compute hash
+                    // This will trigger a callback once the digest is generated
+                    app.op.set(Some(UserSpaceOp::Run));
+                } else if command_num == 2 {
+                    // update
+                    // Input key and data, don't compute final hash yet
+                    // This will trigger a callback once the data has been added.
+                    app.op.set(Some(UserSpaceOp::Update));
+                } else if command_num == 4 {
+                    // verify
+                    // Use key and data to compute hash and comapre it against
+                    // the digest
+                    app.op.set(Some(UserSpaceOp::Verify));
+                }
+            });
+
+            return if let Err(e) = self.run() {
+                self.hmac.clear_data();
+                self.appid.clear();
+                self.check_queue();
+                CommandReturn::failure(e)
+            } else {
+                CommandReturn::success()
+            };
+        }
+
+        self.apps
+            .enter(appid, |app, upcalls| {
+                match command_num {
+                    // set_algorithm
+                    0 => {
                         match data1 {
                             // SHA256
                             0 => {
@@ -533,94 +654,42 @@ impl<
                             }
                             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                         }
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-
-            // run
-            // Use key and data to compute hash
-            // This will trigger a callback once the digest is generated
-            1 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| {
-                        app.op.set(Some(UserSpaceOp::Run));
-                    });
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.hmac.clear_data();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
                     }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                app.op.set(Some(UserSpaceOp::Run));
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
 
-            // update
-            // Input key and data, don't compute final hash yet
-            // This will trigger a callback once the data has been added.
-            2 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| {
-                        app.op.set(Some(UserSpaceOp::Update));
-                    });
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.hmac.clear_data();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
+                    // run
+                    1 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Run));
+                            CommandReturn::success()
+                        }
                     }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                app.op.set(Some(UserSpaceOp::Update));
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
 
-            // finish
-            // Compute final hash yet, useful after a update command
-            3 => {
-                if app_match {
-                    self.apps
-                        .enter(appid, |_app, upcalls| {
+                    // update
+                    2 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Update));
+                            CommandReturn::success()
+                        }
+                    }
+
+                    // finish
+                    // Compute final hash yet, useful after a update command
+                    3 => {
+                        if app_match {
                             if let Err(e) = self.calculate_digest() {
                                 upcalls
                                     .schedule_upcall(
@@ -629,19 +698,70 @@ impl<
                                     )
                                     .ok();
                             }
-                        })
-                        .unwrap();
-                    CommandReturn::success()
-                } else {
-                    // We don't queue this request, the user has to call
-                    // `update` first.
-                    CommandReturn::failure(ErrorCode::OFF)
-                }
-            }
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `update` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
+                    }
 
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
+                    // verify
+                    4 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Verify));
+                            CommandReturn::success()
+                        }
+                    }
+
+                    // verify_finish
+                    // Use key and data to compute hash and comapre it against
+                    // the digest, useful after a update command
+                    5 => {
+                        if app_match {
+                            let _ = app.compare.enter(|compare| {
+                                let mut static_buffer_len = 0;
+                                self.dest_buffer.map(|buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
+
+                                    if static_buffer_len > compare.len() {
+                                        static_buffer_len = compare.len()
+                                    }
+
+                                    self.data_copied.set(static_buffer_len);
+
+                                    // Copy the data into the static buffer
+                                    compare[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                });
+                            });
+
+                            if let Err(e) = self.verify_digest() {
+                                upcalls
+                                    .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
+                                    .ok();
+                            }
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `update` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
+                    }
+
+                    // default
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
@@ -653,6 +773,7 @@ impl<
 enum UserSpaceOp {
     Run,
     Update,
+    Verify,
 }
 
 #[derive(Default)]
@@ -663,4 +784,5 @@ pub struct App {
     key: ReadOnlyProcessBuffer,
     data: ReadOnlyProcessBuffer,
     dest: ReadWriteProcessBuffer,
+    compare: ReadOnlyProcessBuffer,
 }

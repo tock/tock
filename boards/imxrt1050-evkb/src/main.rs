@@ -77,7 +77,11 @@ struct Imxrt1050EVKB {
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
-    led: &'static capsules::led::LedDriver<'static, LedLow<'static, imxrt1050::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, imxrt1050::gpio::Pin<'static>>,
+        1,
+    >,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -112,6 +116,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -129,6 +134,9 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -329,12 +337,9 @@ pub unsafe fn main() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, imxrt1050::gpio::Pin<'static>>
     ));
 
     // BUTTONs
@@ -478,9 +483,14 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //---------------------------------------------------------------------------
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, lpuart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        lpuart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        imxrt1050::gpt::Gpt1
+    ));
     let _ = process_console.start();
 
     debug!("Tock OS initialization complete. Entering main loop");

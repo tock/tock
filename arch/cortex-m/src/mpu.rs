@@ -252,6 +252,14 @@ pub struct CortexMRegion {
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
 
+impl PartialEq<mpu::Region> for CortexMRegion {
+    fn eq(&self, other: &mpu::Region) -> bool {
+        self.location.map_or(false, |(addr, size)| {
+            addr == other.start_address() && size == other.size()
+        })
+    }
+}
+
 impl CortexMRegion {
     fn new(
         logical_start: *const u8,
@@ -512,6 +520,28 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         config.is_dirty.set(true);
 
         Some(mpu::Region::new(start as *const u8, size))
+    }
+
+    fn remove_memory_region(
+        &self,
+        region: mpu::Region,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        let (idx, _r) = config
+            .regions
+            .iter()
+            .enumerate()
+            .find(|(_idx, r)| **r == region)
+            .ok_or(())?;
+
+        if idx == APP_MEMORY_REGION_NUM {
+            return Err(());
+        }
+
+        config.regions[idx] = CortexMRegion::empty(idx);
+        config.is_dirty.set(true);
+
+        Ok(())
     }
 
     fn allocate_app_memory_region(

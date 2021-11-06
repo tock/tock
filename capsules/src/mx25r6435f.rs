@@ -29,6 +29,8 @@
 //!     VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     VirtualMuxAlarm::new(mux_alarm)
 //! );
+//! mx25r6435f_virtual_alarm.setup();
+//!
 //! // Setup the actual MX25R6435F driver.
 //! let mx25r6435f = static_init!(
 //!     capsules::mx25r6435f::MX25R6435F<

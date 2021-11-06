@@ -147,8 +147,11 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     proximity: &'static capsules::proximity::ProximitySensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, nrf52::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
+        2,
+    >,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     screen: &'static capsules::screen::Screen<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -203,6 +206,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -220,6 +224,9 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -320,13 +327,10 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_WHITE_PIN])
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, nrf52840::gpio::GPIOPin>
     ));
 
     //--------------------------------------------------------------------------
@@ -400,6 +404,8 @@ pub unsafe fn main() {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_buzzer.setup();
+
     let buzzer = static_init!(
         capsules::buzzer_driver::Buzzer<
             'static,
@@ -672,9 +678,7 @@ pub unsafe fn main() {
     );
     base_peripherals.ecb.set_client(aes_mux);
     aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(aes_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
@@ -695,9 +699,14 @@ pub unsafe fn main() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        nrf52840::rtc::Rtc
+    ));
     let _ = pconsole.start();
 
     //--------------------------------------------------------------------------

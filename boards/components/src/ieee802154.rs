@@ -29,7 +29,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::radio;
-use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM};
+use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 use kernel::{create_capability, static_init, static_init_half};
 
 // Setup static space for the objects.
@@ -56,7 +56,7 @@ macro_rules! ieee802154_component_helper {
 
 pub struct Ieee802154Component<
     R: 'static + kernel::hil::radio::Radio,
-    A: 'static + AES128<'static> + AES128Ctr + AES128CBC,
+    A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -69,7 +69,7 @@ pub struct Ieee802154Component<
 
 impl<
         R: 'static + kernel::hil::radio::Radio,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC,
+        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
     > Ieee802154Component<R, A>
 {
     pub fn new(
@@ -105,7 +105,7 @@ static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl<
         R: 'static + kernel::hil::radio::Radio,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC,
+        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
     > Component for Ieee802154Component<R, A>
 {
     type StaticInput = (
@@ -134,7 +134,6 @@ impl<
         );
 
         aes_ccm.setup();
-        self.aes_mux.enable();
 
         // Keeps the radio on permanently; pass-through layer
         let awake_mac = static_init_half!(
@@ -154,7 +153,7 @@ impl<
             >,
             capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
         );
-        aes_ccm.set_client(mac_device);
+        AES128CCM::set_client(aes_ccm, mac_device);
         awake_mac.set_transmit_client(mac_device);
         awake_mac.set_receive_client(mac_device);
         awake_mac.set_config_client(mac_device);
@@ -189,9 +188,7 @@ impl<
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
         radio_driver.initialize_callback_handle(
-            self.deferred_caller
-                .register(radio_driver)
-                .expect("no deferred call slot available for ieee802154 driver"),
+            self.deferred_caller.register(radio_driver).unwrap(), // Unwrap fail = no deferred call slot available for ieee802154 driver
         );
 
         (radio_driver, mux_mac)

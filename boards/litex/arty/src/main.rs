@@ -107,6 +107,7 @@ struct LiteXArty {
     led_driver: &'static capsules::led::LedDriver<
         'static,
         litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
+        4,
     >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
@@ -174,6 +175,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         >,
     >;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -191,6 +193,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -305,6 +310,8 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
@@ -338,6 +345,7 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<
@@ -353,7 +361,6 @@ pub unsafe fn main() {
         >,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     // ---------- UART ----------
 
@@ -373,9 +380,7 @@ pub unsafe fn main() {
         )
     );
     uart0.initialize(
-        dynamic_deferred_caller
-            .register(uart0)
-            .expect("dynamic deferred caller out of slots"),
+        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
     PANIC_REFERENCES.uart = Some(uart0);
@@ -416,16 +421,14 @@ pub unsafe fn main() {
     // ---------- LED DRIVER ----------
 
     // LEDs
-    let led_driver = components::led::LedsComponent::new(components::led_component_helper!(
-        litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
-        led0.get_led(0).unwrap(),
-        led0.get_led(1).unwrap(),
-        led0.get_led(2).unwrap(),
-        led0.get_led(3).unwrap(),
-    ))
-    .finalize(components::led_component_buf!(
-        litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>
-    ));
+    let led_driver =
+        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+            litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
+            led0.get_led(0).unwrap(),
+            led0.get_led(1).unwrap(),
+            led0.get_led(2).unwrap(),
+            led0.get_led(3).unwrap(),
+        ));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 

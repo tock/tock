@@ -51,6 +51,7 @@ struct NucleoF429ZI {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
+        3,
     >,
     button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
@@ -99,6 +100,7 @@ impl
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -116,6 +118,9 @@ impl
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -346,14 +351,11 @@ pub unsafe fn main() {
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, stm32f429zi::gpio::Pin>,
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap()),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, stm32f429zi::gpio::Pin>
     ));
 
     // BUTTONs
@@ -546,9 +548,15 @@ pub unsafe fn main() {
             ));
 
     // PROCESS CONSOLE
-    let _process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f429zi::tim2::Tim2
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
@@ -577,7 +585,6 @@ pub unsafe fn main() {
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Initialization complete. Entering main loop");
-    let _ = _process_console.start();
 
     /// These symbols are defined in the linker script.
     extern "C" {

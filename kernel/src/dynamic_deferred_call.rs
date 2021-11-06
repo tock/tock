@@ -37,7 +37,7 @@
 //!     DynamicDeferredCall,
 //!     DynamicDeferredCall::new(dynamic_deferred_call_clients)
 //! ) };
-//! assert!(unsafe { DynamicDeferredCall::set_global_instance(dynamic_deferred_call) }, true);
+//! assert!(unsafe { DynamicDeferredCall::set_global_instance(dynamic_deferred_call) } == true);
 //!
 //! # struct SomeCapsule;
 //! # impl SomeCapsule {
@@ -61,7 +61,7 @@
 //!     SomeCapsule::new(dynamic_deferred_call)
 //! ) };
 //! some_capsule.set_deferred_call_handle(
-//!     dynamic_deferred_call.register(some_capsule).expect("no deferred call slot available")
+//!     dynamic_deferred_call.register(some_capsule).unwrap() // Unwrap fail = no deferred call slot available
 //! );
 //! ```
 

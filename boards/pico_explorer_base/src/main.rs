@@ -72,7 +72,7 @@ pub struct PicoExplorerBase {
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>>,
+    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
 
@@ -112,6 +112,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -129,6 +130,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -365,12 +369,9 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, RPGpioPin<'static>>
     ));
 
     peripherals.adc.init();
@@ -494,9 +495,12 @@ pub unsafe fn main() {
                 adc_channel_2,
             ));
     // PROCESS CONSOLE
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(RPTimer));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)

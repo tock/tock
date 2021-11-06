@@ -53,6 +53,7 @@ struct RedboardArtemisNano {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, apollo3::gpio::GpioPin<'static>>,
+        1,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
@@ -91,6 +92,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -108,6 +110,9 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -148,11 +153,11 @@ pub unsafe fn main() {
     pwr_ctrl.enable_iom2();
 
     // Enable PinCfg
-    &peripherals
+    let _ = &peripherals
         .gpio_port
         .enable_uart(&&peripherals.gpio_port[48], &&peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C2 (exposed via Qwiic)
-    &peripherals
+    let _ = &peripherals
         .gpio_port
         .enable_i2c(&&peripherals.gpio_port[25], &&peripherals.gpio_port[27]);
 
@@ -182,12 +187,9 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, apollo3::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[19]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, apollo3::gpio::GpioPin>
     ));
 
     // GPIOs
@@ -229,17 +231,17 @@ pub unsafe fn main() {
         )
     );
 
-    &peripherals.iom2.set_master_client(i2c_master);
-    &peripherals.iom2.enable();
+    let _ = &peripherals.iom2.set_master_client(i2c_master);
+    let _ = &peripherals.iom2.enable();
 
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
     pwr_ctrl.enable_ble();
-    &peripherals.ble.setup_clocks();
+    let _ = &peripherals.ble.setup_clocks();
     mcu_ctrl.reset_ble();
-    &peripherals.ble.power_up();
-    &peripherals.ble.ble_initialise();
+    let _ = &peripherals.ble.power_up();
+    let _ = &peripherals.ble.ble_initialise();
 
     let ble_radio = ble::BLEComponent::new(
         board_kernel,

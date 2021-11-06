@@ -16,6 +16,8 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
+    LowLevelDebug         = 0x00008,
+    ReadOnlyState         = 0x00009,
 
     // Kernel
     Ipc                   = 0x10000,
@@ -38,6 +40,7 @@ pub enum NUM {
     Hmac                  = 0x40003,
     CtapHid               = 0x40004,
     Sha                   = 0x40005,
+    Aes                   = 0x40006,
 
     // Storage
     AppFlash              = 0x50000,

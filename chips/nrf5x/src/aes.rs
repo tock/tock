@@ -124,8 +124,8 @@ pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
-    input: TakeCell<'a, [u8]>,
-    output: TakeCell<'a, [u8]>,
+    input: TakeCell<'static, [u8]>,
+    output: TakeCell<'static, [u8]>,
     /// Keystream to be XOR'ed with the input.
     keystream: Cell<[u8; MAX_LENGTH]>,
     current_idx: Cell<usize>,
@@ -294,12 +294,16 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     // start_index and stop_index not used!!!
     // assuming that
     fn crypt(
-        &'a self,
-        source: Option<&'a mut [u8]>,
-        dest: &'a mut [u8],
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )> {
         match source {
             None => Some((Err(ErrorCode::INVAL), source, dest)),
             Some(src) => {
@@ -321,6 +325,13 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
                 }
             }
         }
+    }
+}
+
+impl kernel::hil::symmetric_encryption::AES128ECB for AesECB<'_> {
+    // not needed by NRF5x (the configuration is the same for encryption and decryption)
+    fn set_mode_aes128ecb(&self, _encrypting: bool) -> Result<(), ErrorCode> {
+        Ok(())
     }
 }
 

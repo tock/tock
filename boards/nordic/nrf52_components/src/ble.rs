@@ -56,6 +56,7 @@ impl Component for BLEComponent {
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
             capsules::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm)
         );
+        ble_radio_virtual_alarm.setup();
 
         let ble_radio = static_init!(
             capsules::ble_advertising_driver::BLE<

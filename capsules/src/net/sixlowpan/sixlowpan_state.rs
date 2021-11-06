@@ -772,7 +772,7 @@ impl<'a> RxState<'a> {
                 .map(|packet| {
                     client.receive(&packet, self.dgram_size.get() as usize, result);
                 })
-                .expect("Error: `packet` is None in call to end_receive.");
+                .unwrap(); // Unwrap fail = Error: `packet` is None in call to end_receive.
         });
     }
 }
@@ -927,10 +927,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             // The packet buffer should *always* be there; in particular,
             // since this state is not busy, it must have the packet buffer.
             // Otherwise, we are in an inconsistent state and can fail.
-            let mut packet = state.packet.take().expect(
-                "Error: `packet` in RxState struct is `None` \
-                 in call to `receive_single_packet`.",
-            );
+            let mut packet = state.packet.take().unwrap();
             if is_lowpan(payload) {
                 let decompressed = sixlowpan_compression::decompress(
                     &self.ctx_store,

@@ -60,10 +60,10 @@ impl<Output, Error> SResult<Output, Error> {
 #[macro_export]
 macro_rules! stream_done {
     ($bytes:expr, $out:expr) => {
-        return SResult::Done($bytes, $out);
+        return SResult::Done($bytes, $out)
     };
     ($bytes:expr) => {
-        stream_done!($bytes, ());
+        stream_done!($bytes, ())
     };
 }
 
@@ -81,10 +81,10 @@ macro_rules! stream_len_cond {
 #[macro_export]
 macro_rules! stream_err {
     ($err:expr) => {
-        return SResult::Error($err);
+        return SResult::Error($err)
     };
     () => {
-        stream_err!(());
+        stream_err!(())
     };
 }
 
@@ -111,7 +111,7 @@ macro_rules! stream_from_option {
         }
     };
     ($opt:expr) => {
-        stream_from_option!($opt, ());
+        stream_from_option!($opt, ())
     };
 }
 

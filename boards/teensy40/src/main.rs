@@ -35,8 +35,11 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 /// Teensy 4 platform
 struct Teensy40 {
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, imxrt1060::gpio::Pin<'static>>,
+        1,
+    >,
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -72,6 +75,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -89,6 +93,9 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -269,12 +276,9 @@ pub unsafe fn main() {
     .finalize(());
 
     // LED
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, imxrt1060::gpio::Pin>
     ));
 
     // Alarm

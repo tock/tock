@@ -106,6 +106,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
@@ -115,8 +116,11 @@ struct Imix {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
+        1,
+    >,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
@@ -191,6 +195,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -208,6 +213,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -355,7 +363,16 @@ pub unsafe fn main() {
     let uart_mux =
         UartMuxComponent::new(&peripherals.usart3, 115200, dynamic_deferred_caller).finalize(());
 
-    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // # TIMER
+    let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+    peripherals.ast.configure(mux_alarm);
+    let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
+        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm).finalize(
+        components::process_console_component_helper!(sam4l::ast::Ast),
+    );
     let console =
         ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
@@ -369,13 +386,6 @@ pub unsafe fn main() {
         &peripherals.pb[07],
     )
     .finalize(());
-
-    // # TIMER
-    let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
-        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
-    peripherals.ast.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
-        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
@@ -450,12 +460,9 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedsComponent::new(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, sam4l::gpio::GPIOPin>,
         LedHigh::new(&peripherals.pc[10]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, sam4l::gpio::GPIOPin>
     ));
 
     let button = components::button::ButtonComponent::new(
@@ -522,9 +529,7 @@ pub unsafe fn main() {
     );
     peripherals.aes.set_client(aes_mux);
     aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(aes_mux)
-            .expect("no deferred call slot available for ccm mux"),
+        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
 
     // Can this initialize be pushed earlier, or into component? -pal
@@ -684,6 +689,7 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_timer.setup();
 
     let mux_timer = static_init!(
         MuxTimer<'static, sam4l::ast::Ast>,

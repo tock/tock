@@ -47,8 +47,11 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedLow<'static, stm32f412g::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, stm32f412g::gpio::Pin<'static>>,
+        4,
+    >,
     button: &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -102,6 +105,7 @@ impl
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -119,6 +123,9 @@ impl
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -458,7 +465,7 @@ pub unsafe fn main() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, stm32f412g::gpio::Pin>,
         LedLow::new(
             base_peripherals
@@ -484,9 +491,6 @@ pub unsafe fn main() {
                 .get_pin(stm32f412g::gpio::PinId::PE03)
                 .unwrap()
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, stm32f412g::gpio::Pin>
     ));
 
     // BUTTONs
@@ -729,9 +733,15 @@ pub unsafe fn main() {
             ));
 
     // PROCESS CONSOLE
-    let _process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f412g::tim2::Tim2
+    ));
+    let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
@@ -765,7 +775,6 @@ pub unsafe fn main() {
     // debug!("id {}", base_peripherals.fsmc.read(0x05));
 
     debug!("Initialization complete. Entering main loop");
-    let _ = _process_console.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

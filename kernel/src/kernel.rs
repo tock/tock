@@ -18,6 +18,7 @@ use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
+use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -616,8 +617,10 @@ impl Kernel {
                     // process. Arming the scheduler timer instructs it to
                     // generate an interrupt when the timeslice has expired. The
                     // underlying timer is not affected.
+                    resources
+                        .context_switch_callback()
+                        .context_switch_hook(process);
                     process.setup_mpu();
-
                     chip.mpu().enable_app_mpu();
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();
@@ -795,6 +798,15 @@ impl Kernel {
                 if let Err(response) = resources.syscall_filter().filter_syscall(process, &syscall)
                 {
                     process.set_syscall_return_value(SyscallReturn::Failure(response));
+
+                    if config::CONFIG.trace_syscalls {
+                        debug!(
+                            "[{:?}] Filtered: {:?} was rejected with {:?}",
+                            process.processid(),
+                            syscall,
+                            response
+                        );
+                    }
 
                     return;
                 }
@@ -1122,6 +1134,79 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(res);
             }
+            Syscall::UserspaceReadableAllow {
+                driver_number,
+                subdriver_number,
+                allow_address,
+                allow_size,
+            } => {
+                let res = resources
+                    .syscall_driver_lookup()
+                    .with_driver(driver_number, |driver| match driver {
+                        Some(d) => {
+                            // Try to create an appropriate [`UserspaceReadableProcessBuffer`].
+                            // This method will ensure that the memory in question
+                            // is located in the process-accessible memory space.
+                            match process.build_readwrite_process_buffer(allow_address, allow_size)
+                            {
+                                Ok(rw_pbuf) => {
+                                    // Creating the [`UserspaceReadableProcessBuffer`] worked,
+                                    // provide it to the capsule.
+                                    match d.allow_userspace_readable(
+                                        process.processid(),
+                                        subdriver_number,
+                                        rw_pbuf,
+                                    ) {
+                                        Ok(returned_pbuf) => {
+                                            // The capsule has accepted the allow
+                                            // operation. Pass the previous buffer
+                                            // information back to the process.
+                                            let (ptr, len) = returned_pbuf.consume();
+                                            SyscallReturn::UserspaceReadableAllowSuccess(ptr, len)
+                                        }
+                                        Err((rejected_pbuf, err)) => {
+                                            // The capsule has rejected the allow
+                                            // operation. Pass the new buffer information
+                                            // back to the process.
+                                            let (ptr, len) = rejected_pbuf.consume();
+                                            SyscallReturn::UserspaceReadableAllowFailure(
+                                                err, ptr, len,
+                                            )
+                                        }
+                                    }
+                                }
+                                Err(allow_error) => {
+                                    // There was an error creating the [`UserspaceReadableProcessBuffer`].
+                                    // Report back to the process.
+                                    SyscallReturn::UserspaceReadableAllowFailure(
+                                        allow_error,
+                                        allow_address,
+                                        allow_size,
+                                    )
+                                }
+                            }
+                        }
+
+                        None => SyscallReturn::UserspaceReadableAllowFailure(
+                            ErrorCode::NODEVICE,
+                            allow_address,
+                            allow_size,
+                        ),
+                    });
+
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] userspace readable allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        process.processid(),
+                        driver_number,
+                        subdriver_number,
+                        allow_address as usize,
+                        allow_size,
+                        res
+                    );
+                }
+                process.set_syscall_return_value(res);
+            }
             Syscall::ReadOnlyAllow {
                 driver_number,
                 subdriver_number,
@@ -1198,9 +1283,9 @@ impl Kernel {
                 completion_code,
             } => match which {
                 // The process called the `exit-terminate` system call.
-                0 => process.terminate(completion_code as u32),
+                0 => process.terminate(Some(completion_code as u32)),
                 // The process called the `exit-restart` system call.
-                1 => process.try_restart(completion_code as u32),
+                1 => process.try_restart(Some(completion_code as u32)),
                 // The process called an invalid variant of the Exit
                 // system call class.
                 _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),

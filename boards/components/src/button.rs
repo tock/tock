@@ -2,6 +2,13 @@
 //!
 //! Usage
 //! -----
+//!
+//! The `button_component_helper!` macro takes 'static references to GPIO
+//! pins. When GPIO instances are owned values, the
+//! `button_component_helper_owned!` can be used, indicating that the passed
+//! values are owned values. This macro will perform static allocation of the
+//! passed in GPIO pins internally.
+//!
 //! ```rust
 //! let button = components::button::ButtonComponent::new(
 //!     board_kernel,
@@ -30,6 +37,20 @@ use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
 use kernel::static_init_half;
+
+#[macro_export]
+macro_rules! button_component_helper_owned {
+    ($Pin:ty, $(($P:expr, $M:expr, $F:expr)),+ $(,)?) => {
+        $crate::button_component_helper!(
+            $Pin,
+            $((
+                static_init!($Pin, $P),
+                $M,
+                $F
+            ),)*
+        )
+    };
+}
 
 #[macro_export]
 macro_rules! button_component_helper {

@@ -71,6 +71,7 @@ pub struct Platform {
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
+        4,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -122,6 +123,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -139,6 +141,9 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -223,15 +228,12 @@ pub unsafe fn main() {
     //
     // LEDs
     //
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED4_PIN]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52832::gpio::GPIOPin>
     ));
 
     //
@@ -290,6 +292,7 @@ pub unsafe fn main() {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+    alarm_driver_virtual_alarm.setup();
 
     // Userspace timer driver
     let alarm = static_init!(
@@ -503,6 +506,8 @@ pub unsafe fn main() {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_buzzer.setup();
+
     let buzzer = static_init!(
         capsules::buzzer_driver::Buzzer<
             'static,

@@ -3,7 +3,7 @@
 ## Abstract
 
 This document describes how the Tock [core working group](./wg/core/README.md)
-merges pull requests for and makes releases of the main Tock repository.
+merges pull requests for the main Tock repository.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
 
@@ -20,7 +20,6 @@ merges pull requests for and makes releases of the main Tock repository.
       - [`ci-runner-*[-*]`](#ci-runner--)
       - [`ci-all`](#ci-all)
 - [4. Reviews](#4-reviews)
-- [5. Release Process](#5-release-process)
 - [Other Tock Repositories](#other-tock-repositories)
   * [Userland Repositories](#userland-repositories)
   * [Tertiary Repositories](#tertiary-repositories)
@@ -186,29 +185,6 @@ Core team members enter their votes through GitHub's comment system. An
 Comment" vote and a "Request Changes" is considered a "Discuss". If, after
 discussion, non-trivial changes are necessary for the pull request, the review
 window is re-started after the changes are made.
-
-## 5. Release Process
-
-Tock releases are milestone-based, with a rough expectation that a new release
-of Tock would occur every 3-12 months. Before a release, a set of issues are
-tagged with the `release-blocker` tag, and the release will be tested when all
-of the release-blocker issues are closed. One week before the intended release
-date, all new pull requests are put on hold, and everyone uses/tests the
-software using the established testing process. Bug fixes for the release are
-marked as such (in the title) and applied quickly. Once the release is ready,
-the core team makes a branch with the release number and pull request reviews
-restart.
-
-Release branches are named `release-[version]`. For example, 'release-1.4.1'.
-
-Patches may be made against release branches to fix bugs.
-
-Note: Previously, Tock operated with a time-based release policy with the goal
-of creating a release every two months. The intent was these periodic stable
-releases would make it easier for users to install and track changes to Tock.
-However, the overhead of keeping to that schedule was too daunting to make the
-releases reliably timed, and it often did not fit well with the inclusion of
-major features which might be in-flight at a release point.
 
 ## Other Tock Repositories
 

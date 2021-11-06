@@ -525,12 +525,12 @@ struct TWISClock {
 }
 impl ClockInterface for TWISClock {
     fn is_enabled(&self) -> bool {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         slave_clock.is_enabled()
     }
 
     fn enable(&self) {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         if self.master.is_enabled() {
             panic!("I2C: Request for slave clock, but master active");
         }
@@ -538,7 +538,7 @@ impl ClockInterface for TWISClock {
     }
 
     fn disable(&self) {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         slave_clock.disable();
     }
 }
@@ -597,10 +597,7 @@ impl PeripheralManagement<TWISClock> for I2CHw {
     type RegisterType = TWISRegisters;
 
     fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
-        &*self
-            .slave_mmio_address
-            .as_ref()
-            .expect("Access of non-existent slave")
+        &*self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
     }
 
     fn get_clock(&self) -> &TWISClock {

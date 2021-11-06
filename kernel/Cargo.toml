@@ -2,9 +2,30 @@
 name = "kernel"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
+
+# In general, Tock discourages the use of cargo features. However for certain
+# kernel crate configuration, we have not found reasonable alternatives to
+# setting boolean values in kernel/src/config.rs. To make those settings configurable
+# without requiring users to modify the kernel crate itself, we allow configuration of
+# the values of the global CONFIG constant in kernel/src/config.rs via these features.
+# Other uses of cargo features are disallowed.
+#
+# To use these features, modify your dependency on the kernel crate as follows:
+# ```rust
+# [dependencies]
+# kernel = { path = "../../kernel", features = ["no_debug_panics"] }
+# ```
+#
+# You should only modify the dependency on the kernel crate from your "board"
+# crate, as feature unification will ensure that a feature being set by a single
+# crate will lead to the feature being enabled for that dependency.
+[features]
+trace_syscalls = []
+debug_load_processes = []
+no_debug_panics = []

@@ -178,6 +178,7 @@ impl<A: Alarm<'static> + 'static> Component for UDPMuxComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        ipsender_virtual_alarm.setup();
 
         let udp_mac = static_init_half!(
             static_buffer.1,

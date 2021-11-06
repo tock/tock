@@ -11,7 +11,8 @@ members = [
     "boards/acd52832",
     "boards/nano_rp2040_connect",
     "boards/arty_e21",
-    "boards/earlgrey-nexysvideo",
+    "boards/opentitan/earlgrey-cw310",
+    "boards/opentitan/earlgrey-nexysvideo",
     "boards/esp32-c3-devkitM-1",
     "boards/clue_nrf52840",
     "boards/hail",
@@ -74,6 +75,8 @@ members = [
 exclude = [
     "tools/alert_codes",
     "tools/board-runner",
+    "tools/qemu",
+    "tools/litex-ci-runner",
     "tools/qemu-runner",
     "tools/sha256sum",
     "tools/usb/bulk-echo",

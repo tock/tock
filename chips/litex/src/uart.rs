@@ -185,7 +185,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     fn deferred_rx_abort(&self) {
         // The RX event has already been disabled
         // Just return the buffer to the client
-        let buffer = self.rx_buffer.take().expect("no rx buffer");
+        let buffer = self.rx_buffer.take().unwrap(); // Unwrap fail = no rx buffer
         let progress = self.rx_progress.get();
 
         self.rx_client.map(move |client| {
@@ -196,7 +196,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     fn rx_data(&self) {
         // New data is available for reception
         let ev = self.uart_regs.ev();
-        let buffer = self.rx_buffer.take().expect("no rx buffer");
+        let buffer = self.rx_buffer.take().unwrap(); // Unwrap fail = no rx buffer
         let len = self.rx_len.get();
         let mut progress = self.rx_progress.get();
 
@@ -227,7 +227,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     fn deferred_tx_abort(&self) {
         // The TX event has already been disabled
         // Just return the buffer to the client
-        let buffer = self.tx_buffer.take().expect("no tx buffer");
+        let buffer = self.tx_buffer.take().unwrap(); // Unwrap fail = no tx buffer
         let progress = self.tx_progress.get();
 
         self.tx_client
@@ -243,7 +243,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
 
         let len = self.tx_len.get();
         let mut progress = self.tx_progress.get();
-        let buffer = self.tx_buffer.take().expect("no tx buffer");
+        let buffer = self.tx_buffer.take().unwrap(); // Unwrap fail = no tx buffer
 
         // Try to transmit any remaining data
 

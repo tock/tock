@@ -54,6 +54,7 @@ struct ArtyE21 {
     led: &'static capsules::led::LedDriver<
         'static,
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+        3,
     >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
@@ -89,6 +90,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type Scheduler = PrioritySched;
     type SchedulerTimer = ();
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -106,6 +108,9 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -189,14 +194,11 @@ pub unsafe fn main() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
         hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
         hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
         hil::led::LedHigh::new(&peripherals.gpio_port[0]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>
     ));
 
     // BUTTONs

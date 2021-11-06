@@ -40,11 +40,35 @@ pub(crate) struct Config {
     /// into which SRAM addresses. This can be useful to debug whether the kernel could
     /// successfully load processes, and whether the allocated SRAM is as expected.
     pub(crate) debug_load_processes: bool,
+
+    /// Whether the kernel should output additional debug information on panics.
+    ///
+    /// If enabled, the kernel will include implementations of `Process::print_full_process()` and
+    /// `Process::print_memory_map()` that display the process's state in a human-readable
+    /// form.
+    // This config option is intended to allow for smaller kernel builds (in
+    // terms of code size) where printing code is removed from the kernel
+    // binary. Ideally, the compiler would automatically remove
+    // printing/debugging functions if they are never called, but due to
+    // limitations in Rust (as of Sep 2021) that does not happen if the
+    // functions are part of a trait (see
+    // https://github.com/tock/tock/issues/2594).
+    //
+    // Attempts to separate the printing/debugging code from the Process trait
+    // have only been moderately successful (see
+    // https://github.com/tock/tock/pull/2826 and
+    // https://github.com/tock/tock/pull/2759). Until a more complete solution
+    // is identified, using configuration constants is the most effective
+    // option.
+    pub(crate) debug_panics: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
+/// Notably, this is the only location in the Tock kernel where we permit `#[cfg(x)]`
+/// to be used to configure code based on Cargo features.
 pub(crate) const CONFIG: Config = Config {
-    trace_syscalls: true,
-    debug_load_processes: false,
+    trace_syscalls: cfg!(feature = "trace_syscalls"),
+    debug_load_processes: cfg!(feature = "debug_load_processes"),
+    debug_panics: !cfg!(feature = "no_debug_panics"),
 };

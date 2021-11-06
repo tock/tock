@@ -140,6 +140,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        VirtualMuxAlarm<'static, Rtc<'static>>,
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static>,
@@ -147,6 +148,7 @@ pub struct Platform {
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
+        4,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -193,6 +195,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self
@@ -210,6 +213,9 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
 }
@@ -294,15 +300,12 @@ pub unsafe fn main() {
     )
     .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED4_PIN]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52832::gpio::GPIOPin>
     ));
 
     let chip = static_init!(
@@ -365,9 +368,12 @@ pub unsafe fn main() {
         components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
             .finalize(());
 
-    let pconsole =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+    )
+    .finalize(components::process_console_component_helper!(Rtc<'static>));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

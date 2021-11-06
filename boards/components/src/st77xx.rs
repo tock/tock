@@ -120,6 +120,7 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        st77xx_alarm.setup();
 
         let st77xx = static_init_half!(
             static_buffer.4,

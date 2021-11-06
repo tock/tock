@@ -214,9 +214,6 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
         loop {
             let mip = CSR.mip.extract();
 
-            if mip.is_set(mip::mtimer) {
-                self.timer.service_interrupt();
-            }
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
@@ -256,7 +253,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
-            "\r\n---| EarlGrey configuration for {} |---",
+            "\r\n---| OpenTitan Earlgrey configuration for {} |---",
             CONFIG.name
         ));
         rv32i::print_riscv_state(writer);

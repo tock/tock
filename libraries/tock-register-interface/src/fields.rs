@@ -102,7 +102,7 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     #[inline]
     /// Read value of the field as an enum member
     pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(self, val: T) -> Option<E> {
-        E::try_from(self.read(val))
+        E::try_from_value(self.read(val))
     }
 }
 
@@ -252,7 +252,7 @@ impl<T: UIntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
 pub trait TryFromValue<V> {
     type EnumType;
 
-    fn try_from(v: V) -> Option<Self::EnumType>;
+    fn try_from_value(v: V) -> Option<Self::EnumType>;
 }
 
 /// Helper macro for computing bitmask of variable number of bits
@@ -366,7 +366,7 @@ macro_rules! register_bitmasks {
             impl TryFromValue<$valtype> for Value {
                 type EnumType = Value;
 
-                fn try_from(v: $valtype) -> Option<Self::EnumType> {
+                fn try_from_value(v: $valtype) -> Option<Self::EnumType> {
                     match v {
                         $(
                             $(#[$inner])*
@@ -417,7 +417,7 @@ macro_rules! register_bitmasks {
             impl TryFromValue<$valtype> for Value {
                 type EnumType = Value;
 
-                fn try_from(_v: $valtype) -> Option<Self::EnumType> {
+                fn try_from_value(_v: $valtype) -> Option<Self::EnumType> {
                     Option::None
                 }
             }
@@ -470,14 +470,14 @@ mod tests {
     impl crate::fields::TryFromValue<u16> for Foo {
         type EnumType = Foo;
 
-        fn try_from(v: u16) -> Option<Self::EnumType> {
-            Self::try_from(v as u32)
+        fn try_from_value(v: u16) -> Option<Self::EnumType> {
+            Self::try_from_value(v as u32)
         }
     }
     impl crate::fields::TryFromValue<u32> for Foo {
         type EnumType = Foo;
 
-        fn try_from(v: u32) -> Option<Self::EnumType> {
+        fn try_from_value(v: u32) -> Option<Self::EnumType> {
             match v {
                 0 => Some(Foo::Foo0),
                 1 => Some(Foo::Foo1),
@@ -556,7 +556,7 @@ mod tests {
             for shift in 0..29 {
                 let field = Field::<u32, ()>::new(0x7, shift);
                 for x in 0..8 {
-                    assert_eq!(field.read_as_enum(x << shift), Foo::try_from(x));
+                    assert_eq!(field.read_as_enum(x << shift), Foo::try_from_value(x));
                 }
             }
         }

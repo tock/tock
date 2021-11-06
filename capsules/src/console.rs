@@ -37,7 +37,6 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
-use core::convert::TryFrom;
 use core::{cmp, mem};
 
 use kernel::grant::Grant;
@@ -100,18 +99,15 @@ impl<'a> Console<'a> {
         Ok(())
     }
 
-    /// Internal helper function for continuing a previously set up transaction
-    /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(
-        &self,
-        app_id: ProcessId,
-        app: &mut App,
-    ) -> Result<bool, Result<(), ErrorCode>> {
+    /// Internal helper function for continuing a previously set up transaction.
+    /// Returns `true` if this send is still active, or `false` if it has
+    /// completed.
+    fn send_continue(&self, app_id: ProcessId, app: &mut App) -> bool {
         if app.write_remaining > 0 {
             self.send(app_id, app);
-            Ok(true)
+            true
         } else {
-            Ok(false)
+            false
         }
     }
 
@@ -251,37 +247,33 @@ impl SyscallDriver for Console<'_> {
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
-        let res = match cmd_num {
-            0 => Ok(Ok(())),
-            1 => {
-                // putstr
-                let len = arg1;
-                self.apps
-                    .enter(appid, |app, _| self.send_new(appid, app, len))
-                    .map_err(ErrorCode::from)
-            }
-            2 => {
-                // getnstr
-                let len = arg1;
-                self.apps
-                    .enter(appid, |app, _| self.receive_new(appid, app, len))
-                    .map_err(ErrorCode::from)
-            }
-            3 => {
-                // Abort RX
-                let _ = self.uart.receive_abort();
-                Ok(Ok(()))
-            }
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        match res {
-            Ok(r) => {
-                let res = ErrorCode::try_from(r);
-                match res {
-                    Err(_) => CommandReturn::success(),
-                    Ok(e) => CommandReturn::failure(e),
+        let res = self
+            .apps
+            .enter(appid, |app, _| {
+                match cmd_num {
+                    0 => Ok(()),
+                    1 => {
+                        // putstr
+                        let len = arg1;
+                        self.send_new(appid, app, len)
+                    }
+                    2 => {
+                        // getnstr
+                        let len = arg1;
+                        self.receive_new(appid, app, len)
+                    }
+                    3 => {
+                        // Abort RX
+                        let _ = self.uart.receive_abort();
+                        Ok(())
+                    }
+                    _ => Err(ErrorCode::NOSUPPORT),
                 }
-            }
+            })
+            .map_err(ErrorCode::from);
+        match res {
+            Ok(Ok(())) => CommandReturn::success(),
+            Ok(Err(e)) => CommandReturn::failure(e),
             Err(e) => CommandReturn::failure(e),
         }
     }
@@ -304,25 +296,14 @@ impl uart::TransmitClient for Console<'_> {
         self.tx_in_progress.take().map(|appid| {
             self.apps.enter(appid, |app, upcalls| {
                 match self.send_continue(appid, app) {
-                    Ok(more_to_send) => {
-                        if !more_to_send {
-                            // Go ahead and signal the application
-                            let written = app.write_len;
-                            app.write_len = 0;
-                            upcalls.schedule_upcall(1, (written, 0, 0)).ok();
-                        }
+                    true => {
+                        // Still more to send. Wait to notify the process.
                     }
-                    Err(return_code) => {
-                        // XXX This shouldn't ever happen?
+                    false => {
+                        // Go ahead and signal the application
+                        let written = app.write_len;
                         app.write_len = 0;
-                        app.write_remaining = 0;
-                        app.pending_write = false;
-                        upcalls
-                            .schedule_upcall(
-                                1,
-                                (kernel::errorcode::into_statuscode(return_code), 0, 0),
-                            )
-                            .ok();
+                        upcalls.schedule_upcall(1, (written, 0, 0)).ok();
                     }
                 }
             })
@@ -333,25 +314,10 @@ impl uart::TransmitClient for Console<'_> {
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
                 let appid = cntr.processid();
-                let started_tx = cntr.enter(|app, upcalls| {
+                let started_tx = cntr.enter(|app, _upcalls| {
                     if app.pending_write {
                         app.pending_write = false;
-                        match self.send_continue(appid, app) {
-                            Ok(more_to_send) => more_to_send,
-                            Err(return_code) => {
-                                // XXX This shouldn't ever happen?
-                                app.write_len = 0;
-                                app.write_remaining = 0;
-                                app.pending_write = false;
-                                upcalls
-                                    .schedule_upcall(
-                                        1,
-                                        (kernel::errorcode::into_statuscode(return_code), 0, 0),
-                                    )
-                                    .ok();
-                                false
-                            }
-                        }
+                        self.send_continue(appid, app)
                     } else {
                         false
                     }

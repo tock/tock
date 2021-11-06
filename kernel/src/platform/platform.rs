@@ -1,14 +1,14 @@
 //! Interfaces for implementing boards in Tock.
 
 use crate::errorcode;
+use crate::platform::chip::Chip;
+use crate::platform::scheduler_timer;
+use crate::platform::watchdog;
 use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
-
-use crate::platform::chip::Chip;
-use crate::platform::scheduler_timer;
-use crate::platform::watchdog;
+use tock_tbf::types::CommandPermissions;
 
 /// Combination trait that boards provide to the kernel that includes all of
 /// the extensible operations the kernel supports.
@@ -26,6 +26,10 @@ pub trait KernelResources<C: Chip> {
     /// The implementation of the process fault handling mechanism the kernel
     /// will use.
     type ProcessFault: ProcessFault;
+
+    /// The implementation of the context switch callback handler
+    /// the kernel will use.
+    type ContextSwitchCallback: ContextSwitchCallback;
 
     /// The implementation of the scheduling algorithm the kernel will use.
     type Scheduler: Scheduler<C>;
@@ -61,6 +65,10 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
+
+    /// Returns a reference to the implementation of the ContextSwitchCallback
+    /// for this platform.
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback;
 }
 
 /// Configure the system call dispatch mapping.
@@ -124,8 +132,101 @@ pub trait SyscallFilter {
     }
 }
 
-/// Implement default SyscallFilter trait for unit.
+/// Implement default allow all SyscallFilter trait for unit.
 impl SyscallFilter for () {}
+
+/// An allow list system call filter based on the TBF header, with a default
+/// allow all fallback.
+///
+/// This will check if the process has TbfHeaderPermissions specified.
+/// If the process has TbfHeaderPermissions they will be used to determine
+/// access permissions. For details on this see the TockBinaryFormat
+/// documentation.
+/// If no permissions are specified the default is to allow the syscall.
+pub struct TbfHeaderFilterDefaultAllow {}
+
+/// Implement default SyscallFilter trait for filtering based on the TBF header.
+impl SyscallFilter for TbfHeaderFilterDefaultAllow {
+    fn filter_syscall(
+        &self,
+        process: &dyn process::Process,
+        syscall: &syscall::Syscall,
+    ) -> Result<(), errorcode::ErrorCode> {
+        match syscall {
+            // Subscribe is allowed if any commands are
+            syscall::Syscall::Subscribe {
+                driver_number,
+                subdriver_number: _,
+                upcall_ptr: _,
+                appdata: _,
+            } => match process.get_command_permissions(*driver_number, None) {
+                CommandPermissions::NoPermsAtAll => Ok(()),
+                CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                CommandPermissions::Mask(_allowed) => Ok(()),
+            },
+
+            syscall::Syscall::Command {
+                driver_number,
+                subdriver_number,
+                arg0: _,
+                arg1: _,
+            } => {
+                match process.get_command_permissions(*driver_number, Some(subdriver_number / 64)) {
+                    CommandPermissions::NoPermsAtAll => Ok(()),
+                    CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                    CommandPermissions::Mask(allowed) => {
+                        if (1 << (subdriver_number % 64)) & allowed > 0 {
+                            Ok(())
+                        } else {
+                            Err(errorcode::ErrorCode::NODEVICE)
+                        }
+                    }
+                }
+            }
+
+            // Allow is allowed if any commands are
+            syscall::Syscall::ReadWriteAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => match process.get_command_permissions(*driver_number, None) {
+                CommandPermissions::NoPermsAtAll => Ok(()),
+                CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                CommandPermissions::Mask(_allowed) => Ok(()),
+            },
+
+            // Allow is allowed if any commands are
+            syscall::Syscall::UserspaceReadableAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => match process.get_command_permissions(*driver_number, None) {
+                CommandPermissions::NoPermsAtAll => Ok(()),
+                CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                CommandPermissions::Mask(_allowed) => Ok(()),
+            },
+
+            // Allow is allowed if any commands are
+            syscall::Syscall::ReadOnlyAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => match process.get_command_permissions(*driver_number, None) {
+                CommandPermissions::NoPermsAtAll => Ok(()),
+                CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                CommandPermissions::Mask(_allowed) => Ok(()),
+            },
+
+            // Non-filterable system calls
+            syscall::Syscall::Yield { .. }
+            | syscall::Syscall::Memop { .. }
+            | syscall::Syscall::Exit { .. } => Ok(()),
+        }
+    }
+}
 
 /// Trait for implementing process fault handlers to run when a process faults.
 pub trait ProcessFault {
@@ -169,3 +270,16 @@ pub trait ProcessFault {
 
 /// Implement default ProcessFault trait for unit.
 impl ProcessFault for () {}
+
+/// Trait for implementing handlers on userspace context switches.
+pub trait ContextSwitchCallback {
+    /// This function is called before the kernel switches to a process.
+    ///
+    /// `process` is the app that is about to run
+    fn context_switch_hook(&self, process: &dyn process::Process);
+}
+
+/// Implement default ContextSwitchCallback trait for unit.
+impl ContextSwitchCallback for () {
+    fn context_switch_hook(&self, _process: &dyn process::Process) {}
+}
