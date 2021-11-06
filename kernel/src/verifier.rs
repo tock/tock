@@ -20,8 +20,8 @@ impl Verify for VerifierStandard {
         true
     }
     fn check_credentials(&self,
-                         credentials: &TbfFooterV2Credentials,
-                         binary: &[u8]) -> VerificationResult {
+                         _credentials: &TbfFooterV2Credentials,
+                         _binary: &[u8]) -> VerificationResult {
         VerificationResult::Pass
     }
 }

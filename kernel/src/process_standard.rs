@@ -1325,7 +1325,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // PIC, need to specify the addresses.
                 let sram_start = self.mem_start() as usize;
                 let flash_start = self.flash.as_ptr() as usize;
-                let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
+                let flash_init_fn = flash_start + self.header.length() as usize + self.header.get_init_function_offset() as usize;
 
                 let _ = writer.write_fmt(format_args!(
                     "\
@@ -1374,6 +1374,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
+        debug!("TBF Header\n-----------\n{:?}",  tbf_header);
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1451,8 +1452,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // way to try to keep it very self contained in the diff.
         let mut credentials_approved = false;
         let binary_end = tbf_header.get_binary_end() as usize;
-        
+
         let mut footer_position = tbf_header.get_binary_end() as usize;
+        debug!("Parsing footers at 0x{:x}.", footer_position);
+
         let total_size = app_flash.len();
         let _credentials_count = 0;
         let require_credentials = false;
@@ -1462,25 +1465,32 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // The portion of the application binary covered by integrity.
         let covered_flash = app_flash.get(0..binary_end).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
         while footer_position < (total_size - 4) { // There needs to be space for a TLV 
-//            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
+            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
             let (footer, len) = tock_tbf::parse::parse_tbf_footer(remaining_flash)?;
             remaining_flash = remaining_flash.get(len as usize + 4..).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
             
             match verifier.check_credentials(&footer, covered_flash) {
-                _ => {}
+                VerificationResult::Accept => {
+                    credentials_approved = true;
+                    break;
+                },
+                VerificationResult::Reject => {
+                    return Err(ProcessLoadError::CredentialsNoAccept);
+                }
+                VerificationResult::Pass => { },
             }
             footer_position += len as usize;
         }
-            //debug!("Footers parsed.");
+        debug!("Footers parsed.");
         if !credentials_approved && require_credentials {
             return Err(ProcessLoadError::CredentialsNoAccept);
         }
             
         // Otherwise, actually load the app.
         let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
-        let init_fn = app_flash
+        let init_fn = header_length + app_flash
             .as_ptr()
-            .offset(tbf_header.get_init_function_offset() as isize) as usize;
+                .offset(tbf_header.get_init_function_offset() as isize) as usize;
 
         // Initialize MPU region configuration.
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
@@ -1769,6 +1779,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         let flash_protected_size = process.header.get_protected_size() as usize;
         let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
+
+        debug!("Loaded process app flash starts at 0x{:x}", flash_app_start_addr);
+        debug!("Loaded process has start address 0x{:x}", init_fn);
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {

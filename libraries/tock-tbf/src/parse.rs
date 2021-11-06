@@ -125,7 +125,8 @@ pub fn parse_tbf_header(
 
                 // Places to save fields that we parse out of the header
                 // options.
-                let mut binary_pointer: Option<types::TbfHeaderV2Binary> = None;
+                let mut main_pointer: Option<types::TbfHeaderV2Main> = None;
+                let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
                 let mut wfr_pointer: [Option<types::TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
@@ -145,35 +146,28 @@ pub fn parse_tbf_header(
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();
 
-                            // Check that this is the first program or main header
-                            // and the TLV entry is correct.
-                            if binary_pointer.is_some() {
-                                return Err(types::TbfParseError::MoreThanOneBinaryHeader);
-                            }
-                            else if tlv_header.length as usize == entry_len {
-                                let main_header = remaining.try_into()?;
-                                binary_pointer = Some(types::TbfHeaderV2Binary::Main{main: main_header});
-                            } else {
-                                return Err(types::TbfParseError::BadTlvEntry(
-                                    tlv_header.tipe as usize,
-                                ));
+                            // If there is already a header do nothing: if this is a second Main
+                            // keep the first one, if it's a Program we ignore the Main
+                            if main_pointer.is_none() {
+                                if tlv_header.length as usize == entry_len {
+                                    main_pointer = Some(remaining.try_into()?);
+                                } else {
+                                    return Err(types::TbfParseError::BadTlvEntry(
+                                        tlv_header.tipe as usize,
+                                    ));
+                                }
                             }
                         }
                         types::TbfHeaderTypes::TbfHeaderProgram => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
-
-                            // Check that this is the first program or main header
-                            // and the TLV entry is correct.
-                            if binary_pointer.is_some() {
-                                return Err(types::TbfParseError::MoreThanOneBinaryHeader);
-                            }
-                            if tlv_header.length as usize == entry_len {
-                                let program_header = remaining.try_into()?;
-                                binary_pointer = Some(types::TbfHeaderV2Binary::Program{program: program_header});
-                            } else {
-                                return Err(types::TbfParseError::BadTlvEntry(
-                                    tlv_header.tipe as usize,
-                                ));
+                            if program_pointer.is_none() {
+                                if tlv_header.length as usize == entry_len {
+                                    program_pointer = Some(remaining.try_into()?);
+                                } else {
+                                    return Err(types::TbfParseError::BadTlvEntry(
+                                        tlv_header.tipe as usize,
+                                    ));
+                                }
                             }
                         }
                         types::TbfHeaderTypes::TbfHeaderWriteableFlashRegions => {
@@ -262,7 +256,8 @@ pub fn parse_tbf_header(
 
                 let tbf_header = types::TbfHeaderV2 {
                     base: tbf_header_base,
-                    binary: binary_pointer,
+                    main: main_pointer,
+                    program: program_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
                     fixed_addresses: fixed_address_pointer,
