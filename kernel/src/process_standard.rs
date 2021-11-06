@@ -1778,7 +1778,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         });
 
         let flash_protected_size = process.header.get_protected_size() as usize;
-        let flash_app_start_addr = app_flash.as_ptr() as usize + flash_protected_size;
+        let flash_tbf_header_length = process.header.length() as usize;
+        let linker_metadata_offset = cmp::max(flash_tbf_header_length, flash_protected_size);            
+        let flash_app_start_addr = app_flash.as_ptr() as usize + linker_metadata_offset;
 
         debug!("Loaded process app flash starts at 0x{:x}", flash_app_start_addr);
         debug!("Loaded process has start address 0x{:x}", init_fn);
