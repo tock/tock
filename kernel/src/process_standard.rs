@@ -1462,7 +1462,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
-        debug!("TBF Header\n-----------\n{:?}",  tbf_header);
         // First thing: check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
@@ -1868,13 +1867,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             timeslice_expiration_count: 0,
         });
 
-        let flash_protected_size = process.header.get_protected_size() as usize;
-        let flash_tbf_header_length = process.header.length() as usize;
-        let linker_metadata_offset = cmp::max(flash_tbf_header_length, flash_protected_size);            
+        let linker_metadata_offset = process.header.get_protected_size() as usize;
         let flash_app_start_addr = app_flash.as_ptr() as usize + linker_metadata_offset;
-
-        debug!("Loaded process app flash starts at 0x{:x}", flash_app_start_addr);
-        debug!("Loaded process has start address 0x{:x}", init_fn);
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {

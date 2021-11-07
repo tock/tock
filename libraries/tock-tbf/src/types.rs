@@ -715,11 +715,13 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    return hd.program.map_or(0, |p| p.protected_size);
+                    return hd.program.map_or(0, |p| p.protected_size) +
+                           hd.base.header_size as u32;
                 } else if hd.main.is_some() {
-                    return hd.main.map_or(0, |m| m.protected_size);
+                    return hd.main.map_or(0, |m| m.protected_size) +
+                           hd.base.header_size as u32;
                 } else {
-                    return 0;
+                    return hd.base.header_size as u32;
                 }
             }
             _ => 0,
