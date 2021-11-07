@@ -31,9 +31,6 @@ use crate::verifier::{Verify, VerificationResult};
 use tock_tbf::types::CommandPermissions;
 
 
-// The completion code for a process if it faulted.
-const COMPLETION_FAULT: u32 = 0xffffffff;
-
 /// State for helping with debugging apps.
 ///
 /// These pointers and counters are not strictly required for kernel operation,
