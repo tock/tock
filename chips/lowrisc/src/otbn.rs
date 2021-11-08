@@ -231,11 +231,11 @@ impl<'a> Otbn<'a> {
     pub fn load_data(
         &self,
         address: usize,
-        data: &'static mut [u8],
+        data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
-            return Err((ErrorCode::BUSY, data));
+            return Err((ErrorCode::BUSY, data.take()));
         }
 
         for i in 0..(data.len() / 4) {
@@ -249,7 +249,7 @@ impl<'a> Otbn<'a> {
             self.registers.dmem[(address / 4) + i].set(d);
         }
 
-        self.data_buffer.replace(data);
+        self.data_buffer.replace(data.take());
 
         // Schedule a deferred call as there are no interrupts to monitor
         // the binary loading.

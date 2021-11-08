@@ -136,14 +136,17 @@ fn otbn_run_rsa_binary() {
         let slice = unsafe { core::slice::from_raw_parts_mut(dmem_start as *mut u8, dmem_length) };
 
         CALLBACK.reset();
-        assert_eq!(otbn.load_data(0, slice), Ok(()));
+        assert_eq!(otbn.load_data(0, LeasableBuffer::new(slice)), Ok(()));
         run_kernel_op(1000);
 
         // Set the RSA mode to encryption
         // The address is the offset of `mode` in the RSA elf
         unsafe {
             TEMP[0] = 1;
-            assert_eq!(otbn.load_data(0, &mut TEMP[0..4]), Ok(()));
+            assert_eq!(
+                otbn.load_data(0, LeasableBuffer::new(&mut TEMP[0..4])),
+                Ok(())
+            );
         }
         run_kernel_op(1000);
 
@@ -151,14 +154,20 @@ fn otbn_run_rsa_binary() {
         // The address is the offset of `n_limbs` in the RSA elf
         unsafe {
             TEMP[0] = (MODULUS.len() / 32) as u8;
-            assert_eq!(otbn.load_data(4, &mut TEMP[0..4]), Ok(()));
+            assert_eq!(
+                otbn.load_data(4, LeasableBuffer::new(&mut TEMP[0..4])),
+                Ok(())
+            );
         }
         run_kernel_op(1000);
 
         // Set the RSA modulus
         // The address is the offset of `modulus` in the RSA elf
         unsafe {
-            assert_eq!(otbn.load_data(0x420, &mut MODULUS), Ok(()));
+            assert_eq!(
+                otbn.load_data(0x420, LeasableBuffer::new(&mut MODULUS)),
+                Ok(())
+            );
         }
         run_kernel_op(1000);
 
@@ -167,7 +176,10 @@ fn otbn_run_rsa_binary() {
         unsafe {
             let str_buf: &[u8; 14] = b"OTBN is great!";
             SOURCE[0..14].copy_from_slice(str_buf);
-            assert_eq!(otbn.load_data(0x820, &mut SOURCE), Ok(()));
+            assert_eq!(
+                otbn.load_data(0x820, LeasableBuffer::new(&mut SOURCE)),
+                Ok(())
+            );
         }
         run_kernel_op(1000);
 
