@@ -195,6 +195,10 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
 
+    /// Keep the previously read byte to consider \r\n sequences
+    /// as a single \n.
+    previous_byte: Cell<u8>,
+
     /// Flag to mark that the process console is active and has called receive
     /// from the underlying UART.
     running: Cell<bool>,
@@ -270,6 +274,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
+
+            previous_byte: Cell::new(0),
 
             running: Cell::new(false),
             execute: Cell::new(false),
@@ -1178,10 +1184,20 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
+                        let previous_byte = self.previous_byte.get();
+                        self.previous_byte.set(read_buf[0]);
                         let index = self.command_index.get() as usize;
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            self.execute.set(true);
-                            let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
+                            if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
+                                && previous_byte != read_buf[0]
+                            {
+                                // ignore the \n or \r as it is the second byte of a \r\n sequence
+                                // reset the sequence
+                                self.previous_byte.set(0);
+                            } else {
+                                self.execute.set(true);
+                                let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
+                            }
                         } else if read_buf[0] == ('\x08' as u8) {
                             if index > 0 {
                                 // Backspace, echo and remove last byte
