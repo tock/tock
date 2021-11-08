@@ -1459,22 +1459,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
 
-        // First thing: check that the process is at the correct location in
-        // flash if the TBF header specified a fixed address. If there is a
-        // mismatch we catch that early.
-        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
-            // The flash address in the header is based on the app binary,
-            // so we need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-            let expected_address = fixed_flash_start;
-            if actual_address != expected_address {
-                return Err(ProcessLoadError::IncorrectFlashAddress {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        }
-
         let process_name = tbf_header.get_package_name();
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
@@ -1531,6 +1515,22 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                            process_name.unwrap_or ("(no name"));
                 }
                 return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
+            }
+        }
+
+        // Check that the process is at the correct location in
+        // flash if the TBF header specified a fixed address. If there is a
+        // mismatch we catch that early.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
             }
         }
 
