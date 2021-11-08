@@ -221,6 +221,13 @@ impl<'a> Otbn<'a> {
         Ok(())
     }
 
+    /// Load the data into the accelerator
+    /// This function can be called multiple times if multiple loads
+    /// are required.
+    /// There is no guarantee the data has been written until the `data_load_done()`
+    /// callback is fired.
+    /// On error the return value will contain a return code and the original data
+    /// The `data` buffer should be in little endian
     pub fn load_data(
         &self,
         address: usize,
