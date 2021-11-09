@@ -47,13 +47,13 @@ register_bitfields![u32,
     ]
 ];
 
-#[repr(u8)]
+#[repr(u32)]
 pub enum PllFrequency {
     MHz320 = 0,
     MHz480 = 1,
 }
 
-#[repr(u8)]
+#[repr(u32)]
 pub enum CpuFrequency {
     MHz80 = 0,
     MHz160 = 1,
