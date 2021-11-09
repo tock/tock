@@ -8,3 +8,5 @@
 pub mod chip;
 pub mod intc;
 pub mod interrupts;
+pub mod sysreg;
+pub mod timg;
