@@ -58,7 +58,7 @@ static mut PLATFORM: Option<&'static Esp32C3Board> = None;
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, esp32::timg::TimG<'static>>> = None;
+static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static>>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -72,10 +72,10 @@ struct Esp32C3Board {
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, esp32::timg::TimG<'static>>,
+        VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
     scheduler: &'static PrioritySched,
-    scheduler_timer: &'static VirtualSchedulerTimer<esp32::timg::TimG<'static>>,
+    scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -100,7 +100,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = PrioritySched;
-    type SchedulerTimer = VirtualSchedulerTimer<esp32::timg::TimG<'static>>;
+    type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -133,6 +133,8 @@ unsafe fn setup() -> (
     &'static esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>,
     &'static Esp32C3DefaultPeripherals<'static>,
 ) {
+    use esp32_c3::sysreg::{CpuFrequency, PllFrequency};
+
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
@@ -141,6 +143,12 @@ unsafe fn setup() -> (
     peripherals.timg0.disable_wdt();
     peripherals.rtc_cntl.disable_wdt();
     peripherals.rtc_cntl.disable_super_wdt();
+    peripherals.sysreg.disable_timg0();
+    peripherals.sysreg.enable_timg0();
+
+    peripherals
+        .sysreg
+        .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
     // initialise capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -187,7 +195,7 @@ unsafe fn setup() -> (
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, esp32::timg::TimG>,
+        MuxAlarm<'static, esp32_c3::timg::TimG>,
         MuxAlarm::new(&peripherals.timg0)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.timg0, mux_alarm);
@@ -196,13 +204,13 @@ unsafe fn setup() -> (
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, esp32::timg::TimG>,
+        VirtualMuxAlarm<'static, esp32_c3::timg::TimG>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32::timg::TimG>>,
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32_c3::timg::TimG>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -210,14 +218,9 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    // Scheduler Timer
-    let timer1 = static_init!(
-        esp32::timg::TimG,
-        esp32::timg::TimG::new(esp32::timg::TIMG1_BASE)
-    );
     let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<esp32::timg::TimG<'static>>,
-        VirtualSchedulerTimer::new(timer1)
+        VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
+        VirtualSchedulerTimer::new(&peripherals.timg1)
     );
 
     let chip = static_init!(

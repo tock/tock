@@ -13,6 +13,8 @@ use rv32i::syscall::SysCall;
 
 use crate::intc::{Intc, IntcRegisters};
 use crate::interrupts;
+use crate::sysreg;
+use crate::timg;
 
 pub const INTC_BASE: StaticRef<IntcRegisters> =
     unsafe { StaticRef::new(0x600C_2000 as *const IntcRegisters) };
@@ -28,18 +30,22 @@ pub struct Esp32C3<'a, I: InterruptService<()> + 'a> {
 
 pub struct Esp32C3DefaultPeripherals<'a> {
     pub uart0: esp32::uart::Uart<'a>,
-    pub timg0: esp32::timg::TimG<'a>,
+    pub timg0: timg::TimG<'a>,
+    pub timg1: timg::TimG<'a>,
     pub gpio: esp32::gpio::Port<'a>,
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
+    pub sysreg: sysreg::SysReg,
 }
 
 impl<'a> Esp32C3DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
-            timg0: esp32::timg::TimG::new(esp32::timg::TIMG0_BASE),
+            timg0: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
+            timg1: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
+            sysreg: sysreg::SysReg::new(),
         }
     }
 }
@@ -50,6 +56,12 @@ impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
             interrupts::IRQ_UART0 => {
                 self.uart0.handle_interrupt();
             }
+            interrupts::IRQ_TIMER1 => {
+                self.timg0.handle_interrupt();
+            }
+            // interrupts::IRQ_TIMER2 => {
+            //     self.timg1.handle_interrupt();
+            // }
             interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => {
                 self.gpio.handle_interrupt();
             }
