@@ -297,7 +297,10 @@ impl<'a> Otbn<'a> {
     /// Clear the keys and any other sensitive data.
     /// This won't clear the buffers provided to this API, that is up to the
     /// user to clear those.
-    pub fn clear_data(&self) {}
+    pub fn clear_data(&self) {
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_DMEM);
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_IMEM);
+    }
 }
 
 impl<'a> DynamicDeferredCallClient for Otbn<'a> {
