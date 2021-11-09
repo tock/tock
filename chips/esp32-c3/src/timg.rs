@@ -99,7 +99,6 @@ register_bitfields![u32,
     ],
 ];
 
-#[repr(u32)]
 #[derive(Copy, Clone)]
 pub enum ClockSource {
     Pll = 0,
