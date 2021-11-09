@@ -11,6 +11,7 @@
 //!  - 'list' lists the current processes with their IDs and running state
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
+//!  - 'restart n' restarts the process with name n
 //!  - 'fault n' forces the process with name n into a fault state
 //!  - 'panic' causes the kernel to run the panic handler
 //!  - 'process n' prints the memory map of process with name n
@@ -283,7 +284,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
     pub fn start(&self) -> Result<(), ErrorCode> {
         if self.running.get() == false {
             self.alarm
-                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(1000));
             self.running.set(true);
         }
         Ok(())
@@ -316,7 +317,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
 
         let _ = self.write_bytes(b"Welcome to the process console.\n");
         let _ = self
-            .write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+            .write_bytes(b"Valid commands are: help status list stop start restart fault process kernel\n");
         self.prompt();
     }
 
@@ -850,7 +851,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = self.write_bytes(b"Welcome to the process console.\n");
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self
-                                .write_bytes(b"help status list stop start fault process kernel\n");
+                                .write_bytes(b"help status list stop start restart fault process kernel\n");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -883,6 +884,26 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                             let _ = write(
                                                 &mut console_writer,
                                                 format_args!("Process {} stopped\n", proc_name),
+                                            );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("restart") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.try_restart(None);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Restarted process {}\n", proc_name),
                                             );
 
                                             let _ = self.write_bytes(

@@ -302,7 +302,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 10], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -334,6 +334,8 @@ pub unsafe fn main() {
 
     let bulk_simple = static_init!(capsules::usb::bulk_simple::BulkSimple<'static, nrf52::usbd::Usbd>,
             capsules::usb::bulk_simple::BulkSimple::new(&nrf52840_peripherals.usbd));
+    let bulk_echo = static_init!(capsules::usb::bulk_simple::BulkSimple<'static, nrf52::usbd::Usbd>,
+            capsules::usb::bulk_simple::BulkSimple::new(&nrf52840_peripherals.usbd));
     let usb = {
         use capsules::usb::{device, configuration};
         // Create the strings we include in the USB descriptor. We use the hardcoded
@@ -356,32 +358,17 @@ pub unsafe fn main() {
         };
 
         let configuration = configuration::SimpleConfiguration {
-            interfaces: [bulk_simple] as [&dyn configuration::Interface; 1],
+            interfaces: [bulk_echo, bulk_simple] as [&dyn configuration::Interface; 2],
             is_self_powered: false,
             supports_remote_wakeup: false,
             max_power: 50,
             _f: core::marker::PhantomData,
         };
         static_init!(
-            device::Device<'static, nrf52::usbd::Usbd, configuration::SimpleConfiguration<'static, [&'static dyn configuration::Interface; 1]>>,
+            device::Device<'static, nrf52::usbd::Usbd, configuration::SimpleConfiguration<'static, [&'static dyn configuration::Interface; 2]>>,
             device::Device::new(&nrf52840_peripherals.usbd, device_descriptor, configuration, 0x0409))
     };
     kernel::hil::usb::UsbController::set_client(&nrf52840_peripherals.usbd, usb);
-    /*let cdc = components::cdc::CdcAcmComponent::new(
-        &nrf52840_peripherals.usbd,
-        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
-        0x2341,
-        0x005a,
-        strings,
-        mux_alarm,
-        dynamic_deferred_caller,
-        Some(&baud_rate_reset_bootloader_enter),
-    )
-    .finalize(components::usb_cdc_acm_component_helper!(
-        nrf52::usbd::Usbd,
-        nrf52::rtc::Rtc
-    ));
-    CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler*/
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(bulk_simple, 115200, dynamic_deferred_caller)
@@ -397,12 +384,18 @@ pub unsafe fn main() {
     ));
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(
-        board_kernel,
-        capsules::console::DRIVER_NUM,
-        uart_mux,
-    )
-    .finalize(());
+    let console_grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let console = static_init!(
+        capsules::console::Console<'static>,
+        capsules::console::Console::new(
+            bulk_echo,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(capsules::console::DRIVER_NUM, &console_grant_cap)
+        )
+    );
+    kernel::hil::uart::Transmit::set_transmit_client(bulk_echo, console);
+    kernel::hil::uart::Receive::set_receive_client(bulk_echo, console);
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
