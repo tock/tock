@@ -698,6 +698,30 @@ impl ReadableProcessSlice {
             .chunks(chunk_size)
             .map(cast_byte_slice_to_process_slice)
     }
+
+    pub fn get(&self, range: Range<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
 }
 
 impl Index<Range<usize>> for ReadableProcessSlice {
@@ -868,6 +892,30 @@ impl WriteableProcessSlice {
         self.slice
             .chunks(chunk_size)
             .map(cast_cell_slice_to_process_slice)
+    }
+
+    pub fn get(&self, range: Range<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
     }
 }
 

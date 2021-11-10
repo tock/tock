@@ -255,7 +255,8 @@ impl App {
                     .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
                         let adv_data_len =
                             cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                        let adv_data_corrected = &adv_data[..adv_data_len];
+                        let adv_data_corrected =
+                            adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
                         let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
                         {
                             let (header, payload) = kernel_tx.split_at_mut(2);
