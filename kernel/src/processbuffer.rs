@@ -24,6 +24,7 @@ use core::ops::{Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::process::{self, ProcessId};
+use crate::ErrorCode;
 
 /// Convert a process buffer's internal representation to a
 /// ReadableProcessSlice.
@@ -651,10 +652,6 @@ impl ReadableProcessSlice {
     ///
     /// This function will panic if `self.len() != dest.len()`.
     pub fn copy_to_slice(&self, dest: &mut [u8]) {
-        // Method implemetation adopted from the
-        // core::slice::copy_from_slice method implementation:
-        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
-
         // The panic code path was put into a cold function to not
         // bloat the call site.
         #[inline(never)]
@@ -667,18 +664,34 @@ impl ReadableProcessSlice {
             );
         }
 
-        if self.len() != dest.len() {
+        if self.copy_to_slice_or_err(dest).is_err() {
             len_mismatch_fail(dest.len(), self.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[ReadableProcessByte] is guaranteed to be compatible to
-        // &[u8].
-        for (i, b) in self.slice.iter().enumerate() {
-            dest[i] = b.get();
+    /// Copy the contents of a [`ReadableProcessSlice`] into a mutable
+    /// slice reference.
+    ///
+    /// The length of `self` must be the same as `dest`. Subslicing
+    /// can be used to obtain a slice of matching length.
+    pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != dest.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[ReadableProcessByte] is guaranteed to be compatible to
+            // &[u8].
+            for (i, b) in self.slice.iter().enumerate() {
+                dest[i] = b.get();
+            }
+            Ok(())
         }
     }
 
@@ -783,10 +796,6 @@ impl WriteableProcessSlice {
     ///
     /// This function will panic if `self.len() != dest.len()`.
     pub fn copy_to_slice(&self, dest: &mut [u8]) {
-        // Method implemetation adopted from the
-        // core::slice::copy_from_slice method implementation:
-        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
-
         // The panic code path was put into a cold function to not
         // bloat the call site.
         #[inline(never)]
@@ -799,19 +808,35 @@ impl WriteableProcessSlice {
             );
         }
 
-        if self.len() != dest.len() {
+        if self.copy_to_slice_or_err(dest).is_err() {
             len_mismatch_fail(dest.len(), self.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
-        self.slice
-            .iter()
-            .zip(dest.iter_mut())
-            .for_each(|(src, dst)| *dst = src.get());
+    /// Copy the contents of a [`WriteableProcessSlice`] into a mutable
+    /// slice reference.
+    ///
+    /// The length of `self` must be the same as `dest`. Subslicing
+    /// can be used to obtain a slice of matching length.
+    pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != dest.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
+            self.slice
+                .iter()
+                .zip(dest.iter_mut())
+                .for_each(|(src, dst)| *dst = src.get());
+            Ok(())
+        }
     }
 
     /// Copy the contents of a slice of bytes into a [`WriteableProcessSlice`].
@@ -839,18 +864,33 @@ impl WriteableProcessSlice {
             );
         }
 
-        if self.len() != src.len() {
+        if self.copy_from_slice_or_err(src).is_err() {
             len_mismatch_fail(self.len(), src.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
-        src.iter()
-            .zip(self.slice.iter())
-            .for_each(|(src, dst)| dst.set(*src));
+    /// Copy the contents of a slice of bytes into a [`WriteableProcessSlice`].
+    ///
+    /// The length of `src` must be the same as `self`. Subslicing can
+    /// be used to obtain a slice of matching length.
+    pub fn copy_from_slice_or_err(&self, src: &[u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != src.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
+            src.iter()
+                .zip(self.slice.iter())
+                .for_each(|(src, dst)| dst.set(*src));
+            Ok(())
+        }
     }
 
     pub fn len(&self) -> usize {
