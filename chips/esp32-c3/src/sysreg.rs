@@ -1,4 +1,4 @@
-//! TimG Group driver.
+//! SysReg driver.
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
