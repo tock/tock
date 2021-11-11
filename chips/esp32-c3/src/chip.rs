@@ -42,7 +42,7 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
             timg0: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
-            timg1: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
+            timg1: timg::TimG::new(timg::TIMG1_BASE, timg::ClockSource::Pll),
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),
@@ -59,9 +59,9 @@ impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
             interrupts::IRQ_TIMER1 => {
                 self.timg0.handle_interrupt();
             }
-            // interrupts::IRQ_TIMER2 => {
-            //     self.timg1.handle_interrupt();
-            // }
+            interrupts::IRQ_TIMER2 => {
+                self.timg1.handle_interrupt();
+            }
             interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => {
                 self.gpio.handle_interrupt();
             }

@@ -72,7 +72,7 @@ impl Intc {
     pub fn map_interrupts(&self) {
         self.registers.uart0_intr_map.set(interrupts::IRQ_UART0);
         self.registers.timg0_intr_map.set(interrupts::IRQ_TIMER1);
-        // self.registers.timg1_intr_map.set(interrupts::IRQ_TIMER2);
+        self.registers.timg1_intr_map.set(interrupts::IRQ_TIMER2);
         self.registers
             .gpio_interrupt_pro_map
             .set(interrupts::IRQ_GPIO);
