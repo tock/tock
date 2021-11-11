@@ -126,7 +126,7 @@ impl Time for Rtc<'_> {
 }
 
 impl<'a> time::Counter<'a> for Rtc<'a> {
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
         self.registers.intenset.write(Inte::OVRFLW::SET);
     }
