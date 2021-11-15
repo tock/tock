@@ -715,19 +715,26 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    return hd.program.map_or(0, |p| p.protected_size) +
-                           hd.base.header_size as u32;
+                    return hd.program.map_or(0, |p| p.protected_size);
                 } else if hd.main.is_some() {
-                    return hd.main.map_or(0, |m| m.protected_size) +
-                           hd.base.header_size as u32;
+                    return hd.main.map_or(0, |m| m.protected_size);
                 } else {
-                    return hd.base.header_size as u32;
+                    return 0;
                 }
             }
             _ => 0,
         }
     }
 
+    /// Get the start offset of the application binary from the beginning
+    /// of the process binary (start of the TBF header). Only valid if this
+    /// is an app.
+    pub fn get_app_start_offset(&self) -> u32 {
+        // The application binary starts after the header plus any
+        // additional protected space.
+        self.length() as u32 + self.get_protected_size()
+    }
+    
     /// Get the offset from the beginning of the app's flash region where the
     /// app should start executing.
     pub fn get_init_function_offset(&self) -> u32 {

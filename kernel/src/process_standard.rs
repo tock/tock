@@ -421,7 +421,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+        ((self.flash.as_ptr() as usize) + self.header.get_app_start_offset() as usize) as *const u8
     }
 
     fn get_command_permissions(
@@ -1149,7 +1149,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = flash_start + flash_protected_size;
+        let flash_app_start = flash_start + self.header.get_app_start_offset() as usize;
         let flash_app_size = flash_end - flash_app_start;
 
         // Grant pointers size.
@@ -1468,7 +1468,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
             // The flash address in the header is based on the app binary,
             // so we need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let actual_address = app_flash.as_ptr() as u32 +
+                                 tbf_header.get_app_start_offset();
             let expected_address = fixed_flash_start;
             if actual_address != expected_address {
                 return Err(ProcessLoadError::IncorrectFlashAddress {
@@ -1867,7 +1868,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             timeslice_expiration_count: 0,
         });
 
-        let linker_metadata_offset = process.header.get_protected_size() as usize;
+        let linker_metadata_offset = process.header.get_app_start_offset() as usize;
         let flash_app_start_addr = app_flash.as_ptr() as usize + linker_metadata_offset;
 
         process.tasks.map(|tasks| {
@@ -2051,8 +2052,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         };
 
         // And queue up this app to be restarted.
-        let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = app_flash_address as usize + flash_protected_size;
+        let flash_app_start = (app_flash_address as u32 + self.header.get_app_start_offset()) as usize;
 
         // Mark the state as `Unstarted` for the scheduler.
         self.state.update(State::Unstarted);
