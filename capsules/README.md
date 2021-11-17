@@ -41,6 +41,8 @@ These implement a driver to setup and read various physical sensors.
     sensor.
   - **[LSM303DLHC](src/lsm303dlhc.rs)**: 3D accelerometer and 3D magnetometer
     sensor.
+- **[LSM6DSOXTR](src/lsm6dsoxtr.rs)**: 3D accelerometer and 3D magnetometer
+    sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
 - **[RP2040 Temperature](src/temperature_rp2040.rs)**: Analog RP2040 temperature

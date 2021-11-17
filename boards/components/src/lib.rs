@@ -31,6 +31,7 @@ pub mod led_matrix;
 pub mod lldb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
+pub mod lsm6dsox;
 pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;

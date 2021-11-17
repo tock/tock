@@ -22,7 +22,6 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 use rp2040;
-
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -74,6 +73,8 @@ pub struct NanoRP2040Connect {
     led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    lsm6dsoxtr: &'static capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -92,6 +93,8 @@ impl SyscallDriverLookup for NanoRP2040Connect {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::lsm6dsoxtr::DRIVER_NUM => f(Some(self.lsm6dsoxtr)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
     }
@@ -224,13 +227,22 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
         .configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
 }
 
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn get_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
+    static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
 
-    let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
+    let peripherals = get_peripherals();
+    peripherals.resolve_dependencies();
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);
@@ -387,6 +399,26 @@ pub unsafe fn main() {
             adc_mux
         ));
 
+    peripherals.i2c0.init(100 * 1000);
+    //set SDA and SCL pins in I2C mode
+    let gpio_sda = peripherals.pins.get_pin(RPGpio::GPIO12);
+    let gpio_scl = peripherals.pins.get_pin(RPGpio::GPIO13);
+    gpio_sda.set_function(GpioFunction::I2C);
+    gpio_scl.set_function(GpioFunction::I2C);
+    let mux_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_helper!());
+
+    let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
+        board_kernel,
+        capsules::lsm6dsoxtr::DRIVER_NUM,
+    )
+    .finalize(components::lsm6ds_i2c_component_helper!(mux_i2c));
+
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(lsm6dsoxtr));
+
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
@@ -395,6 +427,31 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
+
+    let _ = lsm6dsoxtr
+        .configure(
+            capsules::lsm6dsoxtr::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+            capsules::lsm6dsoxtr::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+            capsules::lsm6dsoxtr::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+            capsules::lsm6dsoxtr::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+            true,
+        )
+        .map_err(|e| {
+            panic!(
+                "ERROR Failed to start LSM6DSOXTR sensor configuration ({:?})",
+                e
+            )
+        });
+
+    // The Nano_RP2040 board has its own integrated temperature sensor, as well as a temperature sensor integrated in the lsm6dsoxtr sensor.
+    // There is only a single driver, thus either for userspace is exclusive.
+    // Uncomment this block in order to use the temperature sensor from lsm6dsoxtr
+
+    // let temp = static_init!(
+    //     capsules::temperature::TemperatureSensor<'static>,
+    //     capsules::temperature::TemperatureSensor::new(lsm6dsoxtr, grant_temperature)
+    // );
+
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
@@ -441,6 +498,9 @@ pub unsafe fn main() {
         console: console,
         adc: adc_syscall,
         temperature: temp,
+
+        lsm6dsoxtr: lsm6dsoxtr,
+        ninedof: ninedof,
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
