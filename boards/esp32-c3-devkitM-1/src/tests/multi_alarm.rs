@@ -15,7 +15,7 @@ use crate::tests::run_kernel_op;
 use crate::ALARM;
 use capsules::test::random_alarm::TestRandomAlarm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use esp32::timg::TimG;
+use esp32_c3::timg::TimG;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
@@ -43,7 +43,7 @@ pub fn run_multi_alarm() {
     }
 
     debug!("    [ok]");
-    run_kernel_op(100);
+    run_kernel_op(10000);
 }
 
 unsafe fn static_init_multi_alarm_test(
