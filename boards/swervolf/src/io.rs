@@ -7,6 +7,7 @@ use kernel::debug::IoWrite;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use crate::PROCESS_PRINTER;
 
 struct Writer {}
 
@@ -37,7 +38,14 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
-    debug::panic_print(writer, pi, &rv32i::support::nop, &PROCESSES, &CHIP);
+    debug::panic_print(
+        writer,
+        pi,
+        &rv32i::support::nop,
+        &PROCESSES,
+        &CHIP,
+        &PROCESS_PRINTER,
+    );
 
     // By writing to address 0x80001009 we can exit the simulation.
     // So instead of blinking in a loop let's exit the simulation.

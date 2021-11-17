@@ -946,6 +946,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_name
     }
 
+    fn get_completion_code(&self) -> Option<Option<u32>> {
+        self.completion_code.extract()
+    }
+
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
             // Actually set the return value for a particular process.
@@ -1093,6 +1097,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
+    fn debug_syscall_last(&self) -> Option<Syscall> {
+        self.debug.map_or(None, |debug| debug.last_syscall)
+    }
+
     fn debug_heap_start(&self) -> Option<*const u8> {
         self.debug
             .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
@@ -1138,200 +1146,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn print_memory_map(&self, writer: &mut dyn Write) {
-        if !config::CONFIG.debug_panics {
-            return;
-        }
-        // Flash
-        let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = flash_start + flash_protected_size;
-        let flash_app_size = flash_end - flash_app_start;
-
-        // Grant pointers size.
-        let grant_ptr_size = mem::size_of::<GrantPointerEntry>();
-        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        let sram_grant_pointers_size = grant_ptrs_num * grant_ptr_size;
-
-        // SRAM addresses
-        let sram_end = self.mem_end() as usize;
-        let sram_grant_pointers_start = sram_end - sram_grant_pointers_size;
-        let sram_upcall_list_start = sram_grant_pointers_start - Self::CALLBACKS_OFFSET;
-        let process_struct_memory_location = sram_upcall_list_start - Self::PROCESS_STRUCT_OFFSET;
-        let sram_grant_start = self.kernel_memory_break.get() as usize;
-        let sram_heap_end = self.app_break.get() as usize;
-        let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_heap_start_pointer.map(|p| p as usize)
-        });
-        let sram_stack_start: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_stack_start_pointer.map(|p| p as usize)
-        });
-        let sram_stack_bottom: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_stack_min_pointer.map(|p| p as usize)
-        });
-        let sram_start = self.mem_start() as usize;
-
-        // SRAM sizes
-        let sram_upcall_list_size = Self::CALLBACKS_OFFSET;
-        let sram_process_struct_size = Self::PROCESS_STRUCT_OFFSET;
-        let sram_grant_size = process_struct_memory_location - sram_grant_start;
-        let sram_grant_allocated = process_struct_memory_location - sram_grant_start;
-
-        // application statistics
-        let events_queued = self.pending_tasks();
-        let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
-        let last_syscall = self.debug.map(|debug| debug.last_syscall);
-        let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);
-        let restart_count = self.restart_count.get();
-        let completion_code = self.completion_code.extract();
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             𝐀𝐩𝐩: {}   -   [{:?}]\
-             \r\n Events Queued: {}   Syscall Count: {}   Dropped Upcall Count: {}\
-             \r\n Restart Count: {}\r\n",
-            self.process_name,
-            self.state.get(),
-            events_queued,
-            syscall_count,
-            dropped_upcall_count,
-            restart_count,
-        ));
-
-        let _ = match last_syscall {
-            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}\r\n", syscall)),
-            None => writer.write_str(" Last Syscall: None\r\n"),
-        };
-
-        let _ = match completion_code {
-            Some(opt_cc) => match opt_cc {
-                Some(cc) => writer.write_fmt(format_args!(" Completion Code: {}\r\n", cc)),
-                None => writer.write_str(" Completion Code: Faulted\r\n"),
-            },
-            None => writer.write_str(" Completion Code: None\r\n"),
-        };
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n\
-             \r\n ╔═══════════╤══════════════════════════════════════════╗\
-             \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
-             \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
-             \r\n             │ Grant Ptrs   {:6}\
-             \r\n             │ Upcalls      {:6}\
-             \r\n             │ Process      {:6}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ ▼ Grant      {:6} | {:6}{}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
-             \r\n  {:#010X} ┼───────────────────────────────────────────",
-            sram_end,
-            sram_grant_pointers_size,
-            sram_upcall_list_size,
-            sram_process_struct_size,
-            process_struct_memory_location,
-            sram_grant_size,
-            sram_grant_allocated,
-            exceeded_check(sram_grant_size, sram_grant_allocated),
-            sram_grant_start,
-            sram_heap_end,
-        ));
-
-        match sram_heap_start {
-            Some(sram_heap_start) => {
-                let sram_heap_size = sram_heap_end - sram_heap_start;
-                let sram_heap_allocated = sram_grant_start - sram_heap_start;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-                     \r\n  {:#010X} ┼─────────────────────────────────────────── R",
-                    sram_heap_size,
-                    sram_heap_allocated,
-                    exceeded_check(sram_heap_size, sram_heap_allocated),
-                    sram_heap_start,
-                ));
-            }
-            None => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n             │ ▲ Heap            ? |      ?               S\
-                     \r\n  ?????????? ┼─────────────────────────────────────────── R",
-                );
-            }
-        }
-
-        match (sram_heap_start, sram_stack_start) {
-            (Some(sram_heap_start), Some(sram_stack_start)) => {
-                let sram_data_size = sram_heap_start - sram_stack_start;
-                let sram_data_allocated = sram_data_size as usize;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n             │ Data         {:6} | {:6}               A",
-                    sram_data_size, sram_data_allocated,
-                ));
-            }
-            _ => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n             │ Data              ? |      ?               A",
-                );
-            }
-        }
-
-        match (sram_stack_start, sram_stack_bottom) {
-            (Some(sram_stack_start), Some(sram_stack_bottom)) => {
-                let sram_stack_size = sram_stack_start - sram_stack_bottom;
-                let sram_stack_allocated = sram_stack_start - sram_start;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack      {:6} | {:6}{}",
-                    sram_stack_start,
-                    sram_stack_size,
-                    sram_stack_allocated,
-                    exceeded_check(sram_stack_size, sram_stack_allocated),
-                ));
-            }
-            _ => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n  ?????????? ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack           ? |      ?",
-                );
-            }
-        }
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
-             \r\n  {:#010X} ┴───────────────────────────────────────────\
-             \r\n             .....\
-             \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-             \r\n             │ App Flash    {:6}                        L\
-             \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-             \r\n             │ Protected    {:6}                        S\
-             \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-             \r\n",
-            sram_stack_bottom.unwrap_or(0),
-            sram_start,
-            flash_end,
-            flash_app_size,
-            flash_app_start,
-            flash_protected_size,
-            flash_start
-        ));
-    }
-
     fn print_full_process(&self, writer: &mut dyn Write) {
         if !config::CONFIG.debug_panics {
             return;
         }
-        self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
             // We guarantee the memory bounds pointers provided to the UKB are
@@ -1421,16 +1239,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 }
 
-// Only used if debug_panics == true
-#[allow(unused)]
-fn exceeded_check(size: usize, allocated: usize) -> &'static str {
-    if size > allocated {
-        " EXCEEDED!"
-    } else {
-        "          "
-    }
-}
-
 impl<C: 'static + Chip> ProcessStandard<'_, C> {
     // Memory offset for upcall ring buffer (10 element length).
     const CALLBACK_LEN: usize = 10;
@@ -1458,22 +1266,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
-
-        // First thing: check that the process is at the correct location in
-        // flash if the TBF header specified a fixed address. If there is a
-        // mismatch we catch that early.
-        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
-            // The flash address in the header is based on the app binary,
-            // so we need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-            let expected_address = fixed_flash_start;
-            if actual_address != expected_address {
-                return Err(ProcessLoadError::IncorrectFlashAddress {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        }
 
         let process_name = tbf_header.get_package_name();
 
@@ -1531,6 +1323,22 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                            process_name.unwrap_or ("(no name"));
                 }
                 return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
+            }
+        }
+
+        // Check that the process is at the correct location in
+        // flash if the TBF header specified a fixed address. If there is a
+        // mismatch we catch that early.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
             }
         }
 

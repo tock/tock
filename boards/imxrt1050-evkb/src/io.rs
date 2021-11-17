@@ -12,6 +12,7 @@ use imxrt1050::gpio::PinId;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -74,5 +75,6 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         &cortexm7::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }
