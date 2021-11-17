@@ -246,7 +246,7 @@ impl<'a> Uart<'a> {
         );
     }
 
-    pub fn disable_tx_interrupt(&self) {
+    pub fn clear_tx_interrupt(&self) {
         let regs = self.registers;
 
         regs.int_clr.modify(
@@ -255,6 +255,10 @@ impl<'a> Uart<'a> {
                 + INT::TX_BRK_IDLE_DONE_INT::SET
                 + INT::TX_DONE_INT::SET,
         );
+    }
+
+    pub fn disable_tx_interrupt(&self) {
+        let regs = self.registers;
         regs.int_ena.modify(
             INT::TXFIFO_EMPTY_INT::CLEAR
                 + INT::TX_BRK_DONE_INT::CLEAR
@@ -271,12 +275,16 @@ impl<'a> Uart<'a> {
         );
     }
 
-    pub fn disable_rx_interrupt(&self) {
+    pub fn clear_rx_interrupt(&self) {
         let regs = self.registers;
 
         regs.int_clr.modify(
             INT::RXFIFO_FULL_INT::SET + INT::RXFIFO_OVF_INT::SET + INT::RXFIFO_TOUT_INT::SET,
         );
+    }
+
+    pub fn disable_rx_interrupt(&self) {
+        let regs = self.registers;
         regs.int_ena.modify(
             INT::RXFIFO_FULL_INT::CLEAR + INT::RXFIFO_OVF_INT::CLEAR + INT::RXFIFO_TOUT_INT::CLEAR,
         );
@@ -334,6 +342,7 @@ impl<'a> Uart<'a> {
         let intrs = regs.int_st.extract();
 
         if intrs.is_set(INT::TXFIFO_EMPTY_INT) {
+            self.clear_tx_interrupt();
             if self.tx_index.get() == self.tx_len.get() {
                 self.disable_tx_interrupt();
                 // We sent everything to the UART hardware, now from an
@@ -350,6 +359,7 @@ impl<'a> Uart<'a> {
         }
 
         if intrs.is_set(INT::RXFIFO_FULL_INT) || intrs.is_set(INT::RXFIFO_TOUT_INT) {
+            self.clear_rx_interrupt();
             if self.rx_index.get() == self.rx_len.get() {
                 self.disable_rx_interrupt();
                 // We received everything from the UART hardware, now from an
