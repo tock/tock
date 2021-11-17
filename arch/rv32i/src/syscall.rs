@@ -44,10 +44,20 @@ const R_A2: usize = 11;
 const R_A3: usize = 12;
 const R_A4: usize = 13;
 
-const MAJOR_VER: u32 = 1;
-const MINOR_VER: u32 = size_of::<Riscv32iStoredState>() as u32;
+/// Values for encoding the stored state buffer in a binary slice.
+const VERSION: u32 = 1;
+const STORED_STATE_SIZE: u32 = size_of::<Riscv32iStoredState>() as u32;
 const TAG: [u8; 4] = [b'r', b'v', b'5', b'i'];
 const METADATA_LEN: usize = 3;
+
+const VERSION_IDX: usize = 0;
+const SIZE_IDX: usize = 1;
+const TAG_IDX: usize = 2;
+const PC_IDX: usize = 3;
+const MCAUSE_IDX: usize = 4;
+const MTVAL_IDX: usize = 5;
+const REGS_IDX: usize = 6;
+const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 31;
 
 const U32_SZ: usize = size_of::<u32>();
 fn u32_byte_range(index: usize) -> Range<usize> {
@@ -56,13 +66,13 @@ fn u32_byte_range(index: usize) -> Range<usize> {
 
 fn u32_from_u8_slice(slice: &[u8], index: usize) -> Result<u32, ErrorCode> {
     let range = u32_byte_range(index);
-    if range.end < slice.len() {
-        Ok(u32::from_le_bytes(
-            slice[range].try_into().or(Err(ErrorCode::FAIL))?,
-        ))
-    } else {
-        Err(ErrorCode::SIZE)
-    }
+    Ok(u32::from_le_bytes(
+        slice
+            .get(range)
+            .ok_or(ErrorCode::SIZE)?
+            .try_into()
+            .or(Err(ErrorCode::FAIL))?,
+    ))
 }
 
 fn write_u32_to_u8_slice(val: u32, slice: &mut [u8], index: usize) {
@@ -73,18 +83,18 @@ fn write_u32_to_u8_slice(val: u32, slice: &mut [u8], index: usize) {
 impl core::convert::TryFrom<&[u8]> for Riscv32iStoredState {
     type Error = ErrorCode;
     fn try_from(ss: &[u8]) -> Result<Riscv32iStoredState, Self::Error> {
-        if ss.len() >= size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ
-            && u32_from_u8_slice(ss, 0)? == MAJOR_VER
-            && u32_from_u8_slice(ss, 1)? == MINOR_VER
-            && u32_from_u8_slice(ss, 2)? == u32::from_le_bytes(TAG)
+        if ss.len() == size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ
+            && u32_from_u8_slice(ss, VERSION_IDX)? == VERSION
+            && u32_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
+            && u32_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG)
         {
             let mut res = Riscv32iStoredState {
                 regs: [0; 31],
-                pc: u32_from_u8_slice(ss, 3)?,
-                mcause: u32_from_u8_slice(ss, 4)?,
-                mtval: u32_from_u8_slice(ss, 5)?,
+                pc: u32_from_u8_slice(ss, PC_IDX)?,
+                mcause: u32_from_u8_slice(ss, MCAUSE_IDX)?,
+                mtval: u32_from_u8_slice(ss, MTVAL_IDX)?,
             };
-            for (i, v) in (6..37).enumerate() {
+            for (i, v) in (REGS_RANGE).enumerate() {
                 res.regs[i] = u32_from_u8_slice(ss, v)?;
             }
             Ok(res)
@@ -568,16 +578,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         out: &mut [u8],
     ) -> Result<usize, ErrorCode> {
         const U32_SZ: usize = size_of::<usize>();
-        // MINOR_VER is size_of Riscv32iStoredState.
         if out.len() >= size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ {
-            write_u32_to_u8_slice(MAJOR_VER, out, 0);
-            write_u32_to_u8_slice(MINOR_VER, out, 1);
-            write_u32_to_u8_slice(u32::from_le_bytes(TAG), out, 2);
-            write_u32_to_u8_slice(state.pc, out, 3);
-            write_u32_to_u8_slice(state.mcause, out, 4);
-            write_u32_to_u8_slice(state.mtval, out, 5);
+            write_u32_to_u8_slice(VERSION, out, VERSION_IDX);
+            write_u32_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
+            write_u32_to_u8_slice(u32::from_le_bytes(TAG), out, TAG_IDX);
+            write_u32_to_u8_slice(state.pc, out, PC_IDX);
+            write_u32_to_u8_slice(state.mcause, out, MCAUSE_IDX);
+            write_u32_to_u8_slice(state.mtval, out, MTVAL_IDX);
             for (i, v) in state.regs.iter().enumerate() {
-                write_u32_to_u8_slice(*v, out, 6 + i);
+                write_u32_to_u8_slice(*v, out, REGS_IDX + i);
             }
             // +3 for pc, mcause, mtval
             Ok((state.regs.len() + 3 + METADATA_LEN) * U32_SZ)

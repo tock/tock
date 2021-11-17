@@ -49,10 +49,20 @@ pub struct CortexMStoredState {
     psp: usize,
 }
 
-const MAJOR_VER: usize = 1;
-const MINOR_VER: usize = size_of::<CortexMStoredState>();
+/// Values for encoding the stored state buffer in a binary slice.
+const VERSION: usize = 1;
+const STORED_STATE_SIZE: usize = size_of::<CortexMStoredState>();
 const TAG: [u8; 4] = [b'c', b't', b'x', b'm'];
 const METADATA_LEN: usize = 3;
+
+const VERSION_IDX: usize = 0;
+const SIZE_IDX: usize = 1;
+const TAG_IDX: usize = 2;
+const YIELDPC_IDX: usize = 3;
+const PSR_IDX: usize = 4;
+const PSP_IDX: usize = 5;
+const REGS_IDX: usize = 6;
+const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 8;
 
 const USIZE_SZ: usize = size_of::<usize>();
 fn usize_byte_range(index: usize) -> Range<usize> {
@@ -61,13 +71,13 @@ fn usize_byte_range(index: usize) -> Range<usize> {
 
 fn usize_from_u8_slice(slice: &[u8], index: usize) -> Result<usize, ErrorCode> {
     let range = usize_byte_range(index);
-    if range.end < slice.len() {
-        Ok(usize::from_le_bytes(
-            slice[range].try_into().or(Err(ErrorCode::FAIL))?,
-        ))
-    } else {
-        Err(ErrorCode::SIZE)
-    }
+    Ok(usize::from_le_bytes(
+        slice
+            .get(range)
+            .ok_or(ErrorCode::SIZE)?
+            .try_into()
+            .or(Err(ErrorCode::FAIL))?,
+    ))
 }
 
 fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
@@ -78,18 +88,18 @@ fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
 impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
     type Error = ErrorCode;
     fn try_from(ss: &[u8]) -> Result<CortexMStoredState, Self::Error> {
-        if ss.len() >= size_of::<CortexMStoredState>() + METADATA_LEN * USIZE_SZ
-            && usize_from_u8_slice(ss, 0)? == MAJOR_VER
-            && usize_from_u8_slice(ss, 1)? == MINOR_VER
-            && usize_from_u8_slice(ss, 2)? == u32::from_le_bytes(TAG) as usize
+        if ss.len() == size_of::<CortexMStoredState>() + METADATA_LEN * USIZE_SZ
+            && usize_from_u8_slice(ss, VERSION_IDX)? == VERSION
+            && usize_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
+            && usize_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG) as usize
         {
             let mut res = CortexMStoredState {
                 regs: [0; 8],
-                yield_pc: usize_from_u8_slice(ss, 3)?,
-                psr: usize_from_u8_slice(ss, 4)?,
-                psp: usize_from_u8_slice(ss, 5)?,
+                yield_pc: usize_from_u8_slice(ss, YIELDPC_IDX)?,
+                psr: usize_from_u8_slice(ss, PSR_IDX)?,
+                psp: usize_from_u8_slice(ss, PSP_IDX)?,
             };
-            for (i, v) in (6..14).enumerate() {
+            for (i, v) in (REGS_RANGE).enumerate() {
                 res.regs[i] = usize_from_u8_slice(ss, v)?;
             }
             Ok(res)
@@ -405,16 +415,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &CortexMStoredState,
         out: &mut [u8],
     ) -> Result<usize, ErrorCode> {
-        // MINOR_VER is size_of CortexMStoredState.
         if out.len() >= size_of::<CortexMStoredState>() + 3 * USIZE_SZ {
-            write_usize_to_u8_slice(MAJOR_VER, out, 0);
-            write_usize_to_u8_slice(MINOR_VER, out, 1);
-            write_usize_to_u8_slice(u32::from_le_bytes(TAG) as usize, out, 2);
-            write_usize_to_u8_slice(state.yield_pc, out, 3);
-            write_usize_to_u8_slice(state.psr, out, 4);
-            write_usize_to_u8_slice(state.psp, out, 5);
+            write_usize_to_u8_slice(VERSION, out, VERSION_IDX);
+            write_usize_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
+            write_usize_to_u8_slice(u32::from_le_bytes(TAG) as usize, out, TAG_IDX);
+            write_usize_to_u8_slice(state.yield_pc, out, YIELDPC_IDX);
+            write_usize_to_u8_slice(state.psr, out, PSR_IDX);
+            write_usize_to_u8_slice(state.psp, out, PSP_IDX);
             for (i, v) in state.regs.iter().enumerate() {
-                write_usize_to_u8_slice(*v, out, 6 + i);
+                write_usize_to_u8_slice(*v, out, REGS_IDX + i);
             }
             // + 3 for yield_pc, psr, psp
             Ok((state.regs.len() + 3 + METADATA_LEN) * USIZE_SZ)

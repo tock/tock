@@ -589,6 +589,13 @@ pub trait Process {
     /// various process data structures.
     fn get_sizes(&self) -> ProcessSizes;
 
+    /// Write stored state as a binary blob into the `out` slice. Returns the number of bytes
+    /// written to `out` on success.
+    ///
+    /// Returns `ErrorCode::SIZE` if `out` is too short to hold the stored state binary
+    /// representation. Returns `ErrorCode::FAIL` on an internal error.
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode>;
+
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
     fn print_full_process(&self, writer: &mut dyn Write);
@@ -623,10 +630,6 @@ pub trait Process {
 
     /// Return the lowest recorded address of the process stack, if known.
     fn debug_stack_end(&self) -> Option<*const u8>;
-
-    /// Export stored state as a binary blob. Returns the number of items
-    /// written on success.
-    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
