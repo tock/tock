@@ -565,7 +565,7 @@ unsafe fn setup() -> (
 
     let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
 
-    let otbn_rsa_internal_buf = static_init!([u8; 256], [0; 256]);
+    let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 
     // Use the OTBN to create an RSA engine
     if let Ok((rsa_imem_start, rsa_imem_length, rsa_dmem_start, rsa_dmem_length)) =
