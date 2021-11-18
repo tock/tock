@@ -134,6 +134,150 @@ use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
 
+/// Helper that calculated offsets within the kernel owned memory (i.e.
+/// the non-T part of grant).
+///
+/// Example layout of full grant belonging to a single app and driver
+///
+/// 0x003FFC8  ┌────────────────────────────────────┐
+///            │   T                                |
+/// 0x003FFxx  ├  ───────────────────────── ┐       |
+///            │   Padding (ensure T aligns)|       |
+/// 0x003FF44  ├  ───────────────────────── |       |
+///            │   SavedAllowRwN            | K     |
+///            │   ...                      | e     | G
+///            │   SavedAllowRw1            | r     | r
+///            │   SavedAllowRw0            | n     | a
+/// 0x003FF44  ├  ───────────────────────── | e     | n
+///            │   NumAllowRw (usize)       | l     | t
+/// 0x003FF40  ├  ───────────────────────── |       |  
+///            │   SavedAllowRoN            | O     | M
+///            │   ...                      | w     | e
+///            │   SavedAllowRo1            | n     | m
+///            │   SavedAllowRo0            | e     | o
+/// 0x003FF30  ├  ───────────────────────── | d     | r
+///            │   NumAllowRo (usize)       |       | y
+/// 0x003FF2C  ├  ───────────────────────── | D     | 1
+///            │   SavedUpcallN             | a     |
+///            │   ...                      | t     |
+///            │   SavedUpcall1             | a     |
+///            │   SavedUpcall0             |       |
+/// 0x003FF24  ├  ───────────────────────── |       |
+///            │   NumUpcalls (usize)       |       |
+/// 0x003FF20  └────────────────────────────────────┘
+struct KernelManagedLayout {
+    upcalls_num: *mut usize,
+    upcalls_array: *mut SavedUpcall,
+    allow_ro_num: *mut usize,
+    allow_ro_array: *mut SavedAllowRo,
+    allow_rw_num: *mut usize,
+    allow_rw_array: *mut SavedAllowRw,
+}
+
+/// Represents the size of the upcall array in the kernel owned section of the grant
+#[derive(Copy, Clone)]
+struct UpcallItems(usize);
+/// Represents the size of the allow read-only array in the kernel owned section of the grant
+#[derive(Copy, Clone)]
+struct AllowRoItems(usize);
+/// Represents the size of the allow read-write array in the kernel owned section of the grant
+#[derive(Copy, Clone)]
+struct AllowRwItems(usize);
+/// Represents the size data T within the grant
+#[derive(Copy, Clone)]
+struct GrantDataSize(usize);
+/// Represents the alignment of data T within the grant
+#[derive(Copy, Clone)]
+struct GrantDataAlign(usize);
+
+impl KernelManagedLayout {
+    /// Reads the specified pointer as the base of the kernel owned grant region.
+    ///
+    /// # Safety
+    ///
+    /// The incoming base pointer must be well aligned and already contain initialized data
+    /// in the expected form.
+    unsafe fn read_from_base(base_ptr: *mut u8) -> Self {
+        let upcalls_num = base_ptr as *mut usize;
+        let upcalls_array = upcalls_num.add(1) as *mut SavedUpcall;
+
+        let allow_ro_num = upcalls_array.add(upcalls_num.read()) as *mut usize;
+        let allow_ro_array = allow_ro_num.add(1) as *mut SavedAllowRo;
+
+        let allow_rw_num = allow_ro_array.add(allow_ro_num.read()) as *mut usize;
+        let allow_rw_array = allow_rw_num.add(1) as *mut SavedAllowRw;
+
+        Self {
+            upcalls_num,
+            upcalls_array,
+            allow_ro_num,
+            allow_ro_array,
+            allow_rw_num,
+            allow_rw_array,
+        }
+    }
+
+    /// Creates a layout from the specified pointer and lengths of arrays
+    ///
+    /// # Safety
+    ///
+    /// The incoming base pointer must be well aligned but does not need to point
+    /// to initialized data
+    unsafe fn from_counts(
+        base_ptr: *mut u8,
+        upcalls_num_val: UpcallItems,
+        allow_ro_num_val: AllowRoItems,
+    ) -> Self {
+        let upcalls_num = base_ptr as *mut usize;
+        let upcalls_array = upcalls_num.add(1) as *mut SavedUpcall;
+
+        let allow_ro_num = upcalls_array.add(upcalls_num_val.0) as *mut usize;
+        let allow_ro_array = allow_ro_num.add(1) as *mut SavedAllowRo;
+
+        let allow_rw_num = allow_ro_array.add(allow_ro_num_val.0) as *mut usize;
+        let allow_rw_array = allow_rw_num.add(1) as *mut SavedAllowRw;
+
+        Self {
+            upcalls_num,
+            upcalls_array,
+            allow_ro_num,
+            allow_ro_array,
+            allow_rw_num,
+            allow_rw_array,
+        }
+    }
+
+    /// Returns the entire grant size including the kernel own memory, padding, and data for T.
+    /// Requires that grant_t_align be a power of 2, which is guaranteed from align_of rust calls
+    fn grant_size(
+        upcalls_num: UpcallItems,
+        allow_ro_num: AllowRoItems,
+        allow_rw_num: AllowRwItems,
+        grant_t_size: GrantDataSize,
+        grant_t_align: GrantDataAlign,
+    ) -> usize {
+        let kernel_managed_size = 3 * size_of::<usize>()
+            + upcalls_num.0 * size_of::<SavedUpcall>()
+            + allow_ro_num.0 * size_of::<SavedAllowRo>()
+            + allow_rw_num.0 * size_of::<SavedAllowRw>();
+        // We know that grant_t_align is a power of 2, so we can make a mask that will save
+        // only the remainder bits
+        let grant_t_align_mask = grant_t_align.0 - 1;
+        // Determine padding to get to the next multipe of grant_t_align by taking the remainder
+        // and subtracting that from the alignment, then ensuring a full alignment value maps to 0
+        let padding =
+            (grant_t_align.0 - (kernel_managed_size & grant_t_align_mask)) & grant_t_align_mask;
+        kernel_managed_size + padding + grant_t_size.0
+    }
+
+    /// Returns the alignment of the entire grant region based on the alignment of data T
+    fn grant_align(grant_t_align: GrantDataAlign) -> usize {
+        // The kernel owned memory all aligned to usize. We need to use the higher of the two
+        // alignment to ensure our padding calculations work for any alignment of T
+        cmp::max(size_of::<usize>(), grant_t_align.0)
+    }
+}
+
 /// This GrantData object provides access to the memory allocated for a grant
 /// for a specific process.
 ///
