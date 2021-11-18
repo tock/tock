@@ -359,8 +359,8 @@ impl<'a> RsaCryptoBase<'a> for OtbnRsa<'a> {
         > {
         let correct_client = self.client.map_or(false, |c| {
             match c {
-                DynamicClient::Mutable(c) => false,
-                DynamicClient::Immutable(c) => true,
+                DynamicClient::Mutable(_c) => false,
+                DynamicClient::Immutable(_c) => true,
             }
         });
         
