@@ -244,7 +244,7 @@ pub enum SyscallReturnVariant {
 /// Capsules do not use this struct. Capsules use higher level Rust
 /// types
 /// (e.g. [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer)
-/// and `GrantUpcallTable`) or wrappers around this struct
+/// and `GrantKernelData`) or wrappers around this struct
 /// ([`CommandReturn`](crate::syscall_driver::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]

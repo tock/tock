@@ -111,12 +111,13 @@
 //! GrantData wraps the     │ struct GrantData<T>   {  │◄┘
 //! type and provides       │   data: &mut T           │
 //! mutable access.         │ }                        │
-//! GrantUpcallTable        │ struct GrantUpcallTable {│
+//! GrantKernelData         │ struct GrantKernelData { │
 //! provides access to      │   upcalls: [SavedUpcall] │
 //! scheduling upcalls      │ }                        │
+//! and process buffers     |                          |
 //!                         └──┬───────────────────────┘
 //! The actual object T can    │
-//! only be accessed inside    │ fn(mem: &GrantData, upcalls: &GrantUpcallTable)
+//! only be accessed inside    │ fn(mem: &GrantData, kernel_data: &GrantKernelData)
 //! the closure.               ▼
 //! ```
 
@@ -129,6 +130,7 @@ use core::slice;
 
 use crate::kernel::Kernel;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
+use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
 
@@ -170,18 +172,24 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantData<'a, T> {
     }
 }
 
-/// This GrantUpcallTable object provides a handle to access Upcalls stored on
-/// behalf of a particular grant/driver.
+/// This GrantKernelData object provides a handle to access upcalls and process
+/// buffers stored on behalf of a particular grant/driver.
 ///
-/// Capsules gain access to a GrantUpcallTable object by calling
-/// `Grant::enter()`. From there, they can schedule upcalls. No other access to
-/// upcalls is provided.
+/// Capsules gain access to a GrantKernelData object by calling
+/// `Grant::enter()`. From there, they can schedule upcalls or access process
+/// buffers.
 ///
 /// It is expected that this type will only exist as a short-lived stack
 /// allocation, so its size is not a significant concern.
-pub struct GrantUpcallTable<'a> {
-    /// The mutable reference to the actual object type stored in the grant.
+pub struct GrantKernelData<'a> {
+    /// A reference to the actual upcall slice stored in the grant.
     upcalls: &'a [SavedUpcall],
+
+    /// A reference to the actual read only allow slice stored in the grant.
+    allow_ro: &'a [SavedAllowRo],
+
+    /// A reference to the actual read write allow slice stored in the grant.
+    allow_rw: &'a [SavedAllowRw],
 
     /// We need to keep track of the driver number so we can properly identify
     /// the Upcall that is called. We need to keep track of its source so we can
@@ -193,16 +201,20 @@ pub struct GrantUpcallTable<'a> {
     process: &'a dyn Process,
 }
 
-impl<'a> GrantUpcallTable<'a> {
-    /// Create a `GrantUpcallTable` object to provide a handle for capsules to
+impl<'a> GrantKernelData<'a> {
+    /// Create a `GrantKernelData` object to provide a handle for capsules to
     /// call Upcalls.
     fn new(
         upcalls: &'a [SavedUpcall],
+        allow_ro: &'a [SavedAllowRo],
+        allow_rw: &'a [SavedAllowRw],
         driver_num: usize,
         process: &'a dyn Process,
-    ) -> GrantUpcallTable<'a> {
+    ) -> GrantKernelData<'a> {
         Self {
             upcalls,
+            allow_ro,
+            allow_rw,
             driver_num,
             process,
         }
@@ -240,15 +252,124 @@ impl<'a> GrantUpcallTable<'a> {
             },
         )
     }
+
+    /// Returns a lifetime limited reference to the requested ReadOnlyProcessBuffer
+    ///
+    /// The ReadOnlyProcessBuffer is only value for as long as this object is valid, i.e.
+    /// the lifetime of the app enter closure.
+    ///
+    /// If the specified allow number is invalid, then a AddressOutOfBounds will be
+    /// return. This returns a process::Error to allow for easy chaining of this
+    /// function with the ReadOnlyProcessBuffer::enter function with `and_then`.
+    pub fn get_readonly_buf(
+        &self,
+        allow_rw_num: usize,
+    ) -> Result<ReadOnlyProcessBufferRef, crate::process::Error> {
+        self.allow_ro.get(allow_rw_num).map_or(
+            Err(crate::process::Error::AddressOutOfBounds),
+            |saved_ro| {
+                // # Safety
+                //
+                // This is the saved process buffer data has been validated to be wholly
+                // contained within this process before it was stored. The lifetime
+                // of the ReadOnlyProcessBuffer is bound to the lifetime of self, which
+                // correctly limits dereferencing this saved pointer to only when it is valid.
+                unsafe {
+                    Ok(ReadOnlyProcessBufferRef::new(
+                        saved_ro.ptr,
+                        saved_ro.len,
+                        self.process.processid(),
+                    ))
+                }
+            },
+        )
+    }
+
+    /// Returns a lifetime limited reference to the requested ReadWriteProcessBuffer
+    ///
+    /// The ReadWriteProcessBuffer is only value for as long as this object is valid, i.e.
+    /// the lifetime of the app enter closure.
+    ///
+    /// If the specified allow number is invalid, then a AddressOutOfBounds will be
+    /// return. This returns a process::Error to allow for easy chaining of this
+    /// function with the ReadWriteProcessBuffer::enter function with `and_then`.
+    pub fn get_readwrite_buf(
+        &self,
+        allow_rw_num: usize,
+    ) -> Result<ReadWriteProcessBufferRef, crate::process::Error> {
+        self.allow_rw.get(allow_rw_num).map_or(
+            Err(crate::process::Error::AddressOutOfBounds),
+            |saved_rw| {
+                // # Safety
+                //
+                // This is the saved process buffer data has been validated to be wholly
+                // contained within this process before it was stored. The lifetime
+                // of the ReadWriteProcessBuffer is bound to the lifetime of self, which
+                // correctly limits dereferencing this saved pointer to only when it is valid.
+                unsafe {
+                    Ok(ReadWriteProcessBufferRef::new(
+                        saved_rw.ptr,
+                        saved_rw.len,
+                        self.process.processid(),
+                    ))
+                }
+            },
+        )
+    }
 }
 
 /// A minimal representation of an upcall, used for storing an upcall
 /// in a process' grant table without wasting memory duplicating information
 /// such as process ID.
 #[repr(C)]
-pub(crate) struct SavedUpcall {
-    pub(crate) appdata: usize,
-    pub(crate) fn_ptr: Option<NonNull<()>>,
+struct SavedUpcall {
+    appdata: usize,
+    fn_ptr: Option<NonNull<()>>,
+}
+
+impl Default for SavedUpcall {
+    fn default() -> Self {
+        Self {
+            appdata: 0,
+            fn_ptr: None,
+        }
+    }
+}
+
+/// A minimal representation of a read-only allow from app, used for
+/// storing a read-only allow in a process' kernel managed grant space
+/// without wasting memory duplicating information such as process ID.
+#[repr(C)]
+struct SavedAllowRo {
+    ptr: *const u8,
+    len: usize,
+}
+
+impl Default for SavedAllowRo {
+    fn default() -> Self {
+        Self {
+            ptr: core::ptr::null(),
+            len: 0,
+        }
+    }
+}
+
+/// A minimal representation of a read-write allow from app, used for
+/// storing a read-write allow in a process' kernel managed grant space
+/// without wasting memory duplicating information such as process ID.
+#[repr(C)]
+struct SavedAllowRw {
+    ptr: *mut u8,
+    len: usize,
+}
+
+impl Default for SavedAllowRw {
+    fn default() -> Self {
+        Self {
+            ptr: core::ptr::null_mut(),
+            len: 0,
+        }
+    }
 }
 
 /// Subscribe to an upcall by saving the upcall in the grant region for the
@@ -709,7 +830,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -774,7 +895,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// `Some(fun())`.
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
     {
         self.access_grant(fun, false)
     }
@@ -792,7 +913,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
     {
         // # `unwrap()` Safety
         //
@@ -810,7 +931,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -943,7 +1064,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
         let upcall_table =
-            GrantUpcallTable::new(saved_upcalls_slice, self.driver_num, self.process);
+            GrantKernelData::new(saved_upcalls_slice, &[], &[], self.driver_num, self.process);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_data, &upcall_table);
@@ -964,7 +1085,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// return `None` if the grant region is entered and do nothing.
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
     {
         // Access the grant that is in process memory. This can only fail if
         // the grant is already entered.
@@ -1051,7 +1172,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // Create a wrapped object that gives access to the upcalls for this
         // driver.
         let upcall_table =
-            GrantUpcallTable::new(saved_upcalls_slice, self.driver_num, self.process);
+            GrantKernelData::new(saved_upcalls_slice, &[], &[], self.driver_num, self.process);
 
         // Allow the capsule to access the grant.
         let res = fun(&mut grant_data, &upcall_table, &mut allocator);
@@ -1309,7 +1430,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
     {
         let pg = ProcessGrant::new(self, processid)?;
 
@@ -1330,7 +1451,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// memory in the process's grant region.
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
-        F: FnOnce(&mut GrantData<T>, &GrantUpcallTable, &mut GrantRegionAllocator) -> R,
+        F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
     {
         // Get the `ProcessGrant` for the process, possibly needing to
         // actually allocate the memory in the process's grant region to
@@ -1355,7 +1476,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     /// entered will result in a panic.
     pub fn each<F>(&self, fun: F)
     where
-        F: Fn(ProcessId, &mut GrantData<T>, &GrantUpcallTable),
+        F: Fn(ProcessId, &mut GrantData<T>, &GrantKernelData),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {

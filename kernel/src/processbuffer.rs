@@ -20,7 +20,8 @@
 //! these slices, however.
 
 use core::cell::Cell;
-use core::ops::{Index, Range, RangeFrom, RangeTo};
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::process::{self, ProcessId};
@@ -239,7 +240,7 @@ impl ReadOnlyProcessBuffer {
     ///
     /// # Safety requirements
     ///
-    /// Refer to the safety requirments of
+    /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
         ReadOnlyProcessBuffer {
@@ -359,6 +360,38 @@ impl Default for ReadOnlyProcessBuffer {
     }
 }
 
+/// Provides access to a ReadOnlyProcessBuffer with a restricted lifetime.
+/// This automatically dereferences into a ReadOnlyProcessBuffer
+pub struct ReadOnlyProcessBufferRef<'a> {
+    buf: ReadOnlyProcessBuffer,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl ReadOnlyProcessBufferRef<'_> {
+    /// Construct a new [`ReadOnlyProcessBufferRef`] over a given pointer and
+    /// length with a lifetime derived from the caller.
+    ///
+    /// # Safety requirements
+    ///
+    /// Refer to the safety requirements of
+    /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
+    /// help enforce the invariant that this incoming pointer may only
+    /// be access for a certain duration.
+    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+        Self {
+            buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Deref for ReadOnlyProcessBufferRef<'_> {
+    type Target = ReadOnlyProcessBuffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buf
+    }
+}
+
 /// Read-writable buffer shared by a userspace process
 ///
 /// This struct is provided to capsules when a process `allows` a
@@ -387,7 +420,7 @@ impl ReadWriteProcessBuffer {
     ///
     /// # Safety requirements
     ///
-    /// Refer to the safety requirments of
+    /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
         ReadWriteProcessBuffer {
@@ -555,6 +588,38 @@ impl WriteableProcessBuffer for ReadWriteProcessBuffer {
 impl Default for ReadWriteProcessBuffer {
     fn default() -> Self {
         Self::const_default()
+    }
+}
+
+/// Provides access to a ReadWriteProcessBuffer with a restricted lifetime.
+/// This automatically dereferences into a ReadWriteProcessBuffer
+pub struct ReadWriteProcessBufferRef<'a> {
+    buf: ReadWriteProcessBuffer,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl ReadWriteProcessBufferRef<'_> {
+    /// Construct a new [`ReadWriteProcessBufferRef`] over a given pointer and
+    /// length with a lifetime derived from the caller.
+    ///
+    /// # Safety requirements
+    ///
+    /// Refer to the safety requirements of
+    /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
+    /// help enforce the invariant that this incoming pointer may only
+    /// be access for a certain duration.
+    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+        Self {
+            buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Deref for ReadWriteProcessBufferRef<'_> {
+    type Target = ReadWriteProcessBuffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buf
     }
 }
 
