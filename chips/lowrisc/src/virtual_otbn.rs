@@ -57,7 +57,7 @@ impl<'a> VirtualMuxAccel<'a> {
     pub fn load_data(
         &self,
         address: usize,
-        data: &'static mut [u8],
+        data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
@@ -67,7 +67,7 @@ impl<'a> VirtualMuxAccel<'a> {
         } else if self.mux.running_id.get() == self.id {
             self.mux.accel.load_data(address, data)
         } else {
-            Err((ErrorCode::BUSY, data))
+            Err((ErrorCode::BUSY, data.take()))
         }
     }
 

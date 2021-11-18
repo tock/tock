@@ -1369,6 +1369,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             return Err(ProcessLoadError::CredentialsNoAccept);
         }
 
+
         // Check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
         // mismatch we catch that early.
