@@ -21,6 +21,7 @@ pub use crate::process_policies::{
     PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
 };
+pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
 pub use crate::process_standard::ProcessStandard;
 pub use crate::process_utilities::{load_processes, load_processes_advanced, ProcessLoadError};
 
@@ -241,6 +242,18 @@ pub trait Process {
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
+
+    /// Get the completion code if the process has previously terminated.
+    ///
+    /// If the process has never terminated then there has been no opportunity
+    /// for a completion code to be set, and this will return `None`.
+    ///
+    /// If the process has previously terminated this will return `Some()`. If
+    /// the last time the process terminated it did not provide a completion
+    /// code (e.g. the process faulted), then this will return `Some(None)`. If
+    /// the last time the process terminated it did provide a completion code,
+    /// this will return `Some(Some(completion_code))`.
+    fn get_completion_code(&self) -> Option<Option<u32>>;
 
     /// Stop and clear a process's state, putting it into the `Terminated`
     /// state.
@@ -576,10 +589,6 @@ pub trait Process {
     /// various process data structures.
     fn get_sizes(&self) -> ProcessSizes;
 
-    /// Print out the memory map (Grant region, heap, stack, program
-    /// memory, BSS, and data sections) of this process.
-    fn print_memory_map(&self, writer: &mut dyn Write);
-
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
     fn print_full_process(&self, writer: &mut dyn Write);
@@ -601,6 +610,10 @@ pub trait Process {
     /// Increment the number of times the process called a syscall and record
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
+
+    /// Return the last syscall the process called. Returns `None` if the
+    /// process has not called any syscalls or the information is unknown.
+    fn debug_syscall_last(&self) -> Option<Syscall>;
 
     /// Return the address of the start of the process heap, if known.
     fn debug_heap_start(&self) -> Option<*const u8>;

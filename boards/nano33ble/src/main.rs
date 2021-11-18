@@ -93,6 +93,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 static mut CDC_REF_FOR_PANIC: Option<
     &'static capsules::usb::cdc::CdcAcm<
         'static,
@@ -362,6 +363,11 @@ pub unsafe fn main() {
     ));
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
+    // Process Printer for displaying process information.
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(());
@@ -370,6 +376,7 @@ pub unsafe fn main() {
         board_kernel,
         uart_mux,
         mux_alarm,
+        process_printer,
     )
     .finalize(components::process_console_component_helper!(
         nrf52::rtc::Rtc<'static>

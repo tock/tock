@@ -35,6 +35,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static e310x::chip::E310x<E310xDefaultPeripherals>> = None;
+// Reference to the process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -219,6 +221,10 @@ pub unsafe fn main() {
         e310x::chip::E310x::new(peripherals, hardware_timer)
     );
     CHIP = Some(chip);
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();

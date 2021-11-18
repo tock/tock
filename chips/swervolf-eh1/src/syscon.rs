@@ -111,7 +111,7 @@ impl time::Time for SysCon<'_> {
 }
 
 impl<'a> time::Counter<'a> for SysCon<'a> {
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
     }
 
