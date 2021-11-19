@@ -506,12 +506,17 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
-/// The command permissions speified by the TBF header
+/// The command permissions specified by the TBF header.
 ///
 /// Use the `get_command_permissions()` function to retrieve these.
 pub enum CommandPermissions {
+    /// The TBF header did not specify any permissions for any driver numbers.
     NoPermsAtAll,
+    /// The TBF header did specify permissions for at least one driver number,
+    /// but not for the requested driver number.
     NoPermsThisDriver,
+    /// The bitmask of allowed command numbers starting from the offset provided
+    /// when this enum was created.
     Mask(u64),
 }
 
@@ -659,16 +664,17 @@ impl TbfHeader {
 
     /// Get the permissions for a specified driver and offset.
     ///
-    /// `driver_num`: The driver to lookup
-    /// `offset`: The offset for the driver to find. `None` indicates any offset,
-    ///  while `Some` will specify the offset to find. An offset value of `Some(1)`
-    ///  will find a header with offset `1`, so the `allowed_commands` will cover
-    ///  command 64 to 127.
+    /// - `driver_num`: The driver to lookup
+    /// - `offset`: The offset for the driver to find. `None` indicates any
+    ///   offset, while `Some` will specify the offset to find. An offset value
+    ///   of `Some(1)` will find a header with offset `1`, so the
+    ///   `allowed_commands` will cover command 64 to 127.
     ///
     /// If the specified permissions are found, this function will return
-    /// `Some((true, allowed_command_mask))`. If there are permissions in the header
-    /// but no driver or offset match the function will return `Some((false, 0)).
-    /// If the process does not have any permissions specified, return `None`.
+    /// `Some((true, allowed_command_mask))`. If there are permissions in the
+    /// header but no driver or offset match the function will return
+    /// `Some((false, 0)). If the process does not have any permissions
+    /// specified, return `None`.
     pub fn get_command_permissions(
         &self,
         driver_num: usize,
