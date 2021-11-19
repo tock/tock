@@ -592,9 +592,8 @@ impl Drop for GrantEnterLifetimeGuard<'_> {
     }
 }
 
-/// Enters the grant for the specified process. Caller MUST leave_grant with the first element
-/// of the Ok return tuple, as it is the grant_num. The second element of the Ok result is
-/// the layout of the kernel managed section of the grant.
+/// Enters the grant for the specified process. Caller must hold on to the grant lifetime guard
+/// while they accessing the memory in the layout (second element).
 fn enter_grant_kernel_managed(
     process: &dyn Process,
     driver_num: usize,
@@ -638,7 +637,7 @@ pub(crate) fn subscribe(
     //
     // This is safe because of how the grant was initially allocated and that
     // because we were able to enter the grant the grant region must be valid
-    // and initialized.
+    // and initialized. We are also holding the grant open until _grant_open goes out of scope.
     let saved_upcalls_slice =
         unsafe { slice::from_raw_parts_mut(layout.upcalls_array, layout.upcalls_num.read()) };
 
@@ -686,7 +685,7 @@ pub(crate) fn allow_ro(
     //
     // This is safe because of how the grant was initially allocated and that
     // because we were able to enter the grant the grant region must be valid
-    // and initialized.
+    // and initialized. We are also holding the grant open until _grant_open goes out of scope.
     let saved_allow_ro_slice =
         unsafe { slice::from_raw_parts_mut(layout.allow_ro_array, layout.allow_ro_num.read()) };
 
@@ -734,7 +733,7 @@ pub(crate) fn allow_rw(
     //
     // This is safe because of how the grant was initially allocated and that
     // because we were able to enter the grant the grant region must be valid
-    // and initialized.
+    // and initialized. We are also holding the grant open until _grant_open goes out of scope.
     let saved_allow_rw_slice =
         unsafe { slice::from_raw_parts_mut(layout.allow_rw_array, layout.allow_rw_num.read()) };
 
