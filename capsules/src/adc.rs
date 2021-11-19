@@ -49,13 +49,12 @@
 //! ```
 
 use core::cell::Cell;
+use core::cmp;
 use core::convert::TryFrom;
-use core::{cmp, mem};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::ReadableProcessBuffer;
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -88,7 +87,7 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     mode: Cell<AdcMode>,
 
     // App state
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
     appid: OptionalCell<ProcessId>,
     channel: Cell<usize>,
 
@@ -118,25 +117,21 @@ pub struct AppSys {
 
 /// Holds buffers that the application has passed us
 pub struct App {
-    app_buf1: ReadWriteProcessBuffer,
-    app_buf2: ReadWriteProcessBuffer,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
     next_samples_outstanding: Cell<usize>,
-    using_app_buf1: Cell<bool>,
+    using_app_buf0: Cell<bool>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            app_buf1: ReadWriteProcessBuffer::default(),
-            app_buf2: ReadWriteProcessBuffer::default(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
             next_samples_outstanding: Cell::new(0),
-            using_app_buf1: Cell::new(true),
+            using_app_buf0: Cell::new(true),
         }
     }
 }
@@ -167,7 +162,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
         channels: &'a [&'a <A as hil::adc::Adc>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
@@ -339,8 +334,11 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut app_buf_length = 0;
         let exists = self.appid.map_or(false, |id| {
             self.apps
-                .enter(*id, |state, _| {
-                    app_buf_length = state.app_buf1.len();
+                .enter(*id, |_, kernel_data| {
+                    app_buf_length = kernel_data
+                        .get_readwrite_buf(0)
+                        .map(|b| b.len())
+                        .unwrap_or(0);
                     app_buf_length > 0
                 })
                 .map_err(|err| {
@@ -385,7 +383,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 }
 
                                 // begin sampling
-                                app.using_app_buf1.set(true);
+                                app.using_app_buf0.set(true);
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
@@ -459,10 +457,16 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut next_app_buf_length = 0;
         let exists = self.appid.map_or(false, |id| {
             self.apps
-                .enter(*id, |state, _| {
-                    app_buf_length = state.app_buf1.len();
-                    next_app_buf_length = state.app_buf2.len();
-                    state.app_buf1.len() > 0 && state.app_buf2.len() > 0
+                .enter(*id, |_, kernel_data| {
+                    app_buf_length = kernel_data
+                        .get_readwrite_buf(0)
+                        .map(|b| b.len())
+                        .unwrap_or(0);
+                    next_app_buf_length = kernel_data
+                        .get_readwrite_buf(1)
+                        .map(|b| b.len())
+                        .unwrap_or(0);
+                    app_buf_length > 0 && next_app_buf_length > 0
                 })
                 .map_err(|err| {
                     if err == kernel::process::Error::NoSuchApp
@@ -523,7 +527,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 }
 
                                 // begin sampling
-                                app.using_app_buf1.set(true);
+                                app.using_app_buf0.set(true);
                                 self.adc
                                     .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
@@ -793,18 +797,28 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             // we did expect a buffer. Determine the current application state
             self.appid.map(|id| {
                 self.apps
-                    .enter(*id, |app, upcalls| {
+                    .enter(*id, |app, kernel_data| {
+                        // Get both buffers, this shouldn't ever fail since the grant was created
+                        // with enough space. The buffer still may be empty though
+                        let app_buf0 = match kernel_data.get_readwrite_buf(0) {
+                            Ok(buf) => buf,
+                            Err(_) => return,
+                        };
+                        let app_buf1 = match kernel_data.get_readwrite_buf(1) {
+                            Ok(buf) => buf,
+                            Err(_) => return,
+                        };
                         // determine which app buffer to copy data into and which is
                         // next up if we're in continuous mode
-                        let use1 = app.using_app_buf1.get();
+                        let use0 = app.using_app_buf0.get();
                         let next_app_buf;
                         let app_buf_ref;
-                        if app.using_app_buf1.get() {
-                            app_buf_ref = &app.app_buf1;
-                            next_app_buf = &app.app_buf2;
+                        if use0 {
+                            app_buf_ref = &app_buf0;
+                            next_app_buf = &app_buf1;
                         } else {
-                            app_buf_ref = &app.app_buf2;
-                            next_app_buf = &app.app_buf1;
+                            app_buf_ref = &app_buf1;
+                            next_app_buf = &app_buf0;
                         }
 
                         // update count of outstanding sample requests
@@ -839,7 +853,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                         .set(samples_needed - app.next_samples_outstanding.get());
                                     app.samples_outstanding
                                         .set(app.next_samples_outstanding.get());
-                                    app.using_app_buf1.set(!app.using_app_buf1.get());
+                                    app.using_app_buf0.set(!app.using_app_buf0.get());
 
                                     // we also need to place our next request, however
                                     // the outstanding request already placed for the
@@ -952,10 +966,10 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 
                         {
                             let app_buf;
-                            if use1 {
-                                app_buf = &mut app.app_buf1;
+                            if use0 {
+                                app_buf = &app_buf0;
                             } else {
-                                app_buf = &mut app.app_buf2;
+                                app_buf = &app_buf1;
                             }
 
                             // next we should copy bytes to the app buffer
@@ -996,16 +1010,16 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             .set(app.app_buf_offset.get() + length * 2);
 
                         // let in_use_buf;
-                        let (buf_ptr, buf_len) = if use1 {
-                            (app.app_buf1.ptr(), app.app_buf1.len())
+                        let (buf_ptr, buf_len) = if use0 {
+                            (app_buf0.ptr(), app_buf0.len())
                         } else {
-                            (app.app_buf2.ptr(), app.app_buf2.len())
+                            (app_buf1.ptr(), app_buf1.len())
                         };
                         // if the app_buffer is filled, perform callback
                         if perform_callback {
                             // actually schedule the callback
                             let len_chan = ((buf_len / 2) << 8) | (self.channel.get() & 0xFF);
-                            upcalls
+                            kernel_data
                                 .schedule_upcall(
                                     0,
                                     (self.mode.get() as usize, len_chan, buf_ptr as usize),
@@ -1089,89 +1103,6 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 
 /// Implementations of application syscalls
 impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'_, A> {
-    /// Provides access to a buffer from the application to store data in or
-    /// read data from.
-    ///
-    /// - `_appid` - application identifier, unused
-    /// - `allow_num` - which allow call this is
-    /// - `slice` - representation of application memory to copy data into
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        // Return true if this app already owns the ADC capsule, if no app owns
-        // the ADC capsule, or if the app that is marked as owning the ADC
-        // capsule no longer exists.
-        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
-            if self.active.get() {
-                owning_app == &appid
-            } else {
-                self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
-                    .unwrap_or(true)
-            }
-        });
-        if match_or_empty_or_nonexistant {
-            self.appid.set(appid);
-        } else {
-            return Err((slice, ErrorCode::NOMEM));
-        }
-        match allow_num {
-            // Pass buffer for samples to go into
-            0 => {
-                // set first buffer
-                let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
-                    self.apps
-                        .enter(*id, |app, _| {
-                            mem::swap(&mut app.app_buf1, &mut slice);
-                        })
-                        .map_err(|err| {
-                            if err == kernel::process::Error::NoSuchApp
-                                || err == kernel::process::Error::InactiveApp
-                            {
-                                self.appid.clear();
-                            }
-                            ErrorCode::from(err)
-                        })
-                });
-                if let Err(err) = res {
-                    Err((slice, err))
-                } else {
-                    Ok(slice)
-                }
-            }
-
-            // Pass a second buffer to be used for double-buffered continuous sampling
-            1 => {
-                // set second buffer
-                let res = self.appid.map_or(Err(ErrorCode::FAIL), |id| {
-                    self.apps
-                        .enter(*id, |app, _| {
-                            mem::swap(&mut app.app_buf2, &mut slice);
-                        })
-                        .map_err(|err| {
-                            if err == kernel::process::Error::NoSuchApp
-                                || err == kernel::process::Error::InactiveApp
-                            {
-                                self.appid.clear();
-                            }
-                            ErrorCode::from(err)
-                        })
-                });
-                if let Err(err) = res {
-                    Err((slice, err))
-                } else {
-                    Ok(slice)
-                }
-            }
-
-            // default
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
-        }
-    }
-
     /// Method for the application to command or query this driver.
     ///
     /// - `command_num` - which command call this is
