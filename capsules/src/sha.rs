@@ -31,7 +31,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 use core::cell::Cell;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
@@ -51,7 +51,7 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     active: Cell<bool>,
 
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     appid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -69,7 +69,7 @@ impl<
         sha: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> ShaDriver<'a, H, L> {
         ShaDriver {
             sha: sha,

@@ -7,7 +7,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Aes as usize;
 use core::cell::Cell;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, CCMClient, Client, AES128, AES128CBC, AES128CCM, AES128ECB, AES128_BLOCK_SIZE,
 };
@@ -22,7 +22,7 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static>> {
 
     active: Cell<bool>,
 
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     appid: OptionalCell<ProcessId>,
 
     source_buffer: TakeCell<'static, [u8]>,
@@ -37,7 +37,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         aes: &'static A,
         source_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AesDriver<'static, A> {
         AesDriver {
             aes,

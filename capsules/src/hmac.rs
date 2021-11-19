@@ -31,7 +31,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 use core::cell::Cell;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -56,7 +56,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     active: Cell<bool>,
 
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     appid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -74,7 +74,7 @@ impl<
         hmac: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> HmacDriver<'a, H, L> {
         HmacDriver {
             hmac: hmac,

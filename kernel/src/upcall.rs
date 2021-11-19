@@ -30,7 +30,7 @@ pub enum UpcallError {
     /// The passed `subscribe_num` exceeds the number of Upcalls
     /// available for this process.
     ///
-    /// For a [`Grant`](crate::grant::Grant) with `n` `NUM_UPCALLS`,
+    /// For a [`Grant`](crate::grant::Grant) with `n` upcalls,
     /// this error is returned when
     /// `GrantKernelData::schedule_upcall` is invoked with
     /// `subscribe_num >= n`.

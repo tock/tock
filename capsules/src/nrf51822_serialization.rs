@@ -22,7 +22,7 @@
 
 use core::cmp;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
@@ -51,7 +51,7 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 pub struct Nrf51822Serialization<'a> {
     uart: &'a dyn uart::UartAdvanced<'a>,
     reset_pin: &'a dyn hil::gpio::Pin,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     active_app: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -60,7 +60,7 @@ pub struct Nrf51822Serialization<'a> {
 impl<'a> Nrf51822Serialization<'a> {
     pub fn new(
         uart: &'a dyn uart::UartAdvanced<'a>,
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],

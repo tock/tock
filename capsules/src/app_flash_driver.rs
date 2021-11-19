@@ -25,7 +25,7 @@
 use core::cmp;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -45,7 +45,7 @@ pub struct App {
 
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -53,7 +53,7 @@ pub struct AppFlash<'a> {
 impl<'a> AppFlash<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {

@@ -83,7 +83,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -150,7 +150,7 @@ pub struct Lsm303dlhcI2C<'a> {
     nine_dof_client: OptionalCell<&'a dyn sensors::NineDofClient>,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     current_process: OptionalCell<ProcessId>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 #[derive(Default)]
@@ -161,7 +161,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
         i2c_accelerometer: &'a dyn i2c::I2CDevice,
         i2c_magnetometer: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Lsm303dlhcI2C<'a> {
         // setup and return struct
         Lsm303dlhcI2C {

@@ -55,7 +55,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -71,14 +71,14 @@ pub struct App {
 
 pub struct TemperatureSensor<'a> {
     driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
 impl<'a> TemperatureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> TemperatureSensor<'a> {
         TemperatureSensor {
             driver: driver,

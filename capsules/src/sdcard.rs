@@ -66,7 +66,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
@@ -1437,7 +1437,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
     kernel_buf: TakeCell<'static, [u8]>,
-    grants: Grant<App, 1>,
+    grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
 
@@ -1461,7 +1461,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
     pub fn new(
         sdcard: &'a SDCard<'a, A>,
         kernel_buf: &'static mut [u8; 512],
-        grants: Grant<App, 1>,
+        grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> SDCardDriver<'a, A> {
         // return new SDCardDriver
         SDCardDriver {

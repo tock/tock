@@ -14,7 +14,7 @@
 use core::convert::From;
 use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -65,7 +65,7 @@ impl Default for App {
 
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -74,7 +74,7 @@ impl<'a> TextScreen<'a> {
     pub fn new(
         text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> TextScreen<'a> {
         TextScreen {
             text_screen: text_screen,

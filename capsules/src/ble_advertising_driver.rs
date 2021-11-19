@@ -106,7 +106,7 @@ use core::cmp;
 use core::mem;
 
 use kernel::debug;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
@@ -316,7 +316,7 @@ where
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: Grant<App, 1>,
+    app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     kernel_tx: kernel::utilities::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::ProcessId>,
@@ -330,7 +330,7 @@ where
 {
     pub fn new(
         radio: &'a B,
-        container: Grant<App, 1>,
+        container: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {

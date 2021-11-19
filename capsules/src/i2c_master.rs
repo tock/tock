@@ -2,7 +2,7 @@
 
 use enum_primitive::enum_from_primitive;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -33,11 +33,15 @@ pub struct I2CMasterDriver<'a, I: 'a + i2c::I2CMaster> {
     i2c: &'a I,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
-    pub fn new(i2c: &'a I, buf: &'static mut [u8], apps: Grant<App, 1>) -> I2CMasterDriver<'a, I> {
+    pub fn new(
+        i2c: &'a I,
+        buf: &'static mut [u8],
+        apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> I2CMasterDriver<'a, I> {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),

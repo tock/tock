@@ -24,7 +24,7 @@ use core::{cmp, mem};
 
 use kernel::capabilities::UdpDriverCapability;
 use kernel::debug;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -86,7 +86,7 @@ pub struct UDPDriver<'a> {
     sender: &'a dyn UDPSender<'a>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App, 2>,
+    apps: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
     /// ID of app whose transmission request is being processed.
     current_app: Cell<Option<ProcessId>>,
 
@@ -109,7 +109,7 @@ pub struct UDPDriver<'a> {
 impl<'a> UDPDriver<'a> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
-        grant: Grant<App, 2>,
+        grant: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,

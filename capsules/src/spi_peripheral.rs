@@ -5,7 +5,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
@@ -40,12 +40,15 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<PeripheralApp, 2>,
+    grants: Grant<PeripheralApp, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
-    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp, 2>) -> SpiPeripheral<'a, S> {
+    pub fn new(
+        spi_slave: &'a S,
+        grants: Grant<PeripheralApp, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
             spi_slave: spi_slave,
             busy: Cell::new(false),

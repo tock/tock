@@ -77,7 +77,7 @@
 use core::cell::Cell;
 use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer, ReadableProcessSlice};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -105,7 +105,7 @@ pub struct App {
 pub struct CrcDriver<'a, C: Crc<'a>> {
     crc: &'a C,
     crc_buffer: TakeCell<'static, [u8]>,
-    grant: Grant<App, 1>,
+    grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
     // We need to save our current
     app_buffer_written: Cell<usize>,
@@ -128,7 +128,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
     pub fn new(
         crc: &'a C,
         crc_buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> CrcDriver<'a, C> {
         CrcDriver {
             crc,

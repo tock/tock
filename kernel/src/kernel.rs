@@ -13,7 +13,7 @@ use crate::config;
 use crate::debug;
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::errorcode::ErrorCode;
-use crate::grant::Grant;
+use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
@@ -329,11 +329,16 @@ impl Kernel {
     /// Calling this function is restricted to only certain users, and to
     /// enforce this calling this function requires the
     /// `MemoryAllocationCapability` capability.
-    pub fn create_grant<T: Default, const NUM_UPCALLS: usize>(
+    pub fn create_grant<
+        T: Default,
+        Upcalls: UpcallSize,
+        AllowROs: AllowRoSize,
+        AllowRWs: AllowRwSize,
+    >(
         &'static self,
         driver_num: usize,
         _capability: &dyn capabilities::MemoryAllocationCapability,
-    ) -> Grant<T, NUM_UPCALLS> {
+    ) -> Grant<T, Upcalls, AllowROs, AllowRWs> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }

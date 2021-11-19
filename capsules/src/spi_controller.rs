@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
@@ -45,12 +45,15 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<App, 1>,
+    grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a S, grants: Grant<App, 1>) -> Spi<'a, S> {
+    pub fn new(
+        spi_master: &'a S,
+        grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),

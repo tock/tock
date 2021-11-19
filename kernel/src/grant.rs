@@ -90,7 +90,7 @@
 //!
 //! ```text,ignore
 //!                         ┌──────────────────────────┐
-//!                         │ struct Grant<T, NUM_UP> {│
+//!                         │ struct Grant<T, ...> {   │
 //!                         │   driver_num: usize      │
 //!                         │   grant_num: usize       │
 //!                         │ }                        ├─┐
@@ -133,6 +133,42 @@ use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
+
+/// Tracks how many upcalls a grant instance supports automatically
+pub trait UpcallSize {
+    /// The number of upcalls the grant supports
+    const COUNT: usize;
+}
+
+/// Specifies how many upcalls a grant instance supports automatically
+pub struct UpcallCount<const NUM: usize>;
+impl<const NUM: usize> UpcallSize for UpcallCount<NUM> {
+    const COUNT: usize = NUM;
+}
+
+/// Tracks how many read-only allows a grant instance supports automatically
+pub trait AllowRoSize {
+    /// The number of read-only allows the grant supports
+    const COUNT: usize;
+}
+
+/// Specifies how many read-only allows a grant instance supports automatically
+pub struct AllowRoCount<const NUM: usize>;
+impl<const NUM: usize> AllowRoSize for AllowRoCount<NUM> {
+    const COUNT: usize = NUM;
+}
+
+/// Tracks how many read-write allows a grant instance supports automatically
+pub trait AllowRwSize {
+    /// The number of read-write allows the grant supports
+    const COUNT: usize;
+}
+
+/// Specifies how many read-write allows a grant instance supports automatically
+pub struct AllowRwCount<const NUM: usize>;
+impl<const NUM: usize> AllowRwSize for AllowRwCount<NUM> {
+    const COUNT: usize = NUM;
+}
 
 /// Helper that calculated offsets within the kernel owned memory (i.e.
 /// the non-T part of grant).
@@ -608,7 +644,13 @@ pub(crate) fn subscribe(
 ///
 /// This is created from a `Grant` when that grant is entered for a specific
 /// process.
-pub struct ProcessGrant<'a, T: 'a, const NUM_UPCALLS: usize> {
+pub struct ProcessGrant<
+    'a,
+    T: 'a,
+    Upcalls: UpcallSize,
+    AllowROs: AllowRoSize,
+    AllowRWs: AllowRwSize,
+> {
     /// The process the grant is applied to.
     ///
     /// We use a reference here because instances of `ProcessGrant` are very
@@ -623,11 +665,13 @@ pub struct ProcessGrant<'a, T: 'a, const NUM_UPCALLS: usize> {
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
 
-    /// Used to keep the Rust type of the grant.
-    _phantom: PhantomData<T>,
+    /// Used to store Rust types for grant.
+    _phantom: PhantomData<(T, Upcalls, AllowROs, AllowRWs)>,
 }
 
-impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> {
+impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
+    ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>
+{
     /// Create a `ProcessGrant` for the given Grant in the given Process's grant
     /// region.
     ///
@@ -639,7 +683,10 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// If the grant is already allocated or could be allocated, and the process
     /// is valid, this returns `Ok(ProcessGrant)`. Otherwise it returns a
     /// relevant error.
-    fn new(grant: &Grant<T, NUM_UPCALLS>, processid: ProcessId) -> Result<Self, Error> {
+    fn new(
+        grant: &Grant<T, Upcalls, AllowROs, AllowRWs>,
+        processid: ProcessId,
+    ) -> Result<Self, Error> {
         // Moves non-generic code from new() into non-generic function to reduce
         // code bloat from the generic function being monomorphized, as it is
         // common to have over 50 copies of Grant::enter() in a Tock kernel (and
@@ -890,7 +937,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
             grant.driver_num,
             size_of::<T>(),
             align_of::<T>(),
-            NUM_UPCALLS,
+            Upcalls::COUNT,
             processid,
         )?;
 
@@ -938,7 +985,10 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
     /// Return an `ProcessGrant` for a grant in a process if the process is
     /// valid and that process grant has already been allocated, or `None`
     /// otherwise.
-    fn new_if_allocated(grant: &Grant<T, NUM_UPCALLS>, process: &'a dyn Process) -> Option<Self> {
+    fn new_if_allocated(
+        grant: &Grant<T, Upcalls, AllowROs, AllowRWs>,
+        process: &'a dyn Process,
+    ) -> Option<Self> {
         if let Some(is_allocated) = process.grant_is_allocated(grant.grant_num) {
             if is_allocated {
                 Some(ProcessGrant {
@@ -1154,7 +1204,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         };
 
         // See new() for more explanation on these calculations.
-        let upcalls_size = size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
+        let upcalls_size = size_of::<usize>() + (Upcalls::COUNT * size_of::<SavedUpcall>());
         let grant_t_align = align_of::<T>();
         let upcalls_padding = grant_t_align - (upcalls_size % grant_t_align);
 
@@ -1186,7 +1236,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // slice, and the slice has valid SavedUpcalls which are guaranteed to
         // be initialized.
         let saved_upcalls_slice =
-            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS) };
+            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, Upcalls::COUNT) };
 
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
@@ -1264,7 +1314,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         };
 
         // See new() for more explanation on these calculations.
-        let upcalls_size = size_of::<usize>() + (NUM_UPCALLS * size_of::<SavedUpcall>());
+        let upcalls_size = size_of::<usize>() + (Upcalls::COUNT * size_of::<SavedUpcall>());
         let grant_t_align = align_of::<T>();
         let upcalls_padding = grant_t_align - (upcalls_size % grant_t_align);
 
@@ -1287,7 +1337,7 @@ impl<'a, T: Default, const NUM_UPCALLS: usize> ProcessGrant<'a, T, NUM_UPCALLS> 
         // slice, and the slice has valid SavedUpcalls which are guaranteed to
         // be initialized.
         let saved_upcalls_slice =
-            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, NUM_UPCALLS) };
+            unsafe { slice::from_raw_parts(saved_upcalls_ptr as *mut SavedUpcall, Upcalls::COUNT) };
 
         // Process only holds the grant's memory, but does not know the actual
         // type of the grant. We case the type here so that the user of the
@@ -1534,7 +1584,7 @@ impl GrantRegionAllocator {
 /// belonging to the process that the object is allocated for. The `Grant` type
 /// is used to get access to `ProcessGrant`s, which are tied to a specific
 /// process and provide access to the memory object allocated for that process.
-pub struct Grant<T: Default, const NUM_UPCALLS: usize> {
+pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
 
@@ -1548,11 +1598,13 @@ pub struct Grant<T: Default, const NUM_UPCALLS: usize> {
     /// process.
     grant_num: usize,
 
-    /// Used to keep the Rust type of the grant.
-    ptr: PhantomData<T>,
+    /// Used to store the Rust types for grant.
+    ptr: PhantomData<(T, Upcalls, AllowROs, AllowRWs)>,
 }
 
-impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
+impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
+    Grant<T, Upcalls, AllowROs, AllowRWs>
+{
     /// Create a new `Grant` type which allows a capsule to store
     /// process-specific data for each process in the process's memory region.
     ///
@@ -1636,7 +1688,7 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
     ///
     /// Calling this function when an `ProcessGrant` for a process is currently
     /// entered will result in a panic.
-    pub fn iter(&self) -> Iter<T, NUM_UPCALLS> {
+    pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
         Iter {
             grant: self,
             subiter: self.kernel.get_process_iter(),
@@ -1645,9 +1697,15 @@ impl<T: Default, const NUM_UPCALLS: usize> Grant<T, NUM_UPCALLS> {
 }
 
 /// Type to iterate `ProcessGrant`s across processes.
-pub struct Iter<'a, T: 'a + Default, const NUM_UPCALLS: usize> {
+pub struct Iter<
+    'a,
+    T: 'a + Default,
+    Upcalls: UpcallSize,
+    AllowROs: AllowRoSize,
+    AllowRWs: AllowRwSize,
+> {
     /// The grant type to use.
-    grant: &'a Grant<T, NUM_UPCALLS>,
+    grant: &'a Grant<T, Upcalls, AllowROs, AllowRWs>,
 
     /// Iterator over valid processes.
     subiter: core::iter::FilterMap<
@@ -1656,8 +1714,10 @@ pub struct Iter<'a, T: 'a + Default, const NUM_UPCALLS: usize> {
     >,
 }
 
-impl<'a, T: Default, const NUM_UPCALLS: usize> Iterator for Iter<'a, T, NUM_UPCALLS> {
-    type Item = ProcessGrant<'a, T, NUM_UPCALLS>;
+impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
+    for Iter<'a, T, Upcalls, AllowROs, AllowRWs>
+{
+    type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;

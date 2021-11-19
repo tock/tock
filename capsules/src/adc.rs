@@ -52,7 +52,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -70,7 +70,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
     drivers: &'a [&'a dyn hil::adc::AdcChannel],
-    apps: Grant<AppSys, 1>,
+    apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
 }
 
@@ -88,7 +88,7 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     mode: Cell<AdcMode>,
 
     // App state
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     appid: OptionalCell<ProcessId>,
     channel: Cell<usize>,
 
@@ -167,7 +167,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
         channels: &'a [&'a <A as hil::adc::Adc>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
@@ -634,7 +634,7 @@ impl<'a> AdcVirtualized<'a> {
     /// - `drivers` - Virtual ADC drivers to provide application access to
     pub fn new(
         drivers: &'a [&'a dyn hil::adc::AdcChannel],
-        grant: Grant<AppSys, 1>,
+        grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
             drivers: drivers,

@@ -31,7 +31,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::usb_hid;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -62,7 +62,7 @@ impl Default for App {
 pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
-    app: Grant<App, 1>,
+    app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
@@ -75,7 +75,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
         usb: Option<&'a U>,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> CtapDriver<'a, U> {
         CtapDriver {
             usb: usb,

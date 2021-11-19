@@ -39,7 +39,7 @@
 
 use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::uart;
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
@@ -67,7 +67,7 @@ pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
-    apps: Grant<App, 3>,
+    apps: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<0>>,
     tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: OptionalCell<ProcessId>,
@@ -79,7 +79,7 @@ impl<'a> Console<'a> {
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        grant: Grant<App, 3>,
+        grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Console<'a> {
         Console {
             uart: uart,

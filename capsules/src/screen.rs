@@ -14,7 +14,7 @@ use core::cell::Cell;
 use core::convert::From;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
@@ -112,7 +112,7 @@ impl Default for App {
 pub struct Screen<'a> {
     screen: &'a dyn hil::screen::Screen,
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     screen_ready: Cell<bool>,
     current_process: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
@@ -124,7 +124,7 @@ impl<'a> Screen<'a> {
         screen: &'a dyn hil::screen::Screen,
         screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
         buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Screen<'a> {
         Screen {
             screen: screen,

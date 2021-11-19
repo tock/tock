@@ -39,7 +39,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -396,11 +396,14 @@ pub struct App {}
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
     owning_process: OptionalCell<ProcessId>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a> MAX17205Driver<'a> {
-    pub fn new(max: &'a MAX17205, grant: Grant<App, 1>) -> Self {
+    pub fn new(
+        max: &'a MAX17205,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> Self {
         Self {
             max17205: max,
             owning_process: OptionalCell::empty(),

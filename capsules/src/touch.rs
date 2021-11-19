@@ -14,7 +14,7 @@
 use core::cell::Cell;
 use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
@@ -70,7 +70,7 @@ pub struct Touch<'a> {
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
     screen: Option<&'a dyn hil::screen::Screen>,
-    apps: Grant<App, 3>,
+    apps: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<0>>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
 
@@ -79,7 +79,7 @@ impl<'a> Touch<'a> {
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen>,
-        grant: Grant<App, 3>,
+        grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Touch<'a> {
         Touch {
             touch: touch,

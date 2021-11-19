@@ -4,7 +4,7 @@
 //! share memory.
 
 use crate::capabilities::MemoryAllocationCapability;
-use crate::grant::Grant;
+use crate::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use crate::kernel::Kernel;
 use crate::process;
 use crate::process::ProcessId;
@@ -69,7 +69,7 @@ const CLIENT_UPCALL_NUM_BASE: usize = 1;
 /// is stable we will not need two separate const generic parameters.
 pub struct IPC<const NUM_PROCS: usize, const NUM_UPCALLS: usize> {
     /// The grant regions for each process that holds the per-process IPC data.
-    data: Grant<IPCData<NUM_PROCS>, NUM_UPCALLS>,
+    data: Grant<IPCData<NUM_PROCS>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALLS> {

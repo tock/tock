@@ -21,7 +21,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -54,7 +54,7 @@ pub struct I2CMasterSlaveDriver<'a> {
     slave_buffer1: TakeCell<'static, [u8]>,
     slave_buffer2: TakeCell<'static, [u8]>,
     app: OptionalCell<ProcessId>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a> I2CMasterSlaveDriver<'a> {
@@ -63,7 +63,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
         master_buffer: &'static mut [u8],
         slave_buffer1: &'static mut [u8],
         slave_buffer2: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> I2CMasterSlaveDriver<'a> {
         I2CMasterSlaveDriver {
             i2c,

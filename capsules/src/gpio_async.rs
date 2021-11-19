@@ -25,7 +25,7 @@
 //! }
 //! ```
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
@@ -37,7 +37,7 @@ pub const DRIVER_NUM: usize = driver::NUM::GpioAsync as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
-    grants: Grant<App, 2>,
+    grants: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
     /// **Transient** ownership of the partially virtualized peripheral.
     ///
     /// Current GPIO HIL semantics notify *all* processes of interrupts
@@ -60,7 +60,10 @@ pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
 pub struct App {}
 
 impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
-    pub fn new(ports: &'a [&'a Port], grants: Grant<App, 2>) -> GPIOAsync<'a, Port> {
+    pub fn new(
+        ports: &'a [&'a Port],
+        grants: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports,
             grants,
