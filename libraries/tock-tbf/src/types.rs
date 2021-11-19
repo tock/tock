@@ -664,40 +664,37 @@ impl TbfHeader {
 
     /// Get the permissions for a specified driver and offset.
     ///
-    /// - `driver_num`: The driver to lookup
-    /// - `offset`: The offset for the driver to find. `None` indicates any
-    ///   offset, while `Some` will specify the offset to find. An offset value
-    ///   of `Some(1)` will find a header with offset `1`, so the
-    ///   `allowed_commands` will cover command 64 to 127.
+    /// - `driver_num`: The driver to lookup.
+    /// - `offset`: The offset for the driver to find. An offset value of 1 will
+    ///   find a header with offset 1, so the `allowed_commands` will cover
+    ///   command numbers 64 to 127.
     ///
-    /// If the specified permissions are found, this function will return
-    /// `Some((true, allowed_command_mask))`. If there are permissions in the
-    /// header but no driver or offset match the function will return
-    /// `Some((false, 0)). If the process does not have any permissions
-    /// specified, return `None`.
-    pub fn get_command_permissions(
-        &self,
-        driver_num: usize,
-        offset: Option<usize>,
-    ) -> CommandPermissions {
+    /// If permissions are found for the driver number, this function will
+    /// return `CommandPermissions::Mask`. If there are permissions in the
+    /// header but not for this driver the function will return
+    /// `CommandPermissions::NoPermsThisDriver`. If the process does not have
+    /// any permissions specified, return `CommandPermissions::NoPermsAtAll`.
+    pub fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.permissions {
                 Some(permissions) => {
+                    let mut found_driver_num: bool = false;
                     for perm in permissions.perms {
                         if perm.driver_number == driver_num as u32 {
-                            match offset {
-                                Some(off) => {
-                                    if perm.offset == off as u32 {
-                                        return CommandPermissions::Mask(perm.allowed_commands);
-                                    }
-                                }
-                                None => {
-                                    return CommandPermissions::Mask(perm.allowed_commands);
-                                }
+                            found_driver_num = true;
+                            if perm.offset == offset as u32 {
+                                return CommandPermissions::Mask(perm.allowed_commands);
                             }
                         }
                     }
-                    CommandPermissions::NoPermsThisDriver
+                    if found_driver_num {
+                        // We found this driver number but nothing matched the
+                        // requested offset. Since permissions are default off,
+                        // we can return a mask of all zeros.
+                        CommandPermissions::Mask(0)
+                    } else {
+                        CommandPermissions::NoPermsThisDriver
+                    }
                 }
                 _ => CommandPermissions::NoPermsAtAll,
             },

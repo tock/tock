@@ -405,11 +405,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(0, |tasks| tasks.len())
     }
 
-    fn get_command_permissions(
-        &self,
-        driver_num: usize,
-        offset: Option<usize>,
-    ) -> CommandPermissions {
+    fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
         self.header.get_command_permissions(driver_num, offset)
     }
 
