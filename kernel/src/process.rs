@@ -392,6 +392,13 @@ pub trait Process {
     /// calling this function.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
+    /// Return the permissions for this process for a given `driver_num`.
+    ///
+    /// The returned `CommandPermissions` will indicate if any permissions for
+    /// individual command numbers are specified. If there are permissions set
+    /// they are returned as a 64 bit bitmask for sequential command numbers. To
+    /// request permissions for a starting command number other than 0, an
+    /// optional `offset` can be provided.
     fn get_command_permissions(
         &self,
         driver_num: usize,
