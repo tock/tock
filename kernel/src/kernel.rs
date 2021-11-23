@@ -87,7 +87,7 @@ pub enum StoppedExecutingReason {
     KernelPreemption,
 }
 
-/// Represents the different outcomes when trying to allocation a grant region
+/// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
     NoAlloc,
     NewAlloc,
@@ -101,15 +101,16 @@ fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
     driver_number: usize,
     process: &dyn process::Process,
 ) -> AllocResult {
-    use AllocResult::*;
     let before_count = process.grant_allocated_count().unwrap_or(0);
     resources
         .syscall_driver_lookup()
         .with_driver(driver_number, |driver| match driver {
             Some(d) => match d.allocate_grant(process.processid()).is_ok() {
-                true if before_count == process.grant_allocated_count().unwrap_or(0) => SameAlloc,
-                true => NewAlloc,
-                false => NoAlloc,
+                true if before_count == process.grant_allocated_count().unwrap_or(0) => {
+                    AllocResult::SameAlloc
+                }
+                true => AllocResult::NewAlloc,
+                false => AllocResult::NoAlloc,
             },
             None => NoAlloc,
         })

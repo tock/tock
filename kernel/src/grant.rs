@@ -211,16 +211,16 @@ struct KernelManagedLayout {
     allow_rw_array: *mut SavedAllowRw,
 }
 
-/// Represents the size of the upcall array in the kernel owned section of the grant
+/// Represents the number of the upcall elements in the kernel owned section of the grant
 #[derive(Copy, Clone)]
 struct UpcallItems(usize);
-/// Represents the size of the allow read-only array in the kernel owned section of the grant
+/// Represents the number of the read-only allow elements in the kernel owned section of the grant
 #[derive(Copy, Clone)]
 struct AllowRoItems(usize);
-/// Represents the size of the allow read-write array in the kernel owned section of the grant
+/// Represents the number of the read-write allow elements in the kernel owned section of the grant
 #[derive(Copy, Clone)]
 struct AllowRwItems(usize);
-/// Represents the size data T within the grant
+/// Represents the size data (in bytes) T within the grant
 #[derive(Copy, Clone)]
 struct GrantDataSize(usize);
 /// Represents the alignment of data T within the grant
@@ -452,17 +452,17 @@ impl<'a> GrantKernelData<'a> {
 
     /// Returns a lifetime limited reference to the requested ReadOnlyProcessBuffer
     ///
-    /// The ReadOnlyProcessBuffer is only value for as long as this object is valid, i.e.
+    /// The ReadOnlyProcessBuffer is only valid for as long as this object is valid, i.e.
     /// the lifetime of the app enter closure.
     ///
     /// If the specified allow number is invalid, then a AddressOutOfBounds will be
-    /// return. This returns a process::Error to allow for easy chaining of this
+    /// returned. This returns a process::Error to allow for easy chaining of this
     /// function with the ReadOnlyProcessBuffer::enter function with `and_then`.
     pub fn get_readonly_buf(
         &self,
-        allow_rw_num: usize,
+        allow_ro_num: usize,
     ) -> Result<ReadOnlyProcessBufferRef, crate::process::Error> {
-        self.allow_ro.get(allow_rw_num).map_or(
+        self.allow_ro.get(allow_ro_num).map_or(
             Err(crate::process::Error::AddressOutOfBounds),
             |saved_ro| {
                 // # Safety
@@ -574,16 +574,18 @@ impl Default for SavedAllowRw {
 /// # Safety
 ///
 /// The pointer must be well aligned and point to allocated memory that is writable
-/// for `size_of::<T> * num` bytes. The memory does not need to be initialized yet. If
-/// it already does contain initialized memory, then those contents will be overwritten
-/// without being `Drop`ed first.
+/// for `size_of::<T> * num` bytes. No Rust references may exist to memory in the
+/// address range spanned by `base..base+num` at the time this function is called.
+/// The memory does not need to be initialized yet. If it already does contain
+/// initialized memory, then those contents will be overwritten without being
+/// `Drop`ed first.
 unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
     for i in 0..num {
         base.add(i).write(T::default());
     }
 }
 
-/// Lifetime of guard represents the lifetime a grant is help "open". On Drop, we leave grant
+/// Lifetime of guard represents the lifetime a grant is held "open". On Drop, we leave grant
 struct GrantEnterLifetimeGuard<'a>(&'a dyn Process, usize);
 
 impl Drop for GrantEnterLifetimeGuard<'_> {
@@ -612,7 +614,7 @@ fn enter_grant_kernel_managed(
     let grant_base_ptr = process.enter_grant(grant_num).or(Err(ErrorCode::NOMEM))?;
     // # Safety
     //
-    // We know that this pointer if well aligned and initialized with meaningful data
+    // We know that this pointer is well aligned and initialized with meaningful data
     // when the grant region was allocated.
     let layout = unsafe { KernelManagedLayout::read_from_base(grant_base_ptr) };
     Ok((GrantEnterLifetimeGuard(process, grant_num), layout))
@@ -887,10 +889,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     //
                     // # Safety
                     //
-                    // For all below calls the pointers are well aligned, yet do not have
-                    // initialized data. The pointer also points to a large enough space to
-                    // correctly write to is guaranteed by alloc of size
-                    // KernelManagedLayout::grant_size
+                    // For all below calls:
+                    // - The pointers are well aligned, yet do not have initialized data.
+                    // - The pointer points to a large enough space to correctly write to is
+                    //   guaranteed by alloc of size KernelManagedLayout::grant_size.
+                    // - There are no proper rust references that map to these addresses either
                     unsafe {
                         let layout =
                             KernelManagedLayout::from_counts(grant_ptr, num_upcalls, num_allow_ros);
