@@ -505,7 +505,7 @@ pub trait Process {
     /// Return the count of the number of allocated grant pointers if the
     /// process is active. This does not count custom grants. This is used
     /// to determine if a new grant has been allocated after a call to
-    /// `SyscallDriver::allocate_grant()`
+    /// `SyscallDriver::allocate_grant()`.
     ///
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;

@@ -336,7 +336,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.apps
                 .enter(*id, |_, kernel_data| {
                     app_buf_length = kernel_data
-                        .get_readwrite_buf(0)
+                        .get_readwrite_processbuffer(0)
                         .map(|b| b.len())
                         .unwrap_or(0);
                     app_buf_length > 0
@@ -459,11 +459,11 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.apps
                 .enter(*id, |_, kernel_data| {
                     app_buf_length = kernel_data
-                        .get_readwrite_buf(0)
+                        .get_readwrite_processbuffer(0)
                         .map(|b| b.len())
                         .unwrap_or(0);
                     next_app_buf_length = kernel_data
-                        .get_readwrite_buf(1)
+                        .get_readwrite_processbuffer(1)
                         .map(|b| b.len())
                         .unwrap_or(0);
                     app_buf_length > 0 && next_app_buf_length > 0
@@ -800,11 +800,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                     .enter(*id, |app, kernel_data| {
                         // Get both buffers, this shouldn't ever fail since the grant was created
                         // with enough space. The buffer still may be empty though
-                        let app_buf0 = match kernel_data.get_readwrite_buf(0) {
+                        let app_buf0 = match kernel_data.get_readwrite_processbuffer(0) {
                             Ok(buf) => buf,
                             Err(_) => return,
                         };
-                        let app_buf1 = match kernel_data.get_readwrite_buf(1) {
+                        let app_buf1 = match kernel_data.get_readwrite_processbuffer(1) {
                             Ok(buf) => buf,
                             Err(_) => return,
                         };

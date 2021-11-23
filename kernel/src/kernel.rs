@@ -89,9 +89,9 @@ pub enum StoppedExecutingReason {
 
 /// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
-    NoAlloc,
-    NewAlloc,
-    SameAlloc,
+    NoAllocation,
+    NewAllocation,
+    SameAllocation,
 }
 
 /// Tries to allocate the grant region for specified driver and process.
@@ -107,12 +107,12 @@ fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
         .with_driver(driver_number, |driver| match driver {
             Some(d) => match d.allocate_grant(process.processid()).is_ok() {
                 true if before_count == process.grant_allocated_count().unwrap_or(0) => {
-                    AllocResult::SameAlloc
+                    AllocResult::SameAllocation
                 }
-                true => AllocResult::NewAlloc,
-                false => AllocResult::NoAlloc,
+                true => AllocResult::NewAllocation,
+                false => AllocResult::NoAllocation,
             },
-            None => NoAlloc,
+            None => AllocResult::NoAllocation,
         })
 }
 
@@ -962,7 +962,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to allocate the grant
                                 // since this could be the first time the grant is getting accessed
                                 match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAlloc => {
+                                    AllocResult::NewAllocation => {
                                         // Now we try again. It is possible that
                                         // the capsule did not actually allocate
                                         // the grant, at which point this will
@@ -981,11 +981,11 @@ impl Kernel {
                                     alloc_failure => {
                                         // We didn't actually create a new alloc, so just error
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAlloc) => {
+                                            (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
                                                                            process.processid(), driver_number);
                                             }
-                                            (true, AllocResult::SameAlloc) => {
+                                            (true, AllocResult::SameAllocation) => {
                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                             }
@@ -1078,7 +1078,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to allocate the grant
                                 // since this could be the first time the grant is getting accessed
                                 match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAlloc => {
+                                    AllocResult::NewAllocation => {
                                         // If we actually allocated a new grant, try again and honor
                                         // the result
                                         match crate::grant::allow_rw(
@@ -1100,11 +1100,11 @@ impl Kernel {
                                     alloc_failure => {
                                         // We didn't actually create a new alloc, so just error
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAlloc) => {
+                                            (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
                                                                            process.processid(), driver_number);
                                             }
-                                            (true, AllocResult::SameAlloc) => {
+                                            (true, AllocResult::SameAllocation) => {
                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                             }
@@ -1240,7 +1240,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to allocate the grant
                                 // since this could be the first time the grant is getting accessed
                                 match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAlloc => {
+                                    AllocResult::NewAllocation => {
                                         // If we actually allocated a new grant, try again and honor
                                         // the result
                                         match crate::grant::allow_ro(
@@ -1262,11 +1262,11 @@ impl Kernel {
                                     alloc_failure => {
                                         // We didn't actually create a new alloc, so just error
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAlloc) => {
+                                            (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
                                                                            process.processid(), driver_number);
                                             }
-                                            (true, AllocResult::SameAlloc) => {
+                                            (true, AllocResult::SameAllocation) => {
                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                             }

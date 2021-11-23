@@ -458,7 +458,7 @@ impl<'a> GrantKernelData<'a> {
     /// If the specified allow number is invalid, then a AddressOutOfBounds will be
     /// returned. This returns a process::Error to allow for easy chaining of this
     /// function with the ReadOnlyProcessBuffer::enter function with `and_then`.
-    pub fn get_readonly_buf(
+    pub fn get_readonly_processbuffer(
         &self,
         allow_ro_num: usize,
     ) -> Result<ReadOnlyProcessBufferRef, crate::process::Error> {
@@ -490,7 +490,7 @@ impl<'a> GrantKernelData<'a> {
     /// If the specified allow number is invalid, then a AddressOutOfBounds will be
     /// return. This returns a process::Error to allow for easy chaining of this
     /// function with the ReadWriteProcessBuffer::enter function with `and_then`.
-    pub fn get_readwrite_buf(
+    pub fn get_readwrite_processbuffer(
         &self,
         allow_rw_num: usize,
     ) -> Result<ReadWriteProcessBufferRef, crate::process::Error> {
@@ -586,11 +586,14 @@ unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
 }
 
 /// Lifetime of guard represents the lifetime a grant is held "open". On Drop, we leave grant
-struct GrantEnterLifetimeGuard<'a>(&'a dyn Process, usize);
+struct GrantEnterLifetimeGuard<'a> {
+    process: &'a dyn Process,
+    grant_num: usize,
+}
 
 impl Drop for GrantEnterLifetimeGuard<'_> {
     fn drop(&mut self) {
-        self.0.leave_grant(self.1);
+        self.process.leave_grant(self.grant_num);
     }
 }
 
@@ -602,8 +605,7 @@ fn enter_grant_kernel_managed(
 ) -> Result<(GrantEnterLifetimeGuard, KernelManagedLayout), ErrorCode> {
     let grant_num = process.lookup_grant_from_driver_num(driver_num)?;
 
-    // Check if the grant has been allocated, and if not we cannot handle the
-    // subscribe call.
+    // Check if the grant has been allocated, and if not we cannot enter this grant.
     match process.grant_is_allocated(grant_num) {
         Some(true) => { /* Allocated, nothing to do */ }
         Some(false) => return Err(ErrorCode::NOMEM),
@@ -617,7 +619,7 @@ fn enter_grant_kernel_managed(
     // We know that this pointer is well aligned and initialized with meaningful data
     // when the grant region was allocated.
     let layout = unsafe { KernelManagedLayout::read_from_base(grant_base_ptr) };
-    Ok((GrantEnterLifetimeGuard(process, grant_num), layout))
+    Ok((GrantEnterLifetimeGuard { process, grant_num }, layout))
 }
 
 /// Subscribe to an upcall by saving the upcall in the grant region for the
@@ -1214,7 +1216,10 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             })
             .ok()?;
         // Ensure we leave this grant when _grant_open goes out of scope
-        let _grant_open = GrantEnterLifetimeGuard(self.process, self.grant_num);
+        let _grant_open = GrantEnterLifetimeGuard {
+            process: self.process,
+            grant_num: self.grant_num,
+        };
 
         let grant_t_align = GrantDataAlign(align_of::<T>());
         let grant_t_size = GrantDataSize(size_of::<T>());
