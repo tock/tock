@@ -1,6 +1,7 @@
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
 
+use core::convert::TryInto;
 use core::fmt::Write;
 use core::mem::{self, size_of};
 use core::ops::Range;
