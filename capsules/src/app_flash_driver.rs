@@ -23,11 +23,10 @@
 //! ```
 
 use core::cmp;
-use core::mem;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -36,16 +35,22 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const BUFFER: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
 #[derive(Default)]
 pub struct App {
-    buffer: ReadOnlyProcessBuffer,
     pending_command: bool,
     flash_address: usize,
 }
 
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -53,7 +58,7 @@ pub struct AppFlash<'a> {
 impl<'a> AppFlash<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
@@ -69,9 +74,11 @@ impl<'a> AppFlash<'a> {
     // completes.
     fn enqueue_write(&self, flash_address: usize, appid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(appid, |app, kernel_data| {
                 // Check that this is a valid range in the app's flash.
-                let flash_length = app.buffer.len();
+                let flash_length = kernel_data
+                    .get_readonly_processbuffer(ro_allow::BUFFER)
+                    .map_or(0, |buffer| buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
                 if flash_address < app_flash_start
                     || flash_address >= app_flash_end
@@ -83,21 +90,25 @@ impl<'a> AppFlash<'a> {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
 
-                    app.buffer
-                        .enter(|app_buffer| {
-                            // Copy contents to internal buffer and write it.
-                            self.buffer
-                                .take()
-                                .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                    let length = cmp::min(buffer.len(), app_buffer.len());
-                                    let d = &app_buffer[0..length];
-                                    for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate()
-                                    {
-                                        *c = d[i].get();
-                                    }
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::BUFFER)
+                        .and_then(|buffer| {
+                            buffer.enter(|app_buffer| {
+                                // Copy contents to internal buffer and write it.
+                                self.buffer
+                                    .take()
+                                    .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                                        let length = cmp::min(buffer.len(), app_buffer.len());
+                                        let d = &app_buffer[0..length];
+                                        for (i, c) in
+                                            buffer.as_mut()[0..length].iter_mut().enumerate()
+                                        {
+                                            *c = d[i].get();
+                                        }
 
-                                    self.driver.write(buffer, flash_address, length)
-                                })
+                                        self.driver.write(buffer, flash_address, length)
+                                    })
+                            })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))
                 } else {
@@ -132,33 +143,38 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
-            let started_command = cntr.enter(|app, _| {
+            let started_command = cntr.enter(|app, kernel_data| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
-                    app.buffer
-                        .enter(|app_buffer| {
-                            self.buffer.take().map_or(false, |buffer| {
-                                if app_buffer.len() != 512 {
-                                    false
-                                } else {
-                                    // Copy contents to internal buffer and write it.
-                                    let length = cmp::min(buffer.len(), app_buffer.len());
-                                    let d = &app_buffer[0..length];
-                                    for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate()
-                                    {
-                                        *c = d[i].get();
-                                    }
-
-                                    if let Ok(()) = self.driver.write(buffer, flash_address, length)
-                                    {
-                                        true
-                                    } else {
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::BUFFER)
+                        .and_then(|buffer| {
+                            buffer.enter(|app_buffer| {
+                                self.buffer.take().map_or(false, |buffer| {
+                                    if app_buffer.len() != 512 {
                                         false
+                                    } else {
+                                        // Copy contents to internal buffer and write it.
+                                        let length = cmp::min(buffer.len(), app_buffer.len());
+                                        let d = &app_buffer[0..length];
+                                        for (i, c) in
+                                            buffer.as_mut()[0..length].iter_mut().enumerate()
+                                        {
+                                            *c = d[i].get();
+                                        }
+
+                                        if let Ok(()) =
+                                            self.driver.write(buffer, flash_address, length)
+                                        {
+                                            true
+                                        } else {
+                                            false
+                                        }
                                     }
-                                }
+                                })
                             })
                         })
                         .unwrap_or(false)
@@ -179,28 +195,6 @@ impl SyscallDriver for AppFlash<'_> {
     /// ### `allow_num`
     ///
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.buffer, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
 
     // Setup callbacks.
     //

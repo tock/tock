@@ -28,13 +28,27 @@ use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;
 
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const KEY: usize = 0;
+    pub const DATA: usize = 1;
+    pub const COMPARE: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const DEST: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
+
 use core::cell::Cell;
-use core::mem;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -56,7 +70,12 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     active: Cell<bool>,
 
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     appid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -74,7 +93,12 @@ impl<
         hmac: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
     ) -> HmacDriver<'a, H, L> {
         HmacDriver {
             hmac: hmac,
@@ -90,64 +114,69 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
-                .enter(*appid, |app, _| {
-                    let ret = app
-                        .key
-                        .enter(|k| {
-                            if let Some(op) = &app.sha_operation {
-                                let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
-                                    [0; TMP_KEY_BUFFER_SIZE];
-                                let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
-                                k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
+                .enter(*appid, |app, kernel_data| {
+                    let ret = kernel_data
+                        .get_readonly_processbuffer(ro_allow::KEY)
+                        .and_then(|key| {
+                            key.enter(|k| {
+                                if let Some(op) = &app.sha_operation {
+                                    let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
+                                        [0; TMP_KEY_BUFFER_SIZE];
+                                    let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
+                                    k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
 
-                                match op {
-                                    ShaOperation::Sha256 => {
-                                        self.hmac.set_mode_hmacsha256(&tmp_key_buffer[..key_len])
+                                    match op {
+                                        ShaOperation::Sha256 => self
+                                            .hmac
+                                            .set_mode_hmacsha256(&tmp_key_buffer[..key_len]),
+                                        ShaOperation::Sha384 => self
+                                            .hmac
+                                            .set_mode_hmacsha384(&tmp_key_buffer[..key_len]),
+                                        ShaOperation::Sha512 => self
+                                            .hmac
+                                            .set_mode_hmacsha512(&tmp_key_buffer[..key_len]),
                                     }
-                                    ShaOperation::Sha384 => {
-                                        self.hmac.set_mode_hmacsha384(&tmp_key_buffer[..key_len])
-                                    }
-                                    ShaOperation::Sha512 => {
-                                        self.hmac.set_mode_hmacsha512(&tmp_key_buffer[..key_len])
-                                    }
+                                } else {
+                                    Err(ErrorCode::INVAL)
                                 }
-                            } else {
-                                Err(ErrorCode::INVAL)
-                            }
+                            })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE));
                     if ret.is_err() {
                         return ret;
                     }
 
-                    app.data
-                        .enter(|data| {
-                            let mut static_buffer_len = 0;
-                            self.data_buffer.map(|buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::DATA)
+                        .and_then(|data| {
+                            data.enter(|data| {
+                                let mut static_buffer_len = 0;
+                                self.data_buffer.map(|buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
 
-                                if static_buffer_len > data.len() {
-                                    static_buffer_len = data.len()
+                                    if static_buffer_len > data.len() {
+                                        static_buffer_len = data.len()
+                                    }
+
+                                    self.data_copied.set(static_buffer_len);
+
+                                    // Copy the data into the static buffer
+                                    data[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                });
+
+                                // Add the data from the static buffer to the HMAC
+                                let mut lease_buf = LeasableBuffer::new(
+                                    self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
+                                );
+                                lease_buf.slice(0..static_buffer_len);
+                                if let Err(e) = self.hmac.add_data(lease_buf) {
+                                    self.data_buffer.replace(e.1);
+                                    return Err(e.0);
                                 }
-
-                                self.data_copied.set(static_buffer_len);
-
-                                // Copy the data into the static buffer
-                                data[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-                            });
-
-                            // Add the data from the static buffer to the HMAC
-                            let mut lease_buf = LeasableBuffer::new(
-                                self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
-                            );
-                            lease_buf.slice(0..static_buffer_len);
-                            if let Err(e) = self.hmac.add_data(lease_buf) {
-                                self.data_buffer.replace(e.1);
-                                return Err(e.0);
-                            }
-                            Ok(())
+                                Ok(())
+                            })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))
                 })
@@ -223,7 +252,7 @@ impl<
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app, upcalls| {
+                .enter(*id, move |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -231,27 +260,29 @@ impl<
                     self.data_buffer.replace(data);
 
                     self.data_buffer.map(|buf| {
-                        let ret = app
-                            .data
-                            .enter(|data| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
-                                // Determine how much data we have already copied
-                                let copied_data = self.data_copied.get();
+                        let ret = kernel_data
+                            .get_readonly_processbuffer(ro_allow::DATA)
+                            .and_then(|data| {
+                                data.enter(|data| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
+                                    // Determine how much data we have already copied
+                                    let copied_data = self.data_copied.get();
 
-                                data_len = data.len();
+                                    data_len = data.len();
 
-                                if data_len > copied_data {
-                                    let remaining_data = &data[copied_data..];
-                                    let remaining_len = data_len - copied_data;
+                                    if data_len > copied_data {
+                                        let remaining_data = &data[copied_data..];
+                                        let remaining_len = data_len - copied_data;
 
-                                    if remaining_len < static_buffer_len {
-                                        remaining_data.copy_to_slice(&mut buf[..remaining_len]);
-                                    } else {
-                                        remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        if remaining_len < static_buffer_len {
+                                            remaining_data.copy_to_slice(&mut buf[..remaining_len]);
+                                        } else {
+                                            remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        }
                                     }
-                                }
-                                Ok(())
+                                    Ok(())
+                                })
                             })
                             .unwrap_or(Err(ErrorCode::RESERVE));
 
@@ -297,36 +328,40 @@ impl<
                     // If we get here we are ready to run the digest, reset the copied data
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
-                            upcalls
+                            kernel_data
                                 .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else if app.op.get().unwrap() == UserSpaceOp::Verify {
-                        let _ = app.compare.enter(|compare| {
-                            let mut static_buffer_len = 0;
-                            self.dest_buffer.map(|buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                        let _ = kernel_data
+                            .get_readonly_processbuffer(ro_allow::COMPARE)
+                            .and_then(|compare| {
+                                compare.enter(|compare| {
+                                    let mut static_buffer_len = 0;
+                                    self.dest_buffer.map(|buf| {
+                                        // Determine the size of the static buffer we have
+                                        static_buffer_len = buf.len();
 
-                                if static_buffer_len > compare.len() {
-                                    static_buffer_len = compare.len()
-                                }
+                                        if static_buffer_len > compare.len() {
+                                            static_buffer_len = compare.len()
+                                        }
 
-                                self.data_copied.set(static_buffer_len);
+                                        self.data_copied.set(static_buffer_len);
 
-                                // Copy the data into the static buffer
-                                compare[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        // Copy the data into the static buffer
+                                        compare[..static_buffer_len]
+                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+                                    });
+                                })
                             });
-                        });
 
                         if let Err(e) = self.verify_digest() {
-                            upcalls
+                            kernel_data
                                 .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else {
-                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                        kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
                     }
                 })
                 .map_err(|err| {
@@ -351,24 +386,28 @@ impl<
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, upcalls| {
+                .enter(*id, |_, kernel_data| {
                     self.hmac.clear_data();
 
                     let pointer = digest[0] as *mut u8;
 
-                    let _ = app.dest.mut_enter(|dest| {
-                        let len = dest.len();
+                    let _ = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::DEST)
+                        .and_then(|dest| {
+                            dest.mut_enter(|dest| {
+                                let len = dest.len();
 
-                        if len < L {
-                            dest.copy_from_slice(&digest[0..len]);
-                        } else {
-                            dest[0..L].copy_from_slice(digest);
-                        }
-                    });
+                                if len < L {
+                                    dest.copy_from_slice(&digest[0..len]);
+                                } else {
+                                    dest[0..L].copy_from_slice(digest);
+                                }
+                            })
+                        });
 
                     match result {
-                        Ok(_) => upcalls.schedule_upcall(0, (0, pointer as usize, 0)),
-                        Err(e) => upcalls
+                        Ok(_) => kernel_data.schedule_upcall(0, (0, pointer as usize, 0)),
+                        Err(e) => kernel_data
                             .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0)),
                     }
                     .ok();
@@ -399,12 +438,12 @@ impl<
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |_app, upcalls| {
+                .enter(*id, |_app, kernel_data| {
                     self.hmac.clear_data();
 
                     match result {
-                        Ok(equal) => upcalls.schedule_upcall(1, (0, equal as usize, 0)),
-                        Err(e) => upcalls.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
+                        Ok(equal) => kernel_data.schedule_upcall(1, (0, equal as usize, 0)),
+                        Err(e) => kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
                     }
                     .ok();
 
@@ -446,72 +485,6 @@ impl<
         const L: usize,
     > SyscallDriver for HmacDriver<'a, H, L>
 {
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the digest to be in.
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.dest);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app, _| {
-                match allow_num {
-                    // Pass buffer for the key to be in
-                    0 => {
-                        mem::swap(&mut app.key, &mut slice);
-                        Ok(())
-                    }
-
-                    // Pass buffer for the data to be in
-                    1 => {
-                        mem::swap(&mut app.data, &mut slice);
-                        Ok(())
-                    }
-
-                    // Compare buffer for verify
-                    2 => {
-                        mem::swap(&mut app.compare, &mut slice);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or(Err(ErrorCode::FAIL));
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
     // Subscribe to HmacDriver events.
     //
     // ### `subscribe_num`
@@ -632,7 +605,7 @@ impl<
         }
 
         self.apps
-            .enter(appid, |app, upcalls| {
+            .enter(appid, |app, kernel_data| {
                 match command_num {
                     // set_algorithm
                     0 => {
@@ -691,7 +664,7 @@ impl<
                     3 => {
                         if app_match {
                             if let Err(e) = self.calculate_digest() {
-                                upcalls
+                                kernel_data
                                     .schedule_upcall(
                                         0,
                                         (kernel::errorcode::into_statuscode(e.into()), 0, 0),
@@ -726,26 +699,30 @@ impl<
                     // the digest, useful after a update command
                     5 => {
                         if app_match {
-                            let _ = app.compare.enter(|compare| {
-                                let mut static_buffer_len = 0;
-                                self.dest_buffer.map(|buf| {
-                                    // Determine the size of the static buffer we have
-                                    static_buffer_len = buf.len();
+                            let _ = kernel_data
+                                .get_readonly_processbuffer(ro_allow::COMPARE)
+                                .and_then(|compare| {
+                                    compare.enter(|compare| {
+                                        let mut static_buffer_len = 0;
+                                        self.dest_buffer.map(|buf| {
+                                            // Determine the size of the static buffer we have
+                                            static_buffer_len = buf.len();
 
-                                    if static_buffer_len > compare.len() {
-                                        static_buffer_len = compare.len()
-                                    }
+                                            if static_buffer_len > compare.len() {
+                                                static_buffer_len = compare.len()
+                                            }
 
-                                    self.data_copied.set(static_buffer_len);
+                                            self.data_copied.set(static_buffer_len);
 
-                                    // Copy the data into the static buffer
-                                    compare[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                            // Copy the data into the static buffer
+                                            compare[..static_buffer_len]
+                                                .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        });
+                                    })
                                 });
-                            });
 
                             if let Err(e) = self.verify_digest() {
-                                upcalls
+                                kernel_data
                                     .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                     .ok();
                             }
@@ -781,8 +758,4 @@ pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
-    key: ReadOnlyProcessBuffer,
-    data: ReadOnlyProcessBuffer,
-    dest: ReadWriteProcessBuffer,
-    compare: ReadOnlyProcessBuffer,
 }
