@@ -51,7 +51,7 @@ pub enum AccessPointStatus {
     Stopping,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Ssid {
     // The max length of an SSID is 32
     pub value: [u8; 32],
@@ -60,7 +60,7 @@ pub struct Ssid {
     pub len: u8,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Network {
     pub ssid: Ssid,
     // 802.11 defines RSSI as a value from 0 to 255
@@ -83,7 +83,7 @@ pub trait Station {
 /// Defines the functions used to get information about existing networks
 pub trait Scanner<'a> {
     // start scanning the available WiFi networks
-    fn scan(&self) -> Result<usize, ErrorCode>;
+    fn scan(&self) -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn ScannerClient);
 }
@@ -132,6 +132,6 @@ pub trait ScannerClient {
     fn scan_done<'a>(&self, status: Result<&'a [Network], ErrorCode>);
 }
 
-/*pub trait AccessPointClient {
-    fn command_complete(&self, network: Network, status: Result<dyn AccessPointClient, ErrorCode>);
-}*/
+pub trait AccessPointClient {
+    fn command_complete(&self, status: Result<Network, ErrorCode>);
+}

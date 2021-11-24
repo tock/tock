@@ -123,6 +123,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub uart0: Uart<'a>,
     pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
+    pub spi1: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
     pub i2c0: i2c::I2c<'a>,
 }
@@ -140,6 +141,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             uart0: Uart::new_uart0(),
             adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
+            spi1: spi::Spi::new_spi1(),
             sysinfo: sysinfo::SysInfo::new(),
             i2c0: i2c::I2c::new_i2c0(),
         }
