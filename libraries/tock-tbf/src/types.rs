@@ -255,8 +255,8 @@ pub enum TbfFooterV2CredentialsType {
 
 #[derive(Clone, Copy, Debug)]
 pub struct TbfFooterV2Credentials {
-    format: TbfFooterV2CredentialsType,
-    data: &'static [u8],
+    pub format: TbfFooterV2CredentialsType,
+    pub data: &'static [u8],
 }
 
 // Conversion functions from slices to the various TBF fields.
@@ -606,7 +606,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
         };
         let length = match ftype {
             TbfFooterV2CredentialsType::Padding => 0,
-            TbfFooterV2CredentialsType::CleartextID => 8,
+            TbfFooterV2CredentialsType::CleartextID => 4,
             TbfFooterV2CredentialsType::Rsa3072Key => 768,
             TbfFooterV2CredentialsType::Rsa4096Key => 1024,
             TbfFooterV2CredentialsType::Rsa3072KeyWithID => 768,

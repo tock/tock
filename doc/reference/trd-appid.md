@@ -343,8 +343,8 @@ pub enum TbfFooterV2CredentialsType {
 The `Padding` type has a variable length. This credentials type is
 used to reserve space for future credentials or pad their placement.
 
-The `CleartextID` type has a data length of 8 bytes. It contains a
-64-bit number in big-endian format representing an application
+The `CleartextID` type has a data length of 4 bytes. It contains a
+32-bit number in big-endian format representing an application
 identifier.
 
 The `Rsa3072Key` type has a data of length of 768 bytes. It contains

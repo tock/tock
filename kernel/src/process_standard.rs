@@ -98,7 +98,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
     /// table.
     process_id: Cell<ProcessId>,
-
+    
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -170,6 +170,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader,
 
+    /// The footer containing verification credentials (if any)
+    credentials: Option<tock_tbf::types::TbfFooterV2Credentials>,
+    
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
     stored_state:
@@ -407,6 +410,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn pending_tasks(&self) -> usize {
         self.tasks.map_or(0, |tasks| tasks.len())
     }
+
+    fn credentials(&self) -> Option<tock_tbf::types::TbfFooterV2Credentials> {
+        self.credentials
+    }
+    
 
     fn mem_start(&self) -> *const u8 {
         self.memory_start
@@ -1342,6 +1350,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let total_size = app_flash.len();
         let _credentials_count = 0;
         let require_credentials = false;
+        let mut accepted_credentials: Option<tock_tbf::types::TbfFooterV2Credentials> = None; 
         let mut remaining_flash = app_flash
                 .get(footer_position..)
                 .ok_or(ProcessLoadError::NotEnoughFlash)?;
@@ -1355,6 +1364,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             match verifier.check_credentials(&footer, covered_flash) {
                 VerificationResult::Accept => {
                     credentials_approved = true;
+                    accepted_credentials = Some(footer);
                     break;
                 },
                 VerificationResult::Reject => {
@@ -1635,6 +1645,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process
             .process_id
             .set(ProcessId::new(kernel, unique_identifier, index));
+
+        process.credentials = accepted_credentials;
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);

@@ -14,7 +14,9 @@ use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use tock_tbf;
 use tock_tbf::types::CommandPermissions;
+
 
 // Export all process related types via `kernel::process::`.
 pub use crate::process_policies::{
@@ -242,7 +244,7 @@ pub trait Process {
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
-
+    
     /// Get the completion code if the process has previously terminated.
     ///
     /// If the process has never terminated then there has been no opportunity
@@ -301,6 +303,12 @@ pub trait Process {
     /// with `None`.
     fn try_restart(&self, completion_code: Option<u32>);
 
+    // Access to credentials, for ShortIDs and access control
+
+    /// Return the credentials (if any) that verified to the kernel
+    /// that this process is safe to run.
+    fn credentials(&self) -> Option<tock_tbf::types::TbfFooterV2Credentials>;
+    
     // memop operations
 
     /// Change the location of the program break and reallocate the MPU region
@@ -725,7 +733,7 @@ pub enum State {
     /// run.
     Terminated,
 
-    /// The process has never actually been executed. This of course happens
+    /// The process has never actually been executed. This happens
     /// when the board first boots and the kernel has not switched to any
     /// processes yet. It can also happen if an process is terminated and all of
     /// its state is reset as if it has not been executed yet.
