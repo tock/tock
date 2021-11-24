@@ -26,9 +26,9 @@
 
 /// A call to `Verify::check_credentials` returns whether the
 /// credential should be accepted (success, the kernel should stop
-/// processing credentials headers), passed (keep on trying to process
+/// processing credentials footers), passed (keep on trying to process
 /// credentials headers), or rejected (failure, the kernel should stop
-/// processing credentials headers).
+/// processing credentials footers).
 pub enum VerificationResult {
     Accept,
     Pass,
@@ -39,7 +39,7 @@ pub enum VerificationResult {
 /// process binary.
 pub trait Verify {
     /// Returns what the policy should be if every `TbfHeaderV2Credentials`
-    /// header generated a `VerificationResult::Pass`: `true` means the
+    /// footer generated a `VerificationResult::Pass`: `true` means the
     /// process binary is rejected, while `false` means it is accepted.
     fn require_credentials(&self) -> bool;
 
@@ -49,7 +49,7 @@ pub trait Verify {
     /// `VerificationResult::Reject`, or it reaches the last
     /// credentials header.
     fn check_credentials(&self,
-                         credentials: &TbfHeaderV2Credentials,
+                         credentials: &TbfFooterV2Credentials,
                          binary: &mut [u8]) -> VerificationResult;
 }
 
@@ -62,10 +62,10 @@ struct ShortID {
 /// to a `ShortID`, if possible.
 pub trait Compress {
 
-    /// Return the `ShortID` for the passed credentials header. If the
+    /// Return the `ShortID` for the passed credentials footer. If the
     /// credentials do not correspond to any known security group or
     /// privileges, return `None`. A `None` value for a `ShortID` will
     /// fail any access check that requires a `ShortID`.
-    fn to_short_id(credentials: &TbfHeaderV2Credentials) -> Option<ShortID>;
+    fn to_short_id(credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
 }
 
