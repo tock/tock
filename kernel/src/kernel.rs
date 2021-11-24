@@ -319,22 +319,6 @@ impl Kernel {
         None
     }
 
-    /// Retrieve the `ProcessId` of the given app based on its identifier. This is
-    /// useful if an app identifier is passed to the kernel from somewhere (such
-    /// as from userspace) and needs to be expanded to a full `ProcessId` for use
-    /// with other APIs.
-    pub(crate) fn lookup_app_by_identifier(&self, identifier: usize) -> Option<ProcessId> {
-        self.processes.iter().find_map(|&p| {
-            p.map_or(None, |p2| {
-                if p2.processid().id() == identifier {
-                    Some(p2.processid())
-                } else {
-                    None
-                }
-            })
-        })
-    }
-
     /// Checks if the provided `ProcessId` is still valid given the processes stored
     /// in the processes array. Returns `true` if the ProcessId still refers to
     /// a valid process, and `false` if not.

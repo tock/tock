@@ -8,12 +8,19 @@ use crate::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use crate::kernel::Kernel;
 use crate::process;
 use crate::process::ProcessId;
-use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer, ReadableProcessBuffer};
+use crate::processbuffer::ReadableProcessBuffer;
 use crate::syscall_driver::{CommandReturn, SyscallDriver};
 use crate::ErrorCode;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub(super) const SEARCH: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub(super) const COUNT: usize = 1;
+}
 
 /// Enum to mark which type of upcall is scheduled for the IPC mechanism.
 #[derive(Copy, Clone, Debug)]
@@ -27,41 +34,8 @@ pub enum IPCUpcallType {
 }
 
 /// State that is stored in each process's grant region to support IPC.
-struct IPCData<const NUM_PROCS: usize> {
-    /// An array of process buffers that this application has shared
-    /// with other applications.
-    shared_memory: [ReadWriteProcessBuffer; NUM_PROCS],
-    search_buf: ReadOnlyProcessBuffer,
-}
-
-impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
-    fn default() -> IPCData<NUM_PROCS> {
-        const DEFAULT_RW_PROC_BUF: ReadWriteProcessBuffer = ReadWriteProcessBuffer::const_default();
-        IPCData {
-            shared_memory: [DEFAULT_RW_PROC_BUF; NUM_PROCS],
-            search_buf: ReadOnlyProcessBuffer::default(),
-        }
-    }
-}
-
-/// The upcall setup by a service. Each process can only be one service.
-/// Subscribe with subscribe_num == 0 is how a process registers
-/// itself as an IPC service. Each process can only register as a
-/// single IPC service. The identifier for the IPC service is the
-/// application name stored in the TBF header of the application.
-/// The upcall that is passed to subscribe is called when another
-/// process notifies the server process.
-const SERVICE_UPCALL_NUM: usize = 0;
-
-/// This const specifies the subscribe_num of the first upcall
-/// in the array of client upcalls.
-/// Subscribe with subscribe_num >= 1 is how a client registers
-/// a upcall for a given service. The service number (passed
-/// as subscribe_num) is returned from the allow() call.
-/// Once subscribed, the client will receive upcalls when the
-/// service process calls notify_client().
-
-const CLIENT_UPCALL_NUM_BASE: usize = 1;
+#[derive(Default)]
+struct IPCData;
 
 /// The IPC mechanism struct.
 /// NUM_UPCALLS should always equal NUM_PROCS + 1. The extra upcall
@@ -69,7 +43,12 @@ const CLIENT_UPCALL_NUM_BASE: usize = 1;
 /// is stable we will not need two separate const generic parameters.
 pub struct IPC<const NUM_PROCS: usize, const NUM_UPCALLS: usize> {
     /// The grant regions for each process that holds the per-process IPC data.
-    data: Grant<IPCData<NUM_PROCS>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
+    data: Grant<
+        IPCData,
+        UpcallCount<NUM_UPCALLS>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<NUM_PROCS>,
+    >,
 }
 
 impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALLS> {
@@ -91,66 +70,34 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
         called_from: ProcessId,
         cb_type: IPCUpcallType,
     ) -> Result<(), process::Error> {
-        self.data
-            .enter(schedule_on, |_mydata, my_upcalls| {
-                let to_schedule: usize = match cb_type {
-                    IPCUpcallType::Service => SERVICE_UPCALL_NUM,
-                    IPCUpcallType::Client => match called_from.index() {
-                        Some(i) => i + CLIENT_UPCALL_NUM_BASE,
-                        None => panic!("Invalid app issued IPC request"), //TODO: return Error instead
-                    },
+        let schedule_on_id = schedule_on.index().ok_or(process::Error::NoSuchApp)?;
+        let called_from_id = called_from.index().ok_or(process::Error::NoSuchApp)?;
+        self.data.enter(schedule_on, |_, schedule_on_data| {
+            self.data.enter(called_from, |_, called_from_data| {
+                // If the other app shared a buffer with us, make
+                // sure we have access to that slice and then call
+                // the upcall. If no slice was shared then just
+                // call the upcall.
+                let (len, ptr) = match called_from_data.get_readwrite_processbuffer(schedule_on_id)
+                {
+                    Ok(slice) => {
+                        // Ensure receiving app has MPU access to sending app's buffer
+                        self.data
+                            .kernel
+                            .process_map_or(None, schedule_on, |process| {
+                                process.add_mpu_region(slice.ptr(), slice.len(), slice.len())
+                            });
+                        (slice.len(), slice.ptr() as usize)
+                    }
+                    Err(_) => (0, 0),
                 };
-                self.data
-                    .enter(called_from, |called_from_data, _called_from_upcalls| {
-                        // If the other app shared a buffer with us, make
-                        // sure we have access to that slice and then call
-                        // the upcall. If no slice was shared then just
-                        // call the upcall.
-                        match schedule_on.index() {
-                            Some(i) => {
-                                if i >= called_from_data.shared_memory.len() {
-                                    return;
-                                }
-
-                                match called_from_data.shared_memory.get(i) {
-                                    Some(slice) => {
-                                        self.data.kernel.process_map_or(
-                                            None,
-                                            schedule_on,
-                                            |process| {
-                                                process.add_mpu_region(
-                                                    slice.ptr(),
-                                                    slice.len(),
-                                                    slice.len(),
-                                                )
-                                            },
-                                        );
-                                        my_upcalls
-                                            .schedule_upcall(
-                                                to_schedule,
-                                                (
-                                                    called_from.id() + 1,
-                                                    ReadableProcessBuffer::len(slice),
-                                                    ReadableProcessBuffer::ptr(slice) as usize,
-                                                ),
-                                            )
-                                            .ok();
-                                    }
-                                    None => {
-                                        my_upcalls
-                                            .schedule_upcall(
-                                                to_schedule,
-                                                (called_from.id() + 1, 0, 0),
-                                            )
-                                            .ok();
-                                    }
-                                }
-                            }
-                            None => {}
-                        }
-                    })
+                let to_schedule: usize = match cb_type {
+                    IPCUpcallType::Service => schedule_on_id,
+                    IPCUpcallType::Client => called_from_id,
+                };
+                let _ = schedule_on_data.schedule_upcall(to_schedule, (called_from_id, len, ptr));
             })
-            .and_then(|x| x)
+        })?
     }
 }
 
@@ -191,27 +138,32 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> SyscallDriver
             /* Discover */
             {
                 self.data
-                    .enter(appid, |data, _upcalls| {
-                        data.search_buf
-                            .enter(|slice| {
-                                self.data
-                                    .kernel
-                                    .process_until(|p| {
-                                        let s = p.get_process_name().as_bytes();
-                                        // are slices equal?
-                                        if s.len() == slice.len()
-                                            && s.iter()
-                                                .zip(slice.iter())
-                                                .all(|(c1, c2)| *c1 == c2.get())
-                                        {
-                                            Some(CommandReturn::success_u32(
-                                                p.processid().id() as u32 + 1,
-                                            ))
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .unwrap_or(CommandReturn::failure(ErrorCode::NODEVICE))
+                    .enter(appid, |_, kernel_data| {
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::SEARCH)
+                            .and_then(|search| {
+                                search.enter(|slice| {
+                                    self.data
+                                        .kernel
+                                        .process_until(|p| {
+                                            let s = p.get_process_name().as_bytes();
+                                            // are slices equal?
+                                            if s.len() == slice.len()
+                                                && s.iter()
+                                                    .zip(slice.iter())
+                                                    .all(|(c1, c2)| *c1 == c2.get())
+                                            {
+                                                // Return the index of the process which is used for
+                                                // subscribe number
+                                                p.processid()
+                                                    .index()
+                                                    .map(|i| CommandReturn::success_u32(i as u32))
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or(CommandReturn::failure(ErrorCode::NODEVICE))
+                                })
                             })
                             .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                     })
@@ -221,124 +173,65 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> SyscallDriver
             /* Service notify */
             {
                 let cb_type = IPCUpcallType::Service;
-                let app_identifier = target_id - 1;
 
-                self.data
-                    .kernel
-                    .lookup_app_by_identifier(app_identifier)
-                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
-                        self.data.kernel.process_map_or(
-                            CommandReturn::failure(ErrorCode::INVAL),
-                            otherapp,
-                            |target| {
-                                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
-                                match ret {
-                                    Ok(()) => CommandReturn::success(),
-                                    Err(e) => match e {
-                                        // The other side has a null upcall, choosing to ignore
-                                        ErrorCode::OFF => CommandReturn::success(),
-                                        _ => CommandReturn::failure(e),
-                                    },
-                                }
-                            },
-                        )
-                    })
+                let other_process =
+                    self.data
+                        .kernel
+                        .process_until(|p| match p.processid().index() {
+                            Some(i) if i == target_id => Some(p.processid()),
+                            _ => None,
+                        });
+
+                other_process.map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
+                    self.data.kernel.process_map_or(
+                        CommandReturn::failure(ErrorCode::INVAL),
+                        otherapp,
+                        |target| {
+                            let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                            match ret {
+                                Ok(()) => CommandReturn::success(),
+                                Err(e) => match e {
+                                    // The other side has a null upcall, choosing to ignore
+                                    ErrorCode::OFF => CommandReturn::success(),
+                                    _ => CommandReturn::failure(e),
+                                },
+                            }
+                        },
+                    )
+                })
             }
             3 =>
             /* Client notify */
             {
                 let cb_type = IPCUpcallType::Client;
-                let app_identifier = target_id - 1;
 
-                self.data
-                    .kernel
-                    .lookup_app_by_identifier(app_identifier)
-                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
-                        self.data.kernel.process_map_or(
-                            CommandReturn::failure(ErrorCode::INVAL),
-                            otherapp,
-                            |target| {
-                                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
-                                match ret {
-                                    Ok(()) => CommandReturn::success(),
-                                    Err(e) => match e {
-                                        // The other side has a null upcall, choosing to ignore
-                                        ErrorCode::OFF => CommandReturn::success(),
-                                        _ => CommandReturn::failure(e),
-                                    },
-                                }
-                            },
-                        )
-                    })
+                let other_process =
+                    self.data
+                        .kernel
+                        .process_until(|p| match p.processid().index() {
+                            Some(i) if i == target_id => Some(p.processid()),
+                            _ => None,
+                        });
+
+                other_process.map_or(CommandReturn::failure(ErrorCode::INVAL), |otherapp| {
+                    self.data.kernel.process_map_or(
+                        CommandReturn::failure(ErrorCode::INVAL),
+                        otherapp,
+                        |target| {
+                            let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                            match ret {
+                                Ok(()) => CommandReturn::success(),
+                                Err(e) => match e {
+                                    // The other side has a null upcall, choosing to ignore
+                                    ErrorCode::OFF => CommandReturn::success(),
+                                    _ => CommandReturn::failure(e),
+                                },
+                            }
+                        },
+                    )
+                })
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
-    }
-
-    /// allow_readonly with subdriver number `0` stores the provided buffer for service discovery.
-    /// The buffer should contain the package name of a process that exports an IPC service.
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        subdriver: usize,
-        mut buffer: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        if subdriver == 0 {
-            // Package name for discovery
-            let res = self.data.enter(appid, |data, _upcalls| {
-                core::mem::swap(&mut data.search_buf, &mut buffer);
-            });
-            match res {
-                Ok(_) => Ok(buffer),
-                Err(e) => Err((buffer, e.into())),
-            }
-        } else {
-            Err((buffer, ErrorCode::NOSUPPORT))
-        }
-    }
-
-    /// allow_readwrite enables processes to discover IPC services on the platform or
-    /// share buffers with existing services.
-    ///
-    /// If allow is called with target_id >= 1, it is a share command where the
-    /// application is explicitly sharing a slice with an IPC service (as
-    /// specified by the target_id). allow() simply allows both processes to
-    /// access the buffer, it does not signal the service.
-    ///
-    /// target_id == 0 is currently unsupported and reserved for future use.
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        target_id: usize,
-        mut buffer: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        if target_id == 0 {
-            Err((buffer, ErrorCode::NOSUPPORT))
-        } else {
-            match self.data.enter(appid, |data, _upcalls| {
-                // Lookup the index of the app based on the passed in
-                // identifier. This also let's us check that the other app is
-                // actually valid.
-                let app_identifier = target_id - 1;
-                let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
-                if let Some(oa) = otherapp {
-                    if let Some(i) = oa.index() {
-                        if let Some(smem) = data.shared_memory.get_mut(i) {
-                            core::mem::swap(smem, &mut buffer);
-                            Ok(())
-                        } else {
-                            Err(ErrorCode::INVAL)
-                        }
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    }
-                } else {
-                    Err(ErrorCode::BUSY)
-                }
-            }) {
-                Ok(_) => Ok(buffer),
-                Err(e) => Err((buffer, e.into())),
-            }
         }
     }
 
