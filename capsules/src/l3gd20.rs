@@ -19,7 +19,7 @@
 //! #### command num
 //! - `0`: Returns Ok(())
 //!   - `data`: Unused.
-//!   - Return: 0
+//!   - Return: Success
 //! - `1`: Is Present
 //!   - `data`: unused
 //!   - Return: `Ok(())` if no other command is in progress, `BUSY` otherwise.
