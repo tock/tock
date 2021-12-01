@@ -72,7 +72,6 @@ impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
 }
 
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures. Need an
 // empty list at least.
@@ -535,7 +534,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &litex_arty,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
         &main_loop_cap,
     );
 }

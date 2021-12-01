@@ -38,20 +38,17 @@ pub enum IPCUpcallType {
 struct IPCData;
 
 /// The IPC mechanism struct.
-/// NUM_UPCALLS should always equal NUM_PROCS + 1. The extra upcall
-/// is so processes can register as a service. Once const_evaluatable_checked
-/// is stable we will not need two separate const generic parameters.
-pub struct IPC<const NUM_PROCS: usize, const NUM_UPCALLS: usize> {
+pub struct IPC<const NUM_PROCS: usize> {
     /// The grant regions for each process that holds the per-process IPC data.
     data: Grant<
         IPCData,
-        UpcallCount<NUM_UPCALLS>,
+        UpcallCount<NUM_PROCS>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<NUM_PROCS>,
     >,
 }
 
-impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALLS> {
+impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
         driver_num: usize,
@@ -101,9 +98,7 @@ impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> IPC<NUM_PROCS, NUM_UPCALL
     }
 }
 
-impl<const NUM_PROCS: usize, const NUM_UPCALLS: usize> SyscallDriver
-    for IPC<NUM_PROCS, NUM_UPCALLS>
-{
+impl<const NUM_PROCS: usize> SyscallDriver for IPC<NUM_PROCS> {
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
     /// and notifying an IPC client is done by setting client_or_svc to 1.

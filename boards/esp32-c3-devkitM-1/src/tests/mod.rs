@@ -1,8 +1,8 @@
 use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
+use crate::NUM_PROCS;
 use crate::PLATFORM;
-use crate::{NUM_PROCS, NUM_UPCALLS_IPC};
 use kernel::debug;
 
 fn run_kernel_op(loops: usize) {
@@ -11,7 +11,7 @@ fn run_kernel_op(loops: usize) {
             BOARD.unwrap().kernel_loop_operation(
                 PLATFORM.unwrap(),
                 CHIP.unwrap(),
-                None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+                None::<&kernel::ipc::IPC<NUM_PROCS>>,
                 true,
                 MAIN_CAP.unwrap(),
             );
