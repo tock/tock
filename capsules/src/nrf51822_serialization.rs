@@ -172,6 +172,8 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                             for (i, c) in slice.iter().enumerate() {
                                 buffer[i] = c.get();
                             }
+                            // Set this as the active app for the transmit callback
+                            self.active_app.set(appid);
                             let _ = self.uart.transmit_buffer(buffer, write_len);
                             CommandReturn::success()
                         })
@@ -185,6 +187,8 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                     if len > buffer.len() {
                         CommandReturn::failure(ErrorCode::SIZE)
                     } else {
+                        // Set this as the active app for the receive callback
+                        self.active_app.set(appid);
                         let _ = self.uart.receive_automatic(buffer, len, 250);
                         CommandReturn::success_u32(len as u32)
                     }
