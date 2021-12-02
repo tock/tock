@@ -1,7 +1,9 @@
 //! Helper library for RSA public and private keys
 
 use core::cell::Cell;
-use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
+use kernel::hil::public_key_crypto::keys::{
+    PubKey, PubKeyMut, PubPrivKey, PubPrivKeyMut, RsaKey, RsaKeyMut, RsaPrivKey, RsaPrivKeyMut,
+};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::mut_imut_buffer::MutImutBuffer;
 use kernel::ErrorCode;
@@ -25,9 +27,7 @@ impl<'a, const L: usize> RSAKeys<L> {
             private_key: OptionalCell::empty(),
         }
     }
-}
 
-impl<const L: usize> PubKey for RSAKeys<L> {
     /// `public_key` is a buffer containing the public key.
     /// This is the `L` byte modulus (also called `n`).
     fn import_public_key(
@@ -51,20 +51,6 @@ impl<const L: usize> PubKey for RSAKeys<L> {
         }
     }
 
-    fn len(&self) -> usize {
-        if let Some(key) = self.public_key.take() {
-            let ret = key.len();
-            self.public_key.set(key);
-            ret
-        } else {
-            0
-        }
-    }
-}
-
-impl<const L: usize> PubPrivKey for RSAKeys<L> {
-    /// `private_key` is a buffer containing the private key.
-    /// The first `L` bytes are the private_exponent (also called `d`).
     fn import_private_key(
         &self,
         private_key: MutImutBuffer<'static, u8>,
@@ -85,6 +71,151 @@ impl<const L: usize> PubPrivKey for RSAKeys<L> {
             Err(ErrorCode::NODEVICE)
         }
     }
+}
+
+impl<const L: usize> PubKey for RSAKeys<L> {
+    /// `public_key` is a buffer containing the public key.
+    /// This is the `L` byte modulus (also called `n`).
+    fn import_public_key(
+        &self,
+        public_key: &'static [u8],
+    ) -> Result<(), (ErrorCode, &'static [u8])> {
+        if public_key.len() != L {
+            return Err((ErrorCode::SIZE, public_key));
+        }
+
+        self.public_key
+            .replace(MutImutBuffer::Immutable(public_key));
+
+        Ok(())
+    }
+
+    fn pub_key(&self) -> Result<&'static [u8], kernel::ErrorCode> {
+        if self.public_key.is_some() {
+            match self.public_key.take().unwrap() {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            }
+        } else {
+            Err(ErrorCode::NODEVICE)
+        }
+    }
+
+    fn len(&self) -> usize {
+        if let Some(key) = self.public_key.take() {
+            let ret = key.len();
+            self.public_key.set(key);
+            ret
+        } else {
+            0
+        }
+    }
+}
+
+impl<const L: usize> PubKeyMut for RSAKeys<L> {
+    /// `public_key` is a buffer containing the public key.
+    /// This is the `L` byte modulus (also called `n`).
+    fn import_public_key(
+        &self,
+        public_key: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if public_key.len() != L {
+            return Err((ErrorCode::SIZE, public_key));
+        }
+
+        self.public_key.replace(MutImutBuffer::Mutable(public_key));
+
+        Ok(())
+    }
+
+    fn pub_key(&self) -> Result<&'static mut [u8], kernel::ErrorCode> {
+        if self.public_key.is_some() {
+            match self.public_key.take().unwrap() {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            }
+        } else {
+            Err(ErrorCode::NODEVICE)
+        }
+    }
+
+    fn len(&self) -> usize {
+        if let Some(key) = self.public_key.take() {
+            let ret = key.len();
+            self.public_key.set(key);
+            ret
+        } else {
+            0
+        }
+    }
+}
+
+impl<const L: usize> PubPrivKey for RSAKeys<L> {
+    /// `private_key` is a buffer containing the private key.
+    /// The first `L` bytes are the private_exponent (also called `d`).
+    fn import_private_key(
+        &self,
+        private_key: &'static [u8],
+    ) -> Result<(), (ErrorCode, &'static [u8])> {
+        if private_key.len() != L {
+            return Err((ErrorCode::SIZE, private_key));
+        }
+
+        self.private_key
+            .replace(MutImutBuffer::Immutable(private_key));
+
+        Ok(())
+    }
+
+    fn priv_key(&self) -> Result<&'static [u8], ErrorCode> {
+        if self.private_key.is_some() {
+            match self.private_key.take().unwrap() {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            }
+        } else {
+            Err(ErrorCode::NODEVICE)
+        }
+    }
+
+    fn len(&self) -> usize {
+        if let Some(key) = self.private_key.take() {
+            let ret = key.len();
+            self.private_key.set(key);
+            ret
+        } else {
+            0
+        }
+    }
+}
+
+impl<const L: usize> PubPrivKeyMut for RSAKeys<L> {
+    /// `private_key` is a buffer containing the private key.
+    /// The first `L` bytes are the private_exponent (also called `d`).
+    fn import_private_key(
+        &self,
+        private_key: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if private_key.len() != L {
+            return Err((ErrorCode::SIZE, private_key));
+        }
+
+        self.private_key
+            .replace(MutImutBuffer::Mutable(private_key));
+
+        Ok(())
+    }
+
+    fn priv_key(&self) -> Result<&'static mut [u8], ErrorCode> {
+        if self.private_key.is_some() {
+            match self.private_key.take().unwrap() {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            }
+        } else {
+            Err(ErrorCode::NODEVICE)
+        }
+    }
 
     fn len(&self) -> usize {
         if let Some(key) = self.private_key.take() {
@@ -101,9 +232,7 @@ impl<const L: usize> RsaKey for RSAKeys<L> {
     fn map_modulus(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
         if let Some(public_key) = self.public_key.take() {
             match public_key {
-                MutImutBuffer::Mutable(ref buf) => {
-                    let _ = closure(buf);
-                }
+                MutImutBuffer::Mutable(ref _buf) => unreachable!(),
                 MutImutBuffer::Immutable(buf) => {
                     let _ = closure(buf);
                 }
@@ -115,9 +244,44 @@ impl<const L: usize> RsaKey for RSAKeys<L> {
         }
     }
 
-    fn take_modulus(&self) -> Option<MutImutBuffer<'static, u8>> {
+    fn take_modulus(&self) -> Option<&'static [u8]> {
         if let Some(public_key) = self.public_key.take() {
-            Some(public_key)
+            match public_key {
+                MutImutBuffer::Immutable(ret) => Some(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            }
+        } else {
+            None
+        }
+    }
+
+    fn public_exponent(&self) -> Option<u32> {
+        Some(self.public_exponent.get())
+    }
+}
+
+impl<const L: usize> RsaKeyMut for RSAKeys<L> {
+    fn map_modulus(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        if let Some(mut public_key) = self.public_key.take() {
+            match public_key {
+                MutImutBuffer::Mutable(ref mut buf) => {
+                    let _ = closure(buf);
+                }
+                MutImutBuffer::Immutable(_buf) => unreachable!(),
+            }
+            self.public_key.replace(public_key);
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    fn take_modulus(&self) -> Option<&'static mut [u8]> {
+        if let Some(public_key) = self.public_key.take() {
+            match public_key {
+                MutImutBuffer::Mutable(ret) => Some(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            }
         } else {
             None
         }
@@ -132,13 +296,11 @@ impl<const L: usize> RsaPrivKey for RSAKeys<L> {
     fn map_exponent(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
         if let Some(private_key) = self.private_key.take() {
             match private_key {
-                MutImutBuffer::Mutable(ref buf) => {
-                    let _ = closure(buf);
-                }
+                MutImutBuffer::Mutable(ref _buf) => unreachable!(),
                 MutImutBuffer::Immutable(buf) => {
                     let _ = closure(buf);
                 }
-            }
+            };
             self.private_key.replace(private_key);
             Some(())
         } else {
@@ -146,9 +308,40 @@ impl<const L: usize> RsaPrivKey for RSAKeys<L> {
         }
     }
 
-    fn take_exponent(&self) -> Option<MutImutBuffer<'static, u8>> {
+    fn take_exponent(&self) -> Option<&'static [u8]> {
         if let Some(private_key) = self.private_key.take() {
-            Some(private_key)
+            match private_key {
+                MutImutBuffer::Immutable(ret) => Some(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<const L: usize> RsaPrivKeyMut for RSAKeys<L> {
+    fn map_exponent(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        if let Some(mut private_key) = self.private_key.take() {
+            match private_key {
+                MutImutBuffer::Mutable(ref mut buf) => {
+                    let _ = closure(buf);
+                }
+                MutImutBuffer::Immutable(_buf) => unreachable!(),
+            };
+            self.private_key.replace(private_key);
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    fn take_exponent(&self) -> Option<&'static mut [u8]> {
+        if let Some(private_key) = self.private_key.take() {
+            match private_key {
+                MutImutBuffer::Mutable(ret) => Some(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            }
         } else {
             None
         }
@@ -166,13 +359,29 @@ impl RSA2048Keys {
 impl PubKey for RSA2048Keys {
     fn import_public_key(
         &self,
-        public_key: MutImutBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, MutImutBuffer<'static, u8>)> {
-        self.0.import_public_key(public_key)
+        public_key: &'static [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static [u8])> {
+        let key = self
+            .0
+            .import_public_key(MutImutBuffer::Immutable(public_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Immutable(ret) => Err((e, ret)),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
     }
 
-    fn pub_key(&self) -> Result<MutImutBuffer<'static, u8>, ErrorCode> {
-        self.0.pub_key()
+    fn pub_key(&self) -> Result<&'static [u8], kernel::ErrorCode> {
+        match self.0.pub_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn len(&self) -> usize {
@@ -183,13 +392,29 @@ impl PubKey for RSA2048Keys {
 impl PubPrivKey for RSA2048Keys {
     fn import_private_key(
         &self,
-        private_key: MutImutBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, MutImutBuffer<'static, u8>)> {
-        self.0.import_private_key(private_key)
+        private_key: &'static [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static [u8])> {
+        let key = self
+            .0
+            .import_private_key(MutImutBuffer::Immutable(private_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Immutable(ret) => Err((e, ret)),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
     }
 
-    fn priv_key(&self) -> Result<MutImutBuffer<'static, u8>, ErrorCode> {
-        self.0.priv_key()
+    fn priv_key(&self) -> Result<&'static [u8], kernel::ErrorCode> {
+        match self.0.priv_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn len(&self) -> usize {
@@ -199,25 +424,121 @@ impl PubPrivKey for RSA2048Keys {
 
 impl RsaKey for RSA2048Keys {
     fn map_modulus(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
-        self.0.map_modulus(closure)
+        RsaKey::map_modulus(&self.0, closure)
     }
 
-    fn take_modulus(&self) -> Option<MutImutBuffer<'static, u8>> {
-        self.0.take_modulus()
+    fn take_modulus(&self) -> Option<&'static [u8]> {
+        RsaKey::take_modulus(&self.0)
     }
 
     fn public_exponent(&self) -> Option<u32> {
-        self.0.public_exponent()
+        RsaKey::public_exponent(&self.0)
     }
 }
 
 impl RsaPrivKey for RSA2048Keys {
     fn map_exponent(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
-        self.0.map_exponent(closure)
+        RsaPrivKey::map_exponent(&self.0, closure)
     }
 
-    fn take_exponent(&self) -> Option<MutImutBuffer<'static, u8>> {
-        self.0.take_exponent()
+    fn take_exponent(&self) -> Option<&'static [u8]> {
+        RsaPrivKey::take_exponent(&self.0)
+    }
+}
+
+pub struct RSA2048KeysMut(RSAKeys<256>);
+
+impl RSA2048KeysMut {
+    pub const fn new() -> RSA2048KeysMut {
+        RSA2048KeysMut(RSAKeys::<256>::new())
+    }
+}
+
+impl PubKeyMut for RSA2048KeysMut {
+    fn import_public_key(
+        &self,
+        public_key: &'static mut [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        let key = self.0.import_public_key(MutImutBuffer::Mutable(public_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Mutable(ret) => Err((e, ret)),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
+    }
+
+    fn pub_key(&self) -> Result<&'static mut [u8], kernel::ErrorCode> {
+        match self.0.pub_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn len(&self) -> usize {
+        PubKey::len(&self.0)
+    }
+}
+
+impl PubPrivKeyMut for RSA2048KeysMut {
+    fn import_private_key(
+        &self,
+        private_key: &'static mut [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        let key = self
+            .0
+            .import_private_key(MutImutBuffer::Mutable(private_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Mutable(ret) => Err((e, ret)),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
+    }
+
+    fn priv_key(&self) -> Result<&'static mut [u8], kernel::ErrorCode> {
+        match self.0.priv_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn len(&self) -> usize {
+        PubPrivKey::len(&self.0)
+    }
+}
+
+impl RsaKeyMut for RSA2048KeysMut {
+    fn map_modulus(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        RsaKeyMut::map_modulus(&self.0, closure)
+    }
+
+    fn take_modulus(&self) -> Option<&'static mut [u8]> {
+        RsaKeyMut::take_modulus(&self.0)
+    }
+
+    fn public_exponent(&self) -> Option<u32> {
+        RsaKeyMut::public_exponent(&self.0)
+    }
+}
+
+impl RsaPrivKeyMut for RSA2048KeysMut {
+    fn map_exponent(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        RsaPrivKeyMut::map_exponent(&self.0, closure)
+    }
+
+    fn take_exponent(&self) -> Option<&'static mut [u8]> {
+        RsaPrivKeyMut::take_exponent(&self.0)
     }
 }
 
@@ -232,13 +553,29 @@ impl RSA4096Keys {
 impl PubKey for RSA4096Keys {
     fn import_public_key(
         &self,
-        public_key: MutImutBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, MutImutBuffer<'static, u8>)> {
-        self.0.import_public_key(public_key)
+        public_key: &'static [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static [u8])> {
+        let key = self
+            .0
+            .import_public_key(MutImutBuffer::Immutable(public_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Immutable(ret) => Err((e, ret)),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
     }
 
-    fn pub_key(&self) -> Result<MutImutBuffer<'static, u8>, ErrorCode> {
-        self.0.pub_key()
+    fn pub_key(&self) -> Result<&'static [u8], kernel::ErrorCode> {
+        match self.0.pub_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn len(&self) -> usize {
@@ -249,13 +586,29 @@ impl PubKey for RSA4096Keys {
 impl PubPrivKey for RSA4096Keys {
     fn import_private_key(
         &self,
-        private_key: MutImutBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, MutImutBuffer<'static, u8>)> {
-        self.0.import_private_key(private_key)
+        private_key: &'static [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static [u8])> {
+        let key = self
+            .0
+            .import_private_key(MutImutBuffer::Immutable(private_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Immutable(ret) => Err((e, ret)),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
     }
 
-    fn priv_key(&self) -> Result<MutImutBuffer<'static, u8>, ErrorCode> {
-        self.0.priv_key()
+    fn priv_key(&self) -> Result<&'static [u8], kernel::ErrorCode> {
+        match self.0.priv_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Immutable(ret) => Ok(ret),
+                MutImutBuffer::Mutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn len(&self) -> usize {
@@ -265,24 +618,120 @@ impl PubPrivKey for RSA4096Keys {
 
 impl RsaKey for RSA4096Keys {
     fn map_modulus(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
-        self.0.map_modulus(closure)
+        RsaKey::map_modulus(&self.0, closure)
     }
 
-    fn take_modulus(&self) -> Option<MutImutBuffer<'static, u8>> {
-        self.0.take_modulus()
+    fn take_modulus(&self) -> Option<&'static [u8]> {
+        RsaKey::take_modulus(&self.0)
     }
 
     fn public_exponent(&self) -> Option<u32> {
-        self.0.public_exponent()
+        RsaKey::public_exponent(&self.0)
     }
 }
 
 impl RsaPrivKey for RSA4096Keys {
     fn map_exponent(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()> {
-        self.0.map_exponent(closure)
+        RsaPrivKey::map_exponent(&self.0, closure)
     }
 
-    fn take_exponent(&self) -> Option<MutImutBuffer<'static, u8>> {
-        self.0.take_exponent()
+    fn take_exponent(&self) -> Option<&'static [u8]> {
+        RsaPrivKey::take_exponent(&self.0)
+    }
+}
+
+pub struct RSA4096KeysMut(RSAKeys<512>);
+
+impl RSA4096KeysMut {
+    pub const fn new() -> RSA4096KeysMut {
+        RSA4096KeysMut(RSAKeys::<512>::new())
+    }
+}
+
+impl PubKeyMut for RSA4096KeysMut {
+    fn import_public_key(
+        &self,
+        public_key: &'static mut [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        let key = self.0.import_public_key(MutImutBuffer::Mutable(public_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Mutable(ret) => Err((e, ret)),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
+    }
+
+    fn pub_key(&self) -> Result<&'static mut [u8], kernel::ErrorCode> {
+        match self.0.pub_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn len(&self) -> usize {
+        PubKey::len(&self.0)
+    }
+}
+
+impl PubPrivKeyMut for RSA4096KeysMut {
+    fn import_private_key(
+        &self,
+        private_key: &'static mut [u8],
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        let key = self
+            .0
+            .import_private_key(MutImutBuffer::Mutable(private_key));
+
+        match key {
+            Err((e, buf)) => match buf {
+                MutImutBuffer::Mutable(ret) => Err((e, ret)),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Ok(()) => Ok(()),
+        }
+    }
+
+    fn priv_key(&self) -> Result<&'static mut [u8], kernel::ErrorCode> {
+        match self.0.priv_key() {
+            Ok(buf) => match buf {
+                MutImutBuffer::Mutable(ret) => Ok(ret),
+                MutImutBuffer::Immutable(_ret) => unreachable!(),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn len(&self) -> usize {
+        PubPrivKey::len(&self.0)
+    }
+}
+
+impl RsaKeyMut for RSA4096KeysMut {
+    fn map_modulus(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        RsaKeyMut::map_modulus(&self.0, closure)
+    }
+
+    fn take_modulus(&self) -> Option<&'static mut [u8]> {
+        RsaKeyMut::take_modulus(&self.0)
+    }
+
+    fn public_exponent(&self) -> Option<u32> {
+        RsaKeyMut::public_exponent(&self.0)
+    }
+}
+
+impl RsaPrivKeyMut for RSA4096KeysMut {
+    fn map_exponent(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()> {
+        RsaPrivKeyMut::map_exponent(&self.0, closure)
+    }
+
+    fn take_exponent(&self) -> Option<&'static mut [u8]> {
+        RsaPrivKeyMut::take_exponent(&self.0)
     }
 }

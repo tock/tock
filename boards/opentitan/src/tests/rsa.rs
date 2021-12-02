@@ -3,7 +3,6 @@ use capsules::public_key_crypto::rsa_keys::RSA2048Keys;
 use kernel::debug;
 use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
 use kernel::static_init;
-use kernel::utilities::mut_imut_buffer::MutImutBuffer;
 
 static PUB_KEY: [u8; 256] = [
     // Modulus
@@ -51,10 +50,10 @@ fn rsa_import_key() {
     debug!("check rsa key import... ");
     run_kernel_op(100);
 
-    if let Err(e) = key.import_public_key(MutImutBuffer::Immutable(&PUB_KEY)) {
+    if let Err(e) = key.import_public_key(&PUB_KEY) {
         panic!("Failed to import public key: {:?}", e.0);
     }
-    if let Err(e) = key.import_private_key(MutImutBuffer::Immutable(&PRIV_KEY)) {
+    if let Err(e) = key.import_private_key(&PRIV_KEY) {
         panic!("Failed to import private key: {:?}", e.0);
     }
 
