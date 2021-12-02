@@ -36,13 +36,13 @@ use kernel::ErrorCode;
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there
 /// is another flash user with an outstanding read, write, or erase request.
-pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
+pub struct MuxFlash<'a, F: hil::flash::LegacyFlash + 'static> {
     flash: &'a F,
     users: List<'a, FlashUser<'a, F>>,
     inflight: OptionalCell<&'a FlashUser<'a, F>>,
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
+impl<F: hil::flash::LegacyFlash> hil::flash::LegacyClient<F> for MuxFlash<'_, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
         self.inflight.take().map(move |user| {
             user.read_complete(pagebuffer, error);
@@ -65,7 +65,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
+impl<'a, F: hil::flash::LegacyFlash> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
             flash: flash,
@@ -131,15 +131,15 @@ enum Op {
 /// need to create one of these to be a user of the flash. The `new()` function
 /// handles most of the work, a user only has to pass in a reference to the
 /// MuxFlash object.
-pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
+pub struct FlashUser<'a, F: hil::flash::LegacyFlash + 'static> {
     mux: &'a MuxFlash<'a, F>,
     buffer: TakeCell<'static, F::Page>,
     operation: Cell<Op>,
     next: ListLink<'a, FlashUser<'a, F>>,
-    client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,
+    client: OptionalCell<&'a dyn hil::flash::LegacyClient<FlashUser<'a, F>>>,
 }
 
-impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
+impl<'a, F: hil::flash::LegacyFlash> FlashUser<'a, F> {
     pub const fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
             mux: mux,
@@ -151,7 +151,7 @@ impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
+impl<'a, F: hil::flash::LegacyFlash, C: hil::flash::LegacyClient<Self>> hil::flash::HasClient<'a, C>
     for FlashUser<'a, F>
 {
     fn set_client(&'a self, client: &'a C) {
@@ -160,7 +160,7 @@ impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClien
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
+impl<'a, F: hil::flash::LegacyFlash> hil::flash::LegacyClient<F> for FlashUser<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
         self.client.map(move |client| {
             client.read_complete(pagebuffer, error);
@@ -180,13 +180,13 @@ impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
+impl<'a, F: hil::flash::LegacyFlash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
     fn next(&'a self) -> &'a ListLink<'a, FlashUser<'a, F>> {
         &self.next
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'_, F> {
+impl<F: hil::flash::LegacyFlash> hil::flash::LegacyFlash for FlashUser<'_, F> {
     type Page = F::Page;
 
     fn read_page(

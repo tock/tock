@@ -74,7 +74,7 @@ use core::unreachable;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::hil::flash::{self, Flash};
+use kernel::hil::flash::{self, LegacyFlash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -101,7 +101,7 @@ enum State {
     Erase,
 }
 
-pub struct Log<'a, F: Flash + 'static> {
+pub struct Log<'a, F: LegacyFlash + 'static> {
     /// Underlying storage volume.
     volume: &'static [u8],
     /// Capacity of log in bytes.
@@ -144,7 +144,7 @@ pub struct Log<'a, F: Flash + 'static> {
     error: Cell<Result<(), ErrorCode>>,
 }
 
-impl<'a, F: Flash + 'static> Log<'a, F> {
+impl<'a, F: LegacyFlash + 'static> Log<'a, F> {
     pub fn new(
         volume: &'static [u8],
         driver: &'a F,
@@ -580,7 +580,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
+impl<'a, F: LegacyFlash + 'static> LogRead<'a> for Log<'a, F> {
     type EntryID = EntryID;
 
     /// Set the client for read operation callbacks.
@@ -678,7 +678,7 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
+impl<'a, F: LegacyFlash + 'static> LogWrite<'a> for Log<'a, F> {
     /// Set the client for append operation callbacks.
     fn set_append_client(&self, append_client: &'a dyn LogWriteClient) {
         self.append_client.set(append_client);
@@ -804,7 +804,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
+impl<'a, F: LegacyFlash + 'static> flash::LegacyClient<F> for Log<'a, F> {
     fn read_complete(&self, _read_buffer: &'static mut F::Page, _error: flash::Error) {
         // Reads are made directly from the storage volume, not through the flash interface.
         unreachable!();
@@ -902,7 +902,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> DynamicDeferredCallClient for Log<'a, F> {
+impl<'a, F: LegacyFlash + 'static> DynamicDeferredCallClient for Log<'a, F> {
     fn call(&self, _handle: DeferredCallHandle) {
         self.client_callback();
     }

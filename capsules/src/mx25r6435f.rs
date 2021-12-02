@@ -178,7 +178,7 @@ pub struct MX25R6435F<
     hold_pin: Option<&'a P>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'a dyn hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
+    client: OptionalCell<&'a dyn hil::flash::LegacyClient<MX25R6435F<'a, S, P, A>>>,
     client_sector: TakeCell<'static, Mx25r6435fSector>,
 }
 
@@ -593,7 +593,7 @@ impl<
         S: hil::spi::SpiMasterDevice + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
-        C: hil::flash::Client<Self>,
+        C: hil::flash::LegacyClient<Self>,
     > hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
 {
     fn set_client(&self, client: &'a C) {
@@ -606,7 +606,7 @@ impl<
         S: hil::spi::SpiMasterDevice + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
-    > hil::flash::Flash for MX25R6435F<'a, S, P, A>
+    > hil::flash::LegacyFlash for MX25R6435F<'a, S, P, A>
 {
     type Page = Mx25r6435fSector;
 

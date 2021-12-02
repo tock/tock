@@ -242,7 +242,7 @@ pub enum FlashRegion {
 
 pub struct FlashCtrl<'a> {
     registers: StaticRef<FlashCtrlRegisters>,
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<FlashCtrl<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::LegacyClient<FlashCtrl<'a>>>,
     data_configured: Cell<bool>,
     info_configured: Cell<bool>,
     read_buf: TakeCell<'static, LowRiscPage>,
@@ -438,13 +438,13 @@ impl<'a> FlashCtrl<'a> {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCtrl<'_> {
+impl<C: hil::flash::LegacyClient<Self>> hil::flash::HasClient<'static, C> for FlashCtrl<'_> {
     fn set_client(&self, client: &'static C) {
         self.flash_client.set(client);
     }
 }
 
-impl hil::flash::Flash for FlashCtrl<'_> {
+impl hil::flash::LegacyFlash for FlashCtrl<'_> {
     type Page = LowRiscPage;
 
     fn read_page(

@@ -146,7 +146,7 @@ const PAGE_SIZE: usize = 4096;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// nrf. Users of this module must pass an object of this type to use the
-/// `hil::flash::Flash` interface.
+/// `hil::flash::LegacyFlash` interface.
 ///
 /// An example looks like:
 ///
@@ -203,7 +203,7 @@ pub enum FlashState {
 
 pub struct Nvmc {
     registers: StaticRef<NvmcRegisters>,
-    client: OptionalCell<&'static dyn hil::flash::Client<Nvmc>>,
+    client: OptionalCell<&'static dyn hil::flash::LegacyClient<Nvmc>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
 }
@@ -359,13 +359,13 @@ impl Nvmc {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
+impl<C: hil::flash::LegacyClient<Self>> hil::flash::HasClient<'static, C> for Nvmc {
     fn set_client(&self, client: &'static C) {
         self.client.set(client);
     }
 }
 
-impl hil::flash::Flash for Nvmc {
+impl hil::flash::LegacyFlash for Nvmc {
     type Page = NrfPage;
 
     fn read_page(

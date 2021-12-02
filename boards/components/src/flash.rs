@@ -17,7 +17,7 @@ use capsules::virtual_flash::FlashUser;
 use capsules::virtual_flash::MuxFlash;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil::flash::{Flash, HasClient};
+use kernel::hil::flash::{HasClient, LegacyFlash};
 use kernel::static_init_half;
 
 // Setup static space for the objects.
@@ -41,17 +41,17 @@ macro_rules! flash_mux_component_helper {
     };};
 }
 
-pub struct FlashMuxComponent<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> {
+pub struct FlashMuxComponent<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> {
     flash: &'static F,
 }
 
-impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> FlashMuxComponent<F> {
+impl<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> FlashMuxComponent<F> {
     pub fn new(flash: &'static F) -> FlashMuxComponent<F> {
         FlashMuxComponent { flash }
     }
 }
 
-impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
+impl<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> Component
     for FlashMuxComponent<F>
 {
     type StaticInput = &'static mut MaybeUninit<MuxFlash<'static, F>>;
@@ -65,17 +65,17 @@ impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
     }
 }
 
-pub struct FlashUserComponent<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> {
+pub struct FlashUserComponent<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> {
     mux_flash: &'static MuxFlash<'static, F>,
 }
 
-impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> FlashUserComponent<F> {
+impl<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> FlashUserComponent<F> {
     pub fn new(mux_flash: &'static MuxFlash<'static, F>) -> Self {
         Self { mux_flash }
     }
 }
 
-impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
+impl<F: 'static + LegacyFlash + HasClient<'static, MuxFlash<'static, F>>> Component
     for FlashUserComponent<F>
 {
     type StaticInput = &'static mut MaybeUninit<FlashUser<'static, F>>;

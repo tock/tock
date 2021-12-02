@@ -59,7 +59,7 @@ macro_rules! tickv_component_helper {
 }
 
 pub struct TicKVComponent<
-    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    F: 'static + hil::flash::LegacyFlash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
 > {
     mux_flash: &'static MuxFlash<'static, F>,
     region_offset: usize,
@@ -68,8 +68,9 @@ pub struct TicKVComponent<
     flash_read_buffer: &'static mut F::Page,
 }
 
-impl<F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>>
-    TicKVComponent<F>
+impl<
+        F: 'static + hil::flash::LegacyFlash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    > TicKVComponent<F>
 {
     pub fn new(
         mux_flash: &'static MuxFlash<'static, F>,
@@ -88,8 +89,9 @@ impl<F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'s
     }
 }
 
-impl<F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>>
-    Component for TicKVComponent<F>
+impl<
+        F: 'static + hil::flash::LegacyFlash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    > Component for TicKVComponent<F>
 {
     type StaticInput = (
         &'static mut MaybeUninit<FlashUser<'static, F>>,

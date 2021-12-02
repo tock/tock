@@ -224,7 +224,7 @@ const KEY2: u32 = 0xCDEF89AB;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// stm32f303xc. Users of this module must pass an object of this type to use the
-/// `hil::flash::Flash` interface.
+/// `hil::flash::LegacyFlash` interface.
 ///
 /// An example looks like:
 ///
@@ -283,7 +283,7 @@ pub enum FlashState {
 
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
-    client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
+    client: OptionalCell<&'static dyn hil::flash::LegacyClient<Flash>>,
     buffer: TakeCell<'static, StmF303Page>,
     state: Cell<FlashState>,
     write_counter: Cell<usize>,
@@ -604,13 +604,13 @@ impl Flash {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Flash {
+impl<C: hil::flash::LegacyClient<Self>> hil::flash::HasClient<'static, C> for Flash {
     fn set_client(&self, client: &'static C) {
         self.client.set(client);
     }
 }
 
-impl hil::flash::Flash for Flash {
+impl hil::flash::LegacyFlash for Flash {
     type Page = StmF303Page;
 
     fn read_page(

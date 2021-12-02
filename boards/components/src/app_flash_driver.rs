@@ -29,7 +29,7 @@ macro_rules! app_flash_component_helper {
         use capsules::nonvolatile_to_pages::NonvolatileToPages;
         use core::mem::MaybeUninit;
         use kernel::hil;
-        static mut page_buffer: MaybeUninit<<$F as hil::flash::Flash>::Page> =
+        static mut page_buffer: MaybeUninit<<$F as hil::flash::LegacyFlash>::Page> =
             MaybeUninit::uninit();
         static mut nv_to_page: MaybeUninit<NonvolatileToPages<'static, $F>> = MaybeUninit::uninit();
         static mut app_flash: MaybeUninit<AppFlash<'static>> = MaybeUninit::uninit();
@@ -43,7 +43,9 @@ macro_rules! app_flash_component_helper {
 }
 
 pub struct AppFlashComponent<
-    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    F: 'static
+        + hil::flash::LegacyFlash
+        + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -52,7 +54,7 @@ pub struct AppFlashComponent<
 
 impl<
         F: 'static
-            + hil::flash::Flash
+            + hil::flash::LegacyFlash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     > AppFlashComponent<F>
 {
@@ -71,13 +73,13 @@ impl<
 
 impl<
         F: 'static
-            + hil::flash::Flash
+            + hil::flash::LegacyFlash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     > Component for AppFlashComponent<F>
 {
     type StaticInput = (
         &'static mut [u8],
-        &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
+        &'static mut MaybeUninit<<F as hil::flash::LegacyFlash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<AppFlash<'static>>,
     );
@@ -88,8 +90,8 @@ impl<
 
         let flash_pagebuffer = static_init_half!(
             static_buffer.1,
-            <F as hil::flash::Flash>::Page,
-            <F as hil::flash::Flash>::Page::default()
+            <F as hil::flash::LegacyFlash>::Page,
+            <F as hil::flash::LegacyFlash>::Page::default()
         );
 
         let nv_to_page = static_init_half!(
