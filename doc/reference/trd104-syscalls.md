@@ -543,6 +543,12 @@ that were passed in the previous call, unless this is the first call.
 On the first successful invocation of a particular Read-Write Allow system 
 call, an driver implementation MUST return address 0 and size 0.
 
+If the kernel cannot access the grant region for this process, `NOMEM`
+will be returned. This can be caused by either running out a space in
+the grant region of RAM for the process, or the grant was never registered
+with the kernel during capsule creation at board startup. If the specified
+buffer number is not supported by the driver, the kernel will return `INVALID`.
+
 The standard access model for allowed buffers is that userspace does
 not read or write a buffer that has been allowed: access to the memory
 is intended to be exclusive either to userspace or to the kernel. To
