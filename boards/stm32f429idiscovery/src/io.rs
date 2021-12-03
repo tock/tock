@@ -25,7 +25,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
     /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
+    /// initialize USART3 causes STM32F446RE to go into in in-deterministic state.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
@@ -64,8 +64,8 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD2 is connected to PB07
-    let led = &mut led::LedHigh::new(PinId::PB07.get_pin_mut().as_mut().unwrap());
+    // User LD4 is connected to PG14
+    let led = &mut led::LedHigh::new(PinId::PG14.get_pin_mut().as_mut().unwrap());
     let writer = &mut WRITER;
 
     debug::panic(

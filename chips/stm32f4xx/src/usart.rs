@@ -145,6 +145,10 @@ register_bitfields![u32,
     ]
 ];
 
+// See Table 13. STM32F427xx and STM32F429xx register boundary addresses
+// of the STM32F429zi datasheet
+pub const USART1_BASE: StaticRef<UsartRegisters> =
+    unsafe { StaticRef::new(0x40011000 as *const UsartRegisters) };
 pub const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004400 as *const UsartRegisters) };
 pub const USART3_BASE: StaticRef<UsartRegisters> =
@@ -193,6 +197,32 @@ pub struct Usart<'a> {
 pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
 pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
 
+<<<<<<< HEAD
+=======
+/* TODO: USART1 uses DMA2, see the "AN4031 Application note"
+ * However, DMA2 is not yet configured in Tock OS.
+pub static mut USART1: Usart = Usart::new(
+    USART1_BASE,
+    UsartClock(rcc::PeripheralClock::APB2(rcc::PCLK2::USART1)),
+    Dma1Peripheral::USART1_TX,
+    Dma1Peripheral::USART1_RX,
+);*/
+
+pub static mut USART2: Usart = Usart::new(
+    USART2_BASE,
+    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART2)),
+    Dma1Peripheral::USART2_TX,
+    Dma1Peripheral::USART2_RX,
+);
+
+pub static mut USART3: Usart = Usart::new(
+    USART3_BASE,
+    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART3)),
+    Dma1Peripheral::USART3_TX,
+    Dma1Peripheral::USART3_RX,
+);
+
+>>>>>>> 40196ce52 (stm32f429idiscovery: Configure LEDs and Buttons)
 impl<'a> Usart<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
