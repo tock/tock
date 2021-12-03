@@ -289,15 +289,11 @@ pub unsafe fn reset_handler() {
     let led = components::led::LedsComponent::new(components::led_component_helper!(
         stm32f429zi::gpio::Pin,
         (
-            stm32f429zi::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+            stm32f429zi::gpio::PinId::PG13.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         ),
         (
-            stm32f429zi::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
-            kernel::hil::gpio::ActivationMode::ActiveHigh
-        ),
-        (
-            stm32f429zi::gpio::PinId::PB14.get_pin().as_ref().unwrap(),
+            stm32f429zi::gpio::PinId::PG14.get_pin().as_ref().unwrap(),
             kernel::hil::gpio::ActivationMode::ActiveHigh
         )
     ))
