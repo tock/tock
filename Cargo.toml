@@ -33,6 +33,7 @@ members = [
     "boards/redboard_artemis_nano",
     "boards/stm32f3discovery",
     "boards/stm32f412gdiscovery",
+    "boards/stm32f429idiscovery",
     "boards/teensy40",
     "boards/nano33ble",
     "boards/swervolf",
