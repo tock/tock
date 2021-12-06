@@ -91,7 +91,7 @@ register_bitfields![u32,
     WDTCONFIG1 [
         CLK_PRESCALE OFFSET(16) NUMBITS(16) [],
     ],
-    RTCCALICFG [
+    pub RTCCALICFG [
         START_CYCLING OFFSET(12) NUMBITS(1) [],
         CLK_SEL OFFSET(13) NUMBITS(2) [],
         RDY OFFSET(15) NUMBITS(1) [],

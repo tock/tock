@@ -8,6 +8,8 @@ use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use esp32::timg::RTCCALICFG;
+
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
     unsafe { StaticRef::new(0x6001_F000 as *const TimgRegisters) };
 
@@ -61,7 +63,6 @@ register_bitfields![u32,
     CONFIG [
         USE_XTAL OFFSET(9) NUMBITS(1) [],
         ALARM_EN OFFSET(10) NUMBITS(1) [],
-        LEVEL_INT_EN OFFSET(11) NUMBITS(1) [],
         DIVIDER_RST OFFSET(12) NUMBITS(1) [],
         DIVIDER OFFSET(13) NUMBITS(16) [],
         AUTORELOAD OFFSET(29) NUMBITS(1) [],
@@ -69,11 +70,13 @@ register_bitfields![u32,
         EN OFFSET(31) NUMBITS(1) [],
     ],
     WDTCONFIG0 [
+        APP_CPU_RESET_EN OFFSET(12) NUMBITS(1) [],
+        PROC_CPU_RESET_EN OFFSET(13) NUMBITS(1) [],
         FLASHBOOT_MOD_EN OFFSET(14) NUMBITS(1) [],
         SYS_RESET_LENGTH OFFSET(15) NUMBITS(3) [],
         CPU_RESET_LENGTH OFFSET(18) NUMBITS(3) [],
-        LEVEL_INT_EN OFFSET(21) NUMBITS(1) [],
-        EDGE_INT_EN OFFSET(22) NUMBITS(1) [],
+        USE_XTAL OFFSET(21) NUMBITS(1) [],
+        UPDATE_EN OFFSET(22) NUMBITS(1) [],
         STG3 OFFSET(23) NUMBITS(2) [],
         STG2 OFFSET(25) NUMBITS(2) [],
         STG1 OFFSET(27) NUMBITS(2) [],
@@ -81,17 +84,12 @@ register_bitfields![u32,
         EN OFFSET(31) NUMBITS(1) [],
     ],
     WDTCONFIG1 [
+        DIVCNT_RST OFFSET(0) NUMBITS(1) [],
         CLK_PRESCALE OFFSET(16) NUMBITS(16) [],
     ],
-    RTCCALICFG [
-        START_CYCLING OFFSET(12) NUMBITS(1) [],
-        CLK_SEL OFFSET(13) NUMBITS(2) [],
-        RDY OFFSET(15) NUMBITS(1) [],
-        MAX OFFSET(16) NUMBITS(15) [],
-        START OFFSET(31) NUMBITS(1) [],
-    ],
     RTCCALICFG1 [
-        VALUE OFFSET(7) NUMBITS(25) [],
+        CYCLING_DATA_VLD OFFSET(0) NUMBITS(1) [],
+        VALUE OFFSET(7) NUMBITS(25) []
     ],
     INT [
         T0 OFFSET(0) NUMBITS(1) [],
