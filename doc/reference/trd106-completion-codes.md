@@ -41,9 +41,15 @@ same value as one of the error codes specified in [TRD 104][error-codes].
 
 The kernel MAY treat zero and non-zero completion codes differently.
 
+| **Completion Code** | **Meaning** |
+| ------------------- | ----------- |
+| 0                   | Success     |
+| 1-1024              | MAY be a [TRD 104 error code][error-codes] |
+| 1025-`u32::MAX`     | Not defined |
+
 4 Implementation
 ===============================
-libtock 1.0 [currently implements][termination] this TRD via the
+As of writing, libtock [currently implements][termination] this TRD via the
 `Termination` trait.
 
 5 Author's Address
