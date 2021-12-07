@@ -7,7 +7,7 @@ Application Completion Codes
 **Status:** Draft<br/>
 **Author:** Alyssa Haroldsen<br/>
 **Draft-Created:** December 6, 2021<br/>
-**Draft-Modified:** December 6, 2021<br/>
+**Draft-Modified:** December 7, 2021<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -34,9 +34,9 @@ understandable to newcomers by following the principle of least astonishment.
 
 3 Design
 ===============================
-An application exiting normally via the `exit` syscall MUST use a completion
-code of `0` to indicate normal termination. A non-zero completion code SHOULD be
-used to indicate abnormal termination. A non-zero completion code MAY be the 
+A completion code of `0` passed to the `exit` syscall MUST indicate normal app
+termination. A non-zero completion code SHOULD be used to indicate abnormal
+termination. A completion code between `1` and `1024` inclusive SHOULD be the
 same value as one of the error codes specified in [TRD 104][error-codes].
 
 The kernel MAY treat zero and non-zero completion codes differently.
@@ -44,7 +44,7 @@ The kernel MAY treat zero and non-zero completion codes differently.
 | **Completion Code** | **Meaning** |
 | ------------------- | ----------- |
 | 0                   | Success     |
-| 1-1024              | MAY be a [TRD 104 error code][error-codes] |
+| 1-1024              | SHOULD be a [TRD 104 error code][error-codes] |
 | 1025-`u32::MAX`     | Not defined |
 
 4 Implementation
