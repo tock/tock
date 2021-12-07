@@ -311,7 +311,7 @@ impl KernelManagedLayout {
     fn grant_align(grant_t_align: GrantDataAlign) -> usize {
         // The kernel owned memory all aligned to usize. We need to use the higher of the two
         // alignment to ensure our padding calculations work for any alignment of T
-        cmp::max(size_of::<usize>(), grant_t_align.0)
+        cmp::max(align_of::<usize>(), grant_t_align.0)
     }
 
     /// Returns the offset for the grant data t within the entire grant region.
@@ -519,18 +519,10 @@ impl<'a> GrantKernelData<'a> {
 /// in a process' grant table without wasting memory duplicating information
 /// such as process ID.
 #[repr(C)]
+#[derive(Default)]
 struct SavedUpcall {
     appdata: usize,
     fn_ptr: Option<NonNull<()>>,
-}
-
-impl Default for SavedUpcall {
-    fn default() -> Self {
-        Self {
-            appdata: 0,
-            fn_ptr: None,
-        }
-    }
 }
 
 /// A minimal representation of a read-only allow from app, used for
