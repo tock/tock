@@ -1,5 +1,7 @@
 //! TimG Group driver.
 
+use core::marker::PhantomData;
+
 use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -138,22 +140,29 @@ pub enum ClockSource {
     Xtal = 1,
 }
 
-pub struct TimG<'a, const C3: bool> {
+pub struct TimG<'a, F: time::Frequency, const C3: bool> {
     registers: StaticRef<TimgRegisters>,
     clocksource: ClockSource,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
+    _phantom: PhantomData<F>,
 }
 
-impl<const C3: bool> TimG<'_, C3> {
+impl<F: time::Frequency, const C3: bool> TimG<'_, F, C3> {
     pub const fn new(base: StaticRef<TimgRegisters>, clocksource: ClockSource) -> Self {
         TimG {
             registers: base,
             clocksource,
             alarm_client: OptionalCell::empty(),
+            _phantom: PhantomData,
         }
     }
 
     pub fn handle_interrupt(&self) {
+        if C3 {
+            self.registers.int_c3_clr.modify(INT_C3::T0::SET);
+        } else {
+            self.registers.int_clr.modify(INT::T0::SET);
+        }
         let _ = self.stop();
         self.alarm_client.map(|client| {
             client.alarm();
@@ -176,11 +185,13 @@ impl<const C3: bool> TimG<'_, C3> {
     }
 }
 
-impl time::Time for TimG<'_, true> {
-    type Frequency = Freq20MHz;
+impl<F: time::Frequency, const C3: bool> time::Time for TimG<'_, F, C3> {
+    type Frequency = F;
     type Ticks = Ticks64;
 
     fn now(&self) -> Self::Ticks {
+        // a write (of any value) to T0UPDATE stores the
+        // current counter value to T0LO and T0HI
         self.registers.t0update.set(0xABC);
         Self::Ticks::from(
             self.registers.t0lo.get() as u64 + ((self.registers.t0hi.get() as u64) << 32),
@@ -188,19 +199,7 @@ impl time::Time for TimG<'_, true> {
     }
 }
 
-impl time::Time for TimG<'_, false> {
-    type Frequency = Freq80MHz;
-    type Ticks = Ticks64;
-
-    fn now(&self) -> Self::Ticks {
-        self.registers.t0update.set(0xABC);
-        Self::Ticks::from(
-            self.registers.t0lo.get() as u64 + ((self.registers.t0hi.get() as u64) << 32),
-        )
-    }
-}
-
-impl<'a, const C3: bool> Counter<'a> for TimG<'a, C3> {
+impl<'a, F: time::Frequency, const C3: bool> Counter<'a> for TimG<'a, F, C3> {
     fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {
         // We have no way to know when this happens
     }
@@ -226,7 +225,7 @@ impl<'a, const C3: bool> Counter<'a> for TimG<'a, C3> {
     }
 }
 
-impl<'a, const C3: bool> Alarm<'a> for TimG<'a, C3> {
+impl<'a, F: time::Frequency, const C3: bool> Alarm<'a> for TimG<'a, F, C3> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.alarm_client.set(client);
     }
@@ -262,11 +261,15 @@ impl<'a, const C3: bool> Alarm<'a> for TimG<'a, C3> {
         self.registers.t0alarmhi.set(high);
         self.registers.t0alarmlo.set(low);
 
-        self.registers.int_ena.modify(INT::T0::SET);
+        if C3 {
+            self.registers.int_c3_ena.modify(INT_C3::T0::SET);
+        } else {
+            self.registers.int_ena.modify(INT::T0::SET);
+        }
 
         self.registers
             .t0config
-            .modify(CONFIG::ALARM_EN::SET + CONFIG::ALARM_EN::SET);
+            .modify(CONFIG::ALARM_EN::SET + CONFIG::EN::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
