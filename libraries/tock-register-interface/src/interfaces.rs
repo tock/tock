@@ -173,8 +173,44 @@ pub trait Readable {
         field.read(self.get())
     }
 
-    #[inline]
     /// Set the raw register value
+    ///
+    /// The [`register_bitfields!`](crate::register_bitfields) macro will
+    /// generate an enum containing the various named field variants and
+    /// implementing the required [`TryFromValue`] trait. It is accessible as
+    /// `$REGISTER_NAME::$FIELD_NAME::Value`.
+    ///
+    /// This method can be useful to symbolically represent read register field
+    /// states throughout the codebase and to enforce exhaustive matches over
+    /// all defined valid register field values.
+    ///
+    /// ## Usage Example
+    ///
+    /// ```rust
+    /// # use tock_registers::interfaces::Readable;
+    /// # use tock_registers::registers::InMemoryRegister;
+    /// # use tock_registers::register_bitfields;
+    /// register_bitfields![u8,
+    ///     EXAMPLEREG [
+    ///         TESTFIELD OFFSET(0) NUMBITS(2) [
+    ///             Foo = 0,
+    ///             Bar = 1,
+    ///             Baz = 2,
+    ///         ],
+    ///     ],
+    /// ];
+    ///
+    /// let reg: InMemoryRegister<u8, EXAMPLEREG::Register> =
+    ///     InMemoryRegister::new(2);
+    ///
+    /// match reg.read_as_enum(EXAMPLEREG::TESTFIELD) {
+    ///     Some(EXAMPLEREG::TESTFIELD::Value::Foo) => "Tock",
+    ///     Some(EXAMPLEREG::TESTFIELD::Value::Bar) => "is",
+    ///     Some(EXAMPLEREG::TESTFIELD::Value::Baz) => "awesome!",
+    ///     None => panic!("boo!"),
+    /// };
+    /// ```
+    #[inline]
     fn read_as_enum<E: TryFromValue<Self::T, EnumType = E>>(
         &self,
         field: Field<Self::T, Self::R>,
