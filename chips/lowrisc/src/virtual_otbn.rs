@@ -5,7 +5,6 @@ use crate::otbn::{Client, Otbn};
 use core::cell::Cell;
 use kernel::collections::list::{ListLink, ListNode};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 pub struct VirtualMuxAccel<'a> {
@@ -38,7 +37,7 @@ impl<'a> VirtualMuxAccel<'a> {
         self.client.set(client);
     }
 
-    pub fn load_binary(&self, input: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
+    pub fn load_binary(&self, input: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -51,7 +50,7 @@ impl<'a> VirtualMuxAccel<'a> {
         }
     }
 
-    pub fn load_data(&self, address: usize, data: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
+    pub fn load_data(&self, address: usize, data: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);

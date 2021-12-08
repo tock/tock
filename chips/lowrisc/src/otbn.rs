@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -156,7 +155,7 @@ impl<'a> Otbn<'a> {
     /// This function can be called multiple times if multiple binary blobs
     /// are required.
     /// On error the return value will contain a return code and the original data
-    pub fn load_binary(&self, input: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
+    pub fn load_binary(&self, input: &[u8]) -> Result<(), ErrorCode> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
             return Err(ErrorCode::BUSY);
@@ -181,7 +180,7 @@ impl<'a> Otbn<'a> {
     /// are required.
     /// On error the return value will contain a return code and the original data
     /// The `data` buffer should be in little endian
-    pub fn load_data(&self, address: usize, data: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
+    pub fn load_data(&self, address: usize, data: &[u8]) -> Result<(), ErrorCode> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
             return Err(ErrorCode::BUSY);

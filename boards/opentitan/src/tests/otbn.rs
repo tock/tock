@@ -1,15 +1,13 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::{debug, ErrorCode};
 use lowrisc::otbn::Client;
 
 static mut OUTPUT: [u8; 1024] = [0; 1024];
-static mut SOURCE: [u8; 256] = [0; 256];
 static mut TEMP: [u8; 4] = [0; 4];
 
-static mut MODULUS: [u8; 256] = [
+static MODULUS: [u8; 256] = [
     0xf9, 0x90, 0xc7, 0x94, 0xcf, 0x96, 0xd3, 0x12, 0x6f, 0x16, 0xa6, 0x50, 0x5d, 0xcb, 0xe9, 0x29,
     0x53, 0xc8, 0x44, 0x04, 0xda, 0x69, 0x2d, 0x1a, 0xc1, 0xb8, 0xa8, 0x70, 0x97, 0xb5, 0x96, 0xd8,
     0x07, 0xef, 0x2c, 0x3a, 0x66, 0x90, 0x16, 0xf9, 0x27, 0x1e, 0xf9, 0x82, 0x2b, 0x32, 0x31, 0x17,
@@ -97,38 +95,28 @@ fn otbn_run_rsa_binary() {
             ),
         )
     } {
-        // BAD! This is not actually mutable!!
-        // This is stored in flash which is not mutable.
-        // Once https://github.com/tock/tock/pull/2852 is merged this should be fixed
-        let slice = unsafe { core::slice::from_raw_parts_mut(imem_start as *mut u8, imem_length) };
-        let buf = LeasableBuffer::new(slice);
+        let slice = unsafe { core::slice::from_raw_parts(imem_start as *const u8, imem_length) };
 
         debug!("check otbn run binary...");
         run_kernel_op(100);
 
         CALLBACK.reset();
         otbn.set_client(&CALLBACK);
-        assert_eq!(otbn.load_binary(buf), Ok(()));
+        assert_eq!(otbn.load_binary(slice), Ok(()));
 
         run_kernel_op(1000);
 
-        // BAD! This is not actually mutable!!
-        // This is stored in flash which is not mutable.
-        // Once https://github.com/tock/tock/pull/2852 is merged this should be fixed
-        let slice = unsafe { core::slice::from_raw_parts_mut(dmem_start as *mut u8, dmem_length) };
+        let slice = unsafe { core::slice::from_raw_parts(dmem_start as *const u8, dmem_length) };
 
         CALLBACK.reset();
-        assert_eq!(otbn.load_data(0, LeasableBuffer::new(slice)), Ok(()));
+        assert_eq!(otbn.load_data(0, slice), Ok(()));
         run_kernel_op(1000);
 
         // Set the RSA mode to encryption
         // The address is the offset of `mode` in the RSA elf
         unsafe {
             TEMP[0] = 1;
-            assert_eq!(
-                otbn.load_data(0, LeasableBuffer::new(&mut TEMP[0..4])),
-                Ok(())
-            );
+            assert_eq!(otbn.load_data(0, &TEMP[0..4]), Ok(()));
         }
         run_kernel_op(1000);
 
@@ -136,33 +124,21 @@ fn otbn_run_rsa_binary() {
         // The address is the offset of `n_limbs` in the RSA elf
         unsafe {
             TEMP[0] = (MODULUS.len() / 32) as u8;
-            assert_eq!(
-                otbn.load_data(4, LeasableBuffer::new(&mut TEMP[0..4])),
-                Ok(())
-            );
+            assert_eq!(otbn.load_data(4, &TEMP[0..4]), Ok(()));
         }
         run_kernel_op(1000);
 
         // Set the RSA modulus
         // The address is the offset of `modulus` in the RSA elf
-        unsafe {
-            assert_eq!(
-                otbn.load_data(0x420, LeasableBuffer::new(&mut MODULUS)),
-                Ok(())
-            );
-        }
+        assert_eq!(otbn.load_data(0x420, &MODULUS), Ok(()));
         run_kernel_op(1000);
 
         // Set the data in
         // The address is the offset of `in` in the RSA elf
-        unsafe {
-            let str_buf: &[u8; 14] = b"OTBN is great!";
-            SOURCE[0..14].copy_from_slice(str_buf);
-            assert_eq!(
-                otbn.load_data(0x820, LeasableBuffer::new(&mut SOURCE)),
-                Ok(())
-            );
-        }
+        let mut source: [u8; 256] = [0; 256];
+        source[0..14].copy_from_slice(b"OTBN is great!");
+
+        assert_eq!(otbn.load_data(0x820, &source), Ok(()));
         run_kernel_op(1000);
 
         CALLBACK.reset();
