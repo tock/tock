@@ -48,8 +48,6 @@ static EXPECTING: [u8; 256] = [
 ];
 
 struct OtbnTestCallback {
-    binary_load_done: Cell<bool>,
-    data_load_done: Cell<bool>,
     op_done: Cell<bool>,
 }
 
@@ -58,30 +56,16 @@ unsafe impl Sync for OtbnTestCallback {}
 impl<'a> OtbnTestCallback {
     const fn new() -> Self {
         OtbnTestCallback {
-            binary_load_done: Cell::new(false),
-            data_load_done: Cell::new(false),
             op_done: Cell::new(false),
         }
     }
 
     fn reset(&self) {
-        self.binary_load_done.set(false);
-        self.data_load_done.set(false);
         self.op_done.set(false);
     }
 }
 
 impl<'a> Client<'a> for OtbnTestCallback {
-    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, _input: &'static mut [u8]) {
-        self.binary_load_done.set(true);
-        assert_eq!(result, Ok(()));
-    }
-
-    fn data_load_done(&'a self, result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
-        self.data_load_done.set(true);
-        assert_eq!(result, Ok(()));
-    }
-
     fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]) {
         self.op_done.set(true);
         assert_eq!(result, Ok(()));
@@ -127,8 +111,6 @@ fn otbn_run_rsa_binary() {
         assert_eq!(otbn.load_binary(buf), Ok(()));
 
         run_kernel_op(1000);
-        #[cfg(feature = "hardware_tests")]
-        assert_eq!(CALLBACK.binary_load_done.get(), true);
 
         // BAD! This is not actually mutable!!
         // This is stored in flash which is not mutable.

@@ -38,10 +38,7 @@ impl<'a> VirtualMuxAccel<'a> {
         self.client.set(client);
     }
 
-    pub fn load_binary(
-        &self,
-        input: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    pub fn load_binary(&self, input: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -50,15 +47,11 @@ impl<'a> VirtualMuxAccel<'a> {
         } else if self.mux.running_id.get() == self.id {
             self.mux.accel.load_binary(input)
         } else {
-            Err((ErrorCode::BUSY, input.take()))
+            Err(ErrorCode::BUSY)
         }
     }
 
-    pub fn load_data(
-        &self,
-        address: usize,
-        data: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    pub fn load_data(&self, address: usize, data: LeasableBuffer<'a, u8>) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -67,7 +60,7 @@ impl<'a> VirtualMuxAccel<'a> {
         } else if self.mux.running_id.get() == self.id {
             self.mux.accel.load_data(address, data)
         } else {
-            Err((ErrorCode::BUSY, data.take()))
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -99,16 +92,6 @@ impl<'a> VirtualMuxAccel<'a> {
 }
 
 impl<'a> Client<'a> for VirtualMuxAccel<'a> {
-    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
-        self.client
-            .map(move |client| client.binary_load_done(result, input));
-    }
-
-    fn data_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
-        self.client
-            .map(move |client| client.data_load_done(result, input));
-    }
-
     fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]) {
         self.client
             .map(move |client| client.op_done(result, output));
