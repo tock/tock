@@ -2,7 +2,7 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn_trait_bound, naked_functions)]
+#![feature(asm, asm_sym, const_fn_trait_bound, naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
@@ -437,9 +437,10 @@ pub extern "C" fn _start_trap() {
 /// as suggested by the RISC-V developers:
 /// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
+    let res;
     asm!(
-        "
+    "
       .option push
       .option norelax
       .option norvc
@@ -447,13 +448,18 @@ pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: 
       ebreak
       srai x0, x0, 7
       .option pop
-      "
+      ",
+    in("a0") command,
+    in("a1") arg0,
+    in("a2") arg1,
+    lateout("a0") res,
     );
+    res
 }
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }
 

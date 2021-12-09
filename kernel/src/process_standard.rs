@@ -405,36 +405,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(0, |tasks| tasks.len())
     }
 
-    fn mem_start(&self) -> *const u8 {
-        self.memory_start
-    }
-
-    fn mem_end(&self) -> *const u8 {
-        self.memory_start.wrapping_add(self.memory_len)
-    }
-
-    fn flash_start(&self) -> *const u8 {
-        self.flash.as_ptr()
-    }
-
-    fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
-    }
-
     fn get_command_permissions(
         &self,
         driver_num: usize,
         offset: Option<usize>,
     ) -> CommandPermissions {
         self.header.get_command_permissions(driver_num, offset)
-    }
-
-    fn flash_end(&self) -> *const u8 {
-        self.flash.as_ptr().wrapping_add(self.flash.len())
-    }
-
-    fn kernel_memory_break(&self) -> *const u8 {
-        self.kernel_memory_break.get()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -463,10 +439,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 debug.app_heap_start_pointer = Some(heap_pointer);
             });
         }
-    }
-
-    fn app_memory_break(&self) -> *const u8 {
-        self.app_break.get()
     }
 
     fn setup_mpu(&self) {
@@ -1101,21 +1073,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.debug.map_or(None, |debug| debug.last_syscall)
     }
 
-    fn debug_heap_start(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
-    }
-
-    fn debug_stack_start(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_stack_start_pointer.map(|p| p))
-    }
-
-    fn debug_stack_end(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
-    }
-
     fn get_addresses(&self) -> ProcessAddresses {
         ProcessAddresses {
             flash_start: self.flash_start() as usize,
@@ -1236,6 +1193,16 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 ));
             }
         });
+    }
+
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode> {
+        self.stored_state
+            .map(|stored_state| {
+                self.chip
+                    .userspace_kernel_boundary()
+                    .store_context(stored_state, out)
+            })
+            .unwrap_or(Err(ErrorCode::FAIL))
     }
 }
 
@@ -1981,5 +1948,45 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn is_active(&self) -> bool {
         let current_state = self.state.get();
         current_state != State::Terminated && current_state != State::Faulted
+    }
+
+    /// The start address of allocated RAM for this process.
+    fn mem_start(&self) -> *const u8 {
+        self.memory_start
+    }
+
+    /// The first address after the end of the allocated RAM for this process.
+    fn mem_end(&self) -> *const u8 {
+        self.memory_start.wrapping_add(self.memory_len)
+    }
+
+    /// The start address of the flash region allocated for this process.
+    fn flash_start(&self) -> *const u8 {
+        self.flash.as_ptr()
+    }
+
+    /// Get the first address of process's flash that isn't protected by the
+    /// kernel. The protected range of flash contains the TBF header and
+    /// potentially other state the kernel is storing on behalf of the process,
+    /// and cannot be edited by the process.
+    fn flash_non_protected_start(&self) -> *const u8 {
+        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+    }
+
+    /// The first address after the end of the flash region allocated for this
+    /// process.
+    fn flash_end(&self) -> *const u8 {
+        self.flash.as_ptr().wrapping_add(self.flash.len())
+    }
+
+    /// The lowest address of the grant region for the process.
+    fn kernel_memory_break(&self) -> *const u8 {
+        self.kernel_memory_break.get()
+    }
+
+    /// Return the highest address the process has access to, or the current
+    /// process memory brk.
+    fn app_memory_break(&self) -> *const u8 {
+        self.app_break.get()
     }
 }

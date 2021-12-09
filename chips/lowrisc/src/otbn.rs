@@ -221,14 +221,21 @@ impl<'a> Otbn<'a> {
         Ok(())
     }
 
+    /// Load the data into the accelerator
+    /// This function can be called multiple times if multiple loads
+    /// are required.
+    /// There is no guarantee the data has been written until the `data_load_done()`
+    /// callback is fired.
+    /// On error the return value will contain a return code and the original data
+    /// The `data` buffer should be in little endian
     pub fn load_data(
         &self,
         address: usize,
-        data: &'static mut [u8],
+        data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
-            return Err((ErrorCode::BUSY, data));
+            return Err((ErrorCode::BUSY, data.take()));
         }
 
         for i in 0..(data.len() / 4) {
@@ -242,7 +249,7 @@ impl<'a> Otbn<'a> {
             self.registers.dmem[(address / 4) + i].set(d);
         }
 
-        self.data_buffer.replace(data);
+        self.data_buffer.replace(data.take());
 
         // Schedule a deferred call as there are no interrupts to monitor
         // the binary loading.
@@ -290,7 +297,10 @@ impl<'a> Otbn<'a> {
     /// Clear the keys and any other sensitive data.
     /// This won't clear the buffers provided to this API, that is up to the
     /// user to clear those.
-    pub fn clear_data(&self) {}
+    pub fn clear_data(&self) {
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_DMEM);
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_IMEM);
+    }
 }
 
 impl<'a> DynamicDeferredCallClient for Otbn<'a> {

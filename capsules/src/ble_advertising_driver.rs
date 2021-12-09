@@ -114,6 +114,7 @@ use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::copy_slice::CopyOrErr;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -255,7 +256,8 @@ impl App {
                     .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
                         let adv_data_len =
                             cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                        let adv_data_corrected = &adv_data[..adv_data_len];
+                        let adv_data_corrected =
+                            adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
                         let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
                         {
                             let (header, payload) = kernel_tx.split_at_mut(2);
@@ -272,7 +274,7 @@ impl App {
                             header[1] = (payload_len & 0x3f) as u8;
 
                             let (adva, data) = payload.split_at_mut(6);
-                            adva.copy_from_slice(&self.address);
+                            adva.copy_from_slice_or_err(&self.address)?;
                             adv_data_corrected.copy_to_slice(&mut data[..adv_data_len]);
                         }
                         let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
@@ -466,8 +468,9 @@ where
                     let success = app
                         .scan_buffer
                         .mut_enter(|userland| {
-                            userland[0..len as usize].copy_from_slice(&buf[0..len as usize]);
-                            true
+                            userland[0..len as usize]
+                                .copy_from_slice_or_err(&buf[0..len as usize])
+                                .is_ok()
                         })
                         .unwrap_or(false);
 

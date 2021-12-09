@@ -1,6 +1,7 @@
 //! Utility functions and macros provided by the kernel crate.
 
 pub mod binary_write;
+pub mod copy_slice;
 pub mod helpers;
 pub mod leasable_buffer;
 pub mod math;

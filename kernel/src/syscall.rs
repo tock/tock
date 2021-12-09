@@ -648,4 +648,8 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
+
+    /// Store architecture specific (e.g. CPU registers or status flags) data
+    /// for a process. On success returns the number of elements written to out.
+    fn store_context(&self, state: &Self::StoredState, out: &mut [u8]) -> Result<usize, ErrorCode>;
 }

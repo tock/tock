@@ -1,12 +1,43 @@
 //! Test that AES ECB mode is working properly.
 
 use crate::tests::run_kernel_op;
-use crate::PERIPHERALS;
+use crate::{AES, PERIPHERALS};
 use capsules::test::aes::{TestAes128Cbc, TestAes128Ctr, TestAes128Ecb};
+use capsules::test::aes_ccm::Test;
+use capsules::virtual_aes_ccm;
 use earlgrey::aes::Aes;
 use kernel::debug;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
+
+#[test_case]
+fn run_aes128_ccm() {
+    debug!("check run AES128 CCM... ");
+    run_kernel_op(100);
+
+    unsafe {
+        let aes = AES.unwrap();
+
+        let t = static_init_test_ccm(&aes);
+        kernel::hil::symmetric_encryption::AES128CCM::set_client(aes, t);
+
+        t.run();
+    }
+    run_kernel_op(10000);
+    debug!("    [ok]");
+    run_kernel_op(100);
+}
+
+unsafe fn static_init_test_ccm(
+    aes: &'static virtual_aes_ccm::VirtualAES128CCM<'static, Aes>,
+) -> &'static Test<'static, virtual_aes_ccm::VirtualAES128CCM<'static, Aes<'static>>> {
+    let buf = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
+
+    static_init!(
+        Test<'static, virtual_aes_ccm::VirtualAES128CCM<'static, Aes>>,
+        Test::new(aes, buf)
+    )
+}
 
 #[test_case]
 fn run_aes128_ecb() {
