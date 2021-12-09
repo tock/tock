@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(asm)]
+#![feature(asm, asm_sym)]
 #![feature(naked_functions)]
 #![no_std]
 
