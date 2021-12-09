@@ -422,19 +422,19 @@ impl Kernel {
     ///
     /// This function is responsible for three main operations:
     ///
-    /// 1. Check if the kernel itself has any work to be done and if
-    /// the scheduler wants to complete that work now. If so, it allows
-    /// the kernel to run.
-    /// 2. Check if any processes have any work to be done, and if so
-    /// if the scheduler wants to allow any processes to run now, and if so
-    /// which one.
-    /// 3. After ensuring the scheduler does not want to complete any kernel
-    /// or process work (or there is no work to be done), are there are no outstanding
-    /// interrupts to handle, put the chip to sleep.
+    /// 1. Check if the kernel itself has any work to be done and if the
+    ///    scheduler wants to complete that work now. If so, it allows the
+    ///    kernel to run.
+    /// 2. Check if any processes have any work to be done, and if so if the
+    ///    scheduler wants to allow any processes to run now, and if so which
+    ///    one.
+    /// 3. After ensuring the scheduler does not want to complete any kernel or
+    ///    process work (or there is no work to be done), are there are no
+    ///    outstanding interrupts to handle, put the chip to sleep.
     ///
-    /// This function has one configuration option: `no_sleep`. If that
-    /// argument is set to true, the kernel will never attempt to put the
-    /// chip to sleep, and this function can be called again immediately.
+    /// This function has one configuration option: `no_sleep`. If that argument
+    /// is set to true, the kernel will never attempt to put the chip to sleep,
+    /// and this function can be called again immediately.
     pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
         &self,
         resources: &KR,
@@ -754,11 +754,11 @@ impl Kernel {
         (return_reason, time_executed_us)
     }
 
-    /// Method to invoke a system call on a particular process.
-    /// Applies the kernel system call filtering policy (if any).
-    /// Handles `Yield` and `Exit`, dispatches `Memop` to `memop::memop`,
-    /// and dispatches peripheral driver system calls to peripheral
-    /// driver capsules through the platforms `with_driver` method.
+    /// Method to invoke a system call on a particular process. Applies the
+    /// kernel system call filtering policy (if any). Handles `Yield` and
+    /// `Exit`, dispatches `Memop` to `memop::memop`, and dispatches peripheral
+    /// driver system calls to peripheral driver capsules through the platforms
+    /// `with_driver` method.
     #[inline]
     fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
@@ -771,33 +771,30 @@ impl Kernel {
 
         // Enforce platform-specific syscall filtering here.
         //
-        // Before continuing to handle non-yield syscalls
-        // the kernel first checks if the platform wants to
-        // block that syscall for the process, and if it
-        // does, sets a return value which is returned to
-        // the calling process.
+        // Before continuing to handle non-yield syscalls the kernel first
+        // checks if the platform wants to block that syscall for the process,
+        // and if it does, sets a return value which is returned to the calling
+        // process.
         //
-        // Filtering a syscall (i.e. blocking the syscall
-        // from running) does not cause the process to loose
-        // its timeslice. The error will be returned
-        // immediately (assuming the process has not already
-        // exhausted its timeslice) allowing the process to
-        // decide how to handle the error.
+        // Filtering a syscall (i.e. blocking the syscall from running) does not
+        // cause the process to loose its timeslice. The error will be returned
+        // immediately (assuming the process has not already exhausted its
+        // timeslice) allowing the process to decide how to handle the error.
         match syscall {
             Syscall::Yield {
                 which: _,
                 address: _,
-            } => {} // Yield is not filterable
+            } => {} // Yield is not filterable.
             Syscall::Exit {
                 which: _,
                 completion_code: _,
-            } => {} // Exit is not filterable
+            } => {} // Exit is not filterable.
             Syscall::Memop {
                 operand: _,
                 arg0: _,
-            } => {} // Memop is not filterable
+            } => {} // Memop is not filterable.
             _ => {
-                // Check all other syscalls for filtering
+                // Check all other syscalls for filtering.
                 if let Err(response) = resources.syscall_filter().filter_syscall(process, &syscall)
                 {
                     process.set_syscall_return_value(SyscallReturn::Failure(response));
@@ -836,37 +833,40 @@ impl Kernel {
                     debug!("[{:?}] yield. which: {}", process.processid(), which);
                 }
                 if which > (YieldCall::Wait as usize) {
-                    // Only 0 and 1 are valid, so this is not a valid
-                    // yield system call, Yield does not have a return
-                    // value because it can push a function call onto
-                    // the stack; just return control to the process.
+                    // Only 0 and 1 are valid, so this is not a valid yield
+                    // system call, Yield does not have a return value because
+                    // it can push a function call onto the stack; just return
+                    // control to the process.
                     return;
                 }
                 let wait = which == (YieldCall::Wait as usize);
-                // If this is a yield-no-wait AND there are no pending
-                // tasks, then return immediately. Otherwise, go into the
-                // yielded state and execute tasks now or when they arrive.
+                // If this is a yield-no-wait AND there are no pending tasks,
+                // then return immediately. Otherwise, go into the yielded state
+                // and execute tasks now or when they arrive.
                 let return_now = !wait && !process.has_tasks();
                 if return_now {
-                    // Set the "did I trigger upcalls" flag to be 0,
-                    // return immediately. If address is invalid does
-                    // nothing.
+                    // Set the "did I trigger upcalls" flag to be 0, return
+                    // immediately. If address is invalid does nothing.
                     //
-                    // Safety: this is fine as long as no references to the
-                    // process's memory exist. We do not have a reference,
-                    // so we can safely call `set_byte()`.
+                    // # Safety
+                    //
+                    // This is fine as long as no references to the process's
+                    // memory exist. We do not have a reference, so we can
+                    // safely call `set_byte()`.
                     unsafe {
                         process.set_byte(address, 0);
                     }
                 } else {
-                    // There are already enqueued upcalls to execute or
-                    // we should wait for them: handle in the next loop
-                    // iteration and set the "did I trigger upcalls" flag
-                    // to be 1. If address is invalid does nothing.
+                    // There are already enqueued upcalls to execute or we
+                    // should wait for them: handle in the next loop iteration
+                    // and set the "did I trigger upcalls" flag to be 1. If
+                    // address is invalid does nothing.
                     //
-                    // Safety: this is fine as long as no references to the
-                    // process's memory exist. We do not have a reference,
-                    // so we can safely call `set_byte()`.
+                    // # Safety
+                    //
+                    // This is fine as long as no references to the process's
+                    // memory exist. We do not have a reference, so we can
+                    // safely call `set_byte()`.
                     unsafe {
                         process.set_byte(address, 1);
                     }
@@ -915,21 +915,23 @@ impl Kernel {
                 let rval = match rval1 {
                     Some(err) => upcall.into_subscribe_failure(err),
                     None => {
-                        // At this point we must save the new upcall and return the
-                        // old. The upcalls are stored by the core kernel in the
-                        // grant region so we can guarantee a correct upcall swap.
-                        // However, we do need help with initially allocating the
-                        // grant if this driver has never been used before.
+                        // At this point we must save the new upcall and return
+                        // the old. The upcalls are stored by the core kernel in
+                        // the grant region so we can guarantee a correct upcall
+                        // swap. However, we do need help with initially
+                        // allocating the grant if this driver has never been
+                        // used before.
                         //
-                        // To avoid the overhead with checking for process liveness
-                        // and grant allocation, we assume the grant is initially
-                        // allocated. If it turns out it isn't we ask the capsule to
-                        // allocate the grant.
+                        // To avoid the overhead with checking for process
+                        // liveness and grant allocation, we assume the grant is
+                        // initially allocated. If it turns out it isn't we ask
+                        // the capsule to allocate the grant.
                         match crate::grant::subscribe(process, upcall) {
                             Ok(upcall) => upcall.into_subscribe_success(),
                             Err((upcall, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to allocate the grant
-                                // since this could be the first time the grant is getting accessed
+                                // If we get a memory error, we always try to
+                                // allocate the grant since this could be the
+                                // first time the grant is getting accessed.
                                 match try_allocate_grant(resources, driver_number, process) {
                                     AllocResult::NewAllocation => {
                                         // Now we try again. It is possible that
@@ -938,9 +940,9 @@ impl Kernel {
                                         // fail again and we return an error to
                                         // userspace.
                                         match crate::grant::subscribe(process, upcall) {
-                                            // An Ok() returns the previous upcall,
-                                            // while Err() returns the one that was
-                                            // just passed.
+                                            // An Ok() returns the previous
+                                            // upcall, while Err() returns the
+                                            // one that was just passed.
                                             Ok(upcall) => upcall.into_subscribe_success(),
                                             Err((upcall, err)) => {
                                                 upcall.into_subscribe_failure(err)
@@ -948,7 +950,8 @@ impl Kernel {
                                         }
                                     }
                                     alloc_failure => {
-                                        // We didn't actually create a new alloc, so just error
+                                        // We didn't actually create a new
+                                        // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
                                             (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
@@ -1027,12 +1030,13 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                // Try to create an appropriate [`ReadWriteProcessBuffer`].
-                // This method will ensure that the memory in question
-                // is located in the process-accessible memory space.
+                // Try to create an appropriate [`ReadWriteProcessBuffer`]. This
+                // method will ensure that the memory in question is located in
+                // the process-accessible memory space.
                 let res = match process.build_readwrite_process_buffer(allow_address, allow_size) {
                     Ok(rw_pbuf) => {
-                        // Creating the [`ReadWriteProcessBuffer`] worked, try to set in grant.
+                        // Creating the [`ReadWriteProcessBuffer`] worked, try
+                        // to set in grant.
                         match crate::grant::allow_rw(
                             process,
                             driver_number,
@@ -1044,12 +1048,13 @@ impl Kernel {
                                 SyscallReturn::AllowReadWriteSuccess(ptr, len)
                             }
                             Err((rw_pbuf, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to allocate the grant
-                                // since this could be the first time the grant is getting accessed
+                                // If we get a memory error, we always try to
+                                // allocate the grant since this could be the
+                                // first time the grant is getting accessed.
                                 match try_allocate_grant(resources, driver_number, process) {
                                     AllocResult::NewAllocation => {
-                                        // If we actually allocated a new grant, try again and honor
-                                        // the result
+                                        // If we actually allocated a new grant,
+                                        // try again and honor the result.
                                         match crate::grant::allow_rw(
                                             process,
                                             driver_number,
@@ -1067,7 +1072,8 @@ impl Kernel {
                                         }
                                     }
                                     alloc_failure => {
-                                        // We didn't actually create a new alloc, so just error
+                                        // We didn't actually create a new
+                                        // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
                                             (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
@@ -1091,8 +1097,9 @@ impl Kernel {
                         }
                     }
                     Err(allow_error) => {
-                        // There was an error creating the [`ReadWriteProcessBuffer`].
-                        // Report back to the process with the original parameters
+                        // There was an error creating the
+                        // [`ReadWriteProcessBuffer`]. Report back to the
+                        // process with the original parameters.
                         SyscallReturn::AllowReadWriteFailure(allow_error, allow_address, allow_size)
                     }
                 };
@@ -1120,30 +1127,34 @@ impl Kernel {
                     .syscall_driver_lookup()
                     .with_driver(driver_number, |driver| match driver {
                         Some(d) => {
-                            // Try to create an appropriate [`UserspaceReadableProcessBuffer`].
-                            // This method will ensure that the memory in question
-                            // is located in the process-accessible memory space.
+                            // Try to create an appropriate
+                            // [`UserspaceReadableProcessBuffer`]. This method
+                            // will ensure that the memory in question is
+                            // located in the process-accessible memory space.
                             match process.build_readwrite_process_buffer(allow_address, allow_size)
                             {
                                 Ok(rw_pbuf) => {
-                                    // Creating the [`UserspaceReadableProcessBuffer`] worked,
-                                    // provide it to the capsule.
+                                    // Creating the
+                                    // [`UserspaceReadableProcessBuffer`]
+                                    // worked, provide it to the capsule.
                                     match d.allow_userspace_readable(
                                         process.processid(),
                                         subdriver_number,
                                         rw_pbuf,
                                     ) {
                                         Ok(returned_pbuf) => {
-                                            // The capsule has accepted the allow
-                                            // operation. Pass the previous buffer
-                                            // information back to the process.
+                                            // The capsule has accepted the
+                                            // allow operation. Pass the
+                                            // previous buffer information back
+                                            // to the process.
                                             let (ptr, len) = returned_pbuf.consume();
                                             SyscallReturn::UserspaceReadableAllowSuccess(ptr, len)
                                         }
                                         Err((rejected_pbuf, err)) => {
-                                            // The capsule has rejected the allow
-                                            // operation. Pass the new buffer information
-                                            // back to the process.
+                                            // The capsule has rejected the
+                                            // allow operation. Pass the new
+                                            // buffer information back to the
+                                            // process.
                                             let (ptr, len) = rejected_pbuf.consume();
                                             SyscallReturn::UserspaceReadableAllowFailure(
                                                 err, ptr, len,
@@ -1152,7 +1163,8 @@ impl Kernel {
                                     }
                                 }
                                 Err(allow_error) => {
-                                    // There was an error creating the [`UserspaceReadableProcessBuffer`].
+                                    // There was an error creating the
+                                    // [`UserspaceReadableProcessBuffer`].
                                     // Report back to the process.
                                     SyscallReturn::UserspaceReadableAllowFailure(
                                         allow_error,
@@ -1189,12 +1201,13 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                // Try to create an appropriate [`ReadOnlyProcessBuffer`].
-                // This method will ensure that the memory in question
-                // is located in the process-accessible memory space.
+                // Try to create an appropriate [`ReadOnlyProcessBuffer`]. This
+                // method will ensure that the memory in question is located in
+                // the process-accessible memory space.
                 let res = match process.build_readonly_process_buffer(allow_address, allow_size) {
                     Ok(ro_pbuf) => {
-                        // Creating the [`ReadOnlyProcessBuffer`] worked, try to set in grant.
+                        // Creating the [`ReadOnlyProcessBuffer`] worked, try to
+                        // set in grant.
                         match crate::grant::allow_ro(
                             process,
                             driver_number,
@@ -1206,12 +1219,13 @@ impl Kernel {
                                 SyscallReturn::AllowReadOnlySuccess(ptr, len)
                             }
                             Err((ro_pbuf, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to allocate the grant
-                                // since this could be the first time the grant is getting accessed
+                                // If we get a memory error, we always try to
+                                // allocate the grant since this could be the
+                                // first time the grant is getting accessed.
                                 match try_allocate_grant(resources, driver_number, process) {
                                     AllocResult::NewAllocation => {
-                                        // If we actually allocated a new grant, try again and honor
-                                        // the result
+                                        // If we actually allocated a new grant,
+                                        // try again and honor the result.
                                         match crate::grant::allow_ro(
                                             process,
                                             driver_number,
@@ -1229,7 +1243,8 @@ impl Kernel {
                                         }
                                     }
                                     alloc_failure => {
-                                        // We didn't actually create a new alloc, so just error
+                                        // We didn't actually create a new
+                                        // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
                                             (true, AllocResult::NoAllocation) => {
                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
@@ -1253,8 +1268,9 @@ impl Kernel {
                         }
                     }
                     Err(allow_error) => {
-                        // There was an error creating the [`ReadOnlyProcessBuffer`].
-                        // Report back to the process with the original parameters
+                        // There was an error creating the
+                        // [`ReadOnlyProcessBuffer`]. Report back to the process
+                        // with the original parameters.
                         SyscallReturn::AllowReadOnlyFailure(allow_error, allow_address, allow_size)
                     }
                 };

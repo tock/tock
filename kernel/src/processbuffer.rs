@@ -13,11 +13,12 @@
 //! [`ReadableProcessBuffer`] and [`WriteableProcessBuffer`] traits,
 //! implemented on the process buffer structs.
 //!
-//! Each access to the buffer structs requires a liveness check to ensure that the
-//! process memory is still valid. For a more traditional interface, users can convert
-//! buffers into [`ReadableProcessSlice`] or [`WriteableProcessSlice`] and use these
-//! for the lifetime of their operations. Users cannot hold live-lived references to
-//! these slices, however.
+//! Each access to the buffer structs requires a liveness check to ensure that
+//! the process memory is still valid. For a more traditional interface, users
+//! can convert buffers into [`ReadableProcessSlice`] or
+//! [`WriteableProcessSlice`] and use these for the lifetime of their
+//! operations. Users cannot hold live-lived references to these slices,
+//! however.
 
 use core::cell::Cell;
 use core::marker::PhantomData;
@@ -679,29 +680,34 @@ fn cast_byte_slice_to_process_slice<'a>(
     byte_slice: &'a [ReadableProcessByte],
 ) -> &'a ReadableProcessSlice {
     // As ReadableProcessSlice is a transparent wrapper around its inner type,
-    // [ReadableProcessByte], we can safely transmute a reference to the inner type as a reference
-    // to the outer type with the same lifetime
+    // [ReadableProcessByte], we can safely transmute a reference to the inner
+    // type as a reference to the outer type with the same lifetime.
     unsafe { core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(byte_slice) }
 }
 
-// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
-// authored once and accept either [u8] or ReadableProcessSlice
+// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code
+// to be authored once and accept either [u8] or ReadableProcessSlice.
 impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
-        //         This also extends the lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // the same. This also extends the lifetime of the buffer, so aliasing
+        // rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
 
-// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
-// authored once and accept either [u8] or ReadableProcessSlice
+// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow
+// client code to be authored once and accept either [u8] or
+// ReadableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
-        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // the same. This also extends the mutable lifetime of the buffer, so
+        // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -858,18 +864,24 @@ pub struct WriteableProcessSlice {
 }
 
 fn cast_cell_slice_to_process_slice<'a>(cell_slice: &'a [Cell<u8>]) -> &'a WriteableProcessSlice {
-    // As WriteableProcessSlice is a transparent wrapper around its inner type, [Cell<u8>], we can
-    // safely transmute a reference to the inner type as the outer type with the same lifetime.
+    // # Safety
+    //
+    // As WriteableProcessSlice is a transparent wrapper around its inner type,
+    // [Cell<u8>], we can safely transmute a reference to the inner type as the
+    // outer type with the same lifetime.
     unsafe { core::mem::transmute(cell_slice) }
 }
 
-// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow client code to be
-// authored once and accept either [u8] or WriteableProcessSlice
+// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow
+// client code to be authored once and accept either [u8] or
+// WriteableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be the same.
-        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and WriteableProcessSlice are guaranteed to be
+        // the same. This also extends the mutable lifetime of the buffer, so
+        // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -1025,7 +1037,7 @@ impl WriteableProcessSlice {
 }
 
 impl Index<Range<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: Range<usize>) -> &Self::Output {
@@ -1034,7 +1046,7 @@ impl Index<Range<usize>> for WriteableProcessSlice {
 }
 
 impl Index<RangeTo<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: RangeTo<usize>) -> &Self::Output {
@@ -1043,7 +1055,7 @@ impl Index<RangeTo<usize>> for WriteableProcessSlice {
 }
 
 impl Index<RangeFrom<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: RangeFrom<usize>) -> &Self::Output {
@@ -1053,7 +1065,7 @@ impl Index<RangeFrom<usize>> for WriteableProcessSlice {
 
 impl Index<usize> for WriteableProcessSlice {
     // Indexing into a WriteableProcessSlice yields a Cell<u8>, as
-    // mutating the memory contents is allowed
+    // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
     fn index(&self, idx: usize) -> &Self::Output {

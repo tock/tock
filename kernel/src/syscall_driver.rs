@@ -4,9 +4,9 @@
 //!
 //! # System-call Overview
 //!
-//! Tock supports six system calls. The `allow_readony`, `allow_readwrite`, `subscribe`, `yield`,
-//! and `memop` system calls are handled by the core kernel, while `command`is implemented by
-//! drivers. The main system calls:
+//! Tock supports six system calls. The `allow_readonly`, `allow_readwrite`,
+//! `subscribe`, `yield`, and `memop` system calls are handled by the core
+//! kernel, while `command`is implemented by drivers. The main system calls:
 //!
 //!   * `subscribe` passes a upcall to the driver which it can
 //!   invoke on the process later, when an event has occurred or data
@@ -199,10 +199,10 @@ pub trait SyscallDriver {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
-    /// System call for a process to pass a buffer (a UserspaceReadableProcessBuffer) to
-    /// the kernel that the kernel can either read or write. The kernel calls
-    /// this method only after it checks that the entire buffer is
-    /// within memory the process can both read and write.
+    /// System call for a process to pass a buffer (a
+    /// UserspaceReadableProcessBuffer) to the kernel that the kernel can either
+    /// read or write. The kernel calls this method only after it checks that
+    /// the entire buffer is within memory the process can both read and write.
     ///
     /// This is different to `allow_readwrite()` in that the app is allowed
     /// to read the buffer once it has been passed to the kernel.
@@ -306,5 +306,9 @@ pub trait SyscallDriver {
     // mechanism may find more uses in the future if the kernel needs to store
     // additional state on a per-driver basis and therefore needs a mechanism to
     // force a grant allocation.
+    //
+    // This same mechanism was later extended to handle allow calls as well.
+    // Capsules that do not need upcalls but do use process buffers must also
+    // implement this function.
     fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
 }
