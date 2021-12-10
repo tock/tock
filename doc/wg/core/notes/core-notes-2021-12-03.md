@@ -1,0 +1,113 @@
+## Attendees
+ - Amit Levy
+ - Alexandru Radovici
+ - Leon Schuermann
+ - Philip Levis
+ - Brad Campbell
+ - Pat Pannuto
+ - Hudson Ayers
+ - Jett Rink
+ - Johnathan Van Why
+ - Vadim Sukhomlinov
+
+## Updates
+ - Johnathan: Hubris OS released; from Oxide; response to some of what they didn't like about Tock. We should look into it a bit.
+ - Jett: https://github.com/tock/tock/pull/2906 like to merge soon
+
+## Sync RSA vs Async Process
+ - https://github.com/tock/tock/pull/2809#issuecomment-978431931
+ - Phil: Context—
+    - We would like processes to have cryptographic authentication for kernel verification of process e.g. to allow loading, access to restricted syscall, etc; goal is to establish AppId
+    - When you load processes, need to be able to look at credentials (sigs) and verify them
+    - This led to a lot of discussion on RSA traits, Mut/IMut, etc
+    - Now we're using RSA; likely to be in accelerators, long-running, etc; thus RSA is async; thus process loading is async
+    - There are three ways forward, outlined in linked issue comment (pause to read)
+ - Phil: Discussed at OT call; Alistair concerned about time in the sync interface; added empirical test results to comment thread
+ - Phil: After OT call discussion sentiment was towards B
+ - Amit: For B, I agree that process loading is complex, however processes can already reload themselves (or can be reloaded individually); we don't have to do it in the sequential load_process way; e.g. during a crash, the kernel will restart just that one process. Thus, right now, there is one boot synchronous step, but later things are per-process. Would this actually have to be that complex then? Or would it be just kicking off loading async for each process? Then Sync/Async in the process
+ - Phil: You're getting towards option A
+ - Johnathan: I'd be interested to see how A and B work towards dynamic app loading. It seems that sync verification doesn't work well for that use case, but A and B might both work. Is there a lot of overlap for the changes needed for dynamic app loading and async verification?
+ - Phil: That was one of Alistair's core arguments; we're going to want this anyways
+ - Phil: Option C is adding a wait-until-done spin loop
+ - Pat: Also a supporter of B; let's not build in assumptions we'll have to remove later
+ - Vadim: Option C also isn't great for parallel/fast boot
+ - Phil: One of Alistair's arguments is that shouldn't have to wait seconds for processes to load on cold boot
+ - Vadim: Indeed, software verification on RISC-V is tens of ms
+ - Phil: Yeah, something is a bit off with the measurements on the thread
+ - Vadim: These are for RSA 2k/1k; time should be ~linear in number of bits, so 4k should be a bit over 2-4x slower
+ - Phil: Right, but now 400x :)
+ - Phil: My concern for the async is mostly about code size. Don't want to go down this path and find that code size ballooned becuase of complex state machine
+ - Vadim: Why not do pseduo-sync? Wrapper that polls RSA until it's done?
+ - Phil: Major concern with complexity and code size isn't state machine management, it's that other code can execute while you're not executing, such that you can make fewer assumptions about the state of memory. This is the biggest concern with Option A, so this Process structure is in the Process array, and the rest of the kernel could touch it. This is what makes most nervous; each callback in loading has to reverify that the Process hasn't changed
+ - Vadim: With OTBN implementations, usually you load all the data into OTBN and it all happens over there
+ - Phil: Yes, it's not the RSA validation that's the concern. What I'm worried about it is you are mid-verify of a process; you compute the hash, and now you're comparing the sigs, and some other part of the kernel modifies the TBF header to change the init fn; so what you've verified is not what's invoked
+ - Amit: If that's possible, isn't that a problem regardless of whether verification is sync or async?
+ - Amit: Once something is verified, once the things it verifies need to be closed over, no?
+ - Phil: Right, there's an atomicitiy point
+ - Phil: What I'd like to encapsulate the state of a Process, its headers, etc; and then I can pass things off; at that point if the kernel messes with it it's not the verifiers fault
+ - Amit: Sure but it's still a problem
+ - Amit: I haven't thought this through, but what if we just locked down the Process more?
+ - Phil: Yeah, so the way we might do this in B might be to defer the materialization of the Process sturcture until verification is done
+ - Amit: But I want to go further; never let these things be modified. Say what happens during restart? Do we need to reverify? Not if the verified structure is locked down. This seems a modularity invariant we have to enforce anyway
+ - Phil: I would say you don't have to verify the process again, but you do have to regenerate the Process struct (as that's the mutable state), so you regen it from the process image
+ - Amit: Mhmm, and is it important for verification to use the in-memory values as opposed to verifying the flash image?
+ - Phil: No, and I think this is the point: the Process struct in memory shouldn't exist until verification is done. Thus I won't have an in-memory structure that could be corrupted until verification should be done
+ - Amit: I think this makes sense, but we may still be entangling some bits.
+ - Phil: Verification is on the flash, not the Process struct
+ - Amit: If it's okay for the kernel to modify the Process struct after verification, then it must also be valid to modify during verification
+ - Phil: It has to be okay, because it does things like modify execution state
+ - Amit: Right, but that's not what verification asserts; those parts don't need to be read-only
+ - Phil: Yes, so the challenge is to assure that the Process struct isn't modified we are okay
+ - Brad: Yeah, this seems do-able; we have this split right now—only certain elements are in `Cell`s, and nothing is `mut`
+ - Alexandru: Are we worried about protection against `unsafe` code?
+ - Phil: Obviously we can't protect from `unsafe` code, but does unsafe leak references that safe code can get at?
+ - Amit: Is there an API that allows untrusted code to modify the Process struct in a way that breaks security?
+ - Alexandru: If the Process structure lives only in the loader until it's verified; move Process array into refs instead of structures, and then moves in when done?
+ - Amit: I think that works to resolve the original concern; pretty close to Option B
+ - Amit: Regardless of when the Process or ref to the Process is exposed to the rest of the kernel, it has to be the case that fields in the Process struct that a covered by verification have to be immutible
+ - Phil: The Process array isn't array of structs, it's an array of Options
+ - Alexandru: Right, and so the Option shouldn't be there until verified; otherwise possible to be scheduled, etc
+ - Phil: Right this the concern with A; so loader hides until Process is ready
+ - Amit: Okay, so important but separate concern: buggy scheduler that schedules a process that isn't verified; doesn't have to do anything wrong per se, just ignores the state field
+ - Hudson: There are some implicit assumptions here about the liklihood of different bugs: e.g. more likely a scheduler that runs a process on accidents vs Process accessibility to the kernel generally?
+ - Phil: It's a sense of what we can test. Can't make statements about future schedulers, so this is a much larger space of things that could happen, vs the code we've written and analyzed
+ - Hudson: I would assume this is verified in kernel.rs, rather than in the schedulers
+ - Amit: Or enforced by the Process trait; process implementations could refuse to run
+ - Phil: Yeah, that encapsulation makes sense
+ - Hudson: Not convinced that A is any less safe than B; if it could be modified during that's equally unsafe as being modified after verification
+ - Phil: One of the things I was thinking about was the the init_fn pointer; what do you get the thing to jump to?
+ - Hudson: After a restart, do we reverify?
+ - Phil: The issue is it's stored in RAM, vs how it's represented in the TBF
+ - Phil: It is less safe; it may be that the difference is negligible; there are things that can go wrong with A that can't go wrong with B, though it may be that these are immaterial—e.g. vulnerabilities in the loader itself
+ - Hudson: that makes sense, though I have trouble imagining what fits in that window
+ - Alexandru: is there anything of conern other than init_fn? Could you just copy data again on restart? Loading that structure should be super fast
+ - Amit: Actually running a process happens in kernel.rs, the scheduler just decides which; there are serveral points in kernel.rs and in the process implementation that we can/should check verified state, and there's a graceful way to just skip it
+ - Amit: Process.ready() can just return False
+ - Phil: The fields I'm really worried about in the process structure are e.g. access/perms to syscalls and MPU configuration
+ - Amit: That's a perfect example of things that should not be modified ever, expect by e.g. the process loader
+ - Phil: Well, MPU config because of sbrk and such
+ - Amit: True
+ - Amit: But only modules that a already trusted with the integrity of the process should be able to modify those; e.g. sbrk is/should be robust to concurrent execution with loading. It has to be the case that e.g. it never changes the offset of the code in flash
+ - Phil: This is helpful; want to think more on this, but initial consensus is that B, or A, is the right way?
+ - Amit: I vote A. It's less complex, and we don't lose anything from a security persepective
+ - Pat: Does going with A just defer some of the work we will need to do in the future to enable truly dynamic app loading?
+ - Phil: The difference is really do I call create,create,create,create verify,verify,verify,verify or create,verify create,verify create,verify
+ - Vadim: So what does this look like for userspace, waiting for processes to load, etc?
+ - Amit: The hope is that verification is fast enough that by the time any process got to run its main, verification would be done for all processes
+ - Vadim: We don't want a process to be able to do anything dangerous, run, etc before it is verified
+ - Amit: A policy you can implement with A, that you can't with B, would be allowing unverified processes to run, even at least in part
+ - Phil: You could get that with B as well for unverified processes
+ - Amit: Right, but if you want to allow a subset of code to run for a process that should be verified, A allows that
+ - Alexandru: The scheduler could also decide about these partially verified things
+ - Vadim: The question is what do we hope to gain running verification separately? What is the benefit from running separately ala A? Practically, I do not see a significant difference between A and B, especially if processes don't start until verified. It won't change anything for processes
+ - Phil: Right, it doesn't change anything for processes; it just affects kernel implementation
+ - Phil: Very wary of allowing processes to run prior to verification
+ - Alexandru: Should verify be before create at all, given that creat affect memory layout; something like verify,create not create,verify; until verified, it shouldn't exist
+ - Vadim: Agreed, should be verify then create
+ - Vadim: Regarding the lifetime of internal variables; the signature is in flash, and thus static; the state which is volatile is the RSA verification function, which is mostly in OTBN. Not sure what the implementation will look like, but will need to make sure that kernel can manage state across verifications well as well
+ - Phil: The differences between A/B are insignificant compared to code size, etc; there shouldn't be significant security implementations between A and B
+ - Amit: Agree. I think I would be perfectly happy with B, only lean A because B looks more complex, but would happily change over if it bears out the other way
+ - Phil: Sounds good, I'll start going with that and will report back in a few weeks
+
+## UART HIL
+ - No time to discuss, but push to do final pass over HIL online so we can get to implementation
