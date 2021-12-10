@@ -33,8 +33,7 @@ pub enum NUM {
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
-    WiFi                  = 0x30003,
-
+    
     // Cryptography
     Rng                   = 0x40001,
     Crc                   = 0x40002,
@@ -77,5 +76,6 @@ pub enum NUM {
     Screen                = 0x90001,
     Touch                 = 0x90002,
     TextScreen            = 0x90003,
+    WiFiNina              = 0x90004,
 }
 }

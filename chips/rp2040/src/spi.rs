@@ -12,8 +12,6 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use kernel::debug;
-
 const SPI_READ_IN_PROGRESS: u8 = 0b001;
 const SPI_WRITE_IN_PROGRESS: u8 = 0b010;
 const SPI_IN_PROGRESS: u8 = 0b100;
@@ -247,8 +245,6 @@ pub struct Spi<'a> {
 
     transfers: Cell<u8>,
     active_after: Cell<bool>,
-
-    times: Cell<usize>,
 }
 
 impl<'a> Spi<'a> {
@@ -269,8 +265,6 @@ impl<'a> Spi<'a> {
 
             transfers: Cell::new(SPI_IDLE),
             active_after: Cell::new(false),
-        
-            times: Cell::new(0),
         }
     }
 
@@ -291,8 +285,6 @@ impl<'a> Spi<'a> {
 
             transfers: Cell::new(SPI_IDLE),
             active_after: Cell::new(false),
-
-            times: Cell::new(0),
         }
     }
 
@@ -309,10 +301,6 @@ impl<'a> Spi<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        self.times.set (self.times.get() + 1);
-        // if self.times.get () > 100 {
-        //     panic!("too many interrupts");
-        // }
         if self.registers.sspsr.is_set(SSPSR::TFE) {
             // if transmit fifo empty is set
             if self.tx_buffer.is_some() {
@@ -356,7 +344,6 @@ impl<'a> Spi<'a> {
             {
                 self.transfers
                         .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
-                panic! ("no buffer");
             }
         }
 
@@ -423,9 +410,6 @@ impl<'a> Spi<'a> {
             if read_buffer.is_some() {
                 self.transfers
                     .set(self.transfers.get() | SPI_READ_IN_PROGRESS);
-            }
-            else {
-                panic!("no read buffer");
             }
 
             read_buffer.map(|buf| {

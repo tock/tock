@@ -76,7 +76,7 @@ pub struct NanoRP2040Connect {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm6dsoxtr: &'static capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>,
-    wifi_syscalls: &'static capsules::wifi_syscall::WiFiChip<'static>,
+    wifinina: &'static capsules::wifinina::WiFiChip<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
 }
@@ -96,7 +96,7 @@ impl SyscallDriverLookup for NanoRP2040Connect {
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::lsm6dsoxtr::DRIVER_NUM => f(Some(self.lsm6dsoxtr)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            capsules::wifi_syscall::DRIVER_NUM => f(Some(self.wifi_syscalls)),
+            capsules::wifinina::DRIVER_NUM => f(Some(self.wifinina)),
             _ => f(None),
         }
     }
@@ -314,7 +314,6 @@ pub unsafe fn main() {
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_helper!(RPTimer));
-   
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
@@ -385,7 +384,6 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
-
     use kernel::hil::spi::SpiMaster;
     use rp2040::spi::Spi;
 
@@ -398,29 +396,26 @@ pub unsafe fn main() {
     // spi_csn.set_function(GpioFunction::SPI);
     spi_mosi.set_function(GpioFunction::SPI);
     spi_miso.set_function(GpioFunction::SPI);
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(Spi));
+    let _mux_spi =
+        components::spi::SpiMuxComponent::new(&peripherals.spi0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(Spi));
 
-    use capsules::wifi_syscall;
-    
     let nina_spi = &peripherals.spi1;
     //     components::spi::SpiComponent::new(mux_spi, peripherals.pins.get_pin(RPGpio::GPIO9))
     //         .finalize(components::spi_component_helper!(Spi));
 
-    nina_spi.init();
-    nina_spi.specify_chip_select(peripherals.pins.get_pin(RPGpio::GPIO9));
-    nina_spi.set_rate(8_000_000);
-    nina_spi.set_phase(kernel::hil::spi::ClockPhase::SampleLeading);
-    nina_spi.set_polarity(kernel::hil::spi::ClockPolarity::IdleLow );
-    
+    let _ = nina_spi.init();
+    let _ = nina_spi.specify_chip_select(peripherals.pins.get_pin(RPGpio::GPIO9));
+    let _ = nina_spi.set_rate(8_000_000);
+    let _ = nina_spi.set_phase(kernel::hil::spi::ClockPhase::SampleLeading);
+    let _ = nina_spi.set_polarity(kernel::hil::spi::ClockPolarity::IdleLow);
 
     let write_buffer = static_init!([u8; 1024], [0; 1024]);
     let read_buffer = static_init!([u8; 1024], [0; 1024]);
     let one_byte_read_buffer = static_init!([u8; 1], [0; 1]);
 
-
-    use kernel::hil::wifi::Network;
     use kernel::hil::time::Alarm;
+    use kernel::hil::wifinina::Network;
 
     let virtual_alarm_nina = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
@@ -451,18 +446,9 @@ pub unsafe fn main() {
             networks_buffer
         )
     );
-   virtual_alarm_nina.set_alarm_client(nina);
-    // nina_spi.configure(kernel::hil::spi::ClockPolarity::IdleLow ,
-    //     kernel::hil::spi::ClockPhase::SampleLeading,
-    //     8_000_000);
+    virtual_alarm_nina.set_alarm_client(nina);
     nina_spi.set_client(nina);
-    nina.init();
-
-   
-
-    // nina.get_firmware_version();
-
-
+    let _ = nina.init();
 
     let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
@@ -501,7 +487,7 @@ pub unsafe fn main() {
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
             .finalize(components::ninedof_component_helper!(lsm6dsoxtr));
 
-            let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
 
@@ -510,18 +496,16 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
 
-    let grant_wifi =
-    board_kernel.create_grant(capsules::wifi_syscall::DRIVER_NUM, &grant_cap);
-
+    let grant_wifi = board_kernel.create_grant(capsules::wifinina::DRIVER_NUM, &grant_cap);
 
     let wifi_driver = static_init!(
-        capsules::wifi_syscall::WiFiChip<'static>,
-        capsules::wifi_syscall::WiFiChip::new(nina, grant_wifi)
+        capsules::wifinina::WiFiChip<'static>,
+        capsules::wifinina::WiFiChip::new(nina, grant_wifi)
     );
 
-    kernel::hil::wifi::Scanner::set_client(nina, wifi_driver);
-    
-    
+    kernel::hil::wifinina::Scanner::set_client(nina, wifi_driver);
+
+    //delay 1s dupa init
     let _ = lsm6dsoxtr
         .configure(
             capsules::lsm6dsoxtr::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
@@ -585,8 +569,6 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
-      
-       
 
     let nano_rp2040_connect = NanoRP2040Connect {
         ipc: kernel::ipc::IPC::new(
@@ -603,7 +585,7 @@ pub unsafe fn main() {
 
         lsm6dsoxtr: lsm6dsoxtr,
         ninedof: ninedof,
-        wifi_syscalls: wifi_driver,
+        wifinina: wifi_driver,
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),

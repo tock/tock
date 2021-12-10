@@ -173,6 +173,10 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
                 self.spi0.handle_interrupt();
                 true
             }
+            interrupts::SPI1_IRQ => {
+                self.spi1.handle_interrupt();
+                true
+            }
             interrupts::UART0_IRQ => {
                 self.uart0.handle_interrupt();
                 true
