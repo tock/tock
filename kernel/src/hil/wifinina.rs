@@ -1,11 +1,11 @@
-//! Traits relted to handling of WiFi using WiFiNINA 
+//! Traits relted to handling of WiFi using WiFiNINA
 //!
 //! Devices that provide WiFi functionallity are divided into
 //! two categories:
 //!  - Station - the device is a client of an Access Point
 //!  - AccessPoint - the device is an access point that accepts incoming connections
 //!
-//! Some devices might allow using the WiFi system both as 
+//! Some devices might allow using the WiFi system both as
 //! an AccessPoint and a Station at the same time.
 //!
 
@@ -40,7 +40,7 @@ pub enum AccessPointStatus {
     // the access point SSID and Security
     // type have not been yet configured
     NoConfiguration,
-    // the access point is in the process of starting and 
+    // the access point is in the process of starting and
     // boradcasting the `Network`
     Starting(Network),
     // the access point is started and is boardcasting the `Network`
@@ -55,7 +55,7 @@ pub enum AccessPointStatus {
 pub struct Ssid {
     // The max length of an SSID is 32
     pub value: [u8; 32],
-    
+
     // the actual length of the SSID
     pub len: u8,
 }
@@ -79,7 +79,6 @@ pub trait Station {
     fn get_status(&self) -> StationStatus;
 }
 
-
 /// Defines the functions used to get information about existing networks
 pub trait Scanner<'a> {
     // start scanning the available WiFi networks
@@ -91,7 +90,7 @@ pub trait Scanner<'a> {
 /// Defines the function used for handling WiFi connections as an access point
 pub trait AccessPoint {
     // Sets the SSID and Security type of the access point.
-    // 
+    //
     // This function should be called only when the access point's status
     // is `Stopped`, otherwise it should return `ErrorCode::INVAL`.
     // A successful return means that the SSID and Security type will be set
@@ -99,9 +98,9 @@ pub trait AccessPoint {
     fn configure(&self, ssid: Ssid, security: Security) -> Result<(), ErrorCode>;
 
     // Starts the access point
-    // 
+    //
     // This function should be called only when the access point's status
-    // is `Stopped`, otherwise it should return: 
+    // is `Stopped`, otherwise it should return:
     //  - `ErrorCode::OFF` if in `Off`
     //  - `ErrorCode::INVAL` if in `NotConfigured` or `Started(_)`
     //  - `ErrorCode::BUSY` if in `Started(_)` or `Stopped(_)`
@@ -110,9 +109,9 @@ pub trait AccessPoint {
     fn start(&self) -> Result<(), ErrorCode>;
 
     // Stops the access point
-    // 
+    //
     // This function should be called only when the access point's status
-    // is `Started(_)`, otherwise it should return: 
+    // is `Started(_)`, otherwise it should return:
     //  - `ErrorCode::OFF` if in `Off`
     //  - `ErrorCode::INVAL` if in `NotConfigured`or `Stopped(_)`
     //  - `ErrorCode::BUSY` if in `Starting(_)` or `Stopping(_)`
