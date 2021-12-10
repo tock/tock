@@ -199,9 +199,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             .map_or(Err(ErrorCode::NOMEM), |buffer| {
                 buffer[0] = 0xff;
 
-                self.one_byte_read_buffer.take().map_or(
-                    Err(ErrorCode::NOMEM),
-                    move |read_buffer| {
+                self.one_byte_read_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), move |read_buffer| {
                         self.status.set(Status::Receive(command, position, timeout));
                         self.spi.hold_low();
                         self.spi
@@ -211,9 +211,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                 read_buffer.map(|buffer| self.one_byte_read_buffer.replace(buffer));
                                 err
                             })
-                    },
-                )
-
+                    })
             })
             .map_err(|err| {
                 self.cs.set();
@@ -256,9 +254,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                     debug!("{:?}", core::str::from_utf8(&read_buffer[4..10]));
                                     Ok(())
                                 }
-                                Command::GetConnStatusCmd => {
-                                    Ok(())
-                                }
+                                Command::GetConnStatusCmd => Ok(()),
                                 Command::StartScanNetworksCmd => {
                                     self.status.set(Status::ScanNetworks);
                                     self.alarm.set_alarm(
@@ -344,7 +340,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
     ) {
         if let Err(err) = status {
             match self.status.get() {
-                Status::Send(command) | Status::Receive(command, _, _) => self.schedule_callback_error(command, err),
+                Status::Send(command) | Status::Receive(command, _, _) => {
+                    self.schedule_callback_error(command, err)
+                }
                 _ => {}
             }
             self.write_buffer.replace(write_buffer);
@@ -405,7 +403,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                         .map_err(|error| {
                             self.schedule_callback_error(command, error);
                             self.status.set(Status::Idle);
-                        }).ok();
+                        })
+                        .ok();
                 }
                 Status::Idle => {
                     self.write_buffer.replace(write_buffer);

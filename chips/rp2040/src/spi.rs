@@ -305,7 +305,7 @@ impl<'a> Spi<'a> {
             // if transmit fifo empty is set
             if self.tx_buffer.is_some() {
                 if self.registers.sspsr.is_set(SSPSR::TNF)
-                    && self.tx_position.get() < self.len.get() 
+                    && self.tx_position.get() < self.len.get()
                 {
                     self.tx_buffer.map(|buf| {
                         // debug!("position {} of {}", self.tx_position.get(), self.len.get());
@@ -324,7 +324,9 @@ impl<'a> Spi<'a> {
             }
         }
 
-        if self.transfers.get() & SPI_READ_IN_PROGRESS != 0 && self.registers.sspsr.is_set(SSPSR::RNE) {
+        if self.transfers.get() & SPI_READ_IN_PROGRESS != 0
+            && self.registers.sspsr.is_set(SSPSR::RNE)
+        {
             let byte = self.registers.sspdr.read(SSPDR::DATA) as u8;
             // debug! ("spi data {}", byte);
             if self.rx_buffer.is_some() {
@@ -333,17 +335,15 @@ impl<'a> Spi<'a> {
                         buf[self.rx_position.get()] = byte;
                     });
                     self.rx_position.set(self.rx_position.get() + 1);
-                } 
-                
+                }
+
                 if self.rx_position.get() >= self.len.get() {
                     self.transfers
                         .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
                 }
-            }
-            else
-            {
+            } else {
                 self.transfers
-                        .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
+                    .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
             }
         }
 

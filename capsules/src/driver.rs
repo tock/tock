@@ -33,7 +33,7 @@ pub enum NUM {
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
-    
+
     // Cryptography
     Rng                   = 0x40001,
     Crc                   = 0x40002,
@@ -53,7 +53,7 @@ pub enum NUM {
     AmbientLight          = 0x60002,
     NINEDOF               = 0x60004,
     Proximity             = 0x60005,
-    SoundPressure         = 0x60006,   
+    SoundPressure         = 0x60006,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
