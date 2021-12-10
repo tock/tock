@@ -1,4 +1,4 @@
-//! Traits relted to handling of WiFi 
+//! Traits relted to handling of WiFi using WiFiNINA 
 //!
 //! Devices that provide WiFi functionallity are divided into
 //! two categories:

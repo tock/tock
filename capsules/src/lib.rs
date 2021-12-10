@@ -98,4 +98,4 @@ pub mod virtual_spi;
 pub mod virtual_timer;
 pub mod virtual_uart;
 pub mod nina_w102;
-pub mod wifi_syscall;
+pub mod wifinina;
