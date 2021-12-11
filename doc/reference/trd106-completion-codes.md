@@ -13,8 +13,9 @@ Application Completion Codes
 
 Abstract
 -------------------------------
-This document describes the expected behavior of application completion codes
-when terminating via the `exit` syscall, as described in [TRD 104][exit-syscall].
+This advisory document describes the expected behavior of application completion
+codes when terminating via the `exit` syscall, as described in
+[TRD 104][exit-syscall].
 
 1 Introduction
 ===============================
@@ -28,9 +29,14 @@ platforms.
 
 2 Design Considerations
 ===============================
-When possible, Tock should follow existing conventions and terminology from
-other major platforms. This assists in helping the project be more
-understandable to newcomers by following the principle of least astonishment.
+When possible, Tock applications should follow existing conventions and
+terminology from other major platforms. This assists in helping the project be
+more understandable to newcomers by following the principle of least
+astonishment.
+
+This advisory document provides guidance for the ecosystem of Tock applications
+using the `exit` syscall, and does not define the behavior of the syscall
+itself.
 
 3 Design
 ===============================
@@ -41,11 +47,11 @@ same value as one of the error codes specified in [TRD 104][error-codes].
 
 The kernel MAY treat zero and non-zero completion codes differently.
 
-| **Completion Code** | **Meaning** |
-| ------------------- | ----------- |
-| 0                   | Success     |
+| **Completion Code** | **Meaning**                                   |
+| ------------------- | --------------------------------------------- |
+| 0                   | Success                                       |
 | 1-1024              | SHOULD be a [TRD 104 error code][error-codes] |
-| 1025-`u32::MAX`     | Not defined |
+| 1025-`u32::MAX`     | Not defined                                   |
 
 4 Implementation
 ===============================
