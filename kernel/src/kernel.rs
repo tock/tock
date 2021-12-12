@@ -1123,7 +1123,7 @@ impl Kernel {
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] read-write allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] read-write allow({:#x}, {}, @{:#x}, {}) = {:?}",
                         process.processid(),
                         driver_number,
                         subdriver_number,
@@ -1196,7 +1196,7 @@ impl Kernel {
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] userspace readable allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] userspace readable allow({:#x}, {}, @{:#x}, {}) = {:?}",
                         process.processid(),
                         driver_number,
                         subdriver_number,
@@ -1266,7 +1266,7 @@ impl Kernel {
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] read-only allow({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                        "[{:?}] read-only allow({:#x}, {}, @{:#x}, {}) = {:?}",
                         process.processid(),
                         driver_number,
                         subdriver_number,
