@@ -112,8 +112,8 @@ jobs:
           # bugs fixed in libtock-c, backwards-incompatible changes in
           # Tock or new tests this might need to be updated.
           #
-          # libtock-c of December 9, 2021, 3:20 PM GMT-8
-          ref: 321a5a01e4313294c74a79a624a096545447c53b
+          # libtock-c of December 13, 2021, 2:18 PM GMT-5
+          ref: fb3ffa6234659a660bffc8fc33e938a30270576a
           path: libtock-c
 
       - name: Build libtock-c apps
