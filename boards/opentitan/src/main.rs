@@ -207,7 +207,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -467,10 +467,6 @@ unsafe fn setup() -> (
     // OTBN is still connected though as it works on simulation runs
     let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
-
-    peripherals.otbn.initialise(
-        dynamic_deferred_caller.register(&peripherals.otbn).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
