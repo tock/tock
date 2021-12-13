@@ -29,12 +29,10 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::usb_hid;
-use kernel::processbuffer::ReadableProcessBuffer;
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -43,17 +41,21 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const RECV: usize = 0;
+    pub const SEND: usize = 1;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 2;
+}
+
 pub struct App {
-    recv_buf: ReadWriteProcessBuffer,
-    send_buf: ReadWriteProcessBuffer,
     can_receive: Cell<bool>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            recv_buf: ReadWriteProcessBuffer::default(),
-            send_buf: ReadWriteProcessBuffer::default(),
             can_receive: Cell::new(false),
         }
     }
@@ -62,7 +64,7 @@ impl Default for App {
 pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
-    app: Grant<App, 1>,
+    app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     appid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
@@ -75,7 +77,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
         usb: Option<&'a U>,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> CtapDriver<'a, U> {
         CtapDriver {
             usb: usb,
@@ -137,12 +139,16 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |app, upcalls| {
-                    let _ = app.recv_buf.mut_enter(|dest| {
-                        dest.copy_from_slice(buffer);
-                    });
+                .enter(*id, |app, kernel_data| {
+                    let _ = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::RECV)
+                        .and_then(|recv| {
+                            recv.mut_enter(|dest| {
+                                dest.copy_from_slice(buffer);
+                            })
+                        });
 
-                    upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                    kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
                     app.can_receive.set(false);
                 })
                 .map_err(|err| {
@@ -163,8 +169,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     ) {
         self.appid.map(|id| {
             self.app
-                .enter(*id, |_app, upcalls| {
-                    upcalls.schedule_upcall(0, (1, 0, 0)).ok();
+                .enter(*id, |_app, kernel_data| {
+                    kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
                 })
                 .map_err(|err| {
                     if err == kernel::process::Error::NoSuchApp
@@ -189,41 +195,6 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
 }
 
 impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the recvieved data to be stored in
-            0 => self
-                .app
-                .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.recv_buf);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // Pass buffer for the sent data to be stored in
-            1 => self
-                .app
-                .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.send_buf);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
     // Subscribe to CtapDriver events.
     //
     // ### `subscribe_num`
@@ -257,21 +228,24 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             // Send data
             0 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |_, kernel_data| {
                     self.appid.set(appid);
                     if let Some(usb) = self.usb {
-                        app.send_buf
-                            .enter(|data| {
-                                self.send_buffer.take().map_or(
-                                    CommandReturn::failure(ErrorCode::RESERVE),
-                                    |buf| {
-                                        // Copy the data into the static buffer
-                                        data.copy_to_slice(buf);
+                        kernel_data
+                            .get_readwrite_processbuffer(rw_allow::SEND)
+                            .and_then(|send| {
+                                send.enter(|data| {
+                                    self.send_buffer.take().map_or(
+                                        CommandReturn::failure(ErrorCode::RESERVE),
+                                        |buf| {
+                                            // Copy the data into the static buffer
+                                            data.copy_to_slice(buf);
 
-                                        let _ = usb.send_buffer(buf);
-                                        CommandReturn::success()
-                                    },
-                                )
+                                            let _ = usb.send_buffer(buf);
+                                            CommandReturn::success()
+                                        },
+                                    )
+                                })
                             })
                             .unwrap_or(CommandReturn::failure(ErrorCode::RESERVE))
                     } else {
@@ -354,7 +328,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             //            send buffer.
             4 => self
                 .app
-                .enter(appid, |app, _| {
+                .enter(appid, |app, kernel_data| {
                     if let Some(usb) = self.usb {
                         if app.can_receive.get() {
                             // We are already receiving
@@ -377,18 +351,21 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                                 // The call to receive_buffer() collected a pending packet.
                                 CommandReturn::failure(ErrorCode::BUSY)
                             } else {
-                                app.send_buf
-                                    .enter(|data| {
-                                        self.send_buffer.take().map_or(
-                                            CommandReturn::failure(ErrorCode::RESERVE),
-                                            |buf| {
-                                                // Copy the data into the static buffer
-                                                data.copy_to_slice(buf);
+                                kernel_data
+                                    .get_readwrite_processbuffer(rw_allow::SEND)
+                                    .and_then(|send| {
+                                        send.enter(|data| {
+                                            self.send_buffer.take().map_or(
+                                                CommandReturn::failure(ErrorCode::RESERVE),
+                                                |buf| {
+                                                    // Copy the data into the static buffer
+                                                    data.copy_to_slice(buf);
 
-                                                let _ = usb.send_buffer(buf);
-                                                CommandReturn::success()
-                                            },
-                                        )
+                                                    let _ = usb.send_buffer(buf);
+                                                    CommandReturn::success()
+                                                },
+                                            )
+                                        })
                                     })
                                     .unwrap_or(CommandReturn::failure(ErrorCode::RESERVE))
                             }

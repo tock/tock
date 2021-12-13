@@ -10,20 +10,33 @@ use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResu
 
 use core::cell::Cell;
 use core::cmp::min;
-use core::mem;
 
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::grant::Grant;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const WRITE: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const READ: usize = 0;
+    pub const CFG: usize = 1;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 2;
+}
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
@@ -156,9 +169,6 @@ impl KeyDescriptor {
 
 #[derive(Default)]
 pub struct App {
-    app_read: ReadWriteProcessBuffer,
-    app_write: ReadOnlyProcessBuffer,
-    app_cfg: ReadWriteProcessBuffer,
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
@@ -179,7 +189,12 @@ pub struct RadioDriver<'a> {
     num_keys: Cell<usize>,
 
     /// Grant of apps that use this radio driver.
-    apps: Grant<App, 2>,
+    apps: Grant<
+        App,
+        UpcallCount<2>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     /// ID of app whose transmission request is being processed.
     current_app: OptionalCell<ProcessId>,
 
@@ -202,7 +217,12 @@ pub struct RadioDriver<'a> {
 impl<'a> RadioDriver<'a> {
     pub fn new(
         mac: &'a dyn device::MacDevice<'a>,
-        grant: Grant<App, 2>,
+        grant: Grant<
+            App,
+            UpcallCount<2>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
         kernel_tx: &'static mut [u8],
         deferred_caller: &'a DynamicDeferredCall,
     ) -> RadioDriver<'a> {
@@ -336,17 +356,6 @@ impl<'a> RadioDriver<'a> {
         }
     }
 
-    /// Utility function to perform an action on an app in a system call.
-    #[inline]
-    fn do_with_app<F>(&self, appid: ProcessId, closure: F) -> Result<(), ErrorCode>
-    where
-        F: FnOnce(&mut App) -> Result<(), ErrorCode>,
-    {
-        self.apps
-            .enter(appid, |app, _| closure(app))
-            .unwrap_or_else(|err| err.into())
-    }
-
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `ProcessId`.
     fn get_next_tx_if_idle(&self) -> Option<ProcessId> {
@@ -387,7 +396,7 @@ impl<'a> RadioDriver<'a> {
     /// idle and the app has a pending transmission.
     #[inline]
     fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
-        self.do_with_app(appid, |app| {
+        self.apps.enter(appid, |app, kerel_data| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
@@ -415,9 +424,9 @@ impl<'a> RadioDriver<'a> {
                 };
 
                 // Append the payload: there must be one
-                let result = app
-                    .app_write
-                    .enter(|payload| frame.append_payload_process(payload))
+                let result = kerel_data
+                    .get_readonly_processbuffer(ro_allow::WRITE)
+                    .and_then(|write| write.enter(|payload| frame.append_payload_process(payload)))
                     .unwrap_or(Err(ErrorCode::INVAL));
                 if result != Ok(()) {
                     return result;
@@ -436,7 +445,7 @@ impl<'a> RadioDriver<'a> {
                 self.current_app.set(appid);
             }
             result
-        })
+        })?
     }
 
     /// Schedule the next transmission if there is one pending. Performs the
@@ -526,48 +535,12 @@ impl SyscallDriver for RadioDriver<'_> {
     /// - `1`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        match allow_num {
-            0 | 1 => {
-                let res = self.apps.enter(appid, |app, _| match allow_num {
-                    0 => mem::swap(&mut app.app_read, &mut slice),
-                    1 => mem::swap(&mut app.app_cfg, &mut slice),
-                    _ => unreachable!(),
-                });
-                match res {
-                    Ok(_) => Ok(slice),
-                    Err(err) => Err((slice, err.into())),
-                }
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
-        }
-    }
 
+    /// Setup shared buffers.
+    ///
+    /// ### `allow_num`
+    ///
     /// - `0`: Write buffer. Contains the frame payload to be transmitted.
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        match allow_num {
-            0 => {
-                let res = self.apps.enter(appid, |app, _| {
-                    mem::swap(&mut app.app_write, &mut slice);
-                });
-                match res {
-                    Ok(_) => Ok(slice),
-                    Err(err) => Err((slice, err.into())),
-                }
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
-        }
-    }
 
     // Setup callbacks.
     //
@@ -580,7 +553,7 @@ impl SyscallDriver for RadioDriver<'_> {
     ///
     /// For some of the below commands, one 32-bit argument is not enough to
     /// contain the desired input parameters or output data. For those commands,
-    /// the config slice `app_cfg` is used as a channel to shuffle information
+    /// the config slice `app_cfg` (RW allow num 1) is used as a channel to shuffle information
     /// between kernel space and user space. The expected size of the slice
     /// varies by command, and acts essentially like a custom FFI. That is, the
     /// userspace library MUST `allow()` a buffer of the correct size, otherwise
@@ -647,16 +620,19 @@ impl SyscallDriver for RadioDriver<'_> {
             }
             3 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .enter(|cfg| {
-                            if cfg.len() != 8 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
-                            let mut addr_long = [0u8; 8];
-                            cfg.copy_to_slice(&mut addr_long);
-                            self.mac.set_address_long(addr_long);
-                            CommandReturn::success()
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.enter(|cfg| {
+                                if cfg.len() != 8 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
+                                let mut addr_long = [0u8; 8];
+                                cfg.copy_to_slice(&mut addr_long);
+                                self.mac.set_address_long(addr_long);
+                                CommandReturn::success()
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
@@ -680,14 +656,17 @@ impl SyscallDriver for RadioDriver<'_> {
             }
             9 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .mut_enter(|cfg| {
-                            if cfg.len() != 8 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
-                            cfg.copy_from_slice(&self.mac.get_address_long());
-                            CommandReturn::success()
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.mut_enter(|cfg| {
+                                if cfg.len() != 8 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
+                                cfg.copy_from_slice(&self.mac.get_address_long());
+                                CommandReturn::success()
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
@@ -716,38 +695,45 @@ impl SyscallDriver for RadioDriver<'_> {
                 }),
             16 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .mut_enter(|cfg| {
-                            if cfg.len() != 8 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
-                            self.get_neighbor(arg1).map_or(
-                                CommandReturn::failure(ErrorCode::INVAL),
-                                |neighbor| {
-                                    cfg.copy_from_slice(&neighbor.long_addr);
-                                    CommandReturn::success()
-                                },
-                            )
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.mut_enter(|cfg| {
+                                if cfg.len() != 8 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
+                                self.get_neighbor(arg1).map_or(
+                                    CommandReturn::failure(ErrorCode::INVAL),
+                                    |neighbor| {
+                                        cfg.copy_from_slice(&neighbor.long_addr);
+                                        CommandReturn::success()
+                                    },
+                                )
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             17 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .enter(|cfg| {
-                            if cfg.len() != 8 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
-                            let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
-                            new_neighbor.short_addr = arg1 as u16;
-                            cfg.copy_to_slice(&mut new_neighbor.long_addr);
-                            self.add_neighbor(new_neighbor)
-                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
-                                    CommandReturn::success_u32(index as u32 + 1)
-                                })
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.enter(|cfg| {
+                                if cfg.len() != 8 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
+                                let mut new_neighbor: DeviceDescriptor =
+                                    DeviceDescriptor::default();
+                                new_neighbor.short_addr = arg1 as u16;
+                                cfg.copy_to_slice(&mut new_neighbor.long_addr);
+                                self.add_neighbor(new_neighbor)
+                                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                        CommandReturn::success_u32(index as u32 + 1)
+                                    })
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
@@ -772,67 +758,76 @@ impl SyscallDriver for RadioDriver<'_> {
                 }),
             22 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .mut_enter(|cfg| {
-                            if cfg.len() != 10 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.mut_enter(|cfg| {
+                                if cfg.len() != 10 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
 
-                            let mut tmp_cfg: [u8; 10] = [0; 10];
-                            let res = self
-                                .get_key(arg1)
-                                .and_then(|key| encode_key_id(&key.key_id, &mut tmp_cfg).done())
-                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
-                                    CommandReturn::success()
-                                });
-                            cfg.copy_from_slice(&tmp_cfg);
+                                let mut tmp_cfg: [u8; 10] = [0; 10];
+                                let res = self
+                                    .get_key(arg1)
+                                    .and_then(|key| encode_key_id(&key.key_id, &mut tmp_cfg).done())
+                                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
+                                        CommandReturn::success()
+                                    });
+                                cfg.copy_from_slice(&tmp_cfg);
 
-                            res
+                                res
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             23 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .mut_enter(|cfg| {
-                            if cfg.len() != 16 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
-                            self.get_key(arg1).map_or(
-                                CommandReturn::failure(ErrorCode::INVAL),
-                                |key| {
-                                    cfg.copy_from_slice(&key.key);
-                                    CommandReturn::success()
-                                },
-                            )
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.mut_enter(|cfg| {
+                                if cfg.len() != 16 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
+                                self.get_key(arg1).map_or(
+                                    CommandReturn::failure(ErrorCode::INVAL),
+                                    |key| {
+                                        cfg.copy_from_slice(&key.key);
+                                        CommandReturn::success()
+                                    },
+                                )
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             24 => self
                 .apps
-                .enter(appid, |app, _| {
-                    app.app_cfg
-                        .mut_enter(|cfg| {
-                            if cfg.len() != 27 {
-                                return CommandReturn::failure(ErrorCode::SIZE);
-                            }
+                .enter(appid, |_, kernel_data| {
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::CFG)
+                        .and_then(|cfg| {
+                            cfg.mut_enter(|cfg| {
+                                if cfg.len() != 27 {
+                                    return CommandReturn::failure(ErrorCode::SIZE);
+                                }
 
-                            // The cfg userspace buffer is exactly 27
-                            // bytes long, copy it into a proper slice
-                            // for decoding
-                            let mut tmp_cfg: [u8; 27] = [0; 27];
-                            cfg.copy_to_slice(&mut tmp_cfg);
+                                // The cfg userspace buffer is exactly 27
+                                // bytes long, copy it into a proper slice
+                                // for decoding
+                                let mut tmp_cfg: [u8; 27] = [0; 27];
+                                cfg.copy_to_slice(&mut tmp_cfg);
 
-                            KeyDescriptor::decode(&tmp_cfg)
-                                .done()
-                                .and_then(|(_, new_key)| self.add_key(new_key))
-                                .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
-                                    CommandReturn::success_u32(index as u32 + 1)
-                                })
+                                KeyDescriptor::decode(&tmp_cfg)
+                                    .done()
+                                    .and_then(|(_, new_key)| self.add_key(new_key))
+                                    .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
+                                        CommandReturn::success_u32(index as u32 + 1)
+                                    })
+                            })
                         })
                         .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                 })
@@ -841,37 +836,40 @@ impl SyscallDriver for RadioDriver<'_> {
             25 => self.remove_key(arg1).into(),
             26 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(appid, |app, kernel_data| {
                         if app.pending_tx.is_some() {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
                         }
-                        let next_tx = app
-                            .app_cfg
-                            .enter(|cfg| {
-                                if cfg.len() != 11 {
-                                    return None;
-                                }
-                                let dst_addr = arg1 as u16;
-                                let level = match SecurityLevel::from_scf(cfg[0].get()) {
-                                    Some(level) => level,
-                                    None => {
+                        let next_tx = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::CFG)
+                            .and_then(|cfg| {
+                                cfg.enter(|cfg| {
+                                    if cfg.len() != 11 {
                                         return None;
                                     }
-                                };
-                                if level == SecurityLevel::None {
-                                    Some((dst_addr, None))
-                                } else {
-                                    let mut tmp_key_id_buffer: [u8; 10] = [0; 10];
-                                    cfg[1..].copy_to_slice(&mut tmp_key_id_buffer);
-                                    let key_id = match decode_key_id(&tmp_key_id_buffer).done() {
-                                        Some((_, key_id)) => key_id,
+                                    let dst_addr = arg1 as u16;
+                                    let level = match SecurityLevel::from_scf(cfg[0].get()) {
+                                        Some(level) => level,
                                         None => {
                                             return None;
                                         }
                                     };
-                                    Some((dst_addr, Some((level, key_id))))
-                                }
+                                    if level == SecurityLevel::None {
+                                        Some((dst_addr, None))
+                                    } else {
+                                        let mut tmp_key_id_buffer: [u8; 10] = [0; 10];
+                                        cfg[1..].copy_to_slice(&mut tmp_key_id_buffer);
+                                        let key_id = match decode_key_id(&tmp_key_id_buffer).done()
+                                        {
+                                            Some((_, key_id)) => key_id,
+                                            None => {
+                                                return None;
+                                            }
+                                        };
+                                        Some((dst_addr, Some((level, key_id))))
+                                    }
+                                })
                             })
                             .unwrap_or(None);
                         if next_tx.is_none() {
@@ -936,17 +934,19 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 
 impl device::RxClient for RadioDriver<'_> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.apps.each(|_, app, upcalls| {
-            let read_present = app
-                .app_read
-                .mut_enter(|rbuf| {
-                    let len = min(rbuf.len(), data_offset + data_len);
-                    // Copy the entire frame over to userland, preceded by two
-                    // bytes: the data offset and the data length.
-                    rbuf[..len].copy_from_slice(&buf[..len]);
-                    rbuf[0].set(data_offset as u8);
-                    rbuf[1].set(data_len as u8);
-                    true
+        self.apps.each(|_, _, kernel_data| {
+            let read_present = kernel_data
+                .get_readwrite_processbuffer(rw_allow::READ)
+                .and_then(|read| {
+                    read.mut_enter(|rbuf| {
+                        let len = min(rbuf.len(), data_offset + data_len);
+                        // Copy the entire frame over to userland, preceded by two
+                        // bytes: the data offset and the data length.
+                        rbuf[..len].copy_from_slice(&buf[..len]);
+                        rbuf[0].set(data_offset as u8);
+                        rbuf[1].set(data_len as u8);
+                        true
+                    })
                 })
                 .unwrap_or(false);
             if read_present {
@@ -954,7 +954,9 @@ impl device::RxClient for RadioDriver<'_> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                upcalls.schedule_upcall(0, (pans, dst_addr, src_addr)).ok();
+                kernel_data
+                    .schedule_upcall(0, (pans, dst_addr, src_addr))
+                    .ok();
             }
         });
     }

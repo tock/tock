@@ -3,13 +3,11 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -18,6 +16,20 @@ use kernel::{ErrorCode, ProcessId};
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SpiPeripheral as usize;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const WRITE: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const READ: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
 
 /// Suggested length for the SPI read and write buffer
 pub const DEFAULT_READ_BUF_LENGTH: usize = 1024;
@@ -28,8 +40,6 @@ pub const DEFAULT_WRITE_BUF_LENGTH: usize = 1024;
 // that includes this new callback field.
 #[derive(Default)]
 pub struct PeripheralApp {
-    app_read: ReadWriteProcessBuffer,
-    app_write: ReadOnlyProcessBuffer,
     len: usize,
     index: usize,
 }
@@ -40,12 +50,25 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     kernel_read: TakeCell<'static, [u8]>,
     kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
-    grants: Grant<PeripheralApp, 2>,
+    grants: Grant<
+        PeripheralApp,
+        UpcallCount<2>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
-    pub fn new(spi_slave: &'a S, grants: Grant<PeripheralApp, 2>) -> SpiPeripheral<'a, S> {
+    pub fn new(
+        spi_slave: &'a S,
+        grants: Grant<
+            PeripheralApp,
+            UpcallCount<2>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
+    ) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
             spi_slave: spi_slave,
             busy: Cell::new(false),
@@ -66,20 +89,22 @@ impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
 
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op
-    fn do_next_read_write(&self, app: &mut PeripheralApp) {
+    fn do_next_read_write(&self, app: &mut PeripheralApp, kernel_data: &GrantKernelData) {
         let write_len = self.kernel_write.map_or(0, |kwbuf| {
             let mut start = app.index;
-            let tmp_len = app
-                .app_write
-                .enter(|src| {
-                    let len = cmp::min(app.len - start, self.kernel_len.get());
-                    let end = cmp::min(start + len, src.len());
-                    start = cmp::min(start, end);
+            let tmp_len = kernel_data
+                .get_readonly_processbuffer(ro_allow::WRITE)
+                .and_then(|write| {
+                    write.enter(|src| {
+                        let len = cmp::min(app.len - start, self.kernel_len.get());
+                        let end = cmp::min(start + len, src.len());
+                        start = cmp::min(start, end);
 
-                    for (i, c) in src[start..end].iter().enumerate() {
-                        kwbuf[i] = c.get();
-                    }
-                    end - start
+                        for (i, c) in src[start..end].iter().enumerate() {
+                            kwbuf[i] = c.get();
+                        }
+                        end - start
+                    })
                 })
                 .unwrap_or(0);
             app.index = start + tmp_len;
@@ -98,56 +123,10 @@ impl<S: SpiSlaveDevice> SyscallDriver for SpiPeripheral<'_, S> {
     /// Provide read/write buffers to SpiPeripheral
     ///
     /// - allow_num 0: Provides a buffer to receive transfers into.
-    ///
-    fn allow_readwrite(
-        &self,
-        process_id: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant, _| match allow_num {
-                0 => {
-                    mem::swap(&mut grant.app_read, &mut slice);
-                    Ok(())
-                }
-                _ => Err(ErrorCode::NOSUPPORT),
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
 
     /// Provide read-only buffers to SpiPeripheral
     ///
     /// - allow_num 0: Provides a buffer to transmit
-    ///
-    fn allow_readonly(
-        &self,
-        process_id: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant, _| match allow_num {
-                0 => {
-                    mem::swap(&mut grant.app_write, &mut slice);
-                    Ok(())
-                }
-                _ => Err(ErrorCode::NOSUPPORT),
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
 
     /// - 0: check if present
     /// - 1: read/write buffers
@@ -208,15 +187,19 @@ impl<S: SpiSlaveDevice> SyscallDriver for SpiPeripheral<'_, S> {
                 if self.busy.get() {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.grants.enter(process_id, |app, _| {
-                    let mut mlen = app.app_write.enter(|w| w.len()).unwrap_or(0);
-                    let rlen = app.app_read.enter(|r| r.len()).unwrap_or(mlen);
+                self.grants.enter(process_id, |app, kernel_data| {
+                    let mut mlen = kernel_data
+                        .get_readonly_processbuffer(ro_allow::WRITE)
+                        .map_or(0, |write| write.len());
+                    let rlen = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::READ)
+                        .map_or(mlen, |read| read.len());
                     mlen = cmp::min(mlen, rlen);
                     if mlen >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
                         self.busy.set(true);
-                        self.do_next_read_write(app);
+                        self.do_next_read_write(app, kernel_data);
                         CommandReturn::success()
                     } else {
                         CommandReturn::failure(ErrorCode::INVAL)
@@ -270,33 +253,37 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
         _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, upcalls| {
+            let _ = self.grants.enter(*process_id, move |app, kernel_data| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
-                    let _ = app.app_read.mut_enter(|dest| {
-                        // Need to be careful that app_read hasn't changed
-                        // under us, so check all values against actual
-                        // slice lengths.
-                        //
-                        // If app_read is shorter than before, and shorter
-                        // than what we have read would require, then truncate.
-                        // -pal 12/9/20
-                        let end = index;
-                        let start = index - length;
-                        let end = cmp::min(end, cmp::min(src.len(), dest.len()));
+                    let _ = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::READ)
+                        .and_then(|read| {
+                            read.mut_enter(|dest| {
+                                // Need to be careful that app_read hasn't changed
+                                // under us, so check all values against actual
+                                // slice lengths.
+                                //
+                                // If app_read is shorter than before, and shorter
+                                // than what we have read would require, then truncate.
+                                // -pal 12/9/20
+                                let end = index;
+                                let start = index - length;
+                                let end = cmp::min(end, cmp::min(src.len(), dest.len()));
 
-                        // If the new endpoint is earlier than our expected
-                        // startpoint, we set the startpoint to be the same;
-                        // This results in a zero-length operation. -pal 12/9/20
-                        let start = cmp::min(start, end);
+                                // If the new endpoint is earlier than our expected
+                                // startpoint, we set the startpoint to be the same;
+                                // This results in a zero-length operation. -pal 12/9/20
+                                let start = cmp::min(start, end);
 
-                        let dest_area = &dest[start..end];
-                        let real_len = end - start;
+                                let dest_area = &dest[start..end];
+                                let real_len = end - start;
 
-                        for (i, c) in src[0..real_len].iter().enumerate() {
-                            dest_area[i].set(*c);
-                        }
-                    });
+                                for (i, c) in src[0..real_len].iter().enumerate() {
+                                    dest_area[i].set(*c);
+                                }
+                            })
+                        });
                     src
                 });
 
@@ -308,9 +295,9 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    upcalls.schedule_upcall(0, (len, 0, 0)).ok();
+                    kernel_data.schedule_upcall(0, (len, 0, 0)).ok();
                 } else {
-                    self.do_next_read_write(app);
+                    self.do_next_read_write(app, kernel_data);
                 }
             });
         });
@@ -319,9 +306,9 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
     // Simple callback for when chip has been selected
     fn chip_selected(&self) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, upcalls| {
+            let _ = self.grants.enter(*process_id, move |app, kernel_data| {
                 let len = app.len;
-                upcalls.schedule_upcall(1, (len, 0, 0)).ok();
+                kernel_data.schedule_upcall(1, (len, 0, 0)).ok();
             });
         });
     }

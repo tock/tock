@@ -103,15 +103,13 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
 
 use kernel::debug;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::copy_slice::CopyOrErr;
@@ -120,6 +118,20 @@ use kernel::{ErrorCode, ProcessId};
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::BleAdvertising as usize;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const ADV_DATA: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const SCAN_BUFFER: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
 
 /// Advertisement Buffer
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
@@ -130,8 +142,7 @@ const ADV_HEADER_TXADD_OFFSET: usize = 6;
 
 #[derive(PartialEq, Debug)]
 enum BLEState {
-    NotInitialized,
-    Initialized,
+    Idle,
     ScanningIdle,
     Scanning(RadioChannel),
     AdvertisingIdle,
@@ -178,7 +189,6 @@ pub struct App {
     alarm_data: AlarmData,
 
     // Advertising meta-data
-    adv_data: ReadOnlyProcessBuffer,
     address: [u8; PACKET_ADDR_LEN],
     pdu_type: AdvPduType,
     advertisement_interval_ms: u32,
@@ -189,20 +199,15 @@ pub struct App {
     /// It should be read using the `random_number` method, which updates it as
     /// well.
     random_nonce: u32,
-
-    // Scanning meta-data
-    scan_buffer: ReadWriteProcessBuffer,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             alarm_data: AlarmData::new(),
-            adv_data: ReadOnlyProcessBuffer::default(),
-            scan_buffer: ReadWriteProcessBuffer::default(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
-            process_status: Some(BLEState::NotInitialized),
+            process_status: Some(BLEState::Idle),
             tx_power: 0,
             advertisement_interval_ms: 200,
             // Just use any non-zero starting value by default
@@ -241,7 +246,9 @@ impl App {
     }
 
     fn send_advertisement<'a, B, A>(
-        &self,
+        &mut self,
+        appid: kernel::ProcessId,
+        kernel_data: &GrantKernelData,
         ble: &BLE<'a, B, A>,
         channel: RadioChannel,
     ) -> Result<(), ErrorCode>
@@ -249,39 +256,44 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver<'a> + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data
-            .enter(|adv_data| {
-                ble.kernel_tx
-                    .take()
-                    .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
-                        let adv_data_len =
-                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                        let adv_data_corrected =
-                            adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
-                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                        {
-                            let (header, payload) = kernel_tx.split_at_mut(2);
-                            header[0] = self.pdu_type;
-                            match self.pdu_type {
-                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                    // Set TxAdd because AdvA field is going to be a "random"
-                                    // address
-                                    header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+        // Ensure we have an address set before advertisement
+        self.generate_random_address(appid)?;
+        kernel_data
+            .get_readonly_processbuffer(ro_allow::ADV_DATA)
+            .and_then(|adv_data| {
+                adv_data.enter(|adv_data| {
+                    ble.kernel_tx
+                        .take()
+                        .map_or(Err(ErrorCode::FAIL), |kernel_tx| {
+                            let adv_data_len =
+                                cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                            let adv_data_corrected =
+                                adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
+                            let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                            {
+                                let (header, payload) = kernel_tx.split_at_mut(2);
+                                header[0] = self.pdu_type;
+                                match self.pdu_type {
+                                    ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                        // Set TxAdd because AdvA field is going to be a "random"
+                                        // address
+                                        header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+                                    }
+                                    _ => {}
                                 }
-                                _ => {}
-                            }
-                            // The LENGTH field is 6-bits wide, so make sure to truncate it
-                            header[1] = (payload_len & 0x3f) as u8;
+                                // The LENGTH field is 6-bits wide, so make sure to truncate it
+                                header[1] = (payload_len & 0x3f) as u8;
 
-                            let (adva, data) = payload.split_at_mut(6);
-                            adva.copy_from_slice_or_err(&self.address)?;
-                            adv_data_corrected.copy_to_slice(&mut data[..adv_data_len]);
-                        }
-                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                        ble.radio
-                            .transmit_advertisement(kernel_tx, total_len, channel);
-                        Ok(())
-                    })
+                                let (adva, data) = payload.split_at_mut(6);
+                                adva.copy_from_slice_or_err(&self.address)?;
+                                adv_data_corrected.copy_to_slice(&mut data[..adv_data_len]);
+                            }
+                            let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                            ble.radio
+                                .transmit_advertisement(kernel_tx, total_len, channel);
+                            Ok(())
+                        })
+                })
             })
             .unwrap_or(Err(ErrorCode::FAIL))
     }
@@ -316,7 +328,12 @@ where
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: Grant<App, 1>,
+    app: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     kernel_tx: kernel::utilities::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::ProcessId>,
@@ -330,7 +347,12 @@ where
 {
     pub fn new(
         radio: &'a B,
-        container: Grant<App, 1>,
+        container: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
@@ -399,7 +421,7 @@ where
     fn alarm(&self) {
         let now = self.alarm.now();
 
-        self.app.each(|appid, app, _| {
+        self.app.each(|appid, app, kernel_data| {
             if let Expiration::Enabled(reference, dt) = app.alarm_data.expiration {
                 let exp = A::Ticks::from(reference.wrapping_add(dt));
                 let t0 = A::Ticks::from(reference);
@@ -424,8 +446,12 @@ where
                                 Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
                             self.sending_app.set(appid);
                             let _ = self.radio.set_tx_power(app.tx_power);
-                            let _ =
-                                app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
+                            let _ = app.send_advertisement(
+                                appid,
+                                kernel_data,
+                                &self,
+                                RadioChannel::AdvertisingChannel37,
+                            );
                         }
                         Some(BLEState::ScanningIdle) => {
                             self.busy.set(true);
@@ -453,7 +479,7 @@ where
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
         self.receiving_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, upcalls| {
+            let _ = self.app.enter(*appid, |app, kernel_data| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
@@ -465,17 +491,20 @@ where
 
                 if len <= PACKET_LENGTH as u8 && result == Ok(()) {
                     // write to buffer in userland
-                    let success = app
-                        .scan_buffer
-                        .mut_enter(|userland| {
-                            userland[0..len as usize]
-                                .copy_from_slice_or_err(&buf[0..len as usize])
-                                .is_ok()
+
+                    let success = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::SCAN_BUFFER)
+                        .and_then(|scan_buffer| {
+                            scan_buffer.mut_enter(|userland| {
+                                userland[0..len as usize]
+                                    .copy_from_slice_or_err(&buf[0..len as usize])
+                                    .is_ok()
+                            })
                         })
                         .unwrap_or(false);
 
                     if success {
-                        upcalls
+                        kernel_data
                             .schedule_upcall(
                                 0,
                                 (kernel::errorcode::into_statuscode(result), len as usize, 0),
@@ -525,21 +554,31 @@ where
     fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
         self.sending_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, _| {
+            let _ = self.app.enter(*appid, |app, kernel_data| {
                 match app.process_status {
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
                         self.sending_app.set(*appid);
                         let _ = self.radio.set_tx_power(app.tx_power);
-                        let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
+                        let _ = app.send_advertisement(
+                            *appid,
+                            kernel_data,
+                            &self,
+                            RadioChannel::AdvertisingChannel38,
+                        );
                     }
 
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
                         self.sending_app.set(*appid);
-                        let _ = app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
+                        let _ = app.send_advertisement(
+                            *appid,
+                            kernel_data,
+                            &self,
+                            RadioChannel::AdvertisingChannel39,
+                        );
                     }
 
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39)) => {
@@ -574,7 +613,7 @@ where
             0 => {
                 self.app
                     .enter(appid, |app, _| {
-                        if let Some(BLEState::Initialized) = app.process_status {
+                        if let Some(BLEState::Idle) = app.process_status {
                             let pdu_type = data as AdvPduType;
                             match pdu_type {
                                 ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
@@ -609,7 +648,7 @@ where
                 .app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
-                        app.process_status = Some(BLEState::Initialized);
+                        app.process_status = Some(BLEState::Idle);
                         CommandReturn::success()
                     }
                     _ => CommandReturn::failure(ErrorCode::BUSY),
@@ -651,7 +690,7 @@ where
             5 => {
                 self.app
                     .enter(appid, |app, _| {
-                        if let Some(BLEState::Initialized) = app.process_status {
+                        if let Some(BLEState::Idle) = app.process_status {
                             app.process_status = Some(BLEState::ScanningIdle);
                             app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                             Ok(())
@@ -675,64 +714,6 @@ where
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
         .into()
-    }
-
-    fn allow_readonly(
-        &self,
-        appid: kernel::ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Advertisement buffer
-            0 => self
-                .app
-                .enter(appid, |app, _| {
-                    app.generate_random_address(appid).map(|_| {
-                        app.process_status = Some(BLEState::Initialized);
-                        mem::swap(&mut app.adv_data, &mut slice);
-                    })
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-
-            // Operation not supported
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn allow_readwrite(
-        &self,
-        appid: kernel::ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Passive scanning buffer
-            0 => self
-                .app
-                .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        mem::swap(&mut app.scan_buffer, &mut slice);
-                        app.process_status = Some(BLEState::Initialized);
-                        Ok(())
-                    }
-                    _ => Err(ErrorCode::INVAL),
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-
-            // Operation not supported
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {

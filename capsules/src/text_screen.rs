@@ -11,12 +11,12 @@
 //!         .finalize(components::screen_buffer_size!(64));
 //! ```
 
+use core::cmp;
 use core::convert::From;
-use core::{cmp, mem};
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
+use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -24,6 +24,13 @@ use kernel::{ErrorCode, ProcessId};
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::TextScreen as usize;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const SHARED: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum TextScreenCommand {
@@ -43,7 +50,6 @@ enum TextScreenCommand {
 
 pub struct App {
     pending_command: bool,
-    shared: ReadOnlyProcessBuffer,
     write_len: usize,
     command: TextScreenCommand,
     data1: usize,
@@ -54,7 +60,6 @@ impl Default for App {
     fn default() -> App {
         App {
             pending_command: false,
-            shared: ReadOnlyProcessBuffer::default(),
             write_len: 0,
             command: TextScreenCommand::Idle,
             data1: 1,
@@ -65,7 +70,7 @@ impl Default for App {
 
 pub struct TextScreen<'a> {
     text_screen: &'a dyn hil::text_screen::TextScreen<'static>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -74,7 +79,7 @@ impl<'a> TextScreen<'a> {
     pub fn new(
         text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> TextScreen<'a> {
         TextScreen {
             text_screen: text_screen,
@@ -139,11 +144,11 @@ impl<'a> TextScreen<'a> {
         let mut run_next = false;
         let res = self.current_app.map_or(Err(ErrorCode::FAIL), |app| {
             self.apps
-                .enter(*app, |app, upcalls| match app.command {
+                .enter(*app, |app, kernel_data| match app.command {
                     TextScreenCommand::GetResolution => {
                         let (x, y) = self.text_screen.get_size();
                         app.pending_command = false;
-                        let _ = upcalls
+                        let _ = kernel_data
                             .schedule_upcall(0, (kernel::errorcode::into_statuscode(Ok(())), x, y));
                         run_next = true;
                         Ok(())
@@ -159,21 +164,25 @@ impl<'a> TextScreen<'a> {
                     TextScreenCommand::Write => {
                         if app.data1 > 0 {
                             app.write_len = app.data1;
-                            let res = app.shared.enter(|to_write_buffer| {
-                                self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
-                                    let len = cmp::min(app.write_len, buffer.len());
-                                    for n in 0..len {
-                                        buffer[n] = to_write_buffer[n].get();
-                                    }
-                                    match self.text_screen.print(buffer, len) {
-                                        Ok(()) => Ok(()),
-                                        Err((ecode, buffer)) => {
-                                            self.buffer.replace(buffer);
-                                            Err(ecode)
-                                        }
-                                    }
-                                })
-                            });
+                            let res = kernel_data
+                                .get_readonly_processbuffer(ro_allow::SHARED)
+                                .and_then(|shared| {
+                                    shared.enter(|to_write_buffer| {
+                                        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
+                                            let len = cmp::min(app.write_len, buffer.len());
+                                            for n in 0..len {
+                                                buffer[n] = to_write_buffer[n].get();
+                                            }
+                                            match self.text_screen.print(buffer, len) {
+                                                Ok(()) => Ok(()),
+                                                Err((ecode, buffer)) => {
+                                                    self.buffer.replace(buffer);
+                                                    Err(ecode)
+                                                }
+                                            }
+                                        })
+                                    })
+                                });
                             match res {
                                 Ok(Ok(())) => Ok(()),
                                 Ok(Err(err)) => Err(err),
@@ -224,9 +233,9 @@ impl<'a> TextScreen<'a> {
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, upcalls| {
+            let _ = self.apps.enter(appid, |app, kernel_data| {
                 app.pending_command = false;
-                upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
+                kernel_data.schedule_upcall(0, (data1, data2, data3)).ok();
             });
         });
     }
@@ -267,30 +276,6 @@ impl<'a> SyscallDriver for TextScreen<'a> {
             11 => self.enqueue_command(TextScreenCommand::SetCursor, data1, data2, appid),
             // NOSUPPORT
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
-    }
-
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        match allow_num {
-            0 => {
-                let res = self
-                    .apps
-                    .enter(appid, |app, _| {
-                        mem::swap(&mut app.shared, &mut slice);
-                    })
-                    .map_err(ErrorCode::from);
-                if let Err(e) = res {
-                    Err((slice, e))
-                } else {
-                    Ok(slice)
-                }
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
         }
     }
 

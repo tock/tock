@@ -5,24 +5,43 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Aes as usize;
 
 use core::cell::Cell;
-use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, CCMClient, Client, AES128, AES128CBC, AES128CCM, AES128ECB, AES128_BLOCK_SIZE,
 };
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const KEY: usize = 0;
+    pub const IV: usize = 1;
+    pub const SOURCE: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const DEST: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
 
 pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static>> {
     aes: &'a A,
 
     active: Cell<bool>,
 
-    apps: Grant<App, 1>,
+    apps: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     appid: OptionalCell<ProcessId>,
 
     source_buffer: TakeCell<'static, [u8]>,
@@ -37,7 +56,12 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         aes: &'static A,
         source_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
     ) -> AesDriver<'static, A> {
         AesDriver {
             aes,
@@ -53,7 +77,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
     fn run(&self) -> Result<(), ErrorCode> {
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
-                .enter(*appid, |app, _| {
+                .enter(*appid, |app, kernel_data| {
                     self.aes.enable();
                     let ret = if let Some(op) = &app.aes_operation {
                         match op {
@@ -75,147 +99,161 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                         return ret;
                     }
 
-                    app.key
-                        .enter(|key| {
-                            let mut static_buffer_len = 0;
-                            self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::KEY)
+                        .and_then(|key| {
+                            key.enter(|key| {
+                                let mut static_buffer_len = 0;
+                                self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
 
-                                if static_buffer_len > key.len() {
-                                    static_buffer_len = key.len()
-                                }
-
-                                // Copy the data into the static buffer
-                                key[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                if let Some(op) = app.aes_operation.as_ref() {
-                                    match op {
-                                        AesOperation::AES128Ctr(_)
-                                        | AesOperation::AES128CBC(_)
-                                        | AesOperation::AES128ECB(_) => {
-                                            if let Err(e) = AES128::set_key(self.aes, buf) {
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        }
-                                        AesOperation::AES128CCM(_) => {
-                                            if let Err(e) = AES128CCM::set_key(self.aes, buf) {
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        }
+                                    if static_buffer_len > key.len() {
+                                        static_buffer_len = key.len()
                                     }
-                                } else {
-                                    Err(ErrorCode::FAIL)
-                                }
-                            })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
 
-                    app.iv
-                        .enter(|iv| {
-                            let mut static_buffer_len = 0;
-                            self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                                    // Copy the data into the static buffer
+                                    key[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                if static_buffer_len > iv.len() {
-                                    static_buffer_len = iv.len()
-                                }
-
-                                // Copy the data into the static buffer
-                                iv[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                if let Some(op) = app.aes_operation.as_ref() {
-                                    match op {
-                                        AesOperation::AES128Ctr(_)
-                                        | AesOperation::AES128CBC(_)
-                                        | AesOperation::AES128ECB(_) => {
-                                            if let Err(e) = self.aes.set_iv(buf) {
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        }
-                                        AesOperation::AES128CCM(_) => {
-                                            if let Err(e) = self.aes.set_nonce(&buf[0..13]) {
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        }
-                                    }
-                                } else {
-                                    Err(ErrorCode::FAIL)
-                                }
-                            })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                    app.source
-                        .enter(|source| {
-                            let mut static_buffer_len = 0;
-
-                            if let Some(op) = app.aes_operation.as_ref() {
-                                match op {
-                                    AesOperation::AES128Ctr(_)
-                                    | AesOperation::AES128CBC(_)
-                                    | AesOperation::AES128ECB(_) => {
-                                        self.source_buffer.map_or(
-                                            Err(ErrorCode::NOMEM),
-                                            |buf| {
-                                                // Determine the size of the static buffer we have
-                                                static_buffer_len = buf.len();
-
-                                                if static_buffer_len > source.len() {
-                                                    static_buffer_len = source.len()
+                                    if let Some(op) = app.aes_operation.as_ref() {
+                                        match op {
+                                            AesOperation::AES128Ctr(_)
+                                            | AesOperation::AES128CBC(_)
+                                            | AesOperation::AES128ECB(_) => {
+                                                if let Err(e) = AES128::set_key(self.aes, buf) {
+                                                    return Err(e);
                                                 }
-
-                                                // Copy the data into the static buffer
-                                                source[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                                self.data_copied.set(static_buffer_len);
-
                                                 Ok(())
-                                            },
-                                        )?;
-                                    }
-                                    AesOperation::AES128CCM(_) => {
-                                        self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                            // Determine the size of the static buffer we have
-                                            static_buffer_len = buf.len();
-
-                                            if static_buffer_len > source.len() {
-                                                static_buffer_len = source.len()
                                             }
-
-                                            // Copy the data into the static buffer
-                                            source[..static_buffer_len]
-                                                .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                            self.data_copied.set(static_buffer_len);
-
-                                            Ok(())
-                                        })?;
+                                            AesOperation::AES128CCM(_) => {
+                                                if let Err(e) = AES128CCM::set_key(self.aes, buf) {
+                                                    return Err(e);
+                                                }
+                                                Ok(())
+                                            }
+                                        }
+                                    } else {
+                                        Err(ErrorCode::FAIL)
                                     }
-                                }
+                                })
+                            })
+                        })
+                        .unwrap_or(Err(ErrorCode::RESERVE))?;
 
-                                if let Err(e) = self.calculate_output(
-                                    op,
-                                    app.aoff.get(),
-                                    app.moff.get(),
-                                    app.mlen.get(),
-                                    app.mic_len.get(),
-                                    app.confidential.get(),
-                                ) {
-                                    return Err(e);
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::IV)
+                        .and_then(|iv| {
+                            iv.enter(|iv| {
+                                let mut static_buffer_len = 0;
+                                self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
+
+                                    if static_buffer_len > iv.len() {
+                                        static_buffer_len = iv.len()
+                                    }
+
+                                    // Copy the data into the static buffer
+                                    iv[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+
+                                    if let Some(op) = app.aes_operation.as_ref() {
+                                        match op {
+                                            AesOperation::AES128Ctr(_)
+                                            | AesOperation::AES128CBC(_)
+                                            | AesOperation::AES128ECB(_) => {
+                                                if let Err(e) = self.aes.set_iv(buf) {
+                                                    return Err(e);
+                                                }
+                                                Ok(())
+                                            }
+                                            AesOperation::AES128CCM(_) => {
+                                                if let Err(e) = self.aes.set_nonce(&buf[0..13]) {
+                                                    return Err(e);
+                                                }
+                                                Ok(())
+                                            }
+                                        }
+                                    } else {
+                                        Err(ErrorCode::FAIL)
+                                    }
+                                })
+                            })
+                        })
+                        .unwrap_or(Err(ErrorCode::RESERVE))?;
+
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::SOURCE)
+                        .and_then(|source| {
+                            source.enter(|source| {
+                                let mut static_buffer_len = 0;
+
+                                if let Some(op) = app.aes_operation.as_ref() {
+                                    match op {
+                                        AesOperation::AES128Ctr(_)
+                                        | AesOperation::AES128CBC(_)
+                                        | AesOperation::AES128ECB(_) => {
+                                            self.source_buffer.map_or(
+                                                Err(ErrorCode::NOMEM),
+                                                |buf| {
+                                                    // Determine the size of the static buffer we have
+                                                    static_buffer_len = buf.len();
+
+                                                    if static_buffer_len > source.len() {
+                                                        static_buffer_len = source.len()
+                                                    }
+
+                                                    // Copy the data into the static buffer
+                                                    source[..static_buffer_len].copy_to_slice(
+                                                        &mut buf[..static_buffer_len],
+                                                    );
+
+                                                    self.data_copied.set(static_buffer_len);
+
+                                                    Ok(())
+                                                },
+                                            )?;
+                                        }
+                                        AesOperation::AES128CCM(_) => {
+                                            self.dest_buffer.map_or(
+                                                Err(ErrorCode::NOMEM),
+                                                |buf| {
+                                                    // Determine the size of the static buffer we have
+                                                    static_buffer_len = buf.len();
+
+                                                    if static_buffer_len > source.len() {
+                                                        static_buffer_len = source.len()
+                                                    }
+
+                                                    // Copy the data into the static buffer
+                                                    source[..static_buffer_len].copy_to_slice(
+                                                        &mut buf[..static_buffer_len],
+                                                    );
+
+                                                    self.data_copied.set(static_buffer_len);
+
+                                                    Ok(())
+                                                },
+                                            )?;
+                                        }
+                                    }
+
+                                    if let Err(e) = self.calculate_output(
+                                        op,
+                                        app.aoff.get(),
+                                        app.moff.get(),
+                                        app.mlen.get(),
+                                        app.mic_len.get(),
+                                        app.confidential.get(),
+                                    ) {
+                                        return Err(e);
+                                    }
+                                    Ok(())
+                                } else {
+                                    Err(ErrorCode::FAIL)
                                 }
-                                Ok(())
-                            } else {
-                                Err(ErrorCode::FAIL)
-                            }
+                            })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))?;
 
@@ -322,41 +360,49 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, upcalls| {
+                .enter(*id, |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
 
+                    let source_len = kernel_data
+                        .get_readonly_processbuffer(ro_allow::SOURCE)
+                        .map_or(0, |source| source.len());
+
                     let subtract = self
                         .source_buffer
-                        .map_or(0, |buf| core::cmp::min(buf.len(), app.source.len()));
+                        .map_or(0, |buf| core::cmp::min(buf.len(), source_len));
 
                     self.dest_buffer.map(|buf| {
-                        let ret = app.dest.mut_enter(|dest| {
-                            let offset = self.data_copied.get() - subtract;
-                            let app_len = dest.len();
-                            let static_len = self.source_buffer.map_or(0, |source_buf| {
-                                core::cmp::min(source_buf.len(), buf.len())
-                            });
+                        let ret = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::DEST)
+                            .and_then(|dest| {
+                                dest.mut_enter(|dest| {
+                                    let offset = self.data_copied.get() - subtract;
+                                    let app_len = dest.len();
+                                    let static_len = self.source_buffer.map_or(0, |source_buf| {
+                                        core::cmp::min(source_buf.len(), buf.len())
+                                    });
 
-                            if app_len < static_len {
-                                if app_len - offset > 0 {
-                                    dest[offset..app_len]
-                                        .copy_from_slice(&buf[0..(app_len - offset)]);
-                                }
-                            } else {
-                                if offset + static_len <= app_len {
-                                    dest[offset..(offset + static_len)]
-                                        .copy_from_slice(&buf[0..static_len]);
-                                }
-                            }
-                        });
+                                    if app_len < static_len {
+                                        if app_len - offset > 0 {
+                                            dest[offset..app_len]
+                                                .copy_from_slice(&buf[0..(app_len - offset)]);
+                                        }
+                                    } else {
+                                        if offset + static_len <= app_len {
+                                            dest[offset..(offset + static_len)]
+                                                .copy_from_slice(&buf[0..static_len]);
+                                        }
+                                    }
+                                })
+                            });
 
                         if let Err(e) = ret {
                             // No data buffer, clear the appid and data
                             self.aes.disable();
                             self.appid.clear();
-                            upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
                     });
@@ -366,27 +412,29 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     }
 
                     self.source_buffer.map(|buf| {
-                        let ret = app
-                            .source
-                            .enter(|source| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
-                                // Determine how much data we have already copied
-                                let copied_data = self.data_copied.get();
+                        let ret = kernel_data
+                            .get_readonly_processbuffer(ro_allow::SOURCE)
+                            .and_then(|source| {
+                                source.enter(|source| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
+                                    // Determine how much data we have already copied
+                                    let copied_data = self.data_copied.get();
 
-                                data_len = source.len();
+                                    data_len = source.len();
 
-                                if data_len > copied_data {
-                                    let remaining_data = &source[copied_data..];
-                                    let remaining_len = data_len - copied_data;
+                                    if data_len > copied_data {
+                                        let remaining_data = &source[copied_data..];
+                                        let remaining_len = data_len - copied_data;
 
-                                    if remaining_len < static_buffer_len {
-                                        remaining_data.copy_to_slice(&mut buf[..remaining_len]);
-                                    } else {
-                                        remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        if remaining_len < static_buffer_len {
+                                            remaining_data.copy_to_slice(&mut buf[..remaining_len]);
+                                        } else {
+                                            remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        }
                                     }
-                                }
-                                Ok(())
+                                    Ok(())
+                                })
                             })
                             .unwrap_or(Err(ErrorCode::RESERVE));
 
@@ -394,7 +442,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             // No data buffer, clear the appid and data
                             self.aes.disable();
                             self.appid.clear();
-                            upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
                     });
@@ -436,7 +484,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     }
 
                     // If we get here we have finished all the crypto operations
-                    upcalls
+                    kernel_data
                         .schedule_upcall(0, (0, self.data_copied.get(), 0))
                         .ok();
                     self.data_copied.set(0);
@@ -460,39 +508,43 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, upcalls| {
+                .enter(*id, |_, kernel_data| {
                     let mut exit = false;
 
                     if let Err(e) = res {
-                        upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                        kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                         return;
                     }
 
                     self.dest_buffer.map(|buf| {
-                        let ret = app.dest.mut_enter(|dest| {
-                            let offset =
-                                self.data_copied.get() - (core::cmp::min(buf.len(), dest.len()));
-                            let app_len = dest.len();
-                            let static_len = buf.len();
+                        let ret = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::DEST)
+                            .and_then(|dest| {
+                                dest.mut_enter(|dest| {
+                                    let offset = self.data_copied.get()
+                                        - (core::cmp::min(buf.len(), dest.len()));
+                                    let app_len = dest.len();
+                                    let static_len = buf.len();
 
-                            if app_len < static_len {
-                                if app_len - offset > 0 {
-                                    dest[offset..app_len]
-                                        .copy_from_slice(&buf[0..(app_len - offset)]);
-                                }
-                            } else {
-                                if offset + static_len <= app_len {
-                                    dest[offset..(offset + static_len)]
-                                        .copy_from_slice(&buf[0..static_len]);
-                                }
-                            }
-                        });
+                                    if app_len < static_len {
+                                        if app_len - offset > 0 {
+                                            dest[offset..app_len]
+                                                .copy_from_slice(&buf[0..(app_len - offset)]);
+                                        }
+                                    } else {
+                                        if offset + static_len <= app_len {
+                                            dest[offset..(offset + static_len)]
+                                                .copy_from_slice(&buf[0..static_len]);
+                                        }
+                                    }
+                                })
+                            });
 
                         if let Err(e) = ret {
                             // No data buffer, clear the appid and data
                             self.aes.disable();
                             self.appid.clear();
-                            upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
                     });
@@ -503,7 +555,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
                     // AES CCM is online only we can't send any more data in, so
                     // just report what we did to the app.
-                    upcalls
+                    kernel_data
                         .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize))
                         .ok();
                     self.data_copied.set(0);
@@ -522,74 +574,6 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>> SyscallDriver
     for AesDriver<'static, A>
 {
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the destination to be in.
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.dest, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app, _| {
-                match allow_num {
-                    // Pass buffer for the key to be in
-                    0 => {
-                        mem::swap(&mut app.key, &mut slice);
-                        Ok(())
-                    }
-
-                    // Pass buffer for the IV to be in
-                    // This also contains the nonce when doing AES CCM
-                    1 => {
-                        mem::swap(&mut app.iv, &mut slice);
-                        Ok(())
-                    }
-                    // Pass buffer for the source to be in
-                    // If doing a CCM operation also set the mlen
-                    2 => {
-                        mem::swap(&mut app.source, &mut slice);
-                        app.mlen.set(app.source.len());
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or(Err(ErrorCode::FAIL));
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -663,7 +647,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
         let ret = self
             .apps
-            .enter(appid, |app, upcalls| {
+            .enter(appid, |app, kernel_data| {
                 match command_num {
                     // check if present
                     0 => CommandReturn::success(),
@@ -711,46 +695,51 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     // This will trigger a callback
                     3 => {
                         if app_match {
-                            if let Err(e) = app
-                                .source
-                                .enter(|source| {
-                                    let mut static_buffer_len = 0;
-                                    self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                        // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.len();
+                            if let Err(e) = kernel_data
+                                .get_readonly_processbuffer(ro_allow::SOURCE)
+                                .and_then(|source| {
+                                    source.enter(|source| {
+                                        let mut static_buffer_len = 0;
+                                        self.source_buffer.map_or(
+                                            Err(ErrorCode::NOMEM),
+                                            |buf| {
+                                                // Determine the size of the static buffer we have
+                                                static_buffer_len = buf.len();
 
-                                        if static_buffer_len > source.len() {
-                                            static_buffer_len = source.len()
+                                                if static_buffer_len > source.len() {
+                                                    static_buffer_len = source.len()
+                                                }
+
+                                                // Copy the data into the static buffer
+                                                source[..static_buffer_len]
+                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+
+                                                self.data_copied.set(static_buffer_len);
+
+                                                Ok(())
+                                            },
+                                        )?;
+
+                                        if let Some(op) = app.aes_operation.as_ref() {
+                                            if let Err(e) = self.calculate_output(
+                                                op,
+                                                app.aoff.get(),
+                                                app.moff.get(),
+                                                app.mlen.get(),
+                                                app.mic_len.get(),
+                                                app.confidential.get(),
+                                            ) {
+                                                return Err(e);
+                                            }
+                                            Ok(())
+                                        } else {
+                                            Err(ErrorCode::FAIL)
                                         }
-
-                                        // Copy the data into the static buffer
-                                        source[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                        self.data_copied.set(static_buffer_len);
-
-                                        Ok(())
-                                    })?;
-
-                                    if let Some(op) = app.aes_operation.as_ref() {
-                                        if let Err(e) = self.calculate_output(
-                                            op,
-                                            app.aoff.get(),
-                                            app.moff.get(),
-                                            app.mlen.get(),
-                                            app.mic_len.get(),
-                                            app.confidential.get(),
-                                        ) {
-                                            return Err(e);
-                                        }
-                                        Ok(())
-                                    } else {
-                                        Err(ErrorCode::FAIL)
-                                    }
+                                    })
                                 })
                                 .unwrap_or(Err(ErrorCode::RESERVE))
                             {
-                                upcalls
+                                kernel_data
                                     .schedule_upcall(
                                         0,
                                         (kernel::errorcode::into_statuscode(e.into()), 0, 0),
@@ -843,10 +832,6 @@ enum AesOperation {
 pub struct App {
     pending_run_app: Option<ProcessId>,
     aes_operation: Option<AesOperation>,
-    key: ReadOnlyProcessBuffer,
-    iv: ReadOnlyProcessBuffer,
-    source: ReadOnlyProcessBuffer,
-    dest: ReadWriteProcessBuffer,
 
     aoff: Cell<usize>,
     moff: Cell<usize>,

@@ -7,7 +7,7 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** July 25, 2021<br/>
+**Draft-Modified:** November 23, 2021<br/>
 **Draft-Version:** 6<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -543,6 +543,12 @@ that were passed in the previous call, unless this is the first call.
 On the first successful invocation of a particular Read-Write Allow system 
 call, an driver implementation MUST return address 0 and size 0.
 
+If the kernel cannot access the grant region for this process, `NOMEM`
+will be returned. This can be caused by either running out a space in
+the grant region of RAM for the process, or the grant was never registered
+with the kernel during capsule creation at board startup. If the specified
+buffer number is not supported by the driver, the kernel will return `INVALID`.
+
 The standard access model for allowed buffers is that userspace does
 not read or write a buffer that has been allowed: access to the memory
 is intended to be exclusive either to userspace or to the kernel. To
@@ -572,15 +578,6 @@ MUST NOT assume or rely on a process accessing an allowed buffer. If
 userspace needs to read or write to a buffer held by the kernel, it
 MUST first regain access to it by calling the corresponding Read-Write
 Allow.
-
-Note that these requirements are typically on capsule code, and are not
-enforced by the core kernel. Because capsules may have bugs or not be fully
-trusted, userspace SHOULD NOT rely on the fact that drivers follow these rules as
-described, especially if the capsule code is not independently checked and tested.
-Instead, userspace SHOULD employ additional checks to ensure that
-drivers behave as specified, and implement proper error handling as needed.
-The core kernel MAY enforce a subset of these
-specified rules in the future.
 
 4.4.1 Buffers Can Change
 ---------------------------------
