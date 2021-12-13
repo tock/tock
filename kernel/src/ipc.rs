@@ -185,11 +185,13 @@ impl<const NUM_PROCS: usize> SyscallDriver for IPC<NUM_PROCS> {
                             let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                             match ret {
                                 Ok(()) => CommandReturn::success(),
-                                Err(e) => match e {
-                                    // The other side has a null upcall, choosing to ignore
-                                    ErrorCode::OFF => CommandReturn::success(),
-                                    _ => CommandReturn::failure(e),
-                                },
+                                Err(e) => {
+                                    // `enqueue_task` does not provide information on whether the
+                                    // recipient has set a non-null callback. It only reports
+                                    // general failures, such as insufficient memory in the pending
+                                    // tasks queue
+                                    CommandReturn::failure(e)
+                                }
                             }
                         },
                     )
@@ -216,11 +218,13 @@ impl<const NUM_PROCS: usize> SyscallDriver for IPC<NUM_PROCS> {
                             let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                             match ret {
                                 Ok(()) => CommandReturn::success(),
-                                Err(e) => match e {
-                                    // The other side has a null upcall, choosing to ignore
-                                    ErrorCode::OFF => CommandReturn::success(),
-                                    _ => CommandReturn::failure(e),
-                                },
+                                Err(e) => {
+                                    // `enqueue_task` does not provide information on whether the
+                                    // recipient has set a non-null callback. It only reports
+                                    // general failures, such as insufficient memory in the pending
+                                    // tasks queue
+                                    CommandReturn::failure(e)
+                                }
                             }
                         },
                     )
