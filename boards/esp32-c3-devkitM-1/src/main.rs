@@ -270,6 +270,22 @@ unsafe fn setup() -> (
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        esp32_c3::timg::TimG
+    ));
+    let _ = process_console.start();
+
     let esp32_c3_board = static_init!(
         Esp32C3Board,
         Esp32C3Board {

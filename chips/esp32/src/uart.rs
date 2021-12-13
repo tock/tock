@@ -211,6 +211,7 @@ pub struct Uart<'a> {
     tx_index: Cell<usize>,
 
     rx_buffer: TakeCell<'static, [u8]>,
+    rx_index: Cell<usize>,
     rx_len: Cell<usize>,
 }
 
@@ -229,6 +230,7 @@ impl<'a> Uart<'a> {
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
             rx_buffer: TakeCell::empty(),
+            rx_index: Cell::new(0),
             rx_len: Cell::new(0),
         }
     }
@@ -244,7 +246,7 @@ impl<'a> Uart<'a> {
         );
     }
 
-    pub fn disable_tx_interrupt(&self) {
+    pub fn clear_tx_interrupt(&self) {
         let regs = self.registers;
 
         regs.int_clr.modify(
@@ -253,6 +255,10 @@ impl<'a> Uart<'a> {
                 + INT::TX_BRK_IDLE_DONE_INT::SET
                 + INT::TX_DONE_INT::SET,
         );
+    }
+
+    pub fn disable_tx_interrupt(&self) {
+        let regs = self.registers;
         regs.int_ena.modify(
             INT::TXFIFO_EMPTY_INT::CLEAR
                 + INT::TX_BRK_DONE_INT::CLEAR
@@ -269,12 +275,16 @@ impl<'a> Uart<'a> {
         );
     }
 
-    pub fn disable_rx_interrupt(&self) {
+    pub fn clear_rx_interrupt(&self) {
         let regs = self.registers;
 
         regs.int_clr.modify(
             INT::RXFIFO_FULL_INT::SET + INT::RXFIFO_OVF_INT::SET + INT::RXFIFO_TOUT_INT::SET,
         );
+    }
+
+    pub fn disable_rx_interrupt(&self) {
+        let regs = self.registers;
         regs.int_ena.modify(
             INT::RXFIFO_FULL_INT::CLEAR + INT::RXFIFO_OVF_INT::CLEAR + INT::RXFIFO_TOUT_INT::CLEAR,
         );
@@ -286,12 +296,6 @@ impl<'a> Uart<'a> {
         let len = self.tx_len.get();
 
         if idx < len {
-            // If we are going to transmit anything, we first need to enable the
-            // TX interrupt. This ensures that we will get an interrupt, where
-            // we can either call the callback from, or continue transmitting
-            // bytes.
-            self.enable_tx_interrupt();
-
             // Read from the transmit buffer and send bytes to the UART hardware
             // until either the buffer is empty or the UART hardware is full.
             self.tx_buffer.map(|tx_buf| {
@@ -310,14 +314,37 @@ impl<'a> Uart<'a> {
         }
     }
 
+    fn rx_progress(&self) {
+        let regs = self.registers;
+        let idx = self.rx_index.get();
+        let len = self.rx_len.get();
+
+        if idx < len {
+            // Read from the UART hardware and write them to the receive buffer
+            // until either the buffer is full or the UART hardware is empty.
+            self.rx_buffer.map(|rx_buf| {
+                let rx_len = len - idx;
+
+                for i in 0..rx_len {
+                    if regs.status.read(STATUS::RXFIFO_CNT) == 0 {
+                        break;
+                    }
+                    let rx_idx = idx + i;
+                    rx_buf[rx_idx] = regs.fifo.read(FIFO::RXFIFO_RD_BYTE) as u8;
+                    self.rx_index.set(rx_idx + 1)
+                }
+            });
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let intrs = regs.int_st.extract();
 
         if intrs.is_set(INT::TXFIFO_EMPTY_INT) {
-            self.disable_tx_interrupt();
-
+            self.clear_tx_interrupt();
             if self.tx_index.get() == self.tx_len.get() {
+                self.disable_tx_interrupt();
                 // We sent everything to the UART hardware, now from an
                 // interrupt callback we can issue the callback.
                 self.tx_client.map(|client| {
@@ -328,6 +355,28 @@ impl<'a> Uart<'a> {
             } else {
                 // We have more to transmit, so continue in tx_progress().
                 self.tx_progress();
+            }
+        }
+
+        if intrs.is_set(INT::RXFIFO_FULL_INT) || intrs.is_set(INT::RXFIFO_TOUT_INT) {
+            self.clear_rx_interrupt();
+            if self.rx_index.get() == self.rx_len.get() {
+                self.disable_rx_interrupt();
+                // We received everything from the UART hardware, now from an
+                // interrupt callback we can issue the callback.
+                self.rx_client.map(|client| {
+                    self.rx_buffer.take().map(|rx_buf| {
+                        client.received_buffer(
+                            rx_buf,
+                            self.rx_len.get(),
+                            Ok(()),
+                            hil::uart::Error::None,
+                        );
+                    });
+                });
+            } else {
+                // We have more to receive, so continue in rx_progress().
+                self.rx_progress();
             }
         }
     }
@@ -371,6 +420,8 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_len.set(tx_len);
             self.tx_index.set(0);
 
+            self.enable_tx_interrupt();
+
             self.tx_progress();
             Ok(())
         }
@@ -400,10 +451,13 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
             return Err((ErrorCode::SIZE, rx_buffer));
         }
 
+        self.rx_buffer.replace(rx_buffer);
+        self.rx_index.set(0);
+        self.rx_len.set(rx_len);
+
         self.enable_rx_interrupt();
 
-        self.rx_buffer.replace(rx_buffer);
-        self.rx_len.set(rx_len);
+        self.rx_progress();
 
         Ok(())
     }
