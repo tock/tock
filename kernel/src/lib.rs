@@ -86,7 +86,6 @@
 //!    use cases are discovered.
 
 #![feature(core_intrinsics, const_fn_trait_bound)]
-#![feature(in_band_lifetimes)]
 #![warn(unreachable_pub)]
 #![no_std]
 
