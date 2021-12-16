@@ -316,3 +316,11 @@ Finished garbage collection
 trivial assertion...
     [ok]
 ```
+
+The tests can also be run on Verilator with:
+
+```shell
+make BOARD_CONFIGURATION=sim_verilator test-verilator
+```
+
+Note that the Verilator tests can take hours to complete.

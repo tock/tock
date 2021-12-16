@@ -67,8 +67,7 @@ package-lock.json
 .netlify
 
 # OpenTitan test build
-boards/opentitan/earlgrey-nexysvideo/binary
-boards/opentitan/earlgrey-cw310/binary
+boards/opentitan/earlgrey-*/binary*
 
 # FuseSoC build files
 boards/swervolf/binary.hex
