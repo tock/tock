@@ -21,7 +21,7 @@
 
 use crate::driver::NUM;
 use core::cell::Cell;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::date_time;
 
 use kernel::errorcode::into_statuscode;
@@ -43,7 +43,7 @@ pub struct AppData {
 
 pub struct DateTime<'a> {
     date_time: &'a dyn date_time::DateTime<'a>,
-    apps: Grant<AppData, 1>,
+    apps: Grant<AppData, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     in_progress: Cell<bool>,
 }
 
@@ -71,7 +71,7 @@ register_bitfields![u32,
 impl<'a> DateTime<'a> {
     pub fn new(
         date_time: &'a dyn date_time::DateTime<'a>,
-        grant: Grant<AppData, 1>,
+        grant: Grant<AppData, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> DateTime<'a> {
         DateTime {
             date_time,
