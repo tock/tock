@@ -86,6 +86,8 @@ fn otbn_run_rsa_binary() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let otbn = &perf.otbn;
 
+    debug!("check otbn run binary...");
+
     if let Ok((imem_start, imem_length, dmem_start, dmem_length)) = unsafe {
         crate::otbn::find_app(
             "otbn-rsa",
@@ -97,7 +99,6 @@ fn otbn_run_rsa_binary() {
     } {
         let slice = unsafe { core::slice::from_raw_parts(imem_start as *const u8, imem_length) };
 
-        debug!("check otbn run binary...");
         run_kernel_op(100);
 
         CALLBACK.reset();
@@ -153,7 +154,7 @@ fn otbn_run_rsa_binary() {
         debug!("    [ok]");
         run_kernel_op(100);
     } else {
-        debug!("    [FAIL]");
+        debug!("    [FAIL] No OTBN binary");
         run_kernel_op(100);
     }
 }
