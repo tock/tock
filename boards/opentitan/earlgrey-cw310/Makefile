@@ -38,6 +38,17 @@ flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 	$(OPENTITAN_TREE)/util/fpga/cw310_loader.py --firmware $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 
+verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(call check_defined, OPENTITAN_TREE)
+	srec_cat $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
+		--binary --offset 0 --byte-swap 8 --fill 0xff \
+		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
+		-binary -range-pad 8 --output binary.64.vmem --vmem 64
+	$(OPENTITAN_TREE)/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
+		--meminit=rom,$(OPENTITAN_TREE)/build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
+		--meminit=flash,./binary.64.vmem \
+		--meminit=otp,$(OPENTITAN_TREE)/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+
 test:
 ifneq ($(OPENTITAN_TREE),)
 	$(error "Running on QEMU, use test-hardware to run on hardware")
