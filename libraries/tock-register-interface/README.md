@@ -90,22 +90,16 @@ struct Registers {
 }
 ```
 
-By default, `std` unit tests for the struct are generated as well (that is,
-tests attributed with `#[test]`). The unit tests make sure that the offsets and
-padding are consistent with the actual fields in the struct, and that alignment
-is correct.
+This crate will generate additional, compile time (`const`) assertions
+to validate various invariants of the register structs, such as
 
-Since those tests would break compilation in `custom-test-frameworks`
-environments, it is possible to opt out of the test generation. To do
-so, disable the default feature set containing the `std_unit_tests`
-feature:
+- proper start offset of padding fields,
+- proper start and end offsets of actual fields,
+- invalid alignment of field types,
+- the `@END` marker matching the size of the struct.
 
-```toml
-[dependencies.tock-registers]
-version = "0.4.x"
-default-features = false
-features = ["register_types"]
-```
+For more information on the generated assertions, check out the [`test_fields!`
+macro documentation](https://docs.tockos.org/tock_registers/macro.test_fields.html).
 
 By default, the visibility of the generated structs and fields is private. You
 can make them public using the `pub` keyword, just before the struct name or the
