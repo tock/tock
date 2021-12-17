@@ -79,6 +79,7 @@ impl Platform for STM32F429IDiscovery {
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma() {
+    use stm32f429zi::dma;
     use stm32f429zi::dma1::{Dma1Peripheral, DMA1};
     use stm32f429zi::usart;
     use stm32f429zi::usart::USART3;
@@ -89,8 +90,8 @@ unsafe fn setup_dma() {
     let usart3_rx_stream = Dma1Peripheral::USART3_RX.get_stream();
 
     USART3.set_dma(
-        usart::TxDMA(usart3_tx_stream),
-        usart::RxDMA(usart3_rx_stream),
+        usart::TxDMA(dma::Stream::Dma1Stream(usart3_tx_stream)),
+        usart::RxDMA(dma::Stream::Dma1Stream(usart3_rx_stream)),
     );
 
     usart3_tx_stream.set_client(&USART3);

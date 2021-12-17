@@ -811,6 +811,19 @@ impl Rcc {
         self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::CLEAR)
     }
 
+    // DMA2 clock
+    fn is_enabled_dma2_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::DMA2EN)
+    }
+
+    fn enable_dma2_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::DMA2EN::SET)
+    }
+
+    fn disable_dma2_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::DMA2EN::CLEAR)
+    }
+
     // GPIOH clock
 
     fn is_enabled_gpioh_clock(&self) -> bool {
@@ -1045,6 +1058,7 @@ pub enum PeripheralClockType {
 /// Peripherals clocked by HCLK1
 pub enum HCLK1 {
     DMA1,
+    DMA2,
     GPIOH,
     GPIOG,
     GPIOF,
@@ -1097,6 +1111,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
                 HCLK1::DMA1 => self.rcc.is_enabled_dma1_clock(),
+                HCLK1::DMA2 => self.rcc.is_enabled_dma2_clock(),
                 HCLK1::GPIOH => self.rcc.is_enabled_gpioh_clock(),
                 HCLK1::GPIOG => self.rcc.is_enabled_gpiog_clock(),
                 HCLK1::GPIOF => self.rcc.is_enabled_gpiof_clock(),
@@ -1113,7 +1128,6 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::AHB3(ref v) => match v {
                 HCLK3::FMC => self.rcc.is_enabled_fmc_clock(),
             },
-<<<<<<< HEAD
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
                 PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
@@ -1122,14 +1136,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::SPI3 => self.rcc.is_enabled_spi3_clock(),
             },
             PeripheralClockType::APB2(ref v) => match v {
+                PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
                 PCLK2::ADC1 => self.rcc.is_enabled_adc1_clock(),
                 PCLK2::SYSCFG => self.rcc.is_enabled_syscfg_clock(),
-=======
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::USART1 => unsafe { RCC.is_enabled_usart1_clock() },
-                PCLK2::ADC1 => unsafe { RCC.is_enabled_adc1_clock() },
-                PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
->>>>>>> 40196ce52 (stm32f429idiscovery: Configure LEDs and Buttons)
             },
         }
     }
@@ -1139,6 +1148,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::AHB1(ref v) => match v {
                 HCLK1::DMA1 => {
                     self.rcc.enable_dma1_clock();
+                }
+                HCLK1::DMA2 => {
+                    self.rcc.enable_dma2_clock();
                 }
                 HCLK1::GPIOH => {
                     self.rcc.enable_gpioh_clock();
@@ -1193,26 +1205,16 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                     self.rcc.enable_spi3_clock();
                 }
             },
-<<<<<<< HEAD
             PeripheralClockType::APB2(ref v) => match v {
+                PCLK2::USART1 => {
+                    self.rcc.enable_usart1_clock();
+                }
                 PCLK2::ADC1 => {
                     self.rcc.enable_adc1_clock();
                 }
                 PCLK2::SYSCFG => {
                     self.rcc.enable_syscfg_clock();
                 }
-=======
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::USART1 => unsafe {
-                    RCC.enable_usart1_clock();
-                },
-                PCLK2::ADC1 => unsafe {
-                    RCC.enable_adc1_clock();
-                },
-                PCLK2::SYSCFG => unsafe {
-                    RCC.enable_syscfg_clock();
-                },
->>>>>>> 40196ce52 (stm32f429idiscovery: Configure LEDs and Buttons)
             },
         }
     }
@@ -1222,6 +1224,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::AHB1(ref v) => match v {
                 HCLK1::DMA1 => {
                     self.rcc.disable_dma1_clock();
+                }
+                HCLK1::DMA2 => {
+                    self.rcc.disable_dma2_clock();
                 }
                 HCLK1::GPIOH => {
                     self.rcc.disable_gpioh_clock();
@@ -1276,26 +1281,16 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                     self.rcc.disable_spi3_clock();
                 }
             },
-<<<<<<< HEAD
             PeripheralClockType::APB2(ref v) => match v {
+                PCL2::USART1 => {
+                    self.rcc.disable_usart1_clock();
+                }
                 PCLK2::ADC1 => {
                     self.rcc.disable_adc1_clock();
                 }
                 PCLK2::SYSCFG => {
                     self.rcc.disable_syscfg_clock();
                 }
-=======
-            &PeripheralClock::APB2(ref v) => match v {
-                PCLK2::USART1 => unsafe {
-                    RCC.disable_usart1_clock();
-                },
-                PCLK2::ADC1 => unsafe {
-                    RCC.disable_adc1_clock();
-                },
-                PCLK2::SYSCFG => unsafe {
-                    RCC.disable_syscfg_clock();
-                },
->>>>>>> 40196ce52 (stm32f429idiscovery: Configure LEDs and Buttons)
             },
         }
     }
