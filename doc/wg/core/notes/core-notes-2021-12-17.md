@@ -81,7 +81,7 @@
 
  - Hudson: We used to, and it  was a huge pain for regular developers. Lots of conflicts, didn't give much benefit.
 
-ALyssa: Are yo uthinking for all crates, or examples, or the kernel, or what?
+ - Alyssa: Are you thinking for all crates, or examples, or the kernel, or what?
 
  - Leon: I think in terms of workspaces.
 
@@ -129,7 +129,7 @@ ALyssa: Are yo uthinking for all crates, or examples, or the kernel, or what?
 
  - Leon: In library crates, you are not expected to check in a Cargo.lock file. We are only concerned about what kinds of headaches checking in this file will have for developers. It seems OK if it behaves with workspaces, if it only updates with external dependencies, not things internal to the repository?
 
-Alyssa,  - Hudson: Yes.
+ - Alyssa, Hudson: Yes.
 
  - Leon: Let's put this as a low priority item for next time, so Amit and Brad can discuss.
 
