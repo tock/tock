@@ -217,6 +217,10 @@ endif
 # pass an empty string.
 CARGO_BLOAT_FLAGS ?=
 
+# Additional flags that can be passed to print_tock_memory_usage.py
+# via an environment variable. By default, pass an empty string
+PTMU_ARGS ?=
+
 
 # cargo bloat does not support -Z build-std, so we must remove it from cargo flags
 # see https://github.com/RazrFalcon/cargo-bloat/issues/62
@@ -348,7 +352,7 @@ stack-analysis:
 # Run the `print_tock_memory_usage.py` script for this board.
 .PHONY: memory
 memory: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $<
+	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $(PTMU_ARGS) $<
 
 # Support rules
 
