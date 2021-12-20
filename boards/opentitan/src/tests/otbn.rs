@@ -1,11 +1,10 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
+use kernel::static_init;
+use kernel::utilities::cells::TakeCell;
 use kernel::{debug, ErrorCode};
 use lowrisc::otbn::Client;
-
-static mut OUTPUT: [u8; 1024] = [0; 1024];
-static mut TEMP: [u8; 4] = [0; 4];
 
 static MODULUS: [u8; 256] = [
     0xf9, 0x90, 0xc7, 0x94, 0xcf, 0x96, 0xd3, 0x12, 0x6f, 0x16, 0xa6, 0x50, 0x5d, 0xcb, 0xe9, 0x29,
@@ -47,14 +46,16 @@ static EXPECTING: [u8; 256] = [
 
 struct OtbnTestCallback {
     op_done: Cell<bool>,
+    output_buf: TakeCell<'static, [u8]>,
 }
 
 unsafe impl Sync for OtbnTestCallback {}
 
 impl<'a> OtbnTestCallback {
-    const fn new() -> Self {
+    fn new(output_buf: &'static mut [u8]) -> Self {
         OtbnTestCallback {
             op_done: Cell::new(false),
+            output_buf: TakeCell::new(output_buf),
         }
     }
 
@@ -68,10 +69,10 @@ impl<'a> Client<'a> for OtbnTestCallback {
         self.op_done.set(true);
         assert_eq!(result, Ok(()));
         assert_eq!(output[0..256], EXPECTING);
+        // Keep copy of output
+        self.output_buf.replace(output);
     }
 }
-
-static CALLBACK: OtbnTestCallback = OtbnTestCallback::new();
 
 /// These symbols are defined in the linker script.
 extern "C" {
@@ -81,10 +82,22 @@ extern "C" {
     static _eapps: u8;
 }
 
+/// Static init an OtbnTestCallback, with
+/// a respective buffer allocated.
+/// Note: static_init!() returns an &'static mut reference.
+unsafe fn static_init_test_cb() -> &'static OtbnTestCallback {
+    let output_buf = static_init!([u8; 1024], [0; 1024]);
+
+    static_init!(OtbnTestCallback, OtbnTestCallback::new(output_buf))
+}
+
 #[test_case]
 fn otbn_run_rsa_binary() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let otbn = &perf.otbn;
+    let cb = unsafe { static_init_test_cb() };
+    let output = cb.output_buf.take().unwrap();
+    let mut temp: [u8; 4] = [0; 4];
 
     debug!("check otbn run binary...");
 
@@ -101,32 +114,30 @@ fn otbn_run_rsa_binary() {
 
         run_kernel_op(100);
 
-        CALLBACK.reset();
-        otbn.set_client(&CALLBACK);
+        cb.reset();
+        otbn.set_client(cb);
         assert_eq!(otbn.load_binary(slice), Ok(()));
 
         run_kernel_op(1000);
 
         let slice = unsafe { core::slice::from_raw_parts(dmem_start as *const u8, dmem_length) };
 
-        CALLBACK.reset();
+        cb.reset();
         assert_eq!(otbn.load_data(0, slice), Ok(()));
         run_kernel_op(1000);
 
         // Set the RSA mode to encryption
         // The address is the offset of `mode` in the RSA elf
-        unsafe {
-            TEMP[0] = 1;
-            assert_eq!(otbn.load_data(0, &TEMP[0..4]), Ok(()));
-        }
+        temp[0] = 1;
+        assert_eq!(otbn.load_data(0, &temp), Ok(()));
+
         run_kernel_op(1000);
 
         // Set the RSA length
         // The address is the offset of `n_limbs` in the RSA elf
-        unsafe {
-            TEMP[0] = (MODULUS.len() / 32) as u8;
-            assert_eq!(otbn.load_data(4, &TEMP[0..4]), Ok(()));
-        }
+        temp[0] = (MODULUS.len() / 32) as u8;
+        assert_eq!(otbn.load_data(4, &temp), Ok(()));
+
         run_kernel_op(1000);
 
         // Set the RSA modulus
@@ -142,14 +153,14 @@ fn otbn_run_rsa_binary() {
         assert_eq!(otbn.load_data(0x820, &source), Ok(()));
         run_kernel_op(1000);
 
-        CALLBACK.reset();
+        cb.reset();
         // The address is the offset of `out` in the RSA elf
-        assert_eq!(unsafe { otbn.run(0x288, &mut OUTPUT) }, Ok(()));
+        assert_eq!(otbn.run(0x288, output), Ok(()));
 
         run_kernel_op(10000);
 
         #[cfg(feature = "hardware_tests")]
-        assert_eq!(CALLBACK.op_done.get(), true);
+        assert_eq!(cb.op_done.get(), true);
 
         debug!("    [ok]");
         run_kernel_op(100);
