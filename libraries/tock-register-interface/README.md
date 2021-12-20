@@ -356,8 +356,8 @@ let any_ints = registers.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT
 let mode = registers.cr.read_as_enum(Status::MODE);
 
 match mode {
-    Some(Status::MODE::FullDuplex) => { /* ... */ }
-    Some(Status::MODE::HalfDuplex) => { /* ... */ }
+    Some(Status::MODE::Value::FullDuplex) => { /* ... */ }
+    Some(Status::MODE::Value::HalfDuplex) => { /* ... */ }
 
     None => unreachable!("invalid value")
 }
