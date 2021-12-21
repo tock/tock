@@ -137,17 +137,17 @@ unsafe fn set_pin_primary_functions() {
         pin.set_alternate_function(AlternateFunction::AF7);
     });
 
-    // button is connected on pa00
+    // User button B1 is connected on pa00
     PinId::PA00.get_pin().as_ref().map(|pin| {
         // By default, upon reset, the pin is in input mode, with no internal
         // pull-up, no internal pull-down (i.e., floating).
         //
         // Only set the mapping between EXTI line and the Pin and let capsule do
         // the rest.
-        EXTI.associate_line_gpiopin(LineId::Exti13, pin);
+        EXTI.associate_line_gpiopin(LineId::Exti0, pin);
     });
-    // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::EXTI15_10).enable();
+    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
+    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::EXTI0).enable();
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
@@ -379,7 +379,10 @@ pub unsafe fn reset_handler() {
             30 => stm32f429zi::gpio::PIN[3][11].as_ref().unwrap(), //D30
             31 => stm32f429zi::gpio::PIN[4][2].as_ref().unwrap(), //D31
             // Timer Pins
-            32 => stm32f429zi::gpio::PIN[0][0].as_ref().unwrap(), //D32
+            // PA00 (or PIN[0][0]) is used for the button component so cannot
+            // be used for this component as well, otherwise interrupts will
+            // not reach the button component.
+            // 32 => stm32f429zi::gpio::PIN[0][0].as_ref().unwrap(), //D32
             33 => stm32f429zi::gpio::PIN[1][0].as_ref().unwrap(), //D33
             34 => stm32f429zi::gpio::PIN[4][0].as_ref().unwrap(), //D34
             35 => stm32f429zi::gpio::PIN[1][11].as_ref().unwrap(), //D35
