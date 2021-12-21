@@ -777,7 +777,7 @@ impl Kernel {
         // process.
         //
         // Filtering a syscall (i.e. blocking the syscall from running) does not
-        // cause the process to loose its timeslice. The error will be returned
+        // cause the process to lose its timeslice. The error will be returned
         // immediately (assuming the process has not already exhausted its
         // timeslice) allowing the process to decide how to handle the error.
         match syscall {
