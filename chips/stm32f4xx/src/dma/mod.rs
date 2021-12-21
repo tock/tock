@@ -785,6 +785,7 @@ impl From<dma2::Dma2Peripheral> for DmaPeripheral {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Stream<'a> {
     Dma1Stream(&'a dma1::Stream<'static>),
     Dma2Stream(&'a dma2::Stream<'static>),
