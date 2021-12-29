@@ -185,6 +185,51 @@ $ cd [TOCK_ROOT]/boards/opentitan
 $ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
 ```
 
+QEMU GDB Debugging [**earlgrey-cw310**]
+------------------
+
+GDB can be used for debugging with QEMU. This can be useful when debugging a particular application/kernel. 
+
+Start by installing the respective version of gdb.
+
+**Arch**:
+```shell
+$ sudo pacman -S riscv32-elf-gdb    
+```
+**Ubuntu**:
+```shell
+$ sudo apt-get install gdb-multiarch
+```
+
+In the board directory, QEMU can be started in a suspended state with gdb ready to be connected. 
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> qemu-gdb
+```
+or with an app ready to be loaded.
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app-gdb
+```
+In a seperate shell, start gdb
+
+**Arch**
+```shell
+$ riscv32-elf-gdb [/path/to/tock.elf]
+> target remote:9000            #9000 is the specified default port
+```
+
+**Ubuntu**
+```shell
+$ gdb-multiarch [/path/to/tock.elf]
+> set arch riscv
+> target remote:9000            #9000 is the specified default port
+```
+
+Once attached, standard gdb functionality is avaliable. Additional debug symbols can be added with.
+```
+add-symbol-file <tock.elf>
+add-symbol-file <app.elf>
+```
+
 Unit tests
 ----------
 The Tock OpenTitan boards include automated unit tests to test the kernel.
