@@ -20,13 +20,12 @@ use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process::{ProcessAddresses, ProcessSizes};
+use crate::process_load::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
-use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
-use crate::verifier::{Verify, VerificationResult};
 
 use tock_tbf::types::CommandPermissions;
 
@@ -167,6 +166,11 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// the process occupies.
     flash: &'static [u8],
 
+    /// The footers of the process binary (may be zero-sized), which are metadata
+    /// about the process not covered by integrity. Used, among other things, to
+    /// store signatures.
+    footers: &'static [u8],
+    
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader,
 
@@ -258,6 +262,48 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         ret
+    }
+
+    /// Transition an unverified process into the State::Unstarted state.
+    /// Should require a capability. -pal
+    fn mark_verified(&self) -> Result<(), ErrorCode> {
+        if self.state.get() != State::Unverified {
+            return Err(ErrorCode::NODEVICE);
+        } else {
+            self.state.update(State::Unstarted);
+            Ok(())
+        }
+    }
+    
+    /// Enqueue the initialization function of a process onto its task list;
+    /// this is used to start a process. Should only be called when a process
+    /// is in the `State::Unstarted` state.
+    fn enqueue_init_task(&self) -> Result<(), ErrorCode> {
+        if self.state.get() != State::Unstarted {
+            return Err(ErrorCode::NODEVICE);
+        }
+
+        // And queue up this app to be restarted.
+        let flash_start = self.flash_start();
+        let app_start = unsafe {
+            flash_start.offset(self.header.get_app_start_offset() as isize) as usize
+        };
+        let init_fn = unsafe {
+            flash_start.offset(self.header.get_app_start_offset() as isize +
+                               self.header.get_init_function_offset() as isize) as usize
+        };
+
+        self.kernel.increment_work();
+        self.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: app_start as usize,
+                argument1: self.memory_start as usize,
+                argument2: self.memory_len,
+                argument3: self.app_break.get() as usize,
+            }))});
+        Ok(())
     }
 
     fn ready(&self) -> bool {
@@ -383,8 +429,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // Save the completion code.
         self.completion_code.set(completion_code);
 
-        // Mark the app as stopped so the scheduler won't try to run it.
-        self.state.update(State::Terminated);
+        if self.state.get() != State::Unverified {
+            // Mark the app as stopped so the scheduler won't try to run it.
+            self.state.update(State::Terminated);
+        }
     }
 
     fn get_restart_count(&self) -> usize {
@@ -1261,16 +1309,20 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         fault_policy: &'static dyn ProcessFaultPolicy,
         require_kernel_version: bool,
         index: usize,
-        verifier: &dyn Verify,
-    ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), ProcessLoadError> {
+    ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])> {
         // Get a slice for just the app header.
-        let header_flash = app_flash
-            .get(0..header_length as usize)
-            .ok_or(ProcessLoadError::NotEnoughFlash)?;
+        let header_flash = match app_flash.get(0..header_length as usize) {
+            Some(h) => h,
+            None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory))
+        };
 
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
-        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
+        let tbf_header = match tock_tbf::parse::parse_tbf_header(header_flash, app_version) {
+            Ok(h) => h,
+            Err(err) => return Err((err.into(), remaining_memory))
+        };
+                
 
         let process_name = tbf_header.get_package_name();
 
@@ -1314,9 +1366,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 if config::CONFIG.debug_load_processes {
                     debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})", process_name.unwrap_or("(no name)"), major, minor, (major+1), crate::MAJOR, crate::MINOR);
                 }
-                return Err(ProcessLoadError::IncompatibleKernelVersion {
+                return Err((ProcessLoadError::IncompatibleKernelVersion {
                     version: Some((major, minor)),
-                });
+                }, remaining_memory));
             }
         } else {
             if require_kernel_version {
@@ -1327,47 +1379,23 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                     debug!("WARN process {:?} not loaded as it has no kernel version header, please upgrade to elf2tab >= 0.8.0",
                            process_name.unwrap_or ("(no name"));
                 }
-                return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
+                return Err((ProcessLoadError::IncompatibleKernelVersion { version: None }, remaining_memory));
             }
         }
 
         // Check the credentials. This code should be cleaned up, I formatted it this
         // way to try to keep it very self contained in the diff.
-        let mut credentials_approved = false;
         let binary_end = tbf_header.get_binary_end() as usize;
-
-        let mut footer_position = tbf_header.get_binary_end() as usize;
-        debug!("Parsing footers at 0x{:x}.", footer_position);
-
         let total_size = app_flash.len();
-        let _credentials_count = 0;
-        let require_credentials = false;
-        let mut remaining_flash = app_flash
-                .get(footer_position..)
-                .ok_or(ProcessLoadError::NotEnoughFlash)?;
-        // The portion of the application binary covered by integrity.
-        let covered_flash = app_flash.get(0..binary_end).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
-        while footer_position < (total_size - 4) { // There needs to be space for a TLV 
-            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
-            let (footer, len) = tock_tbf::parse::parse_tbf_footer(remaining_flash)?;
-            remaining_flash = remaining_flash.get(len as usize + 4..).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
+        let footer_region = match app_flash.get(binary_end..total_size) {
+            Some(f) => f,
+            None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory))
+        };
             
-            match verifier.check_credentials(&footer, covered_flash) {
-                VerificationResult::Accept => {
-                    credentials_approved = true;
-                    break;
-                },
-                VerificationResult::Reject => {
-                    return Err(ProcessLoadError::CredentialsNoAccept);
-                }
-                VerificationResult::Pass => { },
-            }
-            footer_position += len as usize;
-        }
-        debug!("Footers parsed.");
-        if !credentials_approved && require_credentials {
-            return Err(ProcessLoadError::CredentialsNoAccept);
-        }
+//        let mut remaining_flash = app_flash
+//                .get(total_size..)
+//                .ok_or(ProcessLoadError::NotEnoughFlash)?;
+        // The portion of the application binary covered by integrity.
 
         // Check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
@@ -1378,19 +1406,16 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
             let expected_address = fixed_flash_start;
             if actual_address != expected_address {
-                return Err(ProcessLoadError::IncorrectFlashAddress {
+                return Err((ProcessLoadError::IncorrectFlashAddress {
                     actual_address,
                     expected_address,
-                });
+                },
+                remaining_memory));
             }
         }
 
         // Otherwise, actually load the app.
         let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
-        let init_fn = header_length + app_flash
-            .as_ptr()
-                .offset(tbf_header.get_init_function_offset() as isize) as usize;
-
         // Initialize MPU region configuration.
         let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
@@ -1414,7 +1439,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                     process_name
                 );
             }
-            return Err(ProcessLoadError::MpuInvalidFlashLength);
+            return Err((ProcessLoadError::MpuInvalidFlashLength, remaining_memory));
         }
 
         // Determine how much space we need in the application's memory space
@@ -1480,25 +1505,25 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                     let actual_address =
                         remaining_memory.as_ptr() as u32 + remaining_memory.len() as u32 - 1;
                     let expected_address = fixed_memory_start;
-                    return Err(ProcessLoadError::MemoryAddressMismatch {
+                    return Err((ProcessLoadError::MemoryAddressMismatch {
                         actual_address,
                         expected_address,
-                    });
+                    }, remaining_memory));
                 } else {
                     // Change the memory range to start where the process
-                    // requested it.
-                    remaining_memory
-                        .get_mut(diff..)
-                        .ok_or(ProcessLoadError::InternalError)?
+                    // requested it. Because of the if statement above we knpow this should
+                    // work. Doing it more cleanly would be good but was a bit beyond my borrowck
+                    // ken; calling get_mut has a mutable borrow.-pal
+                    &mut remaining_memory[diff..]
                 }
             } else {
                 // Address is earlier in memory, nothing we can do.
                 let actual_address = remaining_memory.as_ptr() as u32;
                 let expected_address = fixed_memory_start;
-                return Err(ProcessLoadError::MemoryAddressMismatch {
+                return Err((ProcessLoadError::MemoryAddressMismatch {
                     actual_address,
                     expected_address,
-                });
+                }, remaining_memory));
             }
         } else {
             remaining_memory
@@ -1527,7 +1552,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                         min_total_memory_size
                     );
                 }
-                return Err(ProcessLoadError::NotEnoughMemory);
+                return Err((ProcessLoadError::NotEnoughMemory, remaining_memory));
             }
         };
 
@@ -1536,15 +1561,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // `remaining_memory` slice passed to `create()` to allocate the
         // process's memory out of.
         let memory_start_offset = app_memory_start as usize - remaining_memory.as_ptr() as usize;
-        // First split the remaining memory into a slice that contains the
-        // process memory and a slice that will not be used by this process.
-        let (app_memory_oversize, unused_memory) =
-            remaining_memory.split_at_mut(memory_start_offset + app_memory_size);
-        // Then since the process's memory need not start at the beginning of
-        // the remaining slice given to create(), get a smaller slice as needed.
-        let app_memory = app_memory_oversize
-            .get_mut(memory_start_offset..)
-            .ok_or(ProcessLoadError::InternalError)?;
 
         // Check if the memory region is valid for the process. If a process
         // included a fixed address for the start of RAM in its TBF header (this
@@ -1552,15 +1568,25 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // need a fixed address) then we check that we used the same address
         // when we allocated it in RAM.
         if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
-            let actual_address = app_memory.as_ptr() as u32;
+            let actual_address = remaining_memory.as_ptr() as u32 + memory_start_offset as u32;
             let expected_address = fixed_memory_start;
             if actual_address != expected_address {
-                return Err(ProcessLoadError::MemoryAddressMismatch {
+                return Err((ProcessLoadError::MemoryAddressMismatch {
                     actual_address,
                     expected_address,
-                });
+                }, remaining_memory));
             }
         }
+
+        // First split the remaining memory into a slice that contains the
+        // process memory and a slice that will not be used by this process.
+        let (app_memory_oversize, unused_memory) =
+            remaining_memory.split_at_mut(memory_start_offset + app_memory_size);
+        // Then since the process's memory need not start at the beginning of
+        // the remaining slice given to create(), get a smaller slice as needed;
+        // since the split is at memory_start_offset + app_memory_size, we know this
+        // will succeed. But doing so more cleanly would be good. -pal
+        let app_memory = &mut app_memory_oversize[memory_start_offset..];
 
         // Set the initial process-accessible memory to the amount specified by
         // the context switch implementation.
@@ -1644,10 +1670,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.app_break = Cell::new(initial_app_brk);
         process.grant_pointers = MapCell::new(grant_pointers);
 
+        process.footers = footer_region;
         process.flash = app_flash;
 
         process.stored_state = MapCell::new(Default::default());
-        // Mark this process as unstarted
+        // Mark this process as unverified/unrunnable: leave it to the loader to
+        // verify it.
         process.state = ProcessStateCell::new(process.kernel);
         process.fault_policy = fault_policy;
         process.restart_count = Cell::new(0);
@@ -1677,20 +1705,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             timeslice_expiration_count: 0,
         });
 
-        let linker_metadata_offset = process.header.get_app_start_offset() as usize;
-        let flash_app_start_addr = app_flash.as_ptr() as usize + linker_metadata_offset;
-
-        process.tasks.map(|tasks| {
-            tasks.enqueue(Task::FunctionCall(FunctionCall {
-                source: FunctionCallSource::Kernel,
-                pc: init_fn,
-                argument0: flash_app_start_addr,
-                argument1: process.memory_start as usize,
-                argument2: process.memory_len,
-                argument3: process.app_break.get() as usize,
-            }));
-        });
-
         // Handle any architecture-specific requirements for a new process.
         //
         // NOTE! We have to ensure that the start of process-accessible memory
@@ -1716,11 +1730,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                         process_name
                     );
                 }
-                return Err(ProcessLoadError::InternalError);
+                // Note that since remaining_memory was split by split_at_mut into
+                // application memory and unused_memory, a failure here will leak
+                // the application memory. Not leaking it requires being able to
+                // reconstitute the original memory slice.
+                return Err((ProcessLoadError::InternalError, unused_memory));
             }
         };
 
-        kernel.increment_work();
+            //kernel.increment_work();
 
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
@@ -1748,15 +1766,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             debug.dropped_upcall_count = 0;
             debug.timeslice_expiration_count = 0;
         });
-
-        // FLASH
-
-        // We are going to start this process over again, so need the init_fn
-        // location.
-        let app_flash_address = self.flash_start();
-        let init_fn = unsafe {
-            app_flash_address.offset(self.header.get_init_function_offset() as isize) as usize
-        };
 
         // Reset MPU region configuration.
         //
@@ -1860,31 +1869,16 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        // And queue up this app to be restarted.
-        let flash_app_start = (app_flash_address as u32 + self.header.get_app_start_offset()) as usize;
-
-        // Mark the state as `Unstarted` for the scheduler.
-        self.state.update(State::Unstarted);
-
-        // Mark that we restarted this process.
         self.restart_count.increment();
-
-        // Enqueue the initial function.
-        self.tasks.map(|tasks| {
-            tasks.enqueue(Task::FunctionCall(FunctionCall {
-                source: FunctionCallSource::Kernel,
-                pc: init_fn,
-                argument0: flash_app_start,
-                argument1: self.mem_start() as usize,
-                argument2: self.memory_len,
-                argument3: self.app_break.get() as usize,
-            }));
-        });
-
-        // Mark that the process is ready to run.
-        self.kernel.increment_work();
-
-        Ok(())
+        
+        // Mark the state as `Unstarted` for the scheduler.
+        if self.state.get() != State::Unverified {
+            self.state.update(State::Unstarted);
+            // Mark that we restarted this process.
+            self.enqueue_init_task()
+        } else {
+            Err(ErrorCode::NODEVICE)
+        }
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
@@ -1953,10 +1947,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             // Verify there is space for this allocation
             if new_break < self.app_break.get() {
                 None
-            // Verify it didn't wrap around
+                // Verify it didn't wrap around
             } else if new_break > self.kernel_memory_break.get() {
                 None
-            // Verify this is compatible with the MPU.
+                // Verify this is compatible with the MPU.
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,

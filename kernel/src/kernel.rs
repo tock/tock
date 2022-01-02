@@ -712,9 +712,10 @@ impl Kernel {
                         },
                     }
                 }
-                process::State::Faulted | process::State::Terminated => {
+                process::State::Faulted | process::State::Terminated |
+                process::State::Unverified => {
                     // We should never be scheduling a process in fault.
-                    panic!("Attempted to schedule a faulty process");
+                    panic!("Attempted to schedule an unrunnable process");
                 }
                 process::State::StoppedRunning => {
                     return_reason = StoppedExecutingReason::Stopped;

@@ -119,7 +119,7 @@ mod memop;
 mod process_policies;
 mod process_printer;
 mod process_standard;
-mod process_utilities;
+mod process_load;
 mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.

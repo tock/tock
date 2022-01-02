@@ -387,27 +387,36 @@ with an application binary needs to be covered by integrity, it MUST
 be a Header. If new metadata associated with an application binary needs to
 not be covered by integrity, it MUST be a Foorter.
 
-5 `Verifier` trait
+5 `AppCredentialsChecker` trait
 ===============================
 
-The `Verifier` trait defines an interface to a module that accepts,
-passes on, or rejects application credentials. When a Tock board
-asks the kernel to load processes, it passes a reference to a
-`Verifier`, which the kernel uses to check credentials.
+The `AppCredentialsChecker` trait defines an interface to a module
+that accepts, passes on, or rejects application credentials. When a
+Tock board asks the kernel to load processes, it passes a reference to
+a `AppCredentialsChecker`, which the kernel uses to check credentials.
 
 
 ```rust
-pub enum VerificationResult {
+pub enum CheckResult {
     Accept,
     Pass,
     Reject
 }
 
-pub trait Verify {
+pub trait Client {
+    fn check_done(&self,
+                  result: Result<CheckResult, ErrorCode>,
+                  credentials: &TbfFooterV2Credentials,
+                  binary: &[u8]);
+}
+
+pub trait AppCredentialsChecker<'a> {
+    fn set_client(&self, client: &'a dyn Client);
     fn require_credentials(&self) -> bool;
     fn check_credentials(&self,
-                         credentials: &TbfFooterV2Credentials,
-                         binary: &[u8]) -> VerificationResult;
+                         credentials: &'a TbfFooterV2Credentials,
+                         binary: &'a [u8])  ->
+        Result<(), (ErrorCode, &TbfFooterV2Credentials, &[u8])>
 }
 ```
 

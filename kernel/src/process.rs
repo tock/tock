@@ -17,13 +17,14 @@ use crate::upcall::UpcallId;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
+pub use crate::process_load::{load_processes, ProcessLoadError};
 pub use crate::process_policies::{
     PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
 };
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
 pub use crate::process_standard::ProcessStandard;
-pub use crate::process_utilities::{load_processes, load_processes_advanced, ProcessLoadError};
+
 
 /// Userspace process identifier.
 ///
@@ -189,6 +190,13 @@ pub trait Process {
     /// kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
+    /// Enqueue a `Task` to execute the init function of the process.
+    fn enqueue_init_task(&self) -> Result<(), ErrorCode>;
+
+    /// Transition a loaded but unverified process into the Unstarted
+    /// state so it can run.
+    fn mark_verified(&self) -> Result<(), ErrorCode>;
+    
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 
@@ -690,7 +698,7 @@ impl From<Error> for ErrorCode {
     }
 }
 
-/// Various states a process can be in.
+/// States a process can be in.
 ///
 /// This is made public in case external implementations of `Process` want
 /// to re-use these process states in the external implementation.
@@ -725,11 +733,17 @@ pub enum State {
     /// run.
     Terminated,
 
-    /// The process has never actually been executed. This of course happens
-    /// when the board first boots and the kernel has not switched to any
-    /// processes yet. It can also happen if an process is terminated and all of
-    /// its state is reset as if it has not been executed yet.
+    /// The process has never actually been executed. This happens
+    /// when the board first boots and the kernel has not switched to
+    /// any processes yet. It can also happen if an process is
+    /// terminated and all of its state is reset as if it has not been
+    /// executed yet.
     Unstarted,
+
+    /// The process has not been verified to be allowed to run yet: it
+    /// needs to be checked by an AppCredentialsChecker to be transitioned
+    /// into the Unstarted state.
+    Unverified,
 }
 
 /// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
@@ -743,7 +757,7 @@ pub(crate) struct ProcessStateCell<'a> {
 impl<'a> ProcessStateCell<'a> {
     pub(crate) fn new(kernel: &'a Kernel) -> Self {
         Self {
-            state: Cell::new(State::Unstarted),
+            state: Cell::new(State::Unverified),
             kernel,
         }
     }
