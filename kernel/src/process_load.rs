@@ -155,6 +155,28 @@ impl fmt::Debug for ProcessLoadError {
     }
 }
 
+#[inline(always)]
+pub fn load_and_verify_processes<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &'static mut [u8], 
+    mut procs: &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+    verifier: Option<&'static dyn AppCredentialsChecker>,
+    capability: &dyn ProcessManagementCapability,
+) -> Result<(), ProcessLoadError> {
+    load_processes(kernel,
+                   chip,
+                   app_flash,
+                   app_memory,
+                   &mut procs,
+                   fault_policy,
+                   capability)?;
+    verify_processes(procs, verifier);
+    Ok(())
+}
+
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
 /// is able to create its own `load_processes()` function and use that instead.
@@ -183,7 +205,7 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8], 
-    procs: &'static mut [Option<&'static dyn Process>],
+    procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -229,7 +251,21 @@ pub fn load_processes<C: Chip>(
             }
         }
     }
-    if !checker.require_credentials() {
+    Ok(())
+}
+
+
+/// Use `verifier` to transition `procs` from the `Unverified` into the
+/// `Unstarted` state (if they pass verification). If `verifier` is `None`
+/// then all processes are automatically verified.
+#[inline(always)]
+pub fn verify_processes(procs: &'static [Option<&'static dyn Process>],
+                        verifier: Option<&'static dyn AppCredentialsChecker>
+) -> Result<(), ProcessLoadError> {
+    static mut INDEX: usize = 0;
+    // Skip if we don't have a verifier of the verifier is a no-op
+    let skip_verification = verifier.map_or(true, |v| !v.require_credentials());
+    if skip_verification {
         for proc in procs.iter() {
             let res = proc.map(|p| {
                 p.mark_verified().or(Err(ProcessLoadError::InternalError))?;
@@ -240,7 +276,9 @@ pub fn load_processes<C: Chip>(
                 return Err(e);
             }
         }
-    }
+    } else { }
+    Ok(())
+}
 
 /* footer processing code yanked from old ProcessStandard
         let mut footer_position = tbf_header.get_binary_end() as usize;
@@ -267,9 +305,6 @@ pub fn load_processes<C: Chip>(
         }
 */
 
-
-    Ok(())
-}
 
 /// Load a process stored as a TBF process binary at the start of `app_flash`,
 /// with `app_memory` as the RAM pool that its RAM should be allocated from.

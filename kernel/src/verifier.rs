@@ -1,6 +1,6 @@
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
-
+use crate::hil::digest::{DigestDataVerify, HMACSha256};
 
 pub enum CheckResult {
     Accept,
@@ -40,3 +40,10 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerPermissive {
                  binary))
     }
 }
+trait AppCheckerHMAC: DigestDataVerify<'static, 32_usize> + HMACSha256 {}
+
+pub struct AppCheckerHMACSha256 {
+  hmac: &'static dyn AppCheckerHMAC
+}
+
+

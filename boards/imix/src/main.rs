@@ -721,7 +721,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_verify_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -734,6 +734,7 @@ pub unsafe fn main() {
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
+        None,
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

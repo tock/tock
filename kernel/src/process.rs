@@ -17,7 +17,7 @@ use crate::upcall::UpcallId;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
-pub use crate::process_load::{load_processes, ProcessLoadError};
+pub use crate::process_load::{load_and_verify_processes, ProcessLoadError};
 pub use crate::process_policies::{
     PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
