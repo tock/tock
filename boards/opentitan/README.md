@@ -214,14 +214,14 @@ In a seperate shell, start gdb
 **Arch**
 ```shell
 $ riscv32-elf-gdb [/path/to/tock.elf]
-> target remote:9000            #9000 is the specified default port
+> target remote:1234            #1234 is the specified default port
 ```
 
 **Ubuntu**
 ```shell
 $ gdb-multiarch [/path/to/tock.elf]
 > set arch riscv
-> target remote:9000            #9000 is the specified default port
+> target remote:1234            #1234 is the specified default port
 ```
 
 Once attached, standard gdb functionality is avaliable. Additional debug symbols can be added with.
