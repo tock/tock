@@ -125,7 +125,8 @@ unsafe fn set_pin_primary_functions() {
 
     PORT[PortId::A as usize].enable_clock();
 
-    // Configure USART1 on Pins PA09 and PA10.
+    // TODO: pd8 and pd9 (USART3) are not connected to ST-Link on this board.
+    // Configure USART1 instead.
     PinId::PA09.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART1_TX
@@ -243,8 +244,8 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for kernel debug.
     // USART1 is only connected to the ST-LINK port in the DISC1 revision of
-    // the STM32F429I boards, DISC0 does not have this connection and will
-    // not have USART output available!
+    // the STM32F429I boards, DISC0 does not have this connection.
+    // We'll have to use usart3 for now, usart1 isn't configured yet.
     stm32f429zi::usart::USART1.enable_clock();
     let uart_mux = components::console::UartMuxComponent::new(
         &stm32f429zi::usart::USART1,

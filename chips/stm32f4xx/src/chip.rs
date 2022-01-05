@@ -6,7 +6,10 @@ use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::dma1;
+use crate::adc;
+use crate::dma::{dma1, dma2};
+use crate::exti;
+use crate::i2c;
 use crate::nvic;
 
 use crate::deferred_calls::DeferredCallTask;
