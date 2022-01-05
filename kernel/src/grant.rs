@@ -1612,9 +1612,9 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an `ProcessGrant` for a process is currently
     /// entered will result in a panic.
-    pub fn each<F>(&self, fun: F)
+    pub fn each<F>(&self, mut fun: F)
     where
-        F: Fn(ProcessId, &mut GrantData<T>, &GrantKernelData),
+        F: FnMut(ProcessId, &mut GrantData<T>, &GrantKernelData),
     {
         // Create a the iterator across `ProcessGrant`s for each process.
         for pg in self.iter() {
