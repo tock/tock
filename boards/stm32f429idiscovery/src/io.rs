@@ -14,6 +14,7 @@ use stm32f429zi::gpio::PinId;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -40,12 +41,13 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
-        let uart = unsafe { &mut stm32f429zi::usart::USART1 };
+        let rcc = stm32f429zi::rcc::Rcc::new();
+        let uart = stm32f429zi::usart::Usart::new_usart1(&rcc);
 
         if !self.initialized {
             self.initialized = true;
 
-            uart.configure(uart::Parameters {
+            let _ = uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
@@ -65,7 +67,15 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD4 is connected to PG14
-    let led = &mut led::LedHigh::new(PinId::PG14.get_pin_mut().as_mut().unwrap());
+    // Have to reinitialize several peripherals because otherwise can't access them here.
+    let rcc = stm32f429zi::rcc::Rcc::new();
+    let syscfg = stm32f429zi::syscfg::Syscfg::new(&rcc);
+    let exti = stm32f429zi::exti::Exti::new(&syscfg);
+    let pin = stm32f429zi::gpio::Pin::new(PinId::PG14, &exti);
+    let gpio_ports = stm32f429zi::gpio::GpioPorts::new(&rcc, &exti);
+    pin.set_ports_ref(&gpio_ports);
+    let led = &mut led::LedHigh::new(&pin);
+
     let writer = &mut WRITER;
 
     debug::panic(
@@ -75,5 +85,6 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
         &cortexm4::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }

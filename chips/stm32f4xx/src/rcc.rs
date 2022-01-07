@@ -948,6 +948,7 @@ impl Rcc {
 
     fn disable_fmc_clock(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::FMCEN::CLEAR)
+    }
 
     // USART1 clock
     fn is_enabled_usart1_clock(&self) -> bool {
@@ -1282,7 +1283,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
-                PCL2::USART1 => {
+                PCLK2::USART1 => {
                     self.rcc.disable_usart1_clock();
                 }
                 PCLK2::ADC1 => {

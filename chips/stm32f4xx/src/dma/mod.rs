@@ -1,4 +1,4 @@
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 
 pub mod dma1;
 pub mod dma2;

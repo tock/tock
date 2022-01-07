@@ -22,11 +22,13 @@ pub struct Stm32f4xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 
 pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub adc1: crate::adc::Adc<'a>,
-    pub dma_streams: [crate::dma1::Stream<'a>; 8],
+    pub dma1_streams: [crate::dma1::Stream<'a>; 8],
+    pub dma2_streams: [crate::dma::dma2::Stream<'a>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
+    pub usart1: crate::usart::Usart<'a>,
     pub usart2: crate::usart::Usart<'a>,
     pub usart3: crate::usart::Usart<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
@@ -37,11 +39,13 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     pub fn new(
         rcc: &'a crate::rcc::Rcc,
         exti: &'a crate::exti::Exti<'a>,
-        dma: &'a crate::dma1::Dma1<'a>,
+        dma1: &'a crate::dma1::Dma1<'a>,
+        dma2: &'a crate::dma::dma2::Dma2<'a>,
     ) -> Self {
         Self {
             adc1: crate::adc::Adc::new(rcc),
-            dma_streams: crate::dma1::new_dma1_stream(dma),
+            dma1_streams: crate::dma1::new_dma1_stream(dma1),
+            dma2_streams: crate::dma::dma2::new_dma2_stream(dma2),
             exti,
             i2c1: crate::i2c::I2C::new(rcc),
             spi3: crate::spi::Spi::new(
@@ -54,6 +58,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
                 crate::dma1::Dma1Peripheral::SPI3_RX,
             ),
             tim2: crate::tim2::Tim2::new(rcc),
+            usart1: crate::usart::Usart::new_usart1(rcc),
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
             gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
@@ -77,25 +82,33 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
 impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            nvic::DMA1_Stream1 => self.dma_streams
+            nvic::DMA1_Stream1 => self.dma1_streams
                 [dma1::Dma1Peripheral::USART3_RX.get_stream_idx()]
             .handle_interrupt(),
             nvic::DMA1_Stream2 => {
-                self.dma_streams[dma1::Dma1Peripheral::SPI3_RX.get_stream_idx()].handle_interrupt()
+                self.dma1_streams[dma1::Dma1Peripheral::SPI3_RX.get_stream_idx()].handle_interrupt()
             }
-            nvic::DMA1_Stream3 => self.dma_streams
+            nvic::DMA1_Stream3 => self.dma1_streams
                 [dma1::Dma1Peripheral::USART3_TX.get_stream_idx()]
             .handle_interrupt(),
-            nvic::DMA1_Stream5 => self.dma_streams
+            nvic::DMA1_Stream5 => self.dma1_streams
                 [dma1::Dma1Peripheral::USART2_RX.get_stream_idx()]
             .handle_interrupt(),
-            nvic::DMA1_Stream6 => self.dma_streams
+            nvic::DMA1_Stream6 => self.dma1_streams
                 [dma1::Dma1Peripheral::USART2_TX.get_stream_idx()]
             .handle_interrupt(),
             nvic::DMA1_Stream7 => {
-                self.dma_streams[dma1::Dma1Peripheral::SPI3_TX.get_stream_idx()].handle_interrupt()
+                self.dma1_streams[dma1::Dma1Peripheral::SPI3_TX.get_stream_idx()].handle_interrupt()
             }
 
+            nvic::DMA2_Stream5 => self.dma2_streams
+                [dma2::Dma2Peripheral::USART1_RX.get_stream_idx()]
+            .handle_interrupt(),
+            nvic::DMA2_Stream7 => self.dma2_streams
+                [dma2::Dma2Peripheral::USART1_TX.get_stream_idx()]
+            .handle_interrupt(),
+
+            nvic::USART1 => self.usart1.handle_interrupt(),
             nvic::USART2 => self.usart2.handle_interrupt(),
             nvic::USART3 => self.usart3.handle_interrupt(),
 

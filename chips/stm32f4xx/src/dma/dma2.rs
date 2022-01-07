@@ -1,6 +1,7 @@
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::StaticRef;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::StaticRef;
 
 use crate::nvic;
 use crate::rcc;
@@ -29,8 +30,8 @@ impl Dma2Peripheral {
         }
     }
 
-    pub fn get_stream<'a>(&self) -> &'a Stream<'static> {
-        unsafe { &DMA2_STREAM[usize::from(StreamId::from(*self) as u8)] }
+    pub fn get_stream_idx<'a>(&self) -> usize {
+        usize::from(StreamId::from(*self) as u8)
     }
 }
 
@@ -48,30 +49,34 @@ pub struct Stream<'a> {
     client: OptionalCell<&'a dyn StreamClient>,
     buffer: TakeCell<'static, [u8]>,
     peripheral: OptionalCell<Dma2Peripheral>,
+    dma2: &'a Dma2<'a>,
 }
 
-pub static mut DMA2_STREAM: [Stream<'static>; 8] = [
-    Stream::new(StreamId::Stream0),
-    Stream::new(StreamId::Stream1),
-    Stream::new(StreamId::Stream2),
-    Stream::new(StreamId::Stream3),
-    Stream::new(StreamId::Stream4),
-    Stream::new(StreamId::Stream5),
-    Stream::new(StreamId::Stream6),
-    Stream::new(StreamId::Stream7),
-];
+pub fn new_dma2_stream<'a>(dma: &'a Dma2) -> [Stream<'a>; 8] {
+    [
+        Stream::new(StreamId::Stream0, dma),
+        Stream::new(StreamId::Stream1, dma),
+        Stream::new(StreamId::Stream2, dma),
+        Stream::new(StreamId::Stream3, dma),
+        Stream::new(StreamId::Stream4, dma),
+        Stream::new(StreamId::Stream5, dma),
+        Stream::new(StreamId::Stream6, dma),
+        Stream::new(StreamId::Stream7, dma),
+    ]
+}
 
 pub trait StreamClient {
     fn transfer_done(&self, pid: Dma2Peripheral);
 }
 
 impl<'a> Stream<'a> {
-    const fn new(streamid: StreamId) -> Stream<'a> {
-        Stream {
+    const fn new(streamid: StreamId, dma2: &'a Dma2<'a>) -> Self {
+        Self {
             streamid: streamid,
             buffer: TakeCell::empty(),
             client: OptionalCell::empty(),
             peripheral: OptionalCell::empty(),
+            dma2,
         }
     }
 
@@ -151,18 +156,20 @@ impl<'a> Stream<'a> {
     fn set_channel(&self) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7, Channel 4
-                    DMA2.registers
+                    self.dma2
+                        .registers
                         .s7cr
                         .modify(S7CR::CHSEL.val(ChannelId::Channel4 as u32));
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5, Channel 4
-                    DMA2.registers
+                    self.dma2
+                        .registers
                         .s5cr
                         .modify(S5CR::CHSEL.val(ChannelId::Channel4 as u32));
-                },
+                }
             }
         });
     }
@@ -170,18 +177,20 @@ impl<'a> Stream<'a> {
     fn set_direction(&self) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7
-                    DMA2.registers
+                    self.dma2
+                        .registers
                         .s7cr
                         .modify(S7CR::DIR.val(Direction::MemoryToPeripheral as u32));
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5
-                    DMA2.registers
+                    self.dma2
+                        .registers
                         .s5cr
                         .modify(S5CR::DIR.val(Direction::PeripheralToMemory as u32));
-                },
+                }
             }
         });
     }
@@ -189,14 +198,20 @@ impl<'a> Stream<'a> {
     fn set_peripheral_address(&self) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7
-                    DMA2.registers.s7par.set(usart::USART1.get_address_dr());
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                    self.dma2
+                        .registers
+                        .s7par
+                        .set(usart::get_address_dr(usart::USART1_BASE));
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5
-                    DMA2.registers.s5par.set(usart::USART1.get_address_dr());
-                },
+                    self.dma2
+                        .registers
+                        .s5par
+                        .set(usart::get_address_dr(usart::USART1_BASE));
+                }
             }
         });
     }
@@ -204,14 +219,14 @@ impl<'a> Stream<'a> {
     fn set_peripheral_address_increment(&self) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7
-                    DMA2.registers.s7cr.modify(S7CR::PINC::CLEAR);
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                    self.dma2.registers.s7cr.modify(S7CR::PINC::CLEAR);
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5
-                    DMA2.registers.s5cr.modify(S5CR::PINC::CLEAR);
-                },
+                    self.dma2.registers.s5cr.modify(S5CR::PINC::CLEAR);
+                }
             }
         });
     }
@@ -219,14 +234,14 @@ impl<'a> Stream<'a> {
     fn set_memory_address(&self, buf_addr: u32) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7
-                    DMA2.registers.s7m0ar.set(buf_addr);
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                    self.dma2.registers.s7m0ar.set(buf_addr);
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5
-                    DMA2.registers.s5m0ar.set(buf_addr);
-                },
+                    self.dma2.registers.s5m0ar.set(buf_addr);
+                }
             }
         });
     }
@@ -234,57 +249,57 @@ impl<'a> Stream<'a> {
     fn set_memory_address_increment(&self) {
         self.peripheral.map(|pid| {
             match pid {
-                Dma2Peripheral::USART1_TX => unsafe {
+                Dma2Peripheral::USART1_TX => {
                     // USART1_TX Stream 7
-                    DMA2.registers.s7cr.modify(S7CR::MINC::SET);
-                },
-                Dma2Peripheral::USART1_RX => unsafe {
+                    self.dma2.registers.s7cr.modify(S7CR::MINC::SET);
+                }
+                Dma2Peripheral::USART1_RX => {
                     // USART1_RX Stream 5
-                    DMA2.registers.s5cr.modify(S5CR::MINC::SET);
-                },
+                    self.dma2.registers.s5cr.modify(S5CR::MINC::SET);
+                }
             }
         });
     }
 
     fn get_data_items(&self) -> u32 {
         match self.streamid {
-            StreamId::Stream0 => unsafe { DMA2.registers.s0ndtr.get() },
-            StreamId::Stream1 => unsafe { DMA2.registers.s1ndtr.get() },
-            StreamId::Stream2 => unsafe { DMA2.registers.s2ndtr.get() },
-            StreamId::Stream3 => unsafe { DMA2.registers.s3ndtr.get() },
-            StreamId::Stream4 => unsafe { DMA2.registers.s4ndtr.get() },
-            StreamId::Stream5 => unsafe { DMA2.registers.s5ndtr.get() },
-            StreamId::Stream6 => unsafe { DMA2.registers.s6ndtr.get() },
-            StreamId::Stream7 => unsafe { DMA2.registers.s7ndtr.get() },
+            StreamId::Stream0 => self.dma2.registers.s0ndtr.get(),
+            StreamId::Stream1 => self.dma2.registers.s1ndtr.get(),
+            StreamId::Stream2 => self.dma2.registers.s2ndtr.get(),
+            StreamId::Stream3 => self.dma2.registers.s3ndtr.get(),
+            StreamId::Stream4 => self.dma2.registers.s4ndtr.get(),
+            StreamId::Stream5 => self.dma2.registers.s5ndtr.get(),
+            StreamId::Stream6 => self.dma2.registers.s6ndtr.get(),
+            StreamId::Stream7 => self.dma2.registers.s7ndtr.get(),
         }
     }
 
     fn set_data_items(&self, data_items: u32) {
         match self.streamid {
-            StreamId::Stream0 => unsafe {
-                DMA2.registers.s0ndtr.set(data_items);
-            },
-            StreamId::Stream1 => unsafe {
-                DMA2.registers.s1ndtr.set(data_items);
-            },
-            StreamId::Stream2 => unsafe {
-                DMA2.registers.s2ndtr.set(data_items);
-            },
-            StreamId::Stream3 => unsafe {
-                DMA2.registers.s3ndtr.set(data_items);
-            },
-            StreamId::Stream4 => unsafe {
-                DMA2.registers.s4ndtr.set(data_items);
-            },
-            StreamId::Stream5 => unsafe {
-                DMA2.registers.s5ndtr.set(data_items);
-            },
-            StreamId::Stream6 => unsafe {
-                DMA2.registers.s6ndtr.set(data_items);
-            },
-            StreamId::Stream7 => unsafe {
-                DMA2.registers.s7ndtr.set(data_items);
-            },
+            StreamId::Stream0 => {
+                self.dma2.registers.s0ndtr.set(data_items);
+            }
+            StreamId::Stream1 => {
+                self.dma2.registers.s1ndtr.set(data_items);
+            }
+            StreamId::Stream2 => {
+                self.dma2.registers.s2ndtr.set(data_items);
+            }
+            StreamId::Stream3 => {
+                self.dma2.registers.s3ndtr.set(data_items);
+            }
+            StreamId::Stream4 => {
+                self.dma2.registers.s4ndtr.set(data_items);
+            }
+            StreamId::Stream5 => {
+                self.dma2.registers.s5ndtr.set(data_items);
+            }
+            StreamId::Stream6 => {
+                self.dma2.registers.s6ndtr.set(data_items);
+            }
+            StreamId::Stream7 => {
+                self.dma2.registers.s7ndtr.set(data_items);
+            }
         }
     }
 
@@ -301,38 +316,86 @@ impl<'a> Stream<'a> {
 
     fn stream_set_data_width(&self, msize: Msize, psize: Psize) {
         match self.streamid {
-            StreamId::Stream0 => unsafe {
-                DMA2.registers.s0cr.modify(S0CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s0cr.modify(S0CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream1 => unsafe {
-                DMA2.registers.s1cr.modify(S1CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s1cr.modify(S1CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream2 => unsafe {
-                DMA2.registers.s2cr.modify(S2CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s2cr.modify(S2CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream3 => unsafe {
-                DMA2.registers.s3cr.modify(S3CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s3cr.modify(S3CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream4 => unsafe {
-                DMA2.registers.s4cr.modify(S4CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s4cr.modify(S4CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream5 => unsafe {
-                DMA2.registers.s5cr.modify(S5CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s5cr.modify(S5CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream6 => unsafe {
-                DMA2.registers.s6cr.modify(S6CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s6cr.modify(S6CR::MSIZE.val(msize.0 as u32));
-            },
-            StreamId::Stream7 => unsafe {
-                DMA2.registers.s7cr.modify(S7CR::PSIZE.val(psize.0 as u32));
-                DMA2.registers.s7cr.modify(S7CR::MSIZE.val(msize.0 as u32));
-            },
+            StreamId::Stream0 => {
+                self.dma2
+                    .registers
+                    .s0cr
+                    .modify(S0CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s0cr
+                    .modify(S0CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream1 => {
+                self.dma2
+                    .registers
+                    .s1cr
+                    .modify(S1CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s1cr
+                    .modify(S1CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream2 => {
+                self.dma2
+                    .registers
+                    .s2cr
+                    .modify(S2CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s2cr
+                    .modify(S2CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream3 => {
+                self.dma2
+                    .registers
+                    .s3cr
+                    .modify(S3CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s3cr
+                    .modify(S3CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream4 => {
+                self.dma2
+                    .registers
+                    .s4cr
+                    .modify(S4CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s4cr
+                    .modify(S4CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream5 => {
+                self.dma2
+                    .registers
+                    .s5cr
+                    .modify(S5CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s5cr
+                    .modify(S5CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream6 => {
+                self.dma2
+                    .registers
+                    .s6cr
+                    .modify(S6CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s6cr
+                    .modify(S6CR::MSIZE.val(msize.0 as u32));
+            }
+            StreamId::Stream7 => {
+                self.dma2
+                    .registers
+                    .s7cr
+                    .modify(S7CR::PSIZE.val(psize.0 as u32));
+                self.dma2
+                    .registers
+                    .s7cr
+                    .modify(S7CR::MSIZE.val(msize.0 as u32));
+            }
         }
     }
 
@@ -349,92 +412,76 @@ impl<'a> Stream<'a> {
 
     fn stream_set_transfer_mode(&self, transfer_mode: TransferMode) {
         match self.streamid {
-            StreamId::Stream0 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s0fcr.modify(S0FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s0fcr.modify(S0FCR::DMDIS::SET);
-                        DMA2.registers.s0fcr.modify(S0FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream0 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s0fcr.modify(S0FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s0fcr.modify(S0FCR::DMDIS::SET);
+                    self.dma2.registers.s0fcr.modify(S0FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream1 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s1fcr.modify(S1FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s1fcr.modify(S1FCR::DMDIS::SET);
-                        DMA2.registers.s1fcr.modify(S1FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream1 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s1fcr.modify(S1FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s1fcr.modify(S1FCR::DMDIS::SET);
+                    self.dma2.registers.s1fcr.modify(S1FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream2 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s2fcr.modify(S2FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s2fcr.modify(S2FCR::DMDIS::SET);
-                        DMA2.registers.s2fcr.modify(S2FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream2 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s2fcr.modify(S2FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s2fcr.modify(S2FCR::DMDIS::SET);
+                    self.dma2.registers.s2fcr.modify(S2FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream3 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s3fcr.modify(S3FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s3fcr.modify(S3FCR::DMDIS::SET);
-                        DMA2.registers.s3fcr.modify(S3FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream3 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s3fcr.modify(S3FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s3fcr.modify(S3FCR::DMDIS::SET);
+                    self.dma2.registers.s3fcr.modify(S3FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream4 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s4fcr.modify(S4FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s4fcr.modify(S4FCR::DMDIS::SET);
-                        DMA2.registers.s4fcr.modify(S4FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream4 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s4fcr.modify(S4FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s4fcr.modify(S4FCR::DMDIS::SET);
+                    self.dma2.registers.s4fcr.modify(S4FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream5 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s5fcr.modify(S5FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s5fcr.modify(S5FCR::DMDIS::SET);
-                        DMA2.registers.s5fcr.modify(S5FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream5 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s5fcr.modify(S5FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s5fcr.modify(S5FCR::DMDIS::SET);
+                    self.dma2.registers.s5fcr.modify(S5FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream6 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s6fcr.modify(S6FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s6fcr.modify(S6FCR::DMDIS::SET);
-                        DMA2.registers.s6fcr.modify(S6FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream6 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s6fcr.modify(S6FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s6fcr.modify(S6FCR::DMDIS::SET);
+                    self.dma2.registers.s6fcr.modify(S6FCR::FTH.val(s as u32));
                 }
             },
-            StreamId::Stream7 => unsafe {
-                match transfer_mode {
-                    TransferMode::Direct => {
-                        DMA2.registers.s7fcr.modify(S7FCR::DMDIS::CLEAR);
-                    }
-                    TransferMode::Fifo(s) => {
-                        DMA2.registers.s7fcr.modify(S7FCR::DMDIS::SET);
-                        DMA2.registers.s7fcr.modify(S7FCR::FTH.val(s as u32));
-                    }
+            StreamId::Stream7 => match transfer_mode {
+                TransferMode::Direct => {
+                    self.dma2.registers.s7fcr.modify(S7FCR::DMDIS::CLEAR);
+                }
+                TransferMode::Fifo(s) => {
+                    self.dma2.registers.s7fcr.modify(S7FCR::DMDIS::SET);
+                    self.dma2.registers.s7fcr.modify(S7FCR::FTH.val(s as u32));
                 }
             },
         }
@@ -442,100 +489,101 @@ impl<'a> Stream<'a> {
 
     fn enable(&self) {
         match self.streamid {
-            StreamId::Stream0 => unsafe { DMA2.registers.s0cr.modify(S0CR::EN::SET) },
-            StreamId::Stream1 => unsafe { DMA2.registers.s1cr.modify(S1CR::EN::SET) },
-            StreamId::Stream2 => unsafe { DMA2.registers.s2cr.modify(S2CR::EN::SET) },
-            StreamId::Stream3 => unsafe { DMA2.registers.s3cr.modify(S3CR::EN::SET) },
-            StreamId::Stream4 => unsafe { DMA2.registers.s4cr.modify(S4CR::EN::SET) },
-            StreamId::Stream5 => unsafe { DMA2.registers.s5cr.modify(S5CR::EN::SET) },
-            StreamId::Stream6 => unsafe { DMA2.registers.s6cr.modify(S6CR::EN::SET) },
-            StreamId::Stream7 => unsafe { DMA2.registers.s7cr.modify(S7CR::EN::SET) },
+            StreamId::Stream0 => self.dma2.registers.s0cr.modify(S0CR::EN::SET),
+            StreamId::Stream1 => self.dma2.registers.s1cr.modify(S1CR::EN::SET),
+            StreamId::Stream2 => self.dma2.registers.s2cr.modify(S2CR::EN::SET),
+            StreamId::Stream3 => self.dma2.registers.s3cr.modify(S3CR::EN::SET),
+            StreamId::Stream4 => self.dma2.registers.s4cr.modify(S4CR::EN::SET),
+            StreamId::Stream5 => self.dma2.registers.s5cr.modify(S5CR::EN::SET),
+            StreamId::Stream6 => self.dma2.registers.s6cr.modify(S6CR::EN::SET),
+            StreamId::Stream7 => self.dma2.registers.s7cr.modify(S7CR::EN::SET),
         }
     }
 
     fn disable(&self) {
         match self.streamid {
-            StreamId::Stream0 => unsafe { DMA2.registers.s0cr.modify(S0CR::EN::CLEAR) },
-            StreamId::Stream1 => unsafe { DMA2.registers.s1cr.modify(S1CR::EN::CLEAR) },
-            StreamId::Stream2 => unsafe { DMA2.registers.s2cr.modify(S2CR::EN::CLEAR) },
-            StreamId::Stream3 => unsafe { DMA2.registers.s3cr.modify(S3CR::EN::CLEAR) },
-            StreamId::Stream4 => unsafe { DMA2.registers.s4cr.modify(S4CR::EN::CLEAR) },
-            StreamId::Stream5 => unsafe { DMA2.registers.s5cr.modify(S5CR::EN::CLEAR) },
-            StreamId::Stream6 => unsafe { DMA2.registers.s6cr.modify(S6CR::EN::CLEAR) },
-            StreamId::Stream7 => unsafe { DMA2.registers.s7cr.modify(S7CR::EN::CLEAR) },
+            StreamId::Stream0 => self.dma2.registers.s0cr.modify(S0CR::EN::CLEAR),
+            StreamId::Stream1 => self.dma2.registers.s1cr.modify(S1CR::EN::CLEAR),
+            StreamId::Stream2 => self.dma2.registers.s2cr.modify(S2CR::EN::CLEAR),
+            StreamId::Stream3 => self.dma2.registers.s3cr.modify(S3CR::EN::CLEAR),
+            StreamId::Stream4 => self.dma2.registers.s4cr.modify(S4CR::EN::CLEAR),
+            StreamId::Stream5 => self.dma2.registers.s5cr.modify(S5CR::EN::CLEAR),
+            StreamId::Stream6 => self.dma2.registers.s6cr.modify(S6CR::EN::CLEAR),
+            StreamId::Stream7 => self.dma2.registers.s7cr.modify(S7CR::EN::CLEAR),
         }
     }
 
     fn clear_transfer_complete_flag(&self) {
         match self.streamid {
-            StreamId::Stream0 => unsafe {
-                DMA2.registers.lifcr.write(LIFCR::CTCIF0::SET);
-            },
-            StreamId::Stream1 => unsafe {
-                DMA2.registers.lifcr.write(LIFCR::CTCIF1::SET);
-            },
-            StreamId::Stream2 => unsafe {
-                DMA2.registers.lifcr.write(LIFCR::CTCIF2::SET);
-            },
-            StreamId::Stream3 => unsafe {
-                DMA2.registers.lifcr.write(LIFCR::CTCIF3::SET);
-            },
-            StreamId::Stream4 => unsafe {
-                DMA2.registers.hifcr.write(HIFCR::CTCIF4::SET);
-            },
-            StreamId::Stream5 => unsafe {
-                DMA2.registers.hifcr.write(HIFCR::CTCIF5::SET);
-            },
-            StreamId::Stream6 => unsafe {
-                DMA2.registers.hifcr.write(HIFCR::CTCIF6::SET);
-            },
-            StreamId::Stream7 => unsafe {
-                DMA2.registers.hifcr.write(HIFCR::CTCIF7::SET);
-            },
+            StreamId::Stream0 => {
+                self.dma2.registers.lifcr.write(LIFCR::CTCIF0::SET);
+            }
+            StreamId::Stream1 => {
+                self.dma2.registers.lifcr.write(LIFCR::CTCIF1::SET);
+            }
+            StreamId::Stream2 => {
+                self.dma2.registers.lifcr.write(LIFCR::CTCIF2::SET);
+            }
+            StreamId::Stream3 => {
+                self.dma2.registers.lifcr.write(LIFCR::CTCIF3::SET);
+            }
+            StreamId::Stream4 => {
+                self.dma2.registers.hifcr.write(HIFCR::CTCIF4::SET);
+            }
+            StreamId::Stream5 => {
+                self.dma2.registers.hifcr.write(HIFCR::CTCIF5::SET);
+            }
+            StreamId::Stream6 => {
+                self.dma2.registers.hifcr.write(HIFCR::CTCIF6::SET);
+            }
+            StreamId::Stream7 => {
+                self.dma2.registers.hifcr.write(HIFCR::CTCIF7::SET);
+            }
         }
     }
 
     // We only interrupt on TC (Transfer Complete)
     fn interrupt_enable(&self) {
         match self.streamid {
-            StreamId::Stream0 => unsafe { DMA2.registers.s0cr.modify(S0CR::TCIE::SET) },
-            StreamId::Stream1 => unsafe { DMA2.registers.s1cr.modify(S1CR::TCIE::SET) },
-            StreamId::Stream2 => unsafe { DMA2.registers.s2cr.modify(S2CR::TCIE::SET) },
-            StreamId::Stream3 => unsafe { DMA2.registers.s3cr.modify(S3CR::TCIE::SET) },
-            StreamId::Stream4 => unsafe { DMA2.registers.s4cr.modify(S4CR::TCIE::SET) },
-            StreamId::Stream5 => unsafe { DMA2.registers.s5cr.modify(S5CR::TCIE::SET) },
-            StreamId::Stream6 => unsafe { DMA2.registers.s6cr.modify(S6CR::TCIE::SET) },
-            StreamId::Stream7 => unsafe { DMA2.registers.s7cr.modify(S7CR::TCIE::SET) },
+            StreamId::Stream0 => self.dma2.registers.s0cr.modify(S0CR::TCIE::SET),
+            StreamId::Stream1 => self.dma2.registers.s1cr.modify(S1CR::TCIE::SET),
+            StreamId::Stream2 => self.dma2.registers.s2cr.modify(S2CR::TCIE::SET),
+            StreamId::Stream3 => self.dma2.registers.s3cr.modify(S3CR::TCIE::SET),
+            StreamId::Stream4 => self.dma2.registers.s4cr.modify(S4CR::TCIE::SET),
+            StreamId::Stream5 => self.dma2.registers.s5cr.modify(S5CR::TCIE::SET),
+            StreamId::Stream6 => self.dma2.registers.s6cr.modify(S6CR::TCIE::SET),
+            StreamId::Stream7 => self.dma2.registers.s7cr.modify(S7CR::TCIE::SET),
         }
     }
 
     // We only interrupt on TC (Transfer Complete)
     fn disable_interrupt(&self) {
         match self.streamid {
-            StreamId::Stream0 => unsafe { DMA2.registers.s0cr.modify(S0CR::TCIE::CLEAR) },
-            StreamId::Stream1 => unsafe { DMA2.registers.s1cr.modify(S1CR::TCIE::CLEAR) },
-            StreamId::Stream2 => unsafe { DMA2.registers.s2cr.modify(S2CR::TCIE::CLEAR) },
-            StreamId::Stream3 => unsafe { DMA2.registers.s3cr.modify(S3CR::TCIE::CLEAR) },
-            StreamId::Stream4 => unsafe { DMA2.registers.s4cr.modify(S4CR::TCIE::CLEAR) },
-            StreamId::Stream5 => unsafe { DMA2.registers.s5cr.modify(S5CR::TCIE::CLEAR) },
-            StreamId::Stream6 => unsafe { DMA2.registers.s6cr.modify(S6CR::TCIE::CLEAR) },
-            StreamId::Stream7 => unsafe { DMA2.registers.s7cr.modify(S7CR::TCIE::CLEAR) },
+            StreamId::Stream0 => self.dma2.registers.s0cr.modify(S0CR::TCIE::CLEAR),
+            StreamId::Stream1 => self.dma2.registers.s1cr.modify(S1CR::TCIE::CLEAR),
+            StreamId::Stream2 => self.dma2.registers.s2cr.modify(S2CR::TCIE::CLEAR),
+            StreamId::Stream3 => self.dma2.registers.s3cr.modify(S3CR::TCIE::CLEAR),
+            StreamId::Stream4 => self.dma2.registers.s4cr.modify(S4CR::TCIE::CLEAR),
+            StreamId::Stream5 => self.dma2.registers.s5cr.modify(S5CR::TCIE::CLEAR),
+            StreamId::Stream6 => self.dma2.registers.s6cr.modify(S6CR::TCIE::CLEAR),
+            StreamId::Stream7 => self.dma2.registers.s7cr.modify(S7CR::TCIE::CLEAR),
         }
     }
 }
 
-pub struct Dma2 {
+pub struct Dma2<'a> {
     registers: StaticRef<DmaRegisters>,
-    clock: Dma2Clock,
+    clock: Dma2Clock<'a>,
 }
 
-pub static mut DMA2: Dma2 = Dma2::new();
-
-impl Dma2 {
-    const fn new() -> Dma2 {
+impl<'a> Dma2<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
-            clock: Dma2Clock(rcc::PeripheralClock::AHB1(rcc::HCLK1::DMA2)),
+            clock: Dma2Clock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
+                rcc,
+            )),
         }
     }
 
@@ -552,9 +600,9 @@ impl Dma2 {
     }
 }
 
-struct Dma2Clock(rcc::PeripheralClock);
+struct Dma2Clock<'a>(rcc::PeripheralClock<'a>);
 
-impl ClockInterface for Dma2Clock {
+impl ClockInterface for Dma2Clock<'_> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

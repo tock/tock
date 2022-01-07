@@ -200,7 +200,7 @@ pub struct RxDMA<'a>(pub dma::Stream<'a>);
 impl<'a> Usart<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
-        clock: UsartClock,
+        clock: UsartClock<'a>,
         tx_dma_pid: DmaPeripheral,
         rx_dma_pid: DmaPeripheral,
     ) -> Usart<'a> {
@@ -228,11 +228,11 @@ impl<'a> Usart<'a> {
         Self::new(
             USART1_BASE,
             UsartClock(rcc::PeripheralClock::new(
-                    rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
-                    rcc,
+                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+                rcc,
             )),
-            dma2::Dma2Peripheral::USART1_TX.into(),
-            dma2::Dma2Peripheral::USART1_RX.into(),
+            dma::DmaPeripheral::Dma2Peripheral(dma2::Dma2Peripheral::USART1_TX),
+            dma::DmaPeripheral::Dma2Peripheral(dma2::Dma2Peripheral::USART1_RX),
         )
     }
 
@@ -243,8 +243,8 @@ impl<'a> Usart<'a> {
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
                 rcc,
             )),
-            dma1::Dma1Peripheral::USART2_TX.into(),
-            dma1::Dma1Peripheral::USART2_RX.into(),
+            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART2_TX),
+            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART2_RX),
         )
     }
 
@@ -255,8 +255,8 @@ impl<'a> Usart<'a> {
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
                 rcc,
             )),
-            dma1::Dma1Peripheral::USART3_TX.into(),
-            dma1::Dma1Peripheral::USART3_RX.into(),
+            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART3_TX),
+            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART3_RX),
         )
     }
 
@@ -389,7 +389,7 @@ impl<'a> Usart<'a> {
         self.registers.sr.modify(SR::TC::CLEAR);
     }
 
-    fn transfer_done(&self, pid: DmaPeripheral) {
+    fn transfer_done(&self, pid: dma::DmaPeripheral) {
         if pid == self.tx_dma_pid {
             self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
             self.enable_transmit_complete_interrupt();
@@ -409,12 +409,7 @@ impl<'a> Usart<'a> {
                 // alert client
                 self.rx_client.map(|client| {
                     buffer.map(|buf| {
-                        client.received_buffer(
-                            buf,
-                            length,
-                            ReturnCode::SUCCESS,
-                            hil::uart::Error::None,
-                        );
+                        client.received_buffer(buf, length, Ok(()), hil::uart::Error::None);
                     });
                 });
             }
