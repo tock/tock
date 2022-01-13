@@ -167,6 +167,41 @@ impl ProcessId {
             (addresses.flash_non_protected_start, addresses.flash_end)
         })
     }
+
+    /// Get the process `write_id`.
+    /// Returns `None` if a `write_id` is not included.
+    pub fn get_write_id(&self) -> Option<u32> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.get_write_id())
+    }
+
+    /// Get the `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    pub fn get_read_ids(&self) -> Option<[u32; 8]> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.get_read_ids())
+    }
+
+    /// Get the number of `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    pub fn num_read_ids(&self) -> Option<usize> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.num_read_ids())
+    }
+
+    /// Get the `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    pub fn get_access_ids(&self) -> Option<[u32; 8]> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.get_access_ids())
+    }
+
+    /// Get the number of `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    pub fn num_access_ids(&self) -> Option<usize> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.num_access_ids())
+    }
 }
 
 /// This trait represents a generic process that the Tock scheduler can
@@ -399,6 +434,26 @@ pub trait Process {
     /// they are returned as a 64 bit bitmask for sequential command numbers.
     /// The offset indicates the multiple of 64 command numbers to get permissions for.
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
+
+    /// Get the process `write_id`.
+    /// Returns `None` if a `write_id` is not included.
+    fn get_write_id(&self) -> Option<u32>;
+
+    /// Get the `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    fn get_read_ids(&self) -> Option<[u32; 8]>;
+
+    /// Get the number of `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    fn num_read_ids(&self) -> Option<usize>;
+
+    /// Get the `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    fn get_access_ids(&self) -> Option<[u32; 8]>;
+
+    /// Get the number of `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    fn num_access_ids(&self) -> Option<usize>;
 
     // mpu
 

@@ -409,6 +409,36 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_command_permissions(driver_num, offset)
     }
 
+    /// Get the process `write_id`.
+    /// Returns `None` if a `write_id` is not included.
+    fn get_write_id(&self) -> Option<u32> {
+        self.header.get_write_id()
+    }
+
+    /// Get the `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    fn get_read_ids(&self) -> Option<[u32; 8]> {
+        self.header.get_read_ids()
+    }
+
+    /// Get the number of `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    fn num_read_ids(&self) -> Option<usize> {
+        self.header.num_read_ids()
+    }
+
+    /// Get the `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    fn get_access_ids(&self) -> Option<[u32; 8]> {
+        self.header.get_access_ids()
+    }
+
+    /// Get the number of `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    fn num_access_ids(&self) -> Option<usize> {
+        self.header.num_access_ids()
+    }
+
     fn number_writeable_flash_regions(&self) -> usize {
         self.header.number_writeable_flash_regions()
     }
