@@ -44,6 +44,39 @@ enum Operation {
     Delete,
 }
 
+const HEADER_VERSION: u8 = 0;
+const HEADER_LENGTH: usize = 9;
+
+/// This is the header used for KV stores
+struct KeyHeader {
+    version: u8,
+    length: u32,
+    write_id: u32,
+}
+
+impl KeyHeader {
+    /// Create a new `KeyHeader` from a buffer
+    fn new_from_buf(buf: &[u8]) -> Self {
+        Self {
+            version: buf[0],
+            length: u32::from_le_bytes(buf[1..5].try_into().unwrap_or([0; 4])),
+            write_id: u32::from_le_bytes(buf[5..9].try_into().unwrap_or([0; 4])),
+        }
+    }
+
+    /// Get the length of `KeyHeader`
+    fn len(&self) -> usize {
+        HEADER_LENGTH
+    }
+
+    /// Copy the header to `buf`
+    fn copy_to_buf(&self, buf: &mut [u8]) {
+        buf[0] = self.version;
+        buf[1..5].copy_from_slice(&self.length.to_le_bytes());
+        buf[5..9].copy_from_slice(&self.write_id.to_le_bytes());
+    }
+}
+
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     mux_kv: &'a MuxKVStore<'a, K, T>,
     next: ListLink<'a, KVStore<'a, K, T>>,
@@ -55,6 +88,10 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     hashed_key: TakeCell<'static, T>,
     unhashed_key: TakeCell<'static, [u8]>,
     value: TakeCell<'static, [u8]>,
+    header_value: TakeCell<'static, [u8]>,
+
+    valid_ids: Cell<(usize, [u32; 8])>,
+    next_valid_ids: Cell<(usize, [u32; 8])>,
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a, KVStore<'a, K, T>>
@@ -66,7 +103,11 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a, KVStore<'a,
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
-    pub fn new(mux_kv: &'a MuxKVStore<'a, K, T>, key: &'static mut T) -> KVStore<'a, K, T> {
+    pub fn new(
+        mux_kv: &'a MuxKVStore<'a, K, T>,
+        key: &'static mut T,
+        header_value: &'static mut [u8; HEADER_LENGTH],
+    ) -> KVStore<'a, K, T> {
         Self {
             mux_kv,
             next: ListLink::empty(),
@@ -75,6 +116,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             hashed_key: TakeCell::new(key),
             unhashed_key: TakeCell::empty(),
             value: TakeCell::empty(),
+            header_value: TakeCell::new(header_value),
+            valid_ids: Cell::new((0, [0; 8])),
+            next_valid_ids: Cell::new((0, [0; 8])),
         }
     }
 
@@ -86,13 +130,23 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         &self,
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
+        read_ids: &[u32; 8],
+        num_read_ids: usize,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
-        if self.mux_kv.operation.is_none() {
-            self.mux_kv.operation.set(Operation::Get);
+        if num_read_ids > 8 {
+            return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
+        }
 
+        if self.mux_kv.operation.is_none() {
             if self.hashed_key.is_none() {
                 return Err((unhashed_key, value, Err(ErrorCode::NOMEM)));
             }
+
+            self.mux_kv.operation.set(Operation::Get);
+
+            let (_num, mut buf) = self.valid_ids.get();
+            buf[0..num_read_ids].copy_from_slice(&read_ids[0..num_read_ids]);
+            self.valid_ids.set((num_read_ids, buf));
 
             if let Some(Err((unhashed_key, e))) = self.hashed_key.take().map(|buf| {
                 if let Err((unhashed_key, hashed_key, e)) =
@@ -117,6 +171,11 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
                 self.next_operation.set(Operation::Get);
                 self.unhashed_key.replace(unhashed_key);
                 self.value.replace(value);
+
+                let (_num, mut buf) = self.next_valid_ids.get();
+                buf[0..num_read_ids].copy_from_slice(&read_ids[0..num_read_ids]);
+                self.next_valid_ids.set((num_read_ids, buf));
+
                 Ok(())
             } else {
                 Err((unhashed_key, value, Err(ErrorCode::BUSY)))
@@ -128,13 +187,30 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         &self,
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
+        length: usize,
+        write_id: u32,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
-        if self.mux_kv.operation.is_none() {
-            self.mux_kv.operation.set(Operation::Set);
+        // Create the Tock header and ensure we have space to fit it
+        let header = KeyHeader {
+            version: HEADER_VERSION,
+            length: length as u32,
+            write_id,
+        };
+        if length + header.len() > value.len() {
+            return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
+        }
 
+        // Move the value to make space for the header
+        value.copy_within(0..length, header.len());
+        header.copy_to_buf(value);
+
+        if self.mux_kv.operation.is_none() {
+            // Make sure we have the hashed_key buffer
             if self.hashed_key.is_none() {
                 return Err((unhashed_key, value, Err(ErrorCode::NOMEM)));
             }
+
+            self.mux_kv.operation.set(Operation::Set);
 
             if let Some(Err((unhashed_key, e))) = self.hashed_key.take().map(|buf| {
                 if let Err((unhashed_key, hashed_key, e)) =
@@ -168,13 +244,23 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     pub fn delete(
         &self,
         unhashed_key: &'static mut [u8],
+        acces_ids: &[u32; 8],
+        num_access_ids: usize,
     ) -> Result<(), (&'static mut [u8], Result<(), ErrorCode>)> {
-        if self.mux_kv.operation.is_none() {
-            self.mux_kv.operation.set(Operation::Delete);
+        if num_access_ids > 8 {
+            return Err((unhashed_key, Err(ErrorCode::SIZE)));
+        }
 
+        if self.mux_kv.operation.is_none() {
             if self.hashed_key.is_none() {
                 return Err((unhashed_key, Err(ErrorCode::NOMEM)));
             }
+
+            let (_num, mut buf) = self.valid_ids.get();
+            buf[0..num_access_ids].copy_from_slice(&acces_ids[0..num_access_ids]);
+            self.valid_ids.set((num_access_ids, buf));
+
+            self.mux_kv.operation.set(Operation::Delete);
 
             if let Some(Err((unhashed_key, e))) = self.hashed_key.take().map(|buf| {
                 if let Err((unhashed_key, hashed_key, e)) =
@@ -196,6 +282,11 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             if self.next_operation.is_none() {
                 self.next_operation.set(Operation::Delete);
                 self.unhashed_key.replace(unhashed_key);
+
+                let (_num, mut buf) = self.next_valid_ids.get();
+                buf[0..num_access_ids].copy_from_slice(&acces_ids[0..num_access_ids]);
+                self.next_valid_ids.set((num_access_ids, buf));
+
                 Ok(())
             } else {
                 Err((unhashed_key, Err(ErrorCode::BUSY)))
@@ -271,14 +362,18 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType + core::fmt::Debug> kv_sy
                         });
                     }
                     Operation::Delete => {
-                        if let Err((key, e)) = self.mux_kv.kv.invalidate_key(hashed_key) {
-                            self.hashed_key.replace(key);
-                            self.unhashed_key.take().map(|unhashed_key| {
-                                self.client.map(move |cb| {
-                                    cb.delete_complete(e, unhashed_key);
+                        self.header_value.take().map(|value| {
+                            if let Err((key, value, e)) =
+                                self.mux_kv.kv.get_value(hashed_key, value)
+                            {
+                                self.unhashed_key.take().map(|unhashed_key| {
+                                    self.hashed_key.replace(key);
+                                    self.client.map(move |cb| {
+                                        cb.get_complete(e, unhashed_key, value);
+                                    });
                                 });
-                            });
-                        }
+                            }
+                        });
                     }
                 }
             }
@@ -322,11 +417,85 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType + core::fmt::Debug> kv_sy
         self.hashed_key.replace(key);
 
         self.mux_kv.operation.map(|op| match op {
-            Operation::Set | Operation::Delete => {}
+            Operation::Set => {}
+            Operation::Delete => {
+                let mut access_allowed = false;
+
+                let header = KeyHeader::new_from_buf(ret_buf);
+
+                if header.version == HEADER_VERSION {
+                    let (num, access_ids) = self.valid_ids.get();
+
+                    for i in 0..num {
+                        // If we have permission to read an ID that the data was written with
+                        if access_ids[i] == header.write_id {
+                            access_allowed = true;
+                            break;
+                        }
+                    }
+                }
+
+                self.header_value.replace(ret_buf);
+
+                if access_allowed {
+                    self.hashed_key.take().map(|hashed_key| {
+                        if let Err((key, e)) = self.mux_kv.kv.invalidate_key(hashed_key) {
+                            self.hashed_key.replace(key);
+                            self.unhashed_key.take().map(|unhashed_key| {
+                                self.client.map(move |cb| {
+                                    cb.delete_complete(e, unhashed_key);
+                                });
+                            });
+                        }
+                    });
+                } else {
+                    self.unhashed_key.take().map(|unhashed_key| {
+                        self.client.map(move |cb| {
+                            cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
+                        });
+                    });
+                }
+            }
             Operation::Get => {
+                let mut read_allowed = false;
+
+                if result.is_ok() {
+                    let header = KeyHeader::new_from_buf(ret_buf);
+
+                    if header.version == HEADER_VERSION {
+                        let (num, read_ids) = self.valid_ids.get();
+
+                        for i in 0..num {
+                            // If we have permission to read an ID that the data was written with
+                            if read_ids[i] == header.write_id {
+                                read_allowed = true;
+                                break;
+                            }
+                        }
+
+                        if read_allowed {
+                            ret_buf.copy_within(
+                                HEADER_LENGTH..(HEADER_LENGTH + header.length as usize),
+                                0,
+                            );
+                        }
+                    }
+                }
+
+                if !read_allowed {
+                    // Access denied or the header is invalid, zero the buffer
+                    ret_buf.iter_mut().for_each(|m| *m = 0)
+                }
+
                 self.unhashed_key.take().map(|unhashed_key| {
                     self.client.map(move |cb| {
-                        cb.get_complete(result, unhashed_key, ret_buf);
+                        if read_allowed {
+                            cb.get_complete(result, unhashed_key, ret_buf);
+                        } else {
+                            // The operation failed or the caller doesn't have permission,
+                            // just return an error (and an empty buffer)
+                            cb.get_complete(Err(ErrorCode::FAIL), unhashed_key, ret_buf);
+                        }
                     });
                 });
                 self.mux_kv.operation.clear();
@@ -395,6 +564,12 @@ impl<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType>
                     node.hashed_key.take().map(|hashed_key| {
                         match op {
                             Operation::Get => {
+                                let (_num, mut buf) = node.valid_ids.get();
+                                let (next_num, next_buf) = node.next_valid_ids.get();
+                                buf.copy_from_slice(&next_buf);
+                                node.valid_ids.set((next_num, buf));
+                                node.next_valid_ids.set((0, next_buf));
+
                                 if let Err((unhashed_key, hashed_key, e)) =
                                     self.kv.generate_key(unhashed_key, hashed_key)
                                 {
