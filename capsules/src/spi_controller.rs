@@ -199,15 +199,16 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
                     // 1) Write and read buffers present: len is min of lengths
                     // 2) Only write buffer present: len is len of write
                     // 3) No write buffer present: no operation
-                    let mut mlen = kernel_data
+                    let wlen = kernel_data
                         .get_readonly_processbuffer(ro_allow::WRITE)
                         .map_or(0, |write| write.len());
                     let rlen = kernel_data
                         .get_readwrite_processbuffer(rw_allow::READ)
-                        .map_or(mlen, |read| read.len());
-                    mlen = cmp::min(mlen, rlen);
+                        .map_or(0, |read| read.len());
+                    // Note that non-shared and 0-sized read buffers both report 0 as size
+                    let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
 
-                    if mlen >= arg1 && arg1 > 0 {
+                    if len >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
                         self.busy.set(true);
