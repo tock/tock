@@ -336,6 +336,11 @@ pub trait Process {
     /// The start address of the flash region allocated for this process.
     fn flash_start(&self) -> *const u8;
 
+    /// The first address of the flash region allocated for this process that
+    /// is not covered by integrity: may contain credentials footers. Must be
+    /// <= flash_end and >= flash_start.
+    fn flash_integrity_end(&self) -> *const u8;
+
     /// The first address after the end of the flash region allocated for this
     /// process.
     fn flash_end(&self) -> *const u8;

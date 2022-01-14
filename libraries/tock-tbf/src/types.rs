@@ -63,11 +63,14 @@ pub enum TbfParseError {
 
     /// Found a non-Header in the header region.
     InvalidHeader(usize),
+    
     /// The number of variable length entries (for example the number of
     /// `TbfHeaderDriverPermission` entries in `TbfHeaderV2Permissions`) is
     /// too long for Tock to parse.
     /// This can be fixed by increasing the number in `TbfHeaderV2`.
     TooManyEntries(usize),
+
+    
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -245,18 +248,31 @@ pub struct TbfHeaderV2KernelVersion {
 
 #[derive(Clone, Copy, Debug)]
 pub enum TbfFooterV2CredentialsType {
-    Padding = 0,
-    CleartextID = 1,
-    Rsa3072Key = 2,
-    Rsa4096Key = 3,
+    Padding          = 0,
+    CleartextID      = 1,
+    Rsa3072Key       = 2,
+    Rsa4096Key       = 3,
     Rsa3072KeyWithID = 4,
     Rsa4096KeyWithID = 5,
+    SHA256           = 6,
+    SHA384           = 7,
+    SHA512           = 8
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct TbfFooterV2Credentials {
     format: TbfFooterV2CredentialsType,
     data: &'static [u8],
+}
+
+impl TbfFooterV2Credentials {
+    pub fn format(&self) -> TbfFooterV2CredentialsType {
+        self.format
+    }
+
+    pub fn data(&self) -> &'static [u8] {
+        self.data
+    }
 }
 
 // Conversion functions from slices to the various TBF fields.
@@ -600,6 +616,9 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             3 => TbfFooterV2CredentialsType::Rsa4096Key,
             4 => TbfFooterV2CredentialsType::Rsa3072KeyWithID,
             5 => TbfFooterV2CredentialsType::Rsa4096KeyWithID,
+            6 => TbfFooterV2CredentialsType::SHA256,
+            7 => TbfFooterV2CredentialsType::SHA384,
+            8 => TbfFooterV2CredentialsType::SHA512,
             _ => {
                 return Err(TbfParseError::InternalError);
             }
@@ -611,7 +630,9 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             TbfFooterV2CredentialsType::Rsa4096Key => 1024,
             TbfFooterV2CredentialsType::Rsa3072KeyWithID => 768,
             TbfFooterV2CredentialsType::Rsa4096KeyWithID => 1024,
-                
+            TbfFooterV2CredentialsType::SHA256 => 32,
+            TbfFooterV2CredentialsType::SHA384 => 48,
+            TbfFooterV2CredentialsType::SHA512 => 64,
         };
         Ok(TbfFooterV2Credentials {
             format: ftype,

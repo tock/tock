@@ -28,6 +28,9 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::verifier::AppCheckerPermissive;
+use kernel::utilities::cells::OptionalCell;
+
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
@@ -721,6 +724,15 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+   
+    
+    let checker = static_init!(
+        AppCheckerPermissive<'static>,
+        AppCheckerPermissive {
+            client: OptionalCell::empty()
+        }
+    );
+    
     kernel::process::load_and_verify_processes(
         board_kernel,
         chip,
@@ -734,7 +746,7 @@ pub unsafe fn main() {
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
-        None,
+        Some(checker),
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

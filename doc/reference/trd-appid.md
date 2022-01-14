@@ -337,6 +337,9 @@ pub enum TbfFooterV2CredentialsType {
     Rsa4096Key = 3,
     Rsa3072KeyWithID = 4,
     Rsa4096KeyWithID = 5,
+	SHA256 = 6,
+	SHA384 = 7,
+	SHA512 = 8,
 }
 ```
 
@@ -372,6 +375,15 @@ ciphertext block, consisting of the SHA512 hash of the application
 binary in this process binary followed by a 32-bit application ID and
 padded with zeroes, encrypted by the private key of the public key in
 the TLV.
+
+The `SHA256` type has a data length of 32 bytes. It contains a 256-bit
+(32 byte) SHA256 hash of the application binary.
+
+The `SHA384` type has a data length of 48 bytes. It contains a 384-bit
+(48 byte) SHA384 hash of the application binary.
+
+The `SHA512` type has a data length of 64 bytes. It contains a 512-bit
+(64 byte) SHA512 hash of the application binary.
 
 `TbfFooterV2Credentials` type follow the compiled app binary in a
 TBF object.  If a `TbfFooterV2Credentials` footer includes a

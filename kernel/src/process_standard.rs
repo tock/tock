@@ -468,6 +468,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.flash.as_ptr()
     }
 
+    fn flash_integrity_end(&self) -> *const u8 {
+        let binary_end = self.header.get_binary_end() as usize;
+        ((self.flash.as_ptr() as usize) + binary_end) as *const u8
+    }
+    
     fn flash_non_protected_start(&self) -> *const u8 {
         ((self.flash.as_ptr() as usize) + self.header.get_app_start_offset() as usize) as *const u8
     }
