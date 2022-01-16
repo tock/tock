@@ -28,7 +28,7 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::verifier::AppCheckerPermissive;
+use kernel::verifier::AppCheckerSimulated;
 use kernel::utilities::cells::OptionalCell;
 
 //use kernel::hil::time::Alarm;
@@ -354,7 +354,7 @@ pub unsafe fn main() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
+        static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -727,12 +727,12 @@ pub unsafe fn main() {
    
     
     let checker = static_init!(
-        AppCheckerPermissive<'static>,
-        AppCheckerPermissive {
-            client: OptionalCell::empty()
-        }
+        AppCheckerSimulated<'static>,
+        AppCheckerSimulated::new(dynamic_deferred_caller)
     );
-    
+    checker.initialize_callback_handle(
+        dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
+    );
     kernel::process::load_and_verify_processes(
         board_kernel,
         chip,

@@ -432,6 +432,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         if self.state.get() != State::Unverified {
             // Mark the app as stopped so the scheduler won't try to run it.
             self.state.update(State::Terminated);
+        } else {
+            self.state.update(State::VerificationFailed);
         }
     }
 

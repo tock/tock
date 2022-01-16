@@ -713,8 +713,9 @@ impl Kernel {
                     }
                 }
                 process::State::Faulted | process::State::Terminated |
-                process::State::Unverified => {
-                    // We should never be scheduling a process in fault.
+                process::State::Unverified | process::State::VerificationFailed => {
+                    // We should never be scheduling an unrunnable process.
+                    // This is a potential security flaw: panic.
                     panic!("Attempted to schedule an unrunnable process");
                 }
                 process::State::StoppedRunning => {

@@ -378,9 +378,9 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                  verifier: &'static dyn AppCredentialsChecker,
                  next_footer: usize) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
-        debug!("Verifying {}", process.get_process_name());
+        debug!("Verifying {} {}", process.get_process_name(), next_footer);
         let footers_position_ptr = process.flash_integrity_end();
-        let footers_position = footers_position_ptr as usize;
+        let mut footers_position = footers_position_ptr as usize;
         
         let flash_start_ptr = process.flash_start();
         let flash_start = flash_start_ptr as usize;
@@ -388,7 +388,7 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         let flash_end = process.flash_end() as usize;
         let footers_len = flash_end - footers_position;
         
-        debug!("Flash integrity region is at {:x}, length {:x} ({:x}-{:x})",
+/*        debug!("Flash integrity region is at {:x}, length {:x} ({:x}-{:x})",
                flash_start,
                flash_integrity_len,
                flash_start,
@@ -397,24 +397,30 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                footers_position,
                footers_len,
                footers_position,
-               flash_end);
+               flash_end);*/
         let mut current_footer = 0;
         let mut footer_slice = unsafe {slice::from_raw_parts(footers_position_ptr,
                                                              footers_len)};
         let binary_slice = unsafe {slice::from_raw_parts(flash_start_ptr,
                                                          flash_integrity_len)};
-        debug!("Checking for footer {}", next_footer);
-        while current_footer <= next_footer  && footers_position <= flash_end {
+        while current_footer <= next_footer  && footers_position < flash_end {
+            debug!("Checking for footer {}, at {}", next_footer, current_footer);
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
                 Err(TbfParseError::NotEnoughFlash) => {
                     return FooterCheckResult::PastLastFooter;
                 }
-                Err(_) => {
+                Err(TbfParseError::BadTlvEntry(t)) => {
+                    debug!("Bad TLV entry, type: {:?}", t);
+                    return FooterCheckResult::BadFooter;
+                }
+                Err(e) => {
+                    debug!("Error parsing footer: {:?}", e);
                     return FooterCheckResult::BadFooter;
                 }
                 Ok((footer, len)) => {
                     let slice_result = footer_slice.get(len as usize + 4..);
+                    footers_position = footers_position + len as usize + 4;
                     match slice_result {
                         None => {
                             return FooterCheckResult::BadFooter;
@@ -422,18 +428,21 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                         Some(slice) => {
                             footer_slice = slice;
                             if current_footer == next_footer {
-                                debug!("Found {}, checking", current_footer);
                                 match verifier.check_credentials(footer, binary_slice) {
                                     Ok(()) => {
+                                        debug!("Found {}, checking", current_footer);
                                         return FooterCheckResult::Checking;
                                     }
                                     Err((ErrorCode::NOSUPPORT, _, _)) => {
+                                        debug!("Found {}, not supported", current_footer);
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
                                     Err((ErrorCode::ALREADY, _, _)) => {
+                                        debug!("Found {}, already", current_footer);
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
-                                    Err(_) => {
+                                    Err(e) => {
+                                        debug!("Found {}, error {:?}", current_footer, e);
                                         return FooterCheckResult::Error;
                                     }
                                 }
@@ -476,15 +485,17 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         }
  */
 
-impl verifier::Client for ProcessVerifierState {
+impl verifier::Client<'static> for ProcessVerifierState {
     fn check_done(&self,
                   result: Result<CheckResult, ErrorCode>,
                   _credentials: TbfFooterV2Credentials,
-                  _binary: &[u8]) {
+                  _binary: &'static [u8]) {
+        debug!("ProcessVerifierState: check on header is {:?}", result);
         match result {
             Ok(CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_verified();
+                    p.enqueue_init_task();
                 });
                 self.process.set(self.process.get() + 1);
             },

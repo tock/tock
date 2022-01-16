@@ -749,6 +749,10 @@ pub enum State {
     /// needs to be checked by an AppCredentialsChecker to be transitioned
     /// into the Unstarted state.
     Unverified,
+
+    /// The Process failed verification: it was terminated before it was
+    /// verified.
+    VerificationFailed,
 }
 
 /// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
