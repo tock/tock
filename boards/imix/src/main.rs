@@ -29,7 +29,6 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::verifier::AppCheckerSimulated;
-use kernel::utilities::cells::OptionalCell;
 
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;

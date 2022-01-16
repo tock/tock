@@ -1,7 +1,6 @@
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
-use crate::debug;
 use crate::hil::digest::{ClientData, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha512};
 use crate::utilities::cells::OptionalCell;
@@ -91,7 +90,6 @@ impl<'a> AppCheckerSimulated<'a> {
 
 impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
     fn call(&self, _handle: DeferredCallHandle) {
-        debug!("AppCheckerSimulated:: signaling pass");
         self.client.map(|c| c.check_done(Ok(CheckResult::Reject),
                                          self.credentials.take().unwrap(),
                                          self.binary.take().unwrap()));

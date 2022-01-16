@@ -268,14 +268,14 @@ fn load_processes<C: Chip>(
 /// then all processes are automatically verified.
 #[inline(always)]
 fn verify_processes(procs: &'static [Option<&'static dyn Process>],
-                    verifier: Option<&'static dyn AppCredentialsChecker>
+                    checker: Option<&'static dyn AppCredentialsChecker>
 ) -> Result<(), ProcessLoadError> {
-    // Skip if we don't have a verifier of the verifier is a no-op
-    debug!("Verifier is present: {}", verifier.is_some());
-    if verifier.is_none() {
+    if checker.is_none() {
+        if config::CONFIG.debug_process_credentials {
+            debug!("CREDENTIALS: no checker provided, load and run all processes");
+        }
         for proc in procs.iter() {
             let res = proc.map(|p| {
-                debug!("Skip verification for {}", p.get_process_name());
                 p.mark_verified().or(Err(ProcessLoadError::InternalError))?;
                 p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
@@ -286,25 +286,26 @@ fn verify_processes(procs: &'static [Option<&'static dyn Process>],
         }
         Ok(())
     } else {
-        verifier.map_or(Err(ProcessLoadError::InternalError), |v| {
-            let verifier_state = unsafe {static_init!(ProcessVerifierState,
-                                              ProcessVerifierState {
-                                                  process: Cell::new(0),
-                                                  footer:  Cell::new(0),
-                                                  verifier: OptionalCell::empty(),
-                                                  processes: procs})};
-            v.set_client(verifier_state);
-            verifier_state.verifier.replace(v);
-            verifier_state.next()?;
+        checker.map_or(Err(ProcessLoadError::InternalError), |c| {
+            #[allow(unused_mut)] // machine doesn't need mut
+            let machine = unsafe {static_init!(ProcessCheckerMachine,
+                                               ProcessCheckerMachine {
+                                                   process: Cell::new(0),
+                                                   footer:  Cell::new(0),
+                                                   checker: OptionalCell::empty(),
+                                                   processes: procs})};
+            c.set_client(machine);
+            machine.checker.replace(c);
+            machine.next()?;
             Ok(())
         })
     }
 }
 
-struct ProcessVerifierState {
+struct ProcessCheckerMachine {
     process: Cell<usize>,
     footer: Cell<usize>,
-    verifier: OptionalCell<&'static dyn AppCredentialsChecker<'static>>,
+    checker: OptionalCell<&'static dyn AppCredentialsChecker<'static>>,
     processes: &'static [Option<&'static dyn Process>],
 }
 
@@ -319,36 +320,67 @@ enum FooterCheckResult {
 }
     
 
-impl ProcessVerifierState {
+impl ProcessCheckerMachine {
+
+    /// Check the next footer of the next process. Returns:
+    ///   - Ok(true) if a valid footer was found and is being checked
+    ///   - Ok(false) there are no more footers to check
+    ///   - Err(r): an error occured and process verification has to stop.
     fn next(&self) -> Result<bool, ProcessLoadError> {
-        debug!("ProcessVerifierState::next");
         loop {
             let mut proc_index = self.process.get();
-            let footer_index = self.footer.get();
+            
+            // Find the next process to check. When code completes
+            // verifying a process, it just increments to the next
+            // index. In case the array has None entries or the
+            // process array changes under us, don't actually trust
+            // this value.
             while proc_index < self.processes.len() &&
                   self.processes[proc_index].is_none() {
                 proc_index = proc_index + 1;
-                self.process.set(proc_index)
+                self.process.set(proc_index);
+                self.footer.set(0);
             }
             if proc_index >= self.processes.len() {
+                // No more processes to check.
                 return Ok(false);
             }
-            let r = self.verifier.map_or(FooterCheckResult::Error,
-                                         |v| verify_footer(self.processes[proc_index],
-                                                           *v,
-                                                           footer_index));
-            debug!("Verify result: {:?}", r);
-            match r {
+            
+            let footer_index = self.footer.get();
+            // Try to check the next footer.
+            let check_result = self
+                .checker
+                .map_or(FooterCheckResult::Error,
+                        |v| verify_footer(self.processes[proc_index],
+                                          *v,
+                                          footer_index));
+            if config::CONFIG.debug_process_credentials {
+                debug!("CREDENTIALS: Check status for process {}, footer {}: {:?}",
+                       proc_index,
+                       footer_index,
+                       check_result);
+            }
+            match check_result {
                 FooterCheckResult::Checking => {
                     return Ok(true);
                 }
                 FooterCheckResult::PastLastFooter => {
-                    let requires = self.verifier.map_or(false, |v| v.require_credentials());
+                    // We reached the end of the footers without any
+                    // credentials or all credentials were Pass: apply
+                    // the checker policy to see if the process
+                    // should be allowed to run.
+                    let requires = self.checker.map_or(false, |v| v.require_credentials());
                     let _res = self.processes[proc_index]
                         .map_or(Err(ProcessLoadError::InternalError), |p| {
                             if requires {
+                                if config::CONFIG.debug_process_credentials {
+                                    debug!("CREDENTIALS: required, but all passes, do not run {}", p.get_process_name());
+                                }
                                 p.terminate(None);
                             } else {
+                                if config::CONFIG.debug_process_credentials {
+                                    debug!("CREDENTIALS: not required, all passes, run {}", p.get_process_name());
+                                }
                                 p.mark_verified().or(Err(ProcessLoadError::InternalError))?;
                                 p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
                             }
@@ -373,12 +405,16 @@ impl ProcessVerifierState {
     }
 }
 
-//Returns whether a footer is being checked or not
+// Returns whether a footer is being checked or not, and if not, why.
+// Iterates through the footer list until if finds `next_footer` or
+// it reached the end of the footer region.
 fn verify_footer(popt: Option<&'static dyn Process>,
-                 verifier: &'static dyn AppCredentialsChecker,
+                 checker: &'static dyn AppCredentialsChecker,
                  next_footer: usize) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
-        debug!("Verifying {} {}", process.get_process_name(), next_footer);
+        if config::CONFIG.debug_process_credentials {
+            debug!("CREDENTIALS: Checking {} footer {}", process.get_process_name(), next_footer);
+        }
         let footers_position_ptr = process.flash_integrity_end();
         let mut footers_position = footers_position_ptr as usize;
         
@@ -387,35 +423,38 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         let flash_integrity_len = footers_position - flash_start;
         let flash_end = process.flash_end() as usize;
         let footers_len = flash_end - footers_position;
-        
-/*        debug!("Flash integrity region is at {:x}, length {:x} ({:x}-{:x})",
-               flash_start,
-               flash_integrity_len,
-               flash_start,
-               flash_start + flash_integrity_len);
-        debug!("Footers are at {:x}, length {:x} ({:x}-{:x})",
-               footers_position,
-               footers_len,
-               footers_position,
-               flash_end);*/
+
+        if config::CONFIG.debug_process_credentials {
+            debug!("CREDENTIALS: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
+                   flash_start,
+                   flash_start + flash_integrity_len,
+                   footers_position,
+                   flash_end);
+        }
         let mut current_footer = 0;
         let mut footer_slice = unsafe {slice::from_raw_parts(footers_position_ptr,
                                                              footers_len)};
         let binary_slice = unsafe {slice::from_raw_parts(flash_start_ptr,
                                                          flash_integrity_len)};
         while current_footer <= next_footer  && footers_position < flash_end {
-            debug!("Checking for footer {}, at {}", next_footer, current_footer);
+            if config::CONFIG.debug_process_credentials {
+                //debug!("CREDENTIALS: Checking for footer {}, at {}", next_footer, current_footer);
+            }
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
                 Err(TbfParseError::NotEnoughFlash) => {
                     return FooterCheckResult::PastLastFooter;
                 }
                 Err(TbfParseError::BadTlvEntry(t)) => {
-                    debug!("Bad TLV entry, type: {:?}", t);
+                    if config::CONFIG.debug_process_credentials {
+                        debug!("CREDENTIALS: Bad TLV entry, type: {:?}", t);
+                    }
                     return FooterCheckResult::BadFooter;
                 }
                 Err(e) => {
-                    debug!("Error parsing footer: {:?}", e);
+                    if config::CONFIG.debug_process_credentials {
+                        debug!("CREDENTIALS: Error parsing footer: {:?}", e);
+                    }
                     return FooterCheckResult::BadFooter;
                 }
                 Ok((footer, len)) => {
@@ -428,26 +467,32 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                         Some(slice) => {
                             footer_slice = slice;
                             if current_footer == next_footer {
-                                match verifier.check_credentials(footer, binary_slice) {
+                                match checker.check_credentials(footer, binary_slice) {
                                     Ok(()) => {
-                                        debug!("Found {}, checking", current_footer);
+                                        if config::CONFIG.debug_process_credentials {
+                                            debug!("CREDENTIALS: Found {}, checking", current_footer);
+                                        }
                                         return FooterCheckResult::Checking;
                                     }
                                     Err((ErrorCode::NOSUPPORT, _, _)) => {
-                                        debug!("Found {}, not supported", current_footer);
+                                        if config::CONFIG.debug_process_credentials {
+                                            debug!("CREDENTIALS: Found {}, not supported", current_footer);
+                                        }
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
                                     Err((ErrorCode::ALREADY, _, _)) => {
-                                        debug!("Found {}, already", current_footer);
+                                        if config::CONFIG.debug_process_credentials {
+                                            debug!("CREDENTIALS: Found {}, already", current_footer);
+                                        }
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
                                     Err(e) => {
-                                        debug!("Found {}, error {:?}", current_footer, e);
+                                        if config::CONFIG.debug_process_credentials {
+                                            debug!("CREDENTIALS: Found {}, error {:?}", current_footer, e);
+                                        }
                                         return FooterCheckResult::Error;
                                     }
                                 }
-                            } else {
-                                debug!("At {}, going to next", current_footer);
                             }
                         }
                     }
@@ -460,42 +505,22 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         
 }
 
-/* footer processing code yanked from old ProcessStandard
-        let mut footer_position = tbf_header.get_binary_end() as usize;
-        debug!("Parsing footers at 0x{:x}.", footer_position);
-         // The portion of the application binary covered by integrity.
-        let covered_flash = app_flash.get(0..binary_end).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
-        let footer_region = app_flash.get(binary_end..total_size);
-        while footer_position < (total_size - 4) { // There needs to be space for a TLV 
-            debug!("Checking credentials. Total size={}, footer position={}, bytes of footers={}", total_size, footer_position, total_size - footer_position);
-            let (footer, len) = tock_tbf::parse::parse_tbf_footer(remaining_flash)?;
-            remaining_flash = remaining_flash.get(len as usize + 4..).ok_or(tock_tbf::types::TbfParseError::NotEnoughFlash)?;
-            
-*            match verifier.check_credentials(&footer, covered_flash) {
-                VerificationResult::Accept => {
-                    credentials_approved = true;
-                    break;
-                },
-                VerificationResult::Reject => {
-                    return Err(ProcessLoadError::CredentialsNoAccept);
-                }
-                VerificationResult::Pass => { },
-            }
-            footer_position += len as usize;
-        }
- */
-
-impl verifier::Client<'static> for ProcessVerifierState {
+impl verifier::Client<'static> for ProcessCheckerMachine {
     fn check_done(&self,
                   result: Result<CheckResult, ErrorCode>,
                   _credentials: TbfFooterV2Credentials,
                   _binary: &'static [u8]) {
-        debug!("ProcessVerifierState: check on header is {:?}", result);
+        if config::CONFIG.debug_process_credentials {
+            debug!("CREDENTIALS: check_done gave result {:?}", result);
+        }
         match result {
             Ok(CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_verified();
-                    p.enqueue_init_task();
+                    if p.enqueue_init_task().is_err() {
+                        debug!("Error starting checked process {}",
+                               p.get_process_name());
+                    }
                 });
                 self.process.set(self.process.get() + 1);
             },
@@ -508,21 +533,14 @@ impl verifier::Client<'static> for ProcessVerifierState {
                 });
                 self.process.set(self.process.get() + 1);
             }
-            Err(_e) => {
-                debug!("Error in verifying a process. Move to next footer.");
-                 self.footer.set(self.footer.get() + 1);
+            Err(e) => {
+                if config::CONFIG.debug_process_credentials {
+                    debug!("CREDENTIALS: error checking footer {:?}", e);
+                }
+                self.footer.set(self.footer.get() + 1);
             }
         }
-        let mut cont = match self.next() {
-            Ok(_) | Err(ProcessLoadError::InternalError) => false,
-            _ => true
-        };
-        while cont {
-            cont = match self.next() {
-                Ok(_) | Err(ProcessLoadError::InternalError) => false,
-                _ => true
-            };
-        }
+        let _cont =  self.next();
     }
 }
 
