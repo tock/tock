@@ -51,5 +51,5 @@ pub const CONFIG: Config = Config {
     name: "sim_verilator",
     cpu_freq: 500_000,
     peripheral_freq: 125_000,
-    uart_baudrate: 9600,
+    uart_baudrate: 7200,
 };

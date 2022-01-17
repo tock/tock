@@ -38,6 +38,17 @@ flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 	$(OPENTITAN_TREE)/build-out/sw/host/spiflash/spiflash $(FLASHID) --input=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 
+verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	$(call check_defined, OPENTITAN_TREE)
+	srec_cat $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
+		--binary --offset 0 --byte-swap 8 --fill 0xff \
+		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
+		-binary -range-pad 8 --output binary.64.vmem --vmem 64
+	$(OPENTITAN_TREE)/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
+		--meminit=rom,$(OPENTITAN_TREE)/build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
+		--meminit=flash,./binary.64.vmem \
+		--meminit=otp,$(OPENTITAN_TREE)/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+
 test:
 ifneq ($(OPENTITAN_TREE),)
 	$(error "Running on QEMU, use test-hardware to run on hardware")
@@ -55,3 +66,12 @@ endif
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+
+test-verilator:
+	$(call check_defined, OPENTITAN_TREE)
+
+	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
+	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
+	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
+
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
