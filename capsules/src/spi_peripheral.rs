@@ -188,20 +188,28 @@ impl<S: SpiSlaveDevice> SyscallDriver for SpiPeripheral<'_, S> {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
                 self.grants.enter(process_id, |app, kernel_data| {
-                    let mut mlen = kernel_data
+                    // When we do a read/write, the read part is optional.
+                    // So there are three cases:
+                    // 1) Write and read buffers present: len is min of lengths
+                    // 2) Only write buffer present: len is len of write
+                    // 3) No write buffer present: no operation
+                    let wlen = kernel_data
                         .get_readonly_processbuffer(ro_allow::WRITE)
                         .map_or(0, |write| write.len());
                     let rlen = kernel_data
                         .get_readwrite_processbuffer(rw_allow::READ)
-                        .map_or(mlen, |read| read.len());
-                    mlen = cmp::min(mlen, rlen);
-                    if mlen >= arg1 && arg1 > 0 {
+                        .map_or(0, |read| read.len());
+                    // Note that non-shared and 0-sized read buffers both report 0 as size
+                    let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
+
+                    if len >= arg1 && arg1 > 0 {
                         app.len = arg1;
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app, kernel_data);
                         CommandReturn::success()
                     } else {
+                        /* write buffer too small, or zero length write */
                         CommandReturn::failure(ErrorCode::INVAL)
                     }
                 }).unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))

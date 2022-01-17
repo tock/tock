@@ -43,4 +43,4 @@ Tock Guides
 ### Management of Tock
 - **[Working Groups](wg)** - Development groups for specific aspects of Tock.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews.
-- **[Tock Management](Management.md)** - Management processes for Tock, including releases.
+- **[Tock Management](Maintenance.md)** - Management processes for Tock, including releases.
