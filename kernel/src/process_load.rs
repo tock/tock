@@ -437,13 +437,13 @@ fn check_footer(popt: Option<&'static dyn Process>,
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: Checking {} footer {}", process.get_process_name(), next_footer);
         }
-        let footers_position_ptr = process.flash_integrity_end();
+        let footers_position_ptr = process.get_addresses().flash_integrity_end;
         let mut footers_position = footers_position_ptr as usize;
         
-        let flash_start_ptr = process.flash_start();
+        let flash_start_ptr = process.get_addresses().flash_start as *const u8;
         let flash_start = flash_start_ptr as usize;
         let flash_integrity_len = footers_position - flash_start;
-        let flash_end = process.flash_end() as usize;
+        let flash_end = process.get_addresses().flash_end as usize;
         let footers_len = flash_end - footers_position;
 
         if config::CONFIG.debug_process_credentials {
@@ -459,9 +459,6 @@ fn check_footer(popt: Option<&'static dyn Process>,
         let binary_slice = unsafe {slice::from_raw_parts(flash_start_ptr,
                                                          flash_integrity_len)};
         while current_footer <= next_footer  && footers_position < flash_end {
-            if config::CONFIG.debug_process_credentials {
-                //debug!("Checking: Checking for footer {}, at {}", next_footer, current_footer);
-            }
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
                 Err(TbfParseError::NotEnoughFlash) => {
@@ -685,8 +682,8 @@ fn load_process<C: Chip>(
                     index,
                     entry_flash.as_ptr() as usize,
                     entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                    process.mem_start() as usize,
-                    process.mem_end() as usize - 1,
+                    process.get_addresses().sram_start as usize,
+                    process.get_addresses().sram_end as usize - 1,
                     process.get_process_name()
                 );
             }

@@ -47,7 +47,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -422,12 +422,15 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    grants: Grant<App, 1>,
+    grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App, 1>) -> LTC294XDriver<'a> {
+    pub fn new(
+        ltc: &'a LTC294X<'a>,
+        grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
             grants: grants,

@@ -101,6 +101,42 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
 
     #[inline]
     /// Read value of the field as an enum member
+    ///
+    /// This method expects to be passed the unasked and unshifted register
+    /// value, extracts the field value by calling [`Field::read`] and
+    /// subsequently passes that value to the [`TryFromValue`] implementation on
+    /// the passed enum type.
+    ///
+    /// The [`register_bitfields!`](crate::register_bitfields) macro will
+    /// generate an enum containing the various named field variants and
+    /// implementing the required [`TryFromValue`] trait. It is accessible as
+    /// `$REGISTER_NAME::$FIELD_NAME::Value`.
+    ///
+    /// This method can be useful to symbolically represent read register field
+    /// states throughout the codebase and to enforce exhaustive matches over
+    /// all defined valid register field values.
+    ///
+    /// ## Usage Example
+    ///
+    /// ```rust
+    /// # use tock_registers::interfaces::Readable;
+    /// # use tock_registers::registers::InMemoryRegister;
+    /// # use tock_registers::register_bitfields;
+    /// register_bitfields![u8,
+    ///     EXAMPLEREG [
+    ///         TESTFIELD OFFSET(3) NUMBITS(3) [
+    ///             Foo = 2,
+    ///             Bar = 3,
+    ///             Baz = 6,
+    ///         ],
+    ///     ],
+    /// ];
+    ///
+    /// match EXAMPLEREG::TESTFIELD.read_as_enum(0x9C) {
+    ///     Some(EXAMPLEREG::TESTFIELD::Value::Bar) => "The value is 3!",
+    ///     _ => panic!("boo!"),
+    /// };
+    /// ```
     pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(self, val: T) -> Option<E> {
         E::try_from_value(self.read(val))
     }

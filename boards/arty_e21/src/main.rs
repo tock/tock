@@ -25,7 +25,6 @@ pub mod io;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -300,7 +299,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &artye21,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
         &main_loop_cap,
     );
 }

@@ -1,0 +1,102 @@
+use crate::tests::run_kernel_op;
+use crate::SIPHASH;
+use core::cell::Cell;
+use kernel::hil::hasher::{self, Hasher};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::{debug, ErrorCode};
+
+static mut INPUT: [[u8; 8]; 20] = [
+    [0x31, 0x0e, 0x0e, 0xdd, 0x47, 0xdb, 0x6f, 0x72],
+    [0xfd, 0x67, 0xdc, 0x93, 0xc5, 0x39, 0xf8, 0x74],
+    [0x5a, 0x4f, 0xa9, 0xd9, 0x09, 0x80, 0x6c, 0x0d],
+    [0x2d, 0x7e, 0xfb, 0xd7, 0x96, 0x66, 0x67, 0x85],
+    [0xb7, 0x87, 0x71, 0x27, 0xe0, 0x94, 0x27, 0xcf],
+    [0x8d, 0xa6, 0x99, 0xcd, 0x64, 0x55, 0x76, 0x18],
+    [0xce, 0xe3, 0xfe, 0x58, 0x6e, 0x46, 0xc9, 0xcb],
+    [0x37, 0xd1, 0x01, 0x8b, 0xf5, 0x00, 0x02, 0xab],
+    [0x62, 0x24, 0x93, 0x9a, 0x79, 0xf5, 0xf5, 0x93],
+    [0xb0, 0xe4, 0xa9, 0x0b, 0xdf, 0x82, 0x00, 0x9e],
+    [0xf3, 0xb9, 0xdd, 0x94, 0xc5, 0xbb, 0x5d, 0x7a],
+    [0xa7, 0xad, 0x6b, 0x22, 0x46, 0x2f, 0xb3, 0xf4],
+    [0xfb, 0xe5, 0x0e, 0x86, 0xbc, 0x8f, 0x1e, 0x75],
+    [0x90, 0x3d, 0x84, 0xc0, 0x27, 0x56, 0xea, 0x14],
+    [0xee, 0xf2, 0x7a, 0x8e, 0x90, 0xca, 0x23, 0xf7],
+    [0xe5, 0x45, 0xbe, 0x49, 0x61, 0xca, 0x29, 0xa1],
+    [0xdb, 0x9b, 0xc2, 0x57, 0x7f, 0xcc, 0x2a, 0x3f],
+    [0x94, 0x47, 0xbe, 0x2c, 0xf5, 0xe9, 0x9a, 0x69],
+    [0x9c, 0xd3, 0x8d, 0x96, 0xf0, 0xb3, 0xc1, 0x4b],
+    [0x28, 0xef, 0x49, 0x5c, 0x53, 0xa3, 0x87, 0xad],
+];
+
+static mut OUTPUT: [u8; 8] = [0; 8];
+
+struct SipHashTestCallback {
+    data_add_done: Cell<bool>,
+    hash_done: Cell<bool>,
+}
+
+unsafe impl Sync for SipHashTestCallback {}
+
+impl<'a> SipHashTestCallback {
+    const fn new() -> Self {
+        SipHashTestCallback {
+            data_add_done: Cell::new(false),
+            hash_done: Cell::new(false),
+        }
+    }
+
+    fn reset(&self) {
+        self.data_add_done.set(false);
+        self.hash_done.set(false);
+    }
+}
+
+impl<'a> hasher::Client<'a, 8> for SipHashTestCallback {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
+        assert_eq!(result, Ok(()));
+        self.data_add_done.set(true);
+    }
+
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+        let ret = u64::from_le_bytes(*digest);
+
+        assert_eq!(result, Ok(()));
+        // Value calculated from:
+        //    https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=08a45842acb9dc1abf9dbc303b5eaa50
+        assert_eq!(ret, 0x9ed5975598371f51);
+
+        self.hash_done.set(true);
+    }
+}
+
+static CALLBACK: SipHashTestCallback = SipHashTestCallback::new();
+
+#[test_case]
+fn sip_hasher_2_4() {
+    let sip_hasher = unsafe { SIPHASH.unwrap() };
+
+    debug!("check SipHash 2-4... ");
+    run_kernel_op(100);
+
+    sip_hasher.set_client(&CALLBACK);
+    CALLBACK.reset();
+
+    unsafe {
+        for i in 0..INPUT.len() {
+            assert_eq!(
+                sip_hasher.add_data(LeasableBuffer::new(&mut INPUT[i])),
+                Ok(8)
+            );
+            run_kernel_op(100);
+            assert_eq!(CALLBACK.data_add_done.get(), true);
+        }
+    }
+
+    assert_eq!(unsafe { sip_hasher.run(&mut OUTPUT) }, Ok(()));
+    run_kernel_op(100);
+    assert_eq!(CALLBACK.hash_done.get(), true);
+
+    run_kernel_op(100);
+    debug!("    [ok]");
+    run_kernel_op(100);
+}

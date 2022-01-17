@@ -216,5 +216,5 @@ The screen driver allows the process to write data to a framebuffer of a screen.
     completion callback is undefined (most likely either the original buffer or
     new buffer will be written in its entirety but not both).
 
-    **Returns**: Ok(()) if the subscribe was successful, INVAL if the buffer's length is not a multiple of the color depth length. 
+    **Returns**: Ok(()) if the subscribe was successful.
 

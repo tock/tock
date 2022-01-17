@@ -5,7 +5,6 @@ use crate::otbn::{Client, Otbn};
 use core::cell::Cell;
 use kernel::collections::list::{ListLink, ListNode};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 pub struct VirtualMuxAccel<'a> {
@@ -38,10 +37,7 @@ impl<'a> VirtualMuxAccel<'a> {
         self.client.set(client);
     }
 
-    pub fn load_binary(
-        &self,
-        input: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    pub fn load_binary(&self, input: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -50,15 +46,11 @@ impl<'a> VirtualMuxAccel<'a> {
         } else if self.mux.running_id.get() == self.id {
             self.mux.accel.load_binary(input)
         } else {
-            Err((ErrorCode::BUSY, input.take()))
+            Err(ErrorCode::BUSY)
         }
     }
 
-    pub fn load_data(
-        &self,
-        address: usize,
-        data: &'static mut [u8],
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    pub fn load_data(&self, address: usize, data: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running.get() == false {
             self.mux.running.set(true);
@@ -67,7 +59,7 @@ impl<'a> VirtualMuxAccel<'a> {
         } else if self.mux.running_id.get() == self.id {
             self.mux.accel.load_data(address, data)
         } else {
-            Err((ErrorCode::BUSY, data))
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -99,16 +91,6 @@ impl<'a> VirtualMuxAccel<'a> {
 }
 
 impl<'a> Client<'a> for VirtualMuxAccel<'a> {
-    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
-        self.client
-            .map(move |client| client.binary_load_done(result, input));
-    }
-
-    fn data_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]) {
-        self.client
-            .map(move |client| client.data_load_done(result, input));
-    }
-
     fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]) {
         self.client
             .map(move |client| client.op_done(result, output));

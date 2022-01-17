@@ -1,15 +1,12 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::static_init;
+use kernel::utilities::cells::TakeCell;
 use kernel::{debug, ErrorCode};
 use lowrisc::otbn::Client;
 
-static mut OUTPUT: [u8; 1024] = [0; 1024];
-static mut SOURCE: [u8; 256] = [0; 256];
-static mut TEMP: [u8; 4] = [0; 4];
-
-static mut MODULUS: [u8; 256] = [
+static MODULUS: [u8; 256] = [
     0xf9, 0x90, 0xc7, 0x94, 0xcf, 0x96, 0xd3, 0x12, 0x6f, 0x16, 0xa6, 0x50, 0x5d, 0xcb, 0xe9, 0x29,
     0x53, 0xc8, 0x44, 0x04, 0xda, 0x69, 0x2d, 0x1a, 0xc1, 0xb8, 0xa8, 0x70, 0x97, 0xb5, 0x96, 0xd8,
     0x07, 0xef, 0x2c, 0x3a, 0x66, 0x90, 0x16, 0xf9, 0x27, 0x1e, 0xf9, 0x82, 0x2b, 0x32, 0x31, 0x17,
@@ -48,48 +45,34 @@ static EXPECTING: [u8; 256] = [
 ];
 
 struct OtbnTestCallback {
-    binary_load_done: Cell<bool>,
-    data_load_done: Cell<bool>,
     op_done: Cell<bool>,
+    output_buf: TakeCell<'static, [u8]>,
 }
 
 unsafe impl Sync for OtbnTestCallback {}
 
 impl<'a> OtbnTestCallback {
-    const fn new() -> Self {
+    fn new(output_buf: &'static mut [u8]) -> Self {
         OtbnTestCallback {
-            binary_load_done: Cell::new(false),
-            data_load_done: Cell::new(false),
             op_done: Cell::new(false),
+            output_buf: TakeCell::new(output_buf),
         }
     }
 
     fn reset(&self) {
-        self.binary_load_done.set(false);
-        self.data_load_done.set(false);
         self.op_done.set(false);
     }
 }
 
 impl<'a> Client<'a> for OtbnTestCallback {
-    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, _input: &'static mut [u8]) {
-        self.binary_load_done.set(true);
-        assert_eq!(result, Ok(()));
-    }
-
-    fn data_load_done(&'a self, result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
-        self.data_load_done.set(true);
-        assert_eq!(result, Ok(()));
-    }
-
     fn op_done(&'a self, result: Result<(), ErrorCode>, output: &'static mut [u8]) {
         self.op_done.set(true);
         assert_eq!(result, Ok(()));
         assert_eq!(output[0..256], EXPECTING);
+        // Keep copy of output
+        self.output_buf.replace(output);
     }
 }
-
-static CALLBACK: OtbnTestCallback = OtbnTestCallback::new();
 
 /// These symbols are defined in the linker script.
 extern "C" {
@@ -99,10 +82,24 @@ extern "C" {
     static _eapps: u8;
 }
 
+/// Static init an OtbnTestCallback, with
+/// a respective buffer allocated.
+/// Note: static_init!() returns an &'static mut reference.
+unsafe fn static_init_test_cb() -> &'static OtbnTestCallback {
+    let output_buf = static_init!([u8; 1024], [0; 1024]);
+
+    static_init!(OtbnTestCallback, OtbnTestCallback::new(output_buf))
+}
+
 #[test_case]
 fn otbn_run_rsa_binary() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let otbn = &perf.otbn;
+    let cb = unsafe { static_init_test_cb() };
+    let output = cb.output_buf.take().unwrap();
+    let mut temp: [u8; 4] = [0; 4];
+
+    debug!("check otbn run binary...");
 
     if let Ok((imem_start, imem_length, dmem_start, dmem_length)) = unsafe {
         crate::otbn::find_app(
@@ -113,77 +110,62 @@ fn otbn_run_rsa_binary() {
             ),
         )
     } {
-        // BAD! This is not actually mutable!!
-        // This is stored in flash which is not mutable.
-        // Once https://github.com/tock/tock/pull/2852 is merged this should be fixed
-        let slice = unsafe { core::slice::from_raw_parts_mut(imem_start as *mut u8, imem_length) };
-        let buf = LeasableBuffer::new(slice);
+        let slice = unsafe { core::slice::from_raw_parts(imem_start as *const u8, imem_length) };
 
-        debug!("check otbn run binary...");
         run_kernel_op(100);
 
-        CALLBACK.reset();
-        otbn.set_client(&CALLBACK);
-        assert_eq!(otbn.load_binary(buf), Ok(()));
+        cb.reset();
+        otbn.set_client(cb);
+        assert_eq!(otbn.load_binary(slice), Ok(()));
 
         run_kernel_op(1000);
-        #[cfg(feature = "hardware_tests")]
-        assert_eq!(CALLBACK.binary_load_done.get(), true);
 
-        // BAD! This is not actually mutable!!
-        // This is stored in flash which is not mutable.
-        // Once https://github.com/tock/tock/pull/2852 is merged this should be fixed
-        let slice = unsafe { core::slice::from_raw_parts_mut(dmem_start as *mut u8, dmem_length) };
+        let slice = unsafe { core::slice::from_raw_parts(dmem_start as *const u8, dmem_length) };
 
-        CALLBACK.reset();
+        cb.reset();
         assert_eq!(otbn.load_data(0, slice), Ok(()));
         run_kernel_op(1000);
 
         // Set the RSA mode to encryption
         // The address is the offset of `mode` in the RSA elf
-        unsafe {
-            TEMP[0] = 1;
-            assert_eq!(otbn.load_data(0, &mut TEMP[0..4]), Ok(()));
-        }
+        temp[0] = 1;
+        assert_eq!(otbn.load_data(0, &temp), Ok(()));
+
         run_kernel_op(1000);
 
         // Set the RSA length
         // The address is the offset of `n_limbs` in the RSA elf
-        unsafe {
-            TEMP[0] = (MODULUS.len() / 32) as u8;
-            assert_eq!(otbn.load_data(4, &mut TEMP[0..4]), Ok(()));
-        }
+        temp[0] = (MODULUS.len() / 32) as u8;
+        assert_eq!(otbn.load_data(4, &temp), Ok(()));
+
         run_kernel_op(1000);
 
         // Set the RSA modulus
         // The address is the offset of `modulus` in the RSA elf
-        unsafe {
-            assert_eq!(otbn.load_data(0x420, &mut MODULUS), Ok(()));
-        }
+        assert_eq!(otbn.load_data(0x420, &MODULUS), Ok(()));
         run_kernel_op(1000);
 
         // Set the data in
         // The address is the offset of `in` in the RSA elf
-        unsafe {
-            let str_buf: &[u8; 14] = b"OTBN is great!";
-            SOURCE[0..14].copy_from_slice(str_buf);
-            assert_eq!(otbn.load_data(0x820, &mut SOURCE), Ok(()));
-        }
+        let mut source: [u8; 256] = [0; 256];
+        source[0..14].copy_from_slice(b"OTBN is great!");
+
+        assert_eq!(otbn.load_data(0x820, &source), Ok(()));
         run_kernel_op(1000);
 
-        CALLBACK.reset();
+        cb.reset();
         // The address is the offset of `out` in the RSA elf
-        assert_eq!(unsafe { otbn.run(0x288, &mut OUTPUT) }, Ok(()));
+        assert_eq!(otbn.run(0x288, output), Ok(()));
 
         run_kernel_op(10000);
 
         #[cfg(feature = "hardware_tests")]
-        assert_eq!(CALLBACK.op_done.get(), true);
+        assert_eq!(cb.op_done.get(), true);
 
         debug!("    [ok]");
         run_kernel_op(100);
     } else {
-        debug!("    [FAIL]");
+        debug!("    [FAIL] No OTBN binary");
         run_kernel_op(100);
     }
 }

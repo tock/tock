@@ -159,7 +159,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
                 subdriver_number: _,
                 upcall_ptr: _,
                 appdata: _,
-            } => match process.get_command_permissions(*driver_number, None) {
+            } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
                 CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
                 CommandPermissions::Mask(_allowed) => Ok(()),
@@ -170,19 +170,17 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
                 subdriver_number,
                 arg0: _,
                 arg1: _,
-            } => {
-                match process.get_command_permissions(*driver_number, Some(subdriver_number / 64)) {
-                    CommandPermissions::NoPermsAtAll => Ok(()),
-                    CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
-                    CommandPermissions::Mask(allowed) => {
-                        if (1 << (subdriver_number % 64)) & allowed > 0 {
-                            Ok(())
-                        } else {
-                            Err(errorcode::ErrorCode::NODEVICE)
-                        }
+            } => match process.get_command_permissions(*driver_number, subdriver_number / 64) {
+                CommandPermissions::NoPermsAtAll => Ok(()),
+                CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
+                CommandPermissions::Mask(allowed) => {
+                    if (1 << (subdriver_number % 64)) & allowed > 0 {
+                        Ok(())
+                    } else {
+                        Err(errorcode::ErrorCode::NODEVICE)
                     }
                 }
-            }
+            },
 
             // Allow is allowed if any commands are
             syscall::Syscall::ReadWriteAllow {
@@ -190,7 +188,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
                 subdriver_number: _,
                 allow_address: _,
                 allow_size: _,
-            } => match process.get_command_permissions(*driver_number, None) {
+            } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
                 CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
                 CommandPermissions::Mask(_allowed) => Ok(()),
@@ -202,7 +200,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
                 subdriver_number: _,
                 allow_address: _,
                 allow_size: _,
-            } => match process.get_command_permissions(*driver_number, None) {
+            } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
                 CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
                 CommandPermissions::Mask(_allowed) => Ok(()),
@@ -214,7 +212,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
                 subdriver_number: _,
                 allow_address: _,
                 allow_size: _,
-            } => match process.get_command_permissions(*driver_number, None) {
+            } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
                 CommandPermissions::NoPermsThisDriver => Err(errorcode::ErrorCode::NODEVICE),
                 CommandPermissions::Mask(_allowed) => Ok(()),

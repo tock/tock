@@ -42,7 +42,7 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
-            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE, deferred_caller),
+            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE),
             gpio_port: crate::gpio::Port::new(),
             i2c0: lowrisc::i2c::I2c::new(
                 crate::i2c::I2C0_BASE,

@@ -17,7 +17,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::errorcode::into_statuscode;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::hil::sensors::{NineDof, NineDofClient};
@@ -179,7 +179,7 @@ pub struct Lsm6dsoxtrI2C<'a> {
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     is_present: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     syscall_process: OptionalCell<ProcessId>,
 }
 
@@ -187,7 +187,7 @@ impl<'a> Lsm6dsoxtrI2C<'a> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Lsm6dsoxtrI2C<'a> {
         Lsm6dsoxtrI2C {
             i2c: i2c,

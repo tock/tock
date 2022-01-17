@@ -1,7 +1,7 @@
 # Tock Maintenance
 
 This document describes some elements of how the Tock [core working
-group](../wg/core/README.md) maintains the Tock project.
+group](wg/core/README.md) maintains the Tock project.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Maintenance.md -->
 

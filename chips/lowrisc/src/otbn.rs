@@ -1,11 +1,7 @@
 //! OTBN Control
 
 use core::cell::Cell;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -15,16 +11,6 @@ use kernel::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<'a> {
-    /// This callback is called when the binary has been loaded
-    /// On error or success `input` will contain a reference to the original
-    /// buffer supplied to `load_binary()`.
-    fn binary_load_done(&'a self, result: Result<(), ErrorCode>, input: &'static mut [u8]);
-
-    /// This callback is called when the data has been loaded
-    /// On error or success `data` will contain a reference to the original
-    /// buffer supplied to `load_data()`.
-    fn data_load_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
-
     /// This callback is called when a operation is computed.
     /// On error or success `output` will contain a reference to the original
     /// data supplied to `run()`.
@@ -107,33 +93,18 @@ pub struct Otbn<'a> {
     registers: StaticRef<OtbnRegisters>,
     client: OptionalCell<&'a dyn Client<'a>>,
 
-    in_buffer: Cell<Option<LeasableBuffer<'static, u8>>>,
-    data_buffer: TakeCell<'static, [u8]>,
     out_buffer: TakeCell<'static, [u8]>,
 
     copy_address: Cell<usize>,
-
-    add_data_deferred_call: Cell<bool>,
-    deferred_caller: &'static DynamicDeferredCall,
-    deferred_handle: OptionalCell<DeferredCallHandle>,
 }
 
 impl<'a> Otbn<'a> {
-    pub const fn new(
-        base: StaticRef<OtbnRegisters>,
-        deferred_caller: &'static DynamicDeferredCall,
-    ) -> Self {
+    pub const fn new(base: StaticRef<OtbnRegisters>) -> Self {
         Otbn {
             registers: base,
             client: OptionalCell::empty(),
-            in_buffer: Cell::new(None),
-            data_buffer: TakeCell::empty(),
             out_buffer: TakeCell::empty(),
             copy_address: Cell::new(0),
-
-            add_data_deferred_call: Cell::new(false),
-            deferred_caller,
-            deferred_handle: OptionalCell::empty(),
         }
     }
 
@@ -172,10 +143,6 @@ impl<'a> Otbn<'a> {
         }
     }
 
-    pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
-        self.deferred_handle.set(deferred_call_handle);
-    }
-
     /// Set the client instance which will receive
     pub fn set_client(&'a self, client: &'a dyn Client<'a>) {
         self.client.set(client);
@@ -187,16 +154,11 @@ impl<'a> Otbn<'a> {
     /// configure the accelerator.
     /// This function can be called multiple times if multiple binary blobs
     /// are required.
-    /// There is no guarantee the data has been written until the `binary_load_done()`
-    /// callback is fired.
     /// On error the return value will contain a return code and the original data
-    pub fn load_binary(
-        &self,
-        input: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    pub fn load_binary(&self, input: &[u8]) -> Result<(), ErrorCode> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
-            return Err((ErrorCode::BUSY, input.take()));
+            return Err(ErrorCode::BUSY);
         }
 
         for i in 0..(input.len() / 4) {
@@ -210,25 +172,18 @@ impl<'a> Otbn<'a> {
             self.registers.imem[i].set(d);
         }
 
-        self.in_buffer.set(Some(input));
-
-        // Schedule a deferred call as there are no interrupts to monitor
-        // the binary loading.
-        self.add_data_deferred_call.set(true);
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
-
         Ok(())
     }
 
-    pub fn load_data(
-        &self,
-        address: usize,
-        data: &'static mut [u8],
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    /// Load the data into the accelerator
+    /// This function can be called multiple times if multiple loads
+    /// are required.
+    /// On error the return value will contain a return code and the original data
+    /// The `data` buffer should be in little endian
+    pub fn load_data(&self, address: usize, data: &[u8]) -> Result<(), ErrorCode> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
-            return Err((ErrorCode::BUSY, data));
+            return Err(ErrorCode::BUSY);
         }
 
         for i in 0..(data.len() / 4) {
@@ -241,14 +196,6 @@ impl<'a> Otbn<'a> {
 
             self.registers.dmem[(address / 4) + i].set(d);
         }
-
-        self.data_buffer.replace(data);
-
-        // Schedule a deferred call as there are no interrupts to monitor
-        // the binary loading.
-        self.add_data_deferred_call.set(true);
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
 
         Ok(())
     }
@@ -290,23 +237,8 @@ impl<'a> Otbn<'a> {
     /// Clear the keys and any other sensitive data.
     /// This won't clear the buffers provided to this API, that is up to the
     /// user to clear those.
-    pub fn clear_data(&self) {}
-}
-
-impl<'a> DynamicDeferredCallClient for Otbn<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
-        if self.add_data_deferred_call.get() {
-            self.add_data_deferred_call.set(false);
-
-            self.client.map(|client| {
-                self.in_buffer.take().map(|buffer| {
-                    client.binary_load_done(Ok(()), buffer.take());
-                });
-
-                self.data_buffer.take().map(|buffer| {
-                    client.data_load_done(Ok(()), buffer);
-                });
-            });
-        }
+    pub fn clear_data(&self) {
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_DMEM);
+        self.registers.cmd.write(CMD::CMD::SEC_WIPE_IMEM);
     }
 }

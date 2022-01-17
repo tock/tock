@@ -30,13 +30,13 @@ pub enum UpcallError {
     /// The passed `subscribe_num` exceeds the number of Upcalls
     /// available for this process.
     ///
-    /// For a [`Grant`](crate::grant::Grant) with `n` `NUM_UPCALLS`,
+    /// For a [`Grant`](crate::grant::Grant) with `n` upcalls,
     /// this error is returned when
-    /// `GrantUpcallTable::schedule_upcall` is invoked with
+    /// `GrantKernelData::schedule_upcall` is invoked with
     /// `subscribe_num >= n`.
     ///
     /// No Upcall has been scheduled, the call to
-    /// `GrantUpcallTable::schedule_upcall` had no observable effects.
+    /// `GrantKernelData::schedule_upcall` had no observable effects.
     ///
     InvalidSubscribeNum,
     /// The process' task queue is full.
@@ -46,7 +46,7 @@ pub enum UpcallError {
     /// process yielding or having a chance to resume execution.
     ///
     /// No Upcall has been scheduled, the call to
-    /// `GrantUpcallTable::schedule_upcall` had no observable effects.
+    /// `GrantKernelData::schedule_upcall` had no observable effects.
     QueueFull,
     /// A kernel-internal invariant has been violated.
     ///

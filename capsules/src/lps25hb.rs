@@ -21,7 +21,7 @@
 use core::cell::Cell;
 
 use kernel::errorcode::into_statuscode;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -105,7 +105,7 @@ pub struct LPS25HB<'a> {
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -114,7 +114,7 @@ impl<'a> LPS25HB<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-        apps: Grant<App, 1>,
+        apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         // setup and return struct
         Self {

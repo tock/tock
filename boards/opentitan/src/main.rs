@@ -22,6 +22,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil;
 use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
@@ -43,7 +44,6 @@ mod otbn;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 //
 // Actual memory for holding the active process structures. Need an empty list
@@ -69,8 +69,14 @@ static mut TICKV: Option<
     &capsules::tickv::TicKVStore<
         'static,
         capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+        capsules::sip_hash::SipHasher24<'static>,
     >,
 > = None;
+// Test access to AES CCM
+static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>> =
+    None;
+// Test access to SipHash
+static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -433,9 +439,22 @@ unsafe fn setup() -> (
         components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
+    // SipHash
+    let sip_hash = static_init!(
+        capsules::sip_hash::SipHasher24,
+        capsules::sip_hash::SipHasher24::new(dynamic_deferred_caller)
+    );
+    sip_hash.initialise(
+        dynamic_deferred_caller
+            .register(sip_hash)
+            .expect("dynamic deferred caller out of slots for sip_hash"),
+    );
+    SIPHASH = Some(sip_hash);
+
     // TicKV
     #[cfg(not(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
         &mux_flash,                                  // Flash controller
         0x20090000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
         0x70000,                                     // Region size
@@ -443,10 +462,12 @@ unsafe fn setup() -> (
         page_buffer,                                 // Buffer used with the flash controller
     )
     .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl
+        lowrisc::flash_ctrl::FlashCtrl,
+        capsules::sip_hash::SipHasher24
     ));
     #[cfg(any(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
         &mux_flash,                                  // Flash controller
         0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
         0x20000,                                     // Region size
@@ -454,9 +475,11 @@ unsafe fn setup() -> (
         page_buffer,                                 // Buffer used with the flash controller
     )
     .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl
+        lowrisc::flash_ctrl::FlashCtrl,
+        capsules::sip_hash::SipHasher24
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+    sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
     // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
@@ -464,10 +487,6 @@ unsafe fn setup() -> (
     // OTBN is still connected though as it works on simulation runs
     let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
-
-    peripherals.otbn.initialise(
-        dynamic_deferred_caller.register(&peripherals.otbn).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
@@ -522,6 +541,8 @@ unsafe fn setup() -> (
             )
         )
     );
+
+    AES = Some(ccm_client1);
 
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
@@ -666,7 +687,7 @@ pub unsafe fn main() {
         board_kernel.kernel_loop(
             earlgrey_nexysvideo,
             chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+            None::<&kernel::ipc::IPC<NUM_PROCS>>,
             &main_loop_cap,
         );
     }

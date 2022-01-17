@@ -8,3 +8,9 @@
 pub mod chip;
 pub mod intc;
 pub mod interrupts;
+pub mod sysreg;
+
+pub mod timg {
+    pub use esp32::timg::{ClockSource, TIMG0_BASE, TIMG1_BASE};
+    pub type TimG<'a> = esp32::timg::TimG<'a, esp32::timg::Freq20MHz, true>;
+}

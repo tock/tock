@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(asm, naked_functions)]
+#![feature(asm, asm_sym, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn generic_isr() {
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
     /* r3 = &NVIC.ICER[r0 / 32] */
-    ldr r2, 100f     /* r2 = &NVIC.ICER */
+    ldr r2, 101f      /* r2 = &NVIC.ICER */
     lsrs r3, r0, #5   /* r3 = r0 / 32 */
     lsls r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
     adds r3, r3, r2   /* r3 = r2 + r3 */
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn generic_isr() {
     bx lr /* return here since we have extra words in the assembly */
 
 .align 4
-100: // NVICICER
+101: // NVICICER
   .word 0xE000E180
 200: // MEXC_RETURN_MSP
   .word 0xFFFFFFF9
