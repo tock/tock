@@ -133,7 +133,7 @@ $ tockloader install --openocd --board microbit_v2 --bundle-apps app.tab
 
 ## Book
 
-For furher details and exmaples about how to use Tock with the BBC micro:bit, you might
+For further details and examples about how to use Tock with the BBC micro:bit, you might
 want to check out the [Getting Started with Secure Embedded Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8) book.
 
 ## Troubleshooting
