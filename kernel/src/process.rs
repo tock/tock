@@ -25,7 +25,6 @@ pub use crate::process_policies::{
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
 pub use crate::process_standard::ProcessStandard;
 
-
 /// Userspace process identifier.
 ///
 /// This should be treated as an opaque type that can be used to represent a
@@ -197,16 +196,16 @@ pub trait Process {
     /// in the `Unchecked` state. The `credentials` field is None if
     /// all credentials are Pass; if a credential is Accept, it
     /// is passed in `credentials`.
-    fn mark_credentials_pass(&self,
-                             credentials: Option<TbfFooterV2Credentials>,
-                             capability: &dyn capabilities::ProcessApprovalCapability)
-                             -> Result<(), ErrorCode>;
+    fn mark_credentials_pass(
+        &self,
+        credentials: Option<TbfFooterV2Credentials>,
+        capability: &dyn capabilities::ProcessApprovalCapability,
+    ) -> Result<(), ErrorCode>;
 
     /// Transition a process into the `CredentialsFailed` state, indicating
     /// it should never run.
-    fn mark_credentials_fail(&self,
-                             capability: &dyn capabilities::ProcessApprovalCapability);
-    
+    fn mark_credentials_fail(&self, capability: &dyn capabilities::ProcessApprovalCapability);
+
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
 

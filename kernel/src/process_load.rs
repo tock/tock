@@ -13,18 +13,16 @@ use crate::capabilities::{ProcessApprovalCapability, ProcessManagementCapability
 use crate::config;
 use crate::create_capability;
 use crate::debug;
-use crate::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_checking;
-use crate::process_checking::{AppCredentialsChecker};
+use crate::process_checking::AppCredentialsChecker;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
 use crate::utilities::cells::OptionalCell;
-
-
+use crate::ErrorCode;
 
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
@@ -33,13 +31,13 @@ use tock_tbf::types::TbfParseError;
 pub enum ProcessLoadError {
     /// No TBF header was found.
     TbfHeaderNotFound,
-    
+
     /// The TBF header for the process could not be successfully parsed.
     TbfHeaderParseFailure(tock_tbf::types::TbfParseError),
 
     /// Not enough flash remaining to parse a process and its header.
     NotEnoughFlash,
-    
+
     /// Not enough memory to meet the amount requested by a process. Modify the
     /// process to request less memory, flash fewer processes, or increase the
     /// size of the region your board reserves for process memory.
@@ -88,7 +86,7 @@ pub enum ProcessLoadError {
     /// after the application binary is 0, and each subsequent credentials increments
     /// this counter.
     CredentialsReject(u32),
-    
+
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
     InternalError,
@@ -110,7 +108,7 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::TbfHeaderNotFound => {
                 write!(f, "Could not find TBF header")
             }
-            
+
             ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
                 write!(f, "Error parsing TBF header\n")?;
                 write!(f, "{:?}", tbf_parse_error)
@@ -161,12 +159,13 @@ impl fmt::Debug for ProcessLoadError {
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
 
             ProcessLoadError::CredentialsNoAccept => write!(f, "No credentials accepted."),
-            
-            ProcessLoadError::CredentialsReject(index) => write!(f, "Credentials index {} rejected.", index),
+
+            ProcessLoadError::CredentialsReject(index) => {
+                write!(f, "Credentials index {} rejected.", index)
+            }
         }
     }
 }
-
 
 /// Load processes (stored as TBF objects in flash) into runnable
 /// process structures stored in the `procs` array. If a `checker` is
@@ -178,19 +177,21 @@ pub fn load_and_check_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8], 
+    app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     checker: Option<&'static dyn AppCredentialsChecker>,
-    capability_management: &dyn ProcessManagementCapability
+    capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    load_processes(kernel,
-                   chip,
-                   app_flash,
-                   app_memory,
-                   &mut procs,
-                   fault_policy,
-                   capability_management)?;
+    load_processes(
+        kernel,
+        chip,
+        app_flash,
+        app_memory,
+        &mut procs,
+        fault_policy,
+        capability_management,
+    )?;
     let _res = check_processes(procs, checker);
     Ok(())
 }
@@ -222,7 +223,7 @@ fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8], 
+    app_memory: &'static mut [u8],
     procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability: &dyn ProcessManagementCapability,
@@ -243,13 +244,15 @@ fn load_processes<C: Chip>(
     let mut index = 0;
     let num_procs = procs.len();
     while index < num_procs {
-        let load_result = load_process(kernel,
-                                       chip,
-                                       remaining_flash,
-                                       remaining_memory,
-                                       index,
-                                       fault_policy,
-                                       capability);
+        let load_result = load_process(
+            kernel,
+            chip,
+            remaining_flash,
+            remaining_memory,
+            index,
+            fault_policy,
+            capability,
+        );
         match load_result {
             Ok((new_flash, new_mem, proc)) => {
                 remaining_flash = new_flash;
@@ -261,7 +264,7 @@ fn load_processes<C: Chip>(
                     procs[index] = proc;
                     index = index + 1;
                 }
-            },
+            }
             Err((_new_flash, _new_mem, _err)) => {
                 // No more processes to load.
                 break;
@@ -271,7 +274,6 @@ fn load_processes<C: Chip>(
     Ok(())
 }
 
-
 /// Use `checker` to transition `procs` from the `Unverified` into the
 /// `Unstarted` state (if they pass the checker policy) or
 /// `CredentialsFailed` state (if they do not pass the checker
@@ -280,8 +282,9 @@ fn load_processes<C: Chip>(
 /// `Unstarted` state are started by enqueueing a stack frame to run
 /// the initialization function as indicated in the TBF header.
 #[inline(always)]
-fn check_processes(procs: &'static [Option<&'static dyn Process>],
-                   checker: Option<&'static dyn AppCredentialsChecker>
+fn check_processes(
+    procs: &'static [Option<&'static dyn Process>],
+    checker: Option<&'static dyn AppCredentialsChecker>,
 ) -> Result<(), ProcessLoadError> {
     let capability = create_capability!(ProcessApprovalCapability);
 
@@ -291,8 +294,10 @@ fn check_processes(procs: &'static [Option<&'static dyn Process>],
         }
         for proc in procs.iter() {
             let res = proc.map(|p| {
-                p.mark_credentials_pass(None, &capability).or(Err(ProcessLoadError::InternalError))?;
-                p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
+                p.mark_credentials_pass(None, &capability)
+                    .or(Err(ProcessLoadError::InternalError))?;
+                p.enqueue_init_task()
+                    .or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
             });
             if let Some(Err(e)) = res {
@@ -303,12 +308,17 @@ fn check_processes(procs: &'static [Option<&'static dyn Process>],
     } else {
         checker.map_or(Err(ProcessLoadError::InternalError), |c| {
             #[allow(unused_mut)] // machine doesn't need mut
-            let machine = unsafe {static_init!(ProcessCheckerMachine,
-                                               ProcessCheckerMachine {
-                                                   process: Cell::new(0),
-                                                   footer:  Cell::new(0),
-                                                   checker: OptionalCell::empty(),
-                                                   processes: procs})};
+            let machine = unsafe {
+                static_init!(
+                    ProcessCheckerMachine,
+                    ProcessCheckerMachine {
+                        process: Cell::new(0),
+                        footer: Cell::new(0),
+                        checker: OptionalCell::empty(),
+                        processes: procs
+                    }
+                )
+            };
             c.set_client(machine);
             machine.checker.replace(c);
             machine.next()?;
@@ -335,12 +345,10 @@ enum FooterCheckResult {
     FooterNotCheckable, // The footer isn't a credential, no check started
     BadFooter,          // The footer is invalid, no check started
     NoProcess,          // No process was provided, no check started
-    Error               // An internal error occured, no check started
+    Error,              // An internal error occured, no check started
 }
-    
 
 impl ProcessCheckerMachine {
-
     /// Check the next footer of the next process. Returns:
     ///   - Ok(true) if a valid footer was found and is being checked
     ///   - Ok(false) there are no more footers to check
@@ -349,14 +357,13 @@ impl ProcessCheckerMachine {
         let capability = create_capability!(ProcessApprovalCapability);
         loop {
             let mut proc_index = self.process.get();
-            
+
             // Find the next process to check. When code completes
             // checking a process, it just increments to the next
             // index. In case the array has None entries or the
             // process array changes under us, don't actually trust
             // this value.
-            while proc_index < self.processes.len() &&
-                  self.processes[proc_index].is_none() {
+            while proc_index < self.processes.len() && self.processes[proc_index].is_none() {
                 proc_index = proc_index + 1;
                 self.process.set(proc_index);
                 self.footer.set(0);
@@ -365,20 +372,17 @@ impl ProcessCheckerMachine {
                 // No more processes to check.
                 return Ok(false);
             }
-            
+
             let footer_index = self.footer.get();
             // Try to check the next footer.
-            let check_result = self
-                .checker
-                .map_or(FooterCheckResult::Error,
-                        |v| check_footer(self.processes[proc_index],
-                                         *v,
-                                         footer_index));
+            let check_result = self.checker.map_or(FooterCheckResult::Error, |v| {
+                check_footer(self.processes[proc_index], *v, footer_index)
+            });
             if config::CONFIG.debug_process_credentials {
-                debug!("Checking: Check status for process {}, footer {}: {:?}",
-                       proc_index,
-                       footer_index,
-                       check_result);
+                debug!(
+                    "Checking: Check status for process {}, footer {}: {:?}",
+                    proc_index, footer_index, check_result
+                );
             }
             match check_result {
                 FooterCheckResult::Checking => {
@@ -390,34 +394,43 @@ impl ProcessCheckerMachine {
                     // the checker policy to see if the process
                     // should be allowed to run.
                     let requires = self.checker.map_or(false, |v| v.require_credentials());
-                    let _res = self.processes[proc_index]
-                        .map_or(Err(ProcessLoadError::InternalError), |p| {
+                    let _res = self.processes[proc_index].map_or(
+                        Err(ProcessLoadError::InternalError),
+                        |p| {
                             if requires {
                                 if config::CONFIG.debug_process_credentials {
-                                    debug!("Checking: required, but all passes, do not run {}", p.get_process_name());
+                                    debug!(
+                                        "Checking: required, but all passes, do not run {}",
+                                        p.get_process_name()
+                                    );
                                 }
                                 p.mark_credentials_fail(&capability);
                             } else {
                                 if config::CONFIG.debug_process_credentials {
-                                    debug!("Checking: not required, all passes, run {}", p.get_process_name());
+                                    debug!(
+                                        "Checking: not required, all passes, run {}",
+                                        p.get_process_name()
+                                    );
                                 }
-                                p.mark_credentials_pass(None, &capability).or(Err(ProcessLoadError::InternalError))?;
-                                p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
+                                p.mark_credentials_pass(None, &capability)
+                                    .or(Err(ProcessLoadError::InternalError))?;
+                                p.enqueue_init_task()
+                                    .or(Err(ProcessLoadError::InternalError))?;
                             }
                             Ok(true)
-                        });
+                        },
+                    );
                     self.process.set(self.process.get() + 1);
                     self.footer.set(0);
-                },
-                FooterCheckResult::NoProcess |
-                FooterCheckResult::BadFooter => {
+                }
+                FooterCheckResult::NoProcess | FooterCheckResult::BadFooter => {
                     // Go to next process
                     self.process.set(self.process.get() + 1);
-                    self.footer.set(0)                    
+                    self.footer.set(0)
                 }
                 FooterCheckResult::FooterNotCheckable => {
                     // Go to next footer
-                    self.footer.set(self.footer.get() + 1);                    
+                    self.footer.set(self.footer.get() + 1);
                 }
                 FooterCheckResult::Error => {
                     return Err(ProcessLoadError::InternalError);
@@ -430,16 +443,22 @@ impl ProcessCheckerMachine {
 // Returns whether a footer is being checked or not, and if not, why.
 // Iterates through the footer list until if finds `next_footer` or
 // it reached the end of the footer region.
-fn check_footer(popt: Option<&'static dyn Process>,
-                checker: &'static dyn AppCredentialsChecker,
-                next_footer: usize) -> FooterCheckResult {
+fn check_footer(
+    popt: Option<&'static dyn Process>,
+    checker: &'static dyn AppCredentialsChecker,
+    next_footer: usize,
+) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
         if config::CONFIG.debug_process_credentials {
-            debug!("Checking: Checking {} footer {}", process.get_process_name(), next_footer);
+            debug!(
+                "Checking: Checking {} footer {}",
+                process.get_process_name(),
+                next_footer
+            );
         }
         let footers_position_ptr = process.get_addresses().flash_integrity_end;
         let mut footers_position = footers_position_ptr as usize;
-        
+
         let flash_start_ptr = process.get_addresses().flash_start as *const u8;
         let flash_start = flash_start_ptr as usize;
         let flash_integrity_len = footers_position - flash_start;
@@ -447,18 +466,18 @@ fn check_footer(popt: Option<&'static dyn Process>,
         let footers_len = flash_end - footers_position;
 
         if config::CONFIG.debug_process_credentials {
-            debug!("Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
-                   flash_start,
-                   flash_start + flash_integrity_len,
-                   footers_position,
-                   flash_end);
+            debug!(
+                "Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
+                flash_start,
+                flash_start + flash_integrity_len,
+                footers_position,
+                flash_end
+            );
         }
         let mut current_footer = 0;
-        let mut footer_slice = unsafe {slice::from_raw_parts(footers_position_ptr,
-                                                             footers_len)};
-        let binary_slice = unsafe {slice::from_raw_parts(flash_start_ptr,
-                                                         flash_integrity_len)};
-        while current_footer <= next_footer  && footers_position < flash_end {
+        let mut footer_slice = unsafe { slice::from_raw_parts(footers_position_ptr, footers_len) };
+        let binary_slice = unsafe { slice::from_raw_parts(flash_start_ptr, flash_integrity_len) };
+        while current_footer <= next_footer && footers_position < flash_end {
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
                 Err(TbfParseError::NotEnoughFlash) => {
@@ -495,7 +514,10 @@ fn check_footer(popt: Option<&'static dyn Process>,
                                     }
                                     Err((ErrorCode::NOSUPPORT, _, _)) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("Checking: Found {}, not supported", current_footer);
+                                            debug!(
+                                                "Checking: Found {}, not supported",
+                                                current_footer
+                                            );
                                         }
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
@@ -507,7 +529,10 @@ fn check_footer(popt: Option<&'static dyn Process>,
                                     }
                                     Err(e) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("Checking: Found {}, error {:?}", current_footer, e);
+                                            debug!(
+                                                "Checking: Found {}, error {:?}",
+                                                current_footer, e
+                                            );
                                         }
                                         return FooterCheckResult::Error;
                                     }
@@ -521,14 +546,15 @@ fn check_footer(popt: Option<&'static dyn Process>,
         }
         FooterCheckResult::PastLastFooter
     })
-        
 }
 
 impl process_checking::Client<'static> for ProcessCheckerMachine {
-    fn check_done(&self,
-                  result: Result<process_checking::CheckResult, ErrorCode>,
-                  credentials: TbfFooterV2Credentials,
-                  _binary: &'static [u8]) {
+    fn check_done(
+        &self,
+        result: Result<process_checking::CheckResult, ErrorCode>,
+        credentials: TbfFooterV2Credentials,
+        _binary: &'static [u8],
+    ) {
         let capability = create_capability!(ProcessApprovalCapability);
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: check_done gave result {:?}", result);
@@ -538,15 +564,14 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_credentials_pass(Some(credentials), &capability);
                     if p.enqueue_init_task().is_err() {
-                        debug!("Error starting checked process {}",
-                               p.get_process_name());
+                        debug!("Error starting checked process {}", p.get_process_name());
                     }
                 });
                 self.process.set(self.process.get() + 1);
-            },
+            }
             Ok(process_checking::CheckResult::Pass) => {
                 self.footer.set(self.footer.get() + 1);
-            },
+            }
             Ok(process_checking::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_credentials_fail(&capability);
@@ -560,7 +585,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
                 self.footer.set(self.footer.get() + 1);
             }
         }
-        let _cont =  self.next();
+        let _cont = self.next();
     }
 }
 
@@ -577,9 +602,15 @@ fn load_process<C: Chip>(
     app_memory: &'static mut [u8],
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    _capability: &dyn ProcessManagementCapability
-) -> Result<(&'static [u8], &'static mut [u8], Option<&'static dyn Process>),
-            (&'static [u8], &'static mut [u8], ProcessLoadError)> {
+    _capability: &dyn ProcessManagementCapability,
+) -> Result<
+    (
+        &'static [u8],
+        &'static mut [u8],
+        Option<&'static dyn Process>,
+    ),
+    (&'static [u8], &'static mut [u8], ProcessLoadError),
+> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading process from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
@@ -598,7 +629,7 @@ fn load_process<C: Chip>(
             return Err((app_flash, app_memory, ProcessLoadError::NotEnoughFlash));
         }
     };
-    
+
     // Pass the first eight bytes to tbfheader to parse out the length of
     // the tbf header and app. We then use those values to see if we have
     // enough flash remaining to parse the remainder of the header.
@@ -607,7 +638,7 @@ fn load_process<C: Chip>(
         return Err((app_flash, app_memory, ProcessLoadError::InternalError));
     }
     let header = header.unwrap();
-    
+
     let (version, header_length, entry_length) =
         match tock_tbf::parse::parse_tbf_header_lengths(header) {
             Ok((v, hl, el)) => (v, hl, el),
@@ -624,27 +655,23 @@ fn load_process<C: Chip>(
                 return Err((app_flash, app_memory, ProcessLoadError::TbfHeaderNotFound));
             }
         };
-    
+
     // Now we can get a slice which only encompasses the length of flash
     // described by this tbf header.  We will either parse this as an actual
     // app, or skip over this region.
     let entry_flash = match app_flash.get(0..entry_length as usize) {
-        None => return Err((app_flash,
-                            app_memory,
-                            ProcessLoadError::NotEnoughFlash)),
-        Some(val) => val
-    };        
-    
+        None => return Err((app_flash, app_memory, ProcessLoadError::NotEnoughFlash)),
+        Some(val) => val,
+    };
+
     // Advance the flash slice for process discovery beyond this last entry.
     // This will be the start of where we look for a new process since Tock
     // processes are allocated back-to-back in flash.
     let remaining_flash = match app_flash.get(entry_flash.len()..) {
-        None => return Err((app_flash,
-                            app_memory,
-                            ProcessLoadError::NotEnoughFlash)),
-        Some(val) => val
+        None => return Err((app_flash, app_memory, ProcessLoadError::NotEnoughFlash)),
+        Some(val) => val,
     };
-    
+
     // Need to reassign remaining_memory in every iteration so the compiler
     // knows it will not be re-borrowed.
     let (process_option, remaining_memory) = if header_length > 0 {
@@ -652,7 +679,7 @@ fn load_process<C: Chip>(
         // object. We also need to shrink the amount of remaining memory
         // based on whatever is assigned to the new process if one is
         // created.
-        
+
         // Try to create a process object from that app slice. If we don't
         // get a process and we didn't get a loading error (aka we got to
         // this point), then the app is a disabled process or just padding.

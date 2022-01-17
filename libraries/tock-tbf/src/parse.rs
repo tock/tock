@@ -143,7 +143,7 @@ pub fn parse_tbf_header(
                     remaining = remaining
                         .get(4..)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?;
-                    
+
                     match tlv_header.tipe {
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();
@@ -297,11 +297,7 @@ pub fn parse_tbf_footer(
             // Check length here
             let length = tlv_header.length;
             Ok((credential, length as u32))
-        },
-        _ => {
-            Err(types::TbfParseError::BadTlvEntry(tlv_header.tipe as usize))
         }
+        _ => Err(types::TbfParseError::BadTlvEntry(tlv_header.tipe as usize)),
     }
 }
-
-

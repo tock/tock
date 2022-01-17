@@ -27,8 +27,8 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::process_checking::AppCheckerSimulated;
+use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
@@ -336,7 +336,7 @@ pub unsafe fn main() {
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    
+
     power::configure_submodules(
         &peripherals.pa,
         &peripherals.pb,
@@ -722,8 +722,6 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-   
-    
     let checker = static_init!(
         AppCheckerSimulated<'static>,
         AppCheckerSimulated::new(dynamic_deferred_caller)
@@ -745,7 +743,7 @@ pub unsafe fn main() {
         &mut PROCESSES,
         &FAULT_RESPONSE,
         Some(checker),
-        &process_mgmt_cap
+        &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {
         debug!("Error loading processes!");

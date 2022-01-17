@@ -106,20 +106,20 @@ pub mod introspection;
 pub mod ipc;
 pub mod platform;
 pub mod process;
+pub mod process_checking;
 pub mod processbuffer;
 pub mod scheduler;
 pub mod syscall;
 pub mod upcall;
 pub mod utilities;
-pub mod process_checking;
 
 mod config;
 mod kernel;
 mod memop;
+mod process_load;
 mod process_policies;
 mod process_printer;
 mod process_standard;
-mod process_load;
 mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.

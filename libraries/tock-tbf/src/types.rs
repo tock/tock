@@ -63,14 +63,12 @@ pub enum TbfParseError {
 
     /// Found a non-Header in the header region.
     InvalidHeader(usize),
-    
+
     /// The number of variable length entries (for example the number of
     /// `TbfHeaderDriverPermission` entries in `TbfHeaderV2Permissions`) is
     /// too long for Tock to parse.
     /// This can be fixed by increasing the number in `TbfHeaderV2`.
     TooManyEntries(usize),
-
-    
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -137,9 +135,8 @@ pub enum TbfHeaderTypes {
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
-
     TbfFooterCredentials = 128,
-    
+
     Unknown,
 }
 
@@ -180,7 +177,6 @@ pub struct TbfHeaderV2Program {
     minimum_ram_size: u32,
     binary_end_offset: u32,
 }
-
 
 /// Writeable flash regions only need an offset and size.
 ///
@@ -248,15 +244,15 @@ pub struct TbfHeaderV2KernelVersion {
 
 #[derive(Clone, Copy, Debug)]
 pub enum TbfFooterV2CredentialsType {
-    Padding          = 0,
-    CleartextID      = 1,
-    Rsa3072Key       = 2,
-    Rsa4096Key       = 3,
+    Padding = 0,
+    CleartextID = 1,
+    Rsa3072Key = 2,
+    Rsa4096Key = 3,
     Rsa3072KeyWithID = 4,
     Rsa4096KeyWithID = 5,
-    SHA256           = 6,
-    SHA384           = 7,
-    SHA512           = 8
+    SHA256 = 6,
+    SHA384 = 7,
+    SHA512 = 8,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -608,7 +604,8 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
         let format = u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::InternalError)?
-                .try_into()?);
+                .try_into()?,
+        );
         let ftype = match format {
             0 => TbfFooterV2CredentialsType::Padding,
             1 => TbfFooterV2CredentialsType::CleartextID,
@@ -686,17 +683,14 @@ pub enum TbfHeader {
 }
 
 impl TbfHeader {
-
     /// Return the length of the header.
     pub fn length(&self) -> u16 {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.base.header_size
-            }
-            TbfHeader::Padding(base) => base.header_size
+            TbfHeader::TbfHeaderV2(hd) => hd.base.header_size,
+            TbfHeader::Padding(base) => base.header_size,
         }
     }
-    
+
     /// Return whether this is an app or just padding between apps.
     pub fn is_app(&self) -> bool {
         match *self {
@@ -724,11 +718,11 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    return hd.program.map_or(0, |p| p.minimum_ram_size);
+                    hd.program.map_or(0, |p| p.minimum_ram_size)
                 } else if hd.main.is_some() {
-                    return hd.main.map_or(0, |m| m.minimum_ram_size);
+                    hd.main.map_or(0, |m| m.minimum_ram_size)
                 } else {
-                    return 0;
+                    0
                 }
             }
             _ => 0,
@@ -741,11 +735,11 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    return hd.program.map_or(0, |p| p.protected_size);
+                    hd.program.map_or(0, |p| p.protected_size)
                 } else if hd.main.is_some() {
-                    return hd.main.map_or(0, |m| m.protected_size);
+                    hd.main.map_or(0, |m| m.protected_size)
                 } else {
-                    return 0;
+                    0
                 }
             }
             _ => 0,
@@ -760,18 +754,18 @@ impl TbfHeader {
         // additional protected space.
         self.length() as u32 + self.get_protected_size()
     }
-    
+
     /// Get the offset from the beginning of the app's flash region where the
     /// app should start executing.
     pub fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    return hd.program.map_or(0, |p| p.init_fn_offset);
+                    hd.program.map_or(0, |p| p.init_fn_offset)
                 } else if hd.main.is_some() {
-                    return hd.main.map_or(0, |m| m.init_fn_offset);
+                    hd.main.map_or(0, |m| m.init_fn_offset)
                 } else {
-                    return 0;
+                    0
                 }
             }
             _ => 0,
@@ -895,10 +889,10 @@ impl TbfHeader {
     /// of the TBF, while if there is a Program header it can be smaller.
     pub fn get_binary_end(&self) -> u32 {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.program.map_or(hd.base.total_size as u32, |p| p.binary_end_offset)
-            },
-            _ => 0
+            TbfHeader::TbfHeaderV2(hd) => hd
+                .program
+                .map_or(hd.base.total_size as u32, |p| p.binary_end_offset),
+            _ => 0,
         }
     }
 }
