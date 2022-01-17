@@ -14,10 +14,10 @@ use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
-use tock_tbf::types::CommandPermissions;
+use tock_tbf::types::{CommandPermissions, TbfFooterV2Credentials};
 
 // Export all process related types via `kernel::process::`.
-pub use crate::process_load::{load_and_verify_processes, ProcessLoadError};
+pub use crate::process_load::{load_and_check_processes, ProcessLoadError};
 pub use crate::process_policies::{
     PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
@@ -193,9 +193,20 @@ pub trait Process {
     /// Enqueue a `Task` to execute the init function of the process.
     fn enqueue_init_task(&self) -> Result<(), ErrorCode>;
 
-    /// Transition a loaded but unverified process into the Unstarted
-    /// state so it can run.
-    fn mark_verified(&self) -> Result<(), ErrorCode>;
+    /// Transition a loaded but unchecked process into the `Unstarted`
+    /// state so it can run. Returns an error if the process was not
+    /// in the `Unchecked` state. The `credentials` field is None if
+    /// all credentials are Pass; if a credential is Accept, it
+    /// is passed in `credentials`.
+    fn mark_credentials_pass(&self,
+                             credentials: Option<TbfFooterV2Credentials>,
+                             capability: &dyn capabilities::ProcessApprovalCapability)
+                             -> Result<(), ErrorCode>;
+
+    /// Transition a process into the `CredentialsFailed` state, indicating
+    /// it should never run.
+    fn mark_credentials_fail(&self,
+                             capability: &dyn capabilities::ProcessApprovalCapability);
     
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
@@ -745,14 +756,15 @@ pub enum State {
     /// executed yet.
     Unstarted,
 
-    /// The process has not been verified to be allowed to run yet: it
-    /// needs to be checked by an AppCredentialsChecker to be transitioned
-    /// into the Unstarted state.
-    Unverified,
+    /// The process's credentials have not been checked to be allowed
+    /// to run yet: it needs to be checked by an
+    /// `AppCredentialsChecker` to be transitioned into the
+    /// `Unstarted` or `CredentialsFailed` state.
+    Unchecked,
 
     /// The Process failed verification: it was terminated before it was
     /// verified.
-    VerificationFailed,
+    CredentialsFailed,
 }
 
 /// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
@@ -766,7 +778,7 @@ pub(crate) struct ProcessStateCell<'a> {
 impl<'a> ProcessStateCell<'a> {
     pub(crate) fn new(kernel: &'a Kernel) -> Self {
         Self {
-            state: Cell::new(State::Unverified),
+            state: Cell::new(State::Unchecked),
             kernel,
         }
     }

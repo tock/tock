@@ -19,7 +19,7 @@ macro_rules! create_capability {
         #[allow(unsafe_code)]
         unsafe impl $T for Cap {}
         Cap
-    };};
+    }};
 }
 
 /// Count the number of passed expressions.

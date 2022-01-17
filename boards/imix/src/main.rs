@@ -28,7 +28,7 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::verifier::AppCheckerSimulated;
+use kernel::process_checking::AppCheckerSimulated;
 
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
@@ -337,7 +337,7 @@ pub unsafe fn main() {
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
+    
     power::configure_submodules(
         &peripherals.pa,
         &peripherals.pb,
@@ -732,7 +732,7 @@ pub unsafe fn main() {
     checker.initialize_callback_handle(
         dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
     );
-    kernel::process::load_and_verify_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -746,7 +746,7 @@ pub unsafe fn main() {
         &mut PROCESSES,
         &FAULT_RESPONSE,
         Some(checker),
-        &process_mgmt_cap,
+        &process_mgmt_cap
     )
     .unwrap_or_else(|err| {
         debug!("Error loading processes!");

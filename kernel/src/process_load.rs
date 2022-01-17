@@ -9,19 +9,22 @@ use core::convert::TryInto;
 use core::fmt;
 use core::slice;
 
-use crate::capabilities::ProcessManagementCapability;
+use crate::capabilities::{ProcessApprovalCapability, ProcessManagementCapability};
 use crate::config;
+use crate::create_capability;
 use crate::debug;
 use crate::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::Process;
+use crate::process_checking;
+use crate::process_checking::{AppCredentialsChecker};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
 use crate::utilities::cells::OptionalCell;
-use crate::verifier;
-use crate::verifier::{AppCredentialsChecker, CheckResult};
+
+
 
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
@@ -164,16 +167,22 @@ impl fmt::Debug for ProcessLoadError {
     }
 }
 
+
+/// Load processes (stored as TBF objects in flash) into runnable
+/// process structures stored in the `procs` array. If a `checker` is
+/// passed, this method scans the footers in the TBF for cryptographic
+/// credentials for binary integrity, passing them to `checker` to decide
+/// whether the process has sufficient credentials to run.
 #[inline(always)]
-pub fn load_and_verify_processes<C: Chip>(
+pub fn load_and_check_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8], 
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    verifier: Option<&'static dyn AppCredentialsChecker>,
-    capability: &dyn ProcessManagementCapability,
+    checker: Option<&'static dyn AppCredentialsChecker>,
+    capability_management: &dyn ProcessManagementCapability
 ) -> Result<(), ProcessLoadError> {
     load_processes(kernel,
                    chip,
@@ -181,8 +190,8 @@ pub fn load_and_verify_processes<C: Chip>(
                    app_memory,
                    &mut procs,
                    fault_policy,
-                   capability)?;
-    let _res = verify_processes(procs, verifier);
+                   capability_management)?;
+    let _res = check_processes(procs, checker);
     Ok(())
 }
 
@@ -263,20 +272,26 @@ fn load_processes<C: Chip>(
 }
 
 
-/// Use `verifier` to transition `procs` from the `Unverified` into the
-/// `Unstarted` state (if they pass verification). If `verifier` is `None`
-/// then all processes are automatically verified.
+/// Use `checker` to transition `procs` from the `Unverified` into the
+/// `Unstarted` state (if they pass the checker policy) or
+/// `CredentialsFailed` state (if they do not pass the checker
+/// policy). If `verifier` is `None` then all processes are
+/// automatically verified. Processes that transition into the
+/// `Unstarted` state are started by enqueueing a stack frame to run
+/// the initialization function as indicated in the TBF header.
 #[inline(always)]
-fn verify_processes(procs: &'static [Option<&'static dyn Process>],
-                    checker: Option<&'static dyn AppCredentialsChecker>
+fn check_processes(procs: &'static [Option<&'static dyn Process>],
+                   checker: Option<&'static dyn AppCredentialsChecker>
 ) -> Result<(), ProcessLoadError> {
+    let capability = create_capability!(ProcessApprovalCapability);
+
     if checker.is_none() {
         if config::CONFIG.debug_process_credentials {
-            debug!("CREDENTIALS: no checker provided, load and run all processes");
+            debug!("Checking: no checker provided, load and run all processes");
         }
         for proc in procs.iter() {
             let res = proc.map(|p| {
-                p.mark_verified().or(Err(ProcessLoadError::InternalError))?;
+                p.mark_credentials_pass(None, &capability).or(Err(ProcessLoadError::InternalError))?;
                 p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
             });
@@ -302,6 +317,10 @@ fn verify_processes(procs: &'static [Option<&'static dyn Process>],
     }
 }
 
+/// Iterates across the `processes` array, checking footers and deciding
+/// whether to make them runnable based on the checking policy in `checker`.
+/// Starts processes that pass the policy and puts processes that don't
+/// pass the policy into the `CredentialsFailed` state.
 struct ProcessCheckerMachine {
     process: Cell<usize>,
     footer: Cell<usize>,
@@ -327,11 +346,12 @@ impl ProcessCheckerMachine {
     ///   - Ok(false) there are no more footers to check
     ///   - Err(r): an error occured and process verification has to stop.
     fn next(&self) -> Result<bool, ProcessLoadError> {
+        let capability = create_capability!(ProcessApprovalCapability);
         loop {
             let mut proc_index = self.process.get();
             
             // Find the next process to check. When code completes
-            // verifying a process, it just increments to the next
+            // checking a process, it just increments to the next
             // index. In case the array has None entries or the
             // process array changes under us, don't actually trust
             // this value.
@@ -351,11 +371,11 @@ impl ProcessCheckerMachine {
             let check_result = self
                 .checker
                 .map_or(FooterCheckResult::Error,
-                        |v| verify_footer(self.processes[proc_index],
-                                          *v,
-                                          footer_index));
+                        |v| check_footer(self.processes[proc_index],
+                                         *v,
+                                         footer_index));
             if config::CONFIG.debug_process_credentials {
-                debug!("CREDENTIALS: Check status for process {}, footer {}: {:?}",
+                debug!("Checking: Check status for process {}, footer {}: {:?}",
                        proc_index,
                        footer_index,
                        check_result);
@@ -374,14 +394,14 @@ impl ProcessCheckerMachine {
                         .map_or(Err(ProcessLoadError::InternalError), |p| {
                             if requires {
                                 if config::CONFIG.debug_process_credentials {
-                                    debug!("CREDENTIALS: required, but all passes, do not run {}", p.get_process_name());
+                                    debug!("Checking: required, but all passes, do not run {}", p.get_process_name());
                                 }
-                                p.terminate(None);
+                                p.mark_credentials_fail(&capability);
                             } else {
                                 if config::CONFIG.debug_process_credentials {
-                                    debug!("CREDENTIALS: not required, all passes, run {}", p.get_process_name());
+                                    debug!("Checking: not required, all passes, run {}", p.get_process_name());
                                 }
-                                p.mark_verified().or(Err(ProcessLoadError::InternalError))?;
+                                p.mark_credentials_pass(None, &capability).or(Err(ProcessLoadError::InternalError))?;
                                 p.enqueue_init_task().or(Err(ProcessLoadError::InternalError))?;
                             }
                             Ok(true)
@@ -391,10 +411,12 @@ impl ProcessCheckerMachine {
                 },
                 FooterCheckResult::NoProcess |
                 FooterCheckResult::BadFooter => {
+                    // Go to next process
                     self.process.set(self.process.get() + 1);
                     self.footer.set(0)                    
                 }
                 FooterCheckResult::FooterNotCheckable => {
+                    // Go to next footer
                     self.footer.set(self.footer.get() + 1);                    
                 }
                 FooterCheckResult::Error => {
@@ -408,12 +430,12 @@ impl ProcessCheckerMachine {
 // Returns whether a footer is being checked or not, and if not, why.
 // Iterates through the footer list until if finds `next_footer` or
 // it reached the end of the footer region.
-fn verify_footer(popt: Option<&'static dyn Process>,
-                 checker: &'static dyn AppCredentialsChecker,
-                 next_footer: usize) -> FooterCheckResult {
+fn check_footer(popt: Option<&'static dyn Process>,
+                checker: &'static dyn AppCredentialsChecker,
+                next_footer: usize) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
         if config::CONFIG.debug_process_credentials {
-            debug!("CREDENTIALS: Checking {} footer {}", process.get_process_name(), next_footer);
+            debug!("Checking: Checking {} footer {}", process.get_process_name(), next_footer);
         }
         let footers_position_ptr = process.flash_integrity_end();
         let mut footers_position = footers_position_ptr as usize;
@@ -425,7 +447,7 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         let footers_len = flash_end - footers_position;
 
         if config::CONFIG.debug_process_credentials {
-            debug!("CREDENTIALS: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
+            debug!("Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
                    flash_start,
                    flash_start + flash_integrity_len,
                    footers_position,
@@ -438,7 +460,7 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                                                          flash_integrity_len)};
         while current_footer <= next_footer  && footers_position < flash_end {
             if config::CONFIG.debug_process_credentials {
-                //debug!("CREDENTIALS: Checking for footer {}, at {}", next_footer, current_footer);
+                //debug!("Checking: Checking for footer {}, at {}", next_footer, current_footer);
             }
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
@@ -447,13 +469,13 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                 }
                 Err(TbfParseError::BadTlvEntry(t)) => {
                     if config::CONFIG.debug_process_credentials {
-                        debug!("CREDENTIALS: Bad TLV entry, type: {:?}", t);
+                        debug!("Checking: Bad TLV entry, type: {:?}", t);
                     }
                     return FooterCheckResult::BadFooter;
                 }
                 Err(e) => {
                     if config::CONFIG.debug_process_credentials {
-                        debug!("CREDENTIALS: Error parsing footer: {:?}", e);
+                        debug!("Checking: Error parsing footer: {:?}", e);
                     }
                     return FooterCheckResult::BadFooter;
                 }
@@ -470,25 +492,25 @@ fn verify_footer(popt: Option<&'static dyn Process>,
                                 match checker.check_credentials(footer, binary_slice) {
                                     Ok(()) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("CREDENTIALS: Found {}, checking", current_footer);
+                                            debug!("Checking: Found {}, checking", current_footer);
                                         }
                                         return FooterCheckResult::Checking;
                                     }
                                     Err((ErrorCode::NOSUPPORT, _, _)) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("CREDENTIALS: Found {}, not supported", current_footer);
+                                            debug!("Checking: Found {}, not supported", current_footer);
                                         }
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
                                     Err((ErrorCode::ALREADY, _, _)) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("CREDENTIALS: Found {}, already", current_footer);
+                                            debug!("Checking: Found {}, already", current_footer);
                                         }
                                         return FooterCheckResult::FooterNotCheckable;
                                     }
                                     Err(e) => {
                                         if config::CONFIG.debug_process_credentials {
-                                            debug!("CREDENTIALS: Found {}, error {:?}", current_footer, e);
+                                            debug!("Checking: Found {}, error {:?}", current_footer, e);
                                         }
                                         return FooterCheckResult::Error;
                                     }
@@ -505,18 +527,19 @@ fn verify_footer(popt: Option<&'static dyn Process>,
         
 }
 
-impl verifier::Client<'static> for ProcessCheckerMachine {
+impl process_checking::Client<'static> for ProcessCheckerMachine {
     fn check_done(&self,
-                  result: Result<CheckResult, ErrorCode>,
-                  _credentials: TbfFooterV2Credentials,
+                  result: Result<process_checking::CheckResult, ErrorCode>,
+                  credentials: TbfFooterV2Credentials,
                   _binary: &'static [u8]) {
+        let capability = create_capability!(ProcessApprovalCapability);
         if config::CONFIG.debug_process_credentials {
-            debug!("CREDENTIALS: check_done gave result {:?}", result);
+            debug!("Checking: check_done gave result {:?}", result);
         }
         match result {
-            Ok(CheckResult::Accept) => {
+            Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.mark_verified();
+                    let _r = p.mark_credentials_pass(Some(credentials), &capability);
                     if p.enqueue_init_task().is_err() {
                         debug!("Error starting checked process {}",
                                p.get_process_name());
@@ -524,18 +547,18 @@ impl verifier::Client<'static> for ProcessCheckerMachine {
                 });
                 self.process.set(self.process.get() + 1);
             },
-            Ok(CheckResult::Pass) => {
+            Ok(process_checking::CheckResult::Pass) => {
                 self.footer.set(self.footer.get() + 1);
             },
-            Ok(CheckResult::Reject) => {
+            Ok(process_checking::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.terminate(None);
+                    let _r = p.mark_credentials_fail(&capability);
                 });
                 self.process.set(self.process.get() + 1);
             }
             Err(e) => {
                 if config::CONFIG.debug_process_credentials {
-                    debug!("CREDENTIALS: error checking footer {:?}", e);
+                    debug!("Checking: error checking footer {:?}", e);
                 }
                 self.footer.set(self.footer.get() + 1);
             }

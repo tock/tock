@@ -406,6 +406,9 @@ The `AppCredentialsChecker` trait defines an interface to a module
 that accepts, passes on, or rejects application credentials. When a
 Tock board asks the kernel to load processes, it passes a reference to
 a `AppCredentialsChecker`, which the kernel uses to check credentials.
+An implementer of `AppCredentialsChecker` sets the security policy of
+process binary loading by deciding which types of credentials, and
+which credentials, are acceptable and which are rejected.
 
 
 ```rust
@@ -415,59 +418,60 @@ pub enum CheckResult {
     Reject
 }
 
-pub trait Client {
+pub trait Client<'a> {
     fn check_done(&self,
                   result: Result<CheckResult, ErrorCode>,
-                  credentials: &TbfFooterV2Credentials,
-                  binary: &[u8]);
+                  credentials: TbfFooterV2Credentials,
+                  binary: &'a [u8]);
 }
 
 pub trait AppCredentialsChecker<'a> {
-    fn set_client(&self, client: &'a dyn Client);
+    fn set_client(&self, client: &'a dyn Client<'a>);
     fn require_credentials(&self) -> bool;
     fn check_credentials(&self,
-                         credentials: &'a TbfFooterV2Credentials,
+                         credentials: TbfFooterV2Credentials,
                          binary: &'a [u8])  ->
-        Result<(), (ErrorCode, &TbfFooterV2Credentials, &[u8])>
+        Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>
 }
 ```
 
-The kernel, when it loads a process binary, scans its headers in order
-from the beginning of the process binary. At each
-`TbfFooterV2Credentials` header it encounters, it calls
-`check_credentials` on the provided `Verifier`. If the `Verifier`
-returns `Accept`, the kernel stops processing credentials and
-continues loading the process binary. If the `Verifier` returns `Reject`,
-the kernel stops processing credentials and terminates loading the
-process binary. If the `Verifier` returns `Pass`, the kernel tries the
-next `TbfFooterV2Credentials`, if there is one.
+When the kernel successfully parses and loads a process binary into a
+`Process` structure, it places it into a state indicating that its
+integrity has not been checked. If the process loading function is
+provided an instance of `AppCredentialsChecker`, it uses this
+instances to check whether each of the loaded proceses is safe to run.
+If no `AppCredentialsChecker` is provided it skips this check and runs
+all successfully loaded processes.
+
+To check the integrity of processes, the kernel scans the footers in
+in each process binary in order, from the beginning of that process's
+footer region. At each `TbfFooterV2Credentials` footer it encounters,
+it calls `check_credentials` on the provided
+`AppCredentialsChecker`. If the `AppCredentialsChecker` returns
+`Accept`, the kernel stops processing credentials and calls
+`mark_credentials_pass` on the process, which makes it runnable. If
+the `Verifier` returns `Reject`, the kernel stops processing
+credentials and calls `mark_credentials_fail` on the process, which
+makes it unrunnable. 
+
+If the `AppCredentialsChecker` returns `Pass`, the kernel tries the
+next `TbfFooterV2Credentials`, if there is one. If the kernel reaches
+the end of the TBF Footers (or if there is a Main Header and so no
+Footers) without encountering a `Reject` or `Accept` result, it calls
+`require_credentials` to ask the `AppCredentialsChecker` what the
+default behavior is.  If `require_credentials` returns `true`, the
+kernel calls `mark_credentials_fail` on the process, which makes it
+unrunnable. If `require_credentials` returns `false`, the kernel calls
+`mark_credentials_pass` on the process, which makes it runnable.  If a
+process binary has no `TbfFooterV2Credentials` footers then there will
+be no `Accept` or `Reject` results and `require_credentials` defines
+whether to load such a binary.
 
 The `binary` argument to `check_credentials` is a reference to slice
 covering the process binary, from the end of the TBF Header to the
-location indicated by the `binary_end_offset` fiel; in the Program
+location indicated by the `binary_end_offset` field in the Program
 Header. The size of this slice is therefore equal to
 `binary_end_offset`.
-
-If the kernel reaches the end of the TBF Footers (or if there is a
-Main Header and so no Footers) without encountering a `Reject` or
-`Accept` result, it calls `require_credentials` to ask the `Verifier`
-what the default behavior is.  If `require_credentials` returns
-`true`, the kernel rejects the process binary and terminates loading
-it. If `require_credentials` returns `false`, the kernel accepts the
-process binary and continues loading it. If a process binary has no
-`TbfFooterV2Credentials` footers then there will be no `Accept` or
-`Reject` results and `require_credentials` defines whether to load
-such a binary.
-
-An implementer of `Verifier` sets the security policy of process binary
-loading by deciding which types of credentials, and which credentials,
-are acceptable and which are rejected.
-
-If `check_credentials` returns `Accept` for a
-`TbfFooterV2Credentials`, the kernel stores a reference to this
-`TbfFooterV2Credentials` in the process structure. This data
-represents the acting credentials of the process.
-
 
 6 Short IDs and the `Compress` trait
 ===============================

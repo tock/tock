@@ -90,7 +90,7 @@ impl<'a> AppCheckerSimulated<'a> {
 
 impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
     fn call(&self, _handle: DeferredCallHandle) {
-        self.client.map(|c| c.check_done(Ok(CheckResult::Reject),
+        self.client.map(|c| c.check_done(Ok(CheckResult::Pass),
                                          self.credentials.take().unwrap(),
                                          self.binary.take().unwrap()));
     }
@@ -98,7 +98,7 @@ impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
 
 impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
     fn require_credentials(&self) -> bool {
-        true
+        false
     }
     
     fn check_credentials(&self,
