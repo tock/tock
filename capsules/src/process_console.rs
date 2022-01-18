@@ -487,6 +487,10 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                 });
                             } else {
                                 self.writer_state.replace(WriterState::Empty);
+                                // As setting the next state here to Empty does not
+                                // go through this match again before reading a new command,
+                                // we have to print the prompt here.
+                                self.prompt();
                             }
                         }
                     });
