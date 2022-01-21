@@ -1,4 +1,3 @@
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::StaticRef;
@@ -573,14 +572,14 @@ impl<'a> Stream<'a> {
 
 pub struct Dma2<'a> {
     registers: StaticRef<DmaRegisters>,
-    clock: Dma2Clock<'a>,
+    clock: DmaClock<'a>,
 }
 
 impl<'a> Dma2<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
-            clock: Dma2Clock(rcc::PeripheralClock::new(
+            clock: DmaClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
                 rcc,
             )),
@@ -597,21 +596,5 @@ impl<'a> Dma2<'a> {
 
     pub fn disable_clock(&self) {
         self.clock.disable();
-    }
-}
-
-struct Dma2Clock<'a>(rcc::PeripheralClock<'a>);
-
-impl ClockInterface for Dma2Clock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }

@@ -1,4 +1,7 @@
+use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+
+use crate::rcc;
 
 pub mod dma1;
 pub mod dma2;
@@ -823,5 +826,21 @@ impl<'a> Stream<'a> {
             Self::Dma1Stream(stream) => stream.do_transfer(buf, len),
             Self::Dma2Stream(stream) => stream.do_transfer(buf, len),
         }
+    }
+}
+
+struct DmaClock<'a>(rcc::PeripheralClock<'a>);
+
+impl ClockInterface for DmaClock<'_> {
+    fn is_enabled(&self) -> bool {
+        self.0.is_enabled()
+    }
+
+    fn enable(&self) {
+        self.0.enable();
+    }
+
+    fn disable(&self) {
+        self.0.disable();
     }
 }
