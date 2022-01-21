@@ -1,11 +1,6 @@
 Tock Threat Model
 =================
 
-
-**Note: This threat model is not descriptive of Tock's current implementation.
-It describes how we intend Tock to work as of some future release, perhaps
-2.0.**
-
 ## Overview
 
 Tock provides hardware-based isolation between processes as well as
