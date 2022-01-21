@@ -1,9 +1,9 @@
 //! Test the AES CCM implementation on top of AES hardware.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM, AES128_KEY_SIZE, CCM_NONCE_LENGTH};
+use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
 pub struct Test<'a, A: AES128CCM<'a>> {
@@ -150,6 +150,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
                 {
                     debug!("{:x} vs {:x}", *a, *b);
                 }
+                panic!("aes_ccm_test failed");
             }
         } else {
             let a_matches = buf[a_off..m_off]
@@ -168,7 +169,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
                     tag_is_valid
                 );
             } else {
-                debug!("aes_ccm_test failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                panic!("aes_ccm_test failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
                        a_matches,
                        m_matches,
                        self.current_test.get(),
@@ -185,7 +186,7 @@ impl<'a, A: AES128CCM<'a>> CCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != Ok(()) {
-            debug!("aes_ccm_test failed: crypt_done returned {:?}", res);
+            panic!("aes_ccm_test failed: crypt_done returned {:?}", res);
         } else {
             self.check_test(tag_is_valid);
             if self.next_test() {

@@ -3,11 +3,11 @@
 use crate::dma;
 use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const DEFAULT_CLOCK_FREQ_HZ: u32 = crate::cs::SMCLK_HZ;
@@ -141,9 +141,6 @@ impl<'a> dma::DmaClient for Uart<'a> {
         }
     }
 }
-
-impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl<'a> hil::uart::Configure for Uart<'a> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {

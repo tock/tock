@@ -23,27 +23,34 @@
 //! ```
 
 use core::cmp;
-use core::mem;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::ErrorCode;
-use kernel::{CommandReturn, Driver, Grant, ProcessId, Read, ReadOnlyAppSlice, Upcall};
+use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const BUFFER: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
-    buffer: ReadOnlyAppSlice,
     pending_command: bool,
     flash_address: usize,
 }
 
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -51,7 +58,7 @@ pub struct AppFlash<'a> {
 impl<'a> AppFlash<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
-        grant: Grant<App>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
@@ -67,9 +74,11 @@ impl<'a> AppFlash<'a> {
     // completes.
     fn enqueue_write(&self, flash_address: usize, appid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, kernel_data| {
                 // Check that this is a valid range in the app's flash.
-                let flash_length = app.buffer.len();
+                let flash_length = kernel_data
+                    .get_readonly_processbuffer(ro_allow::BUFFER)
+                    .map_or(0, |buffer| buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
                 if flash_address < app_flash_start
                     || flash_address >= app_flash_end
@@ -81,20 +90,27 @@ impl<'a> AppFlash<'a> {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
 
-                    app.buffer.map_or(Err(ErrorCode::RESERVE), |app_buffer| {
-                        // Copy contents to internal buffer and write it.
-                        self.buffer
-                            .take()
-                            .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &app_buffer[0..length];
-                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                    *c = d[i];
-                                }
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::BUFFER)
+                        .and_then(|buffer| {
+                            buffer.enter(|app_buffer| {
+                                // Copy contents to internal buffer and write it.
+                                self.buffer
+                                    .take()
+                                    .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                                        let length = cmp::min(buffer.len(), app_buffer.len());
+                                        let d = &app_buffer[0..length];
+                                        for (i, c) in
+                                            buffer.as_mut()[0..length].iter_mut().enumerate()
+                                        {
+                                            *c = d[i].get();
+                                        }
 
-                                self.driver.write(buffer, flash_address, length)
+                                        self.driver.write(buffer, flash_address, length)
+                                    })
                             })
-                    })
+                        })
+                        .unwrap_or(Err(ErrorCode::RESERVE))
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
@@ -119,40 +135,49 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
 
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app| {
-                app.callback.schedule(0, 0, 0);
+            let _ = self.apps.enter(appid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
-            let started_command = cntr.enter(|app| {
+            let started_command = cntr.enter(|app, kernel_data| {
                 if app.pending_command {
                     app.pending_command = false;
                     self.current_app.set(appid);
                     let flash_address = app.flash_address;
 
-                    app.buffer.map_or(false, |app_buffer| {
-                        self.buffer.take().map_or(false, |buffer| {
-                            if app_buffer.len() != 512 {
-                                false
-                            } else {
-                                // Copy contents to internal buffer and write it.
-                                let length = cmp::min(buffer.len(), app_buffer.len());
-                                let d = &app_buffer[0..length];
-                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                    *c = d[i];
-                                }
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::BUFFER)
+                        .and_then(|buffer| {
+                            buffer.enter(|app_buffer| {
+                                self.buffer.take().map_or(false, |buffer| {
+                                    if app_buffer.len() != 512 {
+                                        false
+                                    } else {
+                                        // Copy contents to internal buffer and write it.
+                                        let length = cmp::min(buffer.len(), app_buffer.len());
+                                        let d = &app_buffer[0..length];
+                                        for (i, c) in
+                                            buffer.as_mut()[0..length].iter_mut().enumerate()
+                                        {
+                                            *c = d[i].get();
+                                        }
 
-                                if let Ok(()) = self.driver.write(buffer, flash_address, length) {
-                                    true
-                                } else {
-                                    false
-                                }
-                            }
+                                        if let Ok(()) =
+                                            self.driver.write(buffer, flash_address, length)
+                                        {
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                })
+                            })
                         })
-                    })
+                        .unwrap_or(false)
                 } else {
                     false
                 }
@@ -164,62 +189,18 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
     }
 }
 
-impl Driver for AppFlash<'_> {
+impl SyscallDriver for AppFlash<'_> {
     /// Setup buffer to write from.
     ///
     /// ### `allow_num`
     ///
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyAppSlice,
-    ) -> Result<ReadOnlyAppSlice, (ReadOnlyAppSlice, ErrorCode)> {
-        let res = match allow_num {
-            0 => self
-                .apps
-                .enter(appid, |app| {
-                    mem::swap(&mut app.buffer, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
 
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Set a write_done callback.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut app.callback, &mut callback);
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into())),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Set a write_done callback.
 
     /// App flash control.
     ///
@@ -252,5 +233,9 @@ impl Driver for AppFlash<'_> {
 
             _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

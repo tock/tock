@@ -2,11 +2,11 @@
 //! the Entropy32 trait.
 
 use crate::pm;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 #[repr(C)]

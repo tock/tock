@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 // mepc contains address of instruction where trap occurred
 register_bitfields![usize,

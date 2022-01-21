@@ -1,10 +1,10 @@
 //! Create a timer using the Machine Timer registers.
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{register_structs, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::hil::time::{self, Alarm, ConvertTicks, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 
@@ -94,10 +94,10 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
 /// used by a chip if that chip has multiple hardware timer peripherals such that a different
 /// hardware timer can be used to provide alarms to capsules and userspace. This
 /// implementation will not work alongside other uses of the machine timer.
-impl kernel::SchedulerTimer for Clint<'_> {
+impl kernel::platform::scheduler_timer::SchedulerTimer for Clint<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

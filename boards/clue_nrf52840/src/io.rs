@@ -6,13 +6,14 @@ use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
+use kernel::hil::uart::Transmit;
 use kernel::hil::uart::{self};
+use kernel::utilities::cells::VolatileCell;
 use nrf52840::gpio::Pin;
 
 use crate::CHIP;
 use crate::PROCESSES;
-use kernel::common::cells::VolatileCell;
-use kernel::hil::uart::Transmit;
+use crate::PROCESS_PRINTER;
 
 struct Writer {
     initialized: bool,
@@ -116,15 +117,15 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Nano 33 Board.
+/// Default panic handler for the Adafruit CLUE nRF52480 Express Board.
 ///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
-    let led = &mut led::LedLow::new(led_kernel_pin);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_01);
+    let led = &mut led::LedHigh::new(led_kernel_pin);
     let writer = &mut WRITER;
     debug::panic(
         &mut [led],
@@ -133,5 +134,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &cortexm4::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }

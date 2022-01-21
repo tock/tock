@@ -188,6 +188,7 @@ impl<L: 'static + Pin, A: 'static + Alarm<'static>> Component for LedMatrixCompo
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        led_alarm.setup();
 
         let led_matrix = static_init_half!(
             static_buffer.1,

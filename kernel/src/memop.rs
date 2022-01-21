@@ -54,26 +54,26 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         },
 
         // Op Type 2: Process memory start
-        2 => SyscallReturn::SuccessU32(process.mem_start() as u32),
+        2 => SyscallReturn::SuccessU32(process.get_addresses().sram_start as u32),
 
         // Op Type 3: Process memory end
-        3 => SyscallReturn::SuccessU32(process.mem_end() as u32),
+        3 => SyscallReturn::SuccessU32(process.get_addresses().sram_end as u32),
 
         // Op Type 4: Process flash start
-        4 => SyscallReturn::SuccessU32(process.flash_start() as u32),
+        4 => SyscallReturn::SuccessU32(process.get_addresses().flash_start as u32),
 
         // Op Type 5: Process flash end
-        5 => SyscallReturn::SuccessU32(process.flash_end() as u32),
+        5 => SyscallReturn::SuccessU32(process.get_addresses().flash_end as u32),
 
         // Op Type 6: Grant region begin
-        6 => SyscallReturn::SuccessU32(process.kernel_memory_break() as u32),
+        6 => SyscallReturn::SuccessU32(process.get_addresses().sram_grant_start as u32),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
         7 => SyscallReturn::SuccessU32(process.number_writeable_flash_regions() as u32),
 
         // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
-            let flash_start = process.flash_start() as u32;
+            let flash_start = process.get_addresses().flash_start as u32;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
@@ -86,7 +86,7 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Returns (void*) -1 on failure, meaning the selected writeable region
         // does not exist.
         9 => {
-            let flash_start = process.flash_start() as u32;
+            let flash_start = process.get_addresses().flash_start as u32;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)

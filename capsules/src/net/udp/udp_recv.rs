@@ -11,9 +11,10 @@ use crate::net::ipv6::IP6Header;
 use crate::net::udp::driver::UDPDriver;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortBindingRx};
 use crate::net::udp::UDPHeader;
-use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
+use kernel::utilities::cells::{MapCell, OptionalCell};
 
 pub struct MuxUdpReceiver<'a> {
     rcvr_list: List<'a, UDPReceiver<'a>>,

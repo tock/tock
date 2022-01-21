@@ -5,11 +5,11 @@
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 use crate::chip::Processor;
 #[repr(C)]
@@ -342,15 +342,15 @@ impl<'a> RPPins<'a> {
             for pin in 0..8 {
                 let l_low_reg_no = pin * 4;
                 if (current_val & enabled_val & (1 << l_low_reg_no)) != 0 {
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 1)) != 0 {
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 2)) != 0 {
                     self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 2));
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 } else if (current_val & enabled_val & (1 << l_low_reg_no + 3)) != 0 {
                     self.gpio_registers.intr[bank_no].set(current_val & (1 << l_low_reg_no + 3));
-                    self.pins[pin * bank_no].handle_interrupt();
+                    self.pins[pin + bank_no * 8].handle_interrupt();
                 }
             }
         }
@@ -521,10 +521,6 @@ impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {
             .set(current_val & !(1 << high_reg_no) & !(1 << low_reg_no));
     }
 }
-
-impl<'a> hil::gpio::InterruptPin<'a> for RPGpioPin<'a> {}
-
-impl hil::gpio::Pin for RPGpioPin<'_> {}
 
 impl hil::gpio::Configure for RPGpioPin<'_> {
     fn configuration(&self) -> hil::gpio::Configuration {

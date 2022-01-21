@@ -8,9 +8,9 @@ use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::StaticRef;
 use kernel::debug;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 // Both events have the same index since they are located on different
@@ -215,8 +215,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
 
                 // Get the slot buffer reference
                 let slot = unsafe {
-                    self.get_slot_buffer(false, slot_id)
-                        .expect("LiteEth: invalid RX slot id")
+                    self.get_slot_buffer(false, slot_id).unwrap() // Unwrap fail = LiteEth: invalid RX slot id
                 };
 
                 // Copy the packet into the buffer
@@ -250,7 +249,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
             return Err((Err(ErrorCode::BUSY), packet));
         }
 
-        let slot = unsafe { self.get_slot_buffer(true, 0) }.expect("LiteEth: no TX slot");
+        let slot = unsafe { self.get_slot_buffer(true, 0) }.unwrap(); // Unwrap fail = LiteEth: no TX slot
         if slot.len() < len {
             return Err((Err(ErrorCode::SIZE), packet));
         }
@@ -287,10 +286,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         }
 
         // We use only one slot, so this event is unambiguous
-        let packet = self
-            .tx_packet
-            .take()
-            .expect("LiteEth: TakeCell empty in tx callback");
+        let packet = self.tx_packet.take().unwrap(); // Unwrap fail = LiteEth: TakeCell empty in tx callback
         self.client
             .map(move |client| client.tx_done(Ok(()), packet));
     }

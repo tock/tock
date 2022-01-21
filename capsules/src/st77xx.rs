@@ -29,19 +29,19 @@
 //!         // dc
 //!         Some(&nrf52840::gpio::PORT[GPIO_D3]),
 //!         // reset
-//!         &nrf52840::gpio::PORT[GPIO_D2]
+//!         Some(&nrf52840::gpio::PORT[GPIO_D2])
 //!     ),
 //! );
 //! ```
 
 use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
 };
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
@@ -189,6 +189,7 @@ enum Status {
     SendCommandSlice(usize),
     SendParametersSlice,
     Delay,
+    Error(ErrorCode),
 }
 #[derive(Copy, Clone, PartialEq)]
 pub enum SendCommand {
@@ -209,7 +210,7 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     bus: &'a B,
     alarm: &'a A,
     dc: Option<&'a P>,
-    reset: &'a P,
+    reset: Option<&'a P>,
     status: Cell<Status>,
     width: Cell<usize>,
     height: Cell<usize>,
@@ -238,15 +239,13 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         bus: &'a B,
         alarm: &'a A,
         dc: Option<&'a P>,
-        reset: &'a P,
+        reset: Option<&'a P>,
         buffer: &'static mut [u8],
         sequence_buffer: &'static mut [SendCommand],
         screen: &'static ST77XXScreen,
     ) -> ST77XX<'a, A, B, P> {
-        if let Some(dc) = dc {
-            dc.make_output();
-        }
-        reset.make_output();
+        dc.map(|dc| dc.make_output());
+        reset.map(|reset| reset.make_output());
         ST77XX {
             alarm: alarm,
 
@@ -336,17 +335,13 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     fn send_command(&self, cmd: &'static Command, position: usize, len: usize, repeat: usize) {
         self.command.set(cmd);
         self.status.set(Status::SendCommand(position, len, repeat));
-        if let Some(dc) = self.dc {
-            dc.clear();
-        }
+        self.dc.map(|dc| dc.clear());
         let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
 
     fn send_command_slice(&self, cmd: &'static Command, len: usize) {
         self.command.set(cmd);
-        if let Some(dc) = self.dc {
-            dc.clear();
-        }
+        self.dc.map(|dc| dc.clear());
         self.status.set(Status::SendCommandSlice(len));
         let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
     }
@@ -363,9 +358,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                             buffer[i - position] = buffer[i];
                         }
                     }
-                    if let Some(dc) = self.dc {
-                        dc.set();
-                    }
+                    self.dc.map(|dc| dc.set());
                     let _ = self.bus.write(BusWidth::Bits8, buffer, len);
                 },
             );
@@ -379,9 +372,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             || panic!("st77xx: no write buffer"),
             |buffer| {
                 self.status.set(Status::SendParametersSlice);
-                if let Some(dc) = self.dc {
-                    dc.set();
-                }
+                self.dc.map(|dc| dc.set());
                 let _ = self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
             },
         );
@@ -547,9 +538,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::SendCommand(parameters_position, parameters_length, repeat) => {
                 if repeat == 0 {
-                    if let Some(dc) = self.dc {
-                        dc.clear();
-                    }
+                    self.dc.map(|dc| dc.clear());
                     let mut delay = self.command.get().delay as u32;
                     if delay > 0 {
                         if delay == 255 {
@@ -568,9 +557,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 self.send_parameters_slice(len);
             }
             Status::SendParametersSlice => {
-                if let Some(dc) = self.dc {
-                    dc.clear();
-                }
+                self.dc.map(|dc| dc.clear());
                 let mut delay = self.command.get().delay as u32;
                 if delay > 0 {
                     if delay == 255 {
@@ -584,24 +571,43 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::Reset1 => {
                 // self.send_command_with_default_parameters(&NOP);
-                self.reset.clear();
+                self.reset.map(|reset| reset.clear());
                 self.set_delay(10, Status::Reset2);
             }
             Status::Reset2 => {
-                self.reset.set();
+                self.reset.map(|reset| reset.set());
                 self.set_delay(120, Status::Reset3);
             }
             Status::Reset3 => {
-                self.reset.clear();
+                self.reset.map(|reset| reset.clear());
                 self.set_delay(120, Status::Reset4);
             }
             Status::Reset4 => {
-                self.reset.set();
+                self.reset.map(|reset| reset.set());
                 self.set_delay(120, Status::Init);
             }
             Status::Init => {
                 self.status.set(Status::Idle);
                 let _ = self.send_sequence(&self.screen.init_sequence);
+            }
+            Status::Error(error) => {
+                if self.setup_command.get() {
+                    self.setup_command.set(false);
+                    self.setup_client.map(|setup_client| {
+                        setup_client.command_complete(Err(error));
+                    });
+                } else {
+                    self.client.map(|client| {
+                        if self.write_buffer.is_some() {
+                            self.write_buffer.take().map(|buffer| {
+                                client.write_complete(buffer, Err(error));
+                            });
+                        } else {
+                            client.command_complete(Err(error));
+                        }
+                    });
+                }
+                self.status.set(Status::Idle);
             }
             _ => {
                 panic!("ST77XX status Idle");
@@ -670,7 +676,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     ///  self.set_delay(10, Status::Idle);
     fn set_delay(&self, timer: u32, next_status: Status) {
         self.status.set(next_status);
-        let interval = A::ticks_from_ms(timer);
+        let interval = self.alarm.ticks_from_ms(timer);
         self.alarm.set_alarm(self.alarm.now(), interval);
     }
 }
@@ -860,7 +866,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
         &self,
         buffer: Option<&'static mut [u8]>,
         _len: usize,
-        _status: Result<(), ErrorCode>,
+        status: Result<(), ErrorCode>,
     ) {
         if let Some(buffer) = buffer {
             if self.status.get() == Status::SendParametersSlice {
@@ -868,6 +874,10 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
             } else {
                 self.buffer.replace(buffer);
             }
+        }
+
+        if let Err(error) = status {
+            self.status.set(Status::Error(error));
         }
 
         self.do_next_op();

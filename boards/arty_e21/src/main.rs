@@ -9,14 +9,13 @@
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
 
-#[allow(dead_code)]
-mod multi_alarm_test;
 #[allow(dead_code)]
 mod timer_test;
 
@@ -28,14 +27,15 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -54,16 +54,18 @@ struct ArtyE21 {
     led: &'static capsules::led::LedDriver<
         'static,
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+        3,
     >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
+    scheduler: &'static PrioritySched,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for ArtyE21 {
+impl SyscallDriverLookup for ArtyE21 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -76,6 +78,40 @@ impl Platform for ArtyE21 {
             // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>>
+    for ArtyE21
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = PrioritySched;
+    type SchedulerTimer = ();
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
     }
 }
 
@@ -114,6 +150,10 @@ pub unsafe fn main() {
         Some(&peripherals.gpio_port[8]),
     );
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.uart0,
@@ -122,7 +162,12 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -133,8 +178,12 @@ pub unsafe fn main() {
     hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
 
     // Alarm
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(sifive::clint::Clint));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(sifive::clint::Clint));
 
     // TEST for timer
     //
@@ -149,19 +198,17 @@ pub unsafe fn main() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
         hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
         hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
         hil::led::LedHigh::new(&peripherals.gpio_port[0]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>
     ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             (
@@ -178,6 +225,7 @@ pub unsafe fn main() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             arty_e21_chip::gpio::GpioPin,
             0 => &peripherals.gpio_port[7],
@@ -191,6 +239,8 @@ pub unsafe fn main() {
 
     chip.enable_all_interrupts();
 
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+
     let artye21 = ArtyE21 {
         console: console,
         gpio: gpio,
@@ -198,6 +248,7 @@ pub unsafe fn main() {
         led: led,
         button: button,
         // ipc: kernel::ipc::IPC::new(board_kernel),
+        scheduler,
     };
 
     // Create virtual device for kernel debug.
@@ -209,7 +260,9 @@ pub unsafe fn main() {
 
     // Uncomment to run tests
     //timertest.start();
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
+    .run();*/
 
     /// These symbols are defined in the linker script.
     extern "C" {
@@ -223,7 +276,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -243,13 +296,10 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-
     board_kernel.kernel_loop(
         &artye21,
         chip,
         None::<&kernel::ipc::IPC<NUM_PROCS>>,
-        scheduler,
         &main_loop_cap,
     );
 }

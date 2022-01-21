@@ -2,7 +2,7 @@
 
 use core::ops::{Index, IndexMut};
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use sifive::gpio::{pins, GpioPin, GpioRegisters};
 
 pub const GPIO0_BASE: StaticRef<GpioRegisters> =

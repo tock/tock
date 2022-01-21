@@ -2,6 +2,18 @@
 
 ## master
 
+## v0.7
+
+ - #2642: Rename `IntLike` to `UIntLike` to match semantics
+ - #2618: Reorganize, document, and feature-gate modules and exports
+ - #2589: Upgrade nightly for `const_fn` -> `const_fn_trait_bound`
+ - #2517: Use traits for accessing / manipulating registers
+ - #2512: Fix `Copy` and `Clone` implementation on `Field`
+ - #2300: Add support for `usize`
+ - #2220: Remove duplicate code, make local register copy read-write
+ - #2210: Add `u128` to `IntLike`
+ - #2197: Accept trailing comma in bitfields and bitmasks
+
 ## v0.6
 
  - #2095: Fix syntax errors and inconsistencies in documentation

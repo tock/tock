@@ -2,15 +2,15 @@
 
 use core::cell::Cell;
 use cortexm4::support::atomic;
-use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil;
+use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
     ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil;
-use kernel::hil::usb::TransferType;
+use kernel::utilities::StaticRef;
 
 use crate::power;
 
@@ -19,37 +19,37 @@ use crate::power;
 // replaced with better error handling.
 macro_rules! debug_events {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_tasks {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_packets {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+);
+        {} // debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 
@@ -305,9 +305,9 @@ struct UsbdRegisters<'a> {
 mod detail {
     use super::{Amount, Count};
     use core::marker::PhantomData;
-    use kernel::common::cells::VolatileCell;
-    use kernel::common::registers::interfaces::Writeable;
-    use kernel::common::registers::{ReadOnly, ReadWrite};
+    use kernel::utilities::cells::VolatileCell;
+    use kernel::utilities::registers::interfaces::Writeable;
+    use kernel::utilities::registers::{ReadOnly, ReadWrite};
 
     #[repr(C)]
     pub struct EndpointRegisters<'a> {
@@ -812,7 +812,7 @@ impl<'a> Usbd<'a> {
     }
 
     pub fn get_state(&self) -> UsbState {
-        self.state.expect("get_state: state value is in use")
+        self.state.unwrap_or_panic() // Unwrap fail = get_state: state value is in use
     }
 
     // Powers the USB PHY on
@@ -925,9 +925,7 @@ impl<'a> Usbd<'a> {
                 );
             }
         }
-        let power = self
-            .power
-            .expect("failed to initialize power reference for USB");
+        let power = self.power.unwrap_or_panic(); // Unwrap fail = failed to initialize power reference for USB
         if !power.is_vbus_present() {
             debug_info!("[!] VBUS power is not detected.");
             return;
@@ -1607,7 +1605,7 @@ impl<'a> Usbd<'a> {
                 // We are idle, and ready for any control transfer.
 
                 let ep_buf = &self.descriptors[endpoint].slice_out;
-                let ep_buf = ep_buf.expect("No OUT slice set for this descriptor");
+                let ep_buf = ep_buf.unwrap_or_panic(); // Unwrap fail = No OUT slice set for this descriptor
                 if ep_buf.len() < 8 {
                     panic!("EP0 DMA buffer length < 8");
                 }
@@ -1854,9 +1852,7 @@ impl<'a> Usbd<'a> {
     }
 
     fn start_dma_in(&self, endpoint: usize, size: usize) {
-        let slice = self.descriptors[endpoint]
-            .slice_in
-            .expect("No IN slice set for this descriptor");
+        let slice = self.descriptors[endpoint].slice_in.unwrap_or_panic(); // Unwrap fail = No IN slice set for this descriptor
         self.debug_in_packet(size, endpoint);
 
         // Start DMA transfer
@@ -1867,9 +1863,7 @@ impl<'a> Usbd<'a> {
     }
 
     fn start_dma_out(&self, endpoint: usize) {
-        let slice = self.descriptors[endpoint]
-            .slice_out
-            .expect("No OUT slice set for this descriptor");
+        let slice = self.descriptors[endpoint].slice_out.unwrap_or_panic(); // Unwrap fail = No OUT slice set for this descriptor
 
         // Start DMA transfer
         self.set_pending_dma();
@@ -1880,9 +1874,7 @@ impl<'a> Usbd<'a> {
 
     // Debug-only function
     fn debug_in_packet(&self, size: usize, endpoint: usize) {
-        let slice = self.descriptors[endpoint]
-            .slice_in
-            .expect("No IN slice set for this descriptor");
+        let slice = self.descriptors[endpoint].slice_in.unwrap_or_panic(); // Unwrap fail = No IN slice set for this descriptor
         if size > slice.len() {
             panic!("Packet is too large: {}", size);
         }
@@ -1897,9 +1889,7 @@ impl<'a> Usbd<'a> {
 
     // Debug-only function
     fn debug_out_packet(&self, size: usize, endpoint: usize) {
-        let slice = self.descriptors[endpoint]
-            .slice_out
-            .expect("No OUT slice set for this descriptor");
+        let slice = self.descriptors[endpoint].slice_out.unwrap_or_panic(); // Unwrap fail = No OUT slice set for this descriptor
         if size > slice.len() {
             panic!("Packet is too large: {}", size);
         }

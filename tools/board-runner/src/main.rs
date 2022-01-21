@@ -1,6 +1,7 @@
 use std::env;
 
 pub mod artemis_nano;
+pub mod earlgrey_cw310;
 pub mod earlgrey_nexysvideo;
 
 fn main() {
@@ -9,7 +10,12 @@ fn main() {
     println!("Tock board-runner starting...");
 
     for arg in args.iter() {
-        if arg == "earlgrey_nexysvideo" {
+        if arg == "earlgrey_cw310" {
+            println!();
+            println!("Running earlgrey_cw310 tests...");
+            earlgrey_cw310::all_earlgrey_cw310_tests();
+            println!("earlgrey_cw310 SUCCESS.");
+        } else if arg == "earlgrey_nexysvideo" {
             println!();
             println!("Running earlgrey_nexysvideo tests...");
             earlgrey_nexysvideo::all_earlgrey_nexysvideo_tests();

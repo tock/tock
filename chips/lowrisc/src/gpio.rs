@@ -1,32 +1,33 @@
 //! General Purpose Input/Output driver.
 
 use crate::padctrl;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, Field, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil::gpio;
+use kernel::utilities::StaticRef;
 
 register_structs! {
     pub GpioRegisters {
         (0x00 => intr_state: ReadWrite<u32, pins::Register>),
         (0x04 => intr_enable: ReadWrite<u32, pins::Register>),
         (0x08 => intr_test: WriteOnly<u32, pins::Register>),
-        (0x0c => data_in: ReadOnly<u32, pins::Register>),
-        (0x10 => direct_out: ReadWrite<u32, pins::Register>),
-        (0x14 => masked_out_lower: ReadWrite<u32, mask_half::Register>),
-        (0x18 => masked_out_upper: ReadWrite<u32, mask_half::Register>),
-        (0x1c => direct_oe: ReadWrite<u32, pins::Register>),
-        (0x20 => masked_oe_lower: ReadWrite<u32, mask_half::Register>),
-        (0x24 => masked_oe_upper: ReadWrite<u32, mask_half::Register>),
-        (0x28 => intr_ctrl_en_rising: ReadWrite<u32, pins::Register>),
-        (0x2c => intr_ctrl_en_falling: ReadWrite<u32, pins::Register>),
-        (0x30 => intr_ctrl_en_lvlhigh: ReadWrite<u32, pins::Register>),
-        (0x34 => intr_ctrl_en_lvllow: ReadWrite<u32, pins::Register>),
-        (0x38 => ctrl_en_input_filter: ReadWrite<u32, pins::Register>),
-        (0x3c => @END),
+        (0x0c => alert_test: ReadOnly<u32>),
+        (0x10 => data_in: ReadOnly<u32, pins::Register>),
+        (0x14 => direct_out: ReadWrite<u32, pins::Register>),
+        (0x18 => masked_out_lower: ReadWrite<u32, mask_half::Register>),
+        (0x1c => masked_out_upper: ReadWrite<u32, mask_half::Register>),
+        (0x20 => direct_oe: ReadWrite<u32, pins::Register>),
+        (0x24 => masked_oe_lower: ReadWrite<u32, mask_half::Register>),
+        (0x28 => masked_oe_upper: ReadWrite<u32, mask_half::Register>),
+        (0x2c => intr_ctrl_en_rising: ReadWrite<u32, pins::Register>),
+        (0x30 => intr_ctrl_en_falling: ReadWrite<u32, pins::Register>),
+        (0x34 => intr_ctrl_en_lvlhigh: ReadWrite<u32, pins::Register>),
+        (0x38 => intr_ctrl_en_lvllow: ReadWrite<u32, pins::Register>),
+        (0x3c => ctrl_en_input_filter: ReadWrite<u32, pins::Register>),
+        (0x40 => @END),
     }
 }
 
@@ -291,6 +292,3 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
         self.gpio_registers.intr_state.is_set(self.pin)
     }
 }
-
-impl<'a> gpio::Pin for GpioPin<'a> {}
-impl<'a> gpio::InterruptPin<'a> for GpioPin<'a> {}

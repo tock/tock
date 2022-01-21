@@ -4,7 +4,8 @@ Kernel Time HIL
 **TRD:** 101<br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
-**Status:** Final <br/>
+**Status:** Obsolete <br/>
+**Obsoleted By:** 105 <br/>
 **Author:** Guillaume Endignoux, Amit Levy and Philip Levis <br/>
 
 Abstract

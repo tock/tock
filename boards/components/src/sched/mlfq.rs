@@ -10,16 +10,16 @@ use core::mem::MaybeUninit;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time;
-use kernel::procs::Process;
+use kernel::process::Process;
+use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 use kernel::static_init_half;
-use kernel::{MLFQProcessNode, MLFQSched};
 
 #[macro_export]
 macro_rules! mlfq_component_helper {
     ($A:ty, $N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
+        use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
         use kernel::static_init;
-        use kernel::{MLFQProcessNode, MLFQSched};
         static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
         static mut BUF2: MaybeUninit<MLFQSched<'static, VirtualMuxAlarm<'static, $A>>> =
             MaybeUninit::uninit();
@@ -61,6 +61,8 @@ impl<A: 'static + time::Alarm<'static>> Component for MLFQComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        scheduler_alarm.setup();
+
         let scheduler = static_init_half!(
             sched_buf,
             MLFQSched<'static, VirtualMuxAlarm<'static, A>>,

@@ -24,12 +24,12 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::deferred_call::DeferredCall;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.

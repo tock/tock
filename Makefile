@@ -32,16 +32,21 @@ usage:
 	@echo "Tock currently includes support for the following platforms:"
 	@for f in $(ALL_BOARDS); do printf " - $$f\n"; done
 	@echo
-	@echo "Run 'make' in a board directory to build Tock for that board,"
-	@echo "and usually 'make program' or 'make flash' to load Tock onto hardware."
-	@echo "Check out the README in your board's folder for more information."
+	@echo "Run 'make' in a board directory to build Tock for that board, and then"
+	@echo "run 'make install' to load Tock onto hardware. Check out the README in"
+	@echo "your board's folder for more information."
+	@echo
+	@echo "There are a few helpful targets that can be run for individual boards. To"
+	@echo "run these, run 'make {target}' from the board directory for these targets:"
+	@echo "      cargobloat: Runs the cargo-bloat tool for attributing binary size"
+	@echo "  stack-analysis: Prints the 5 largest stack frames for the board"
 	@echo
 	@echo "This root Makefile has a few useful targets as well:"
-	@echo "        allaudit: Audit Cargo dependencies for all kernel sources"
-	@echo "       allboards: Compiles Tock for all supported boards"
-	@echo "        allcheck: Checks, but does not compile, Tock for all supported boards"
-	@echo "          alldoc: Builds Tock documentation for all boards"
-	@echo "        allstack: Prints a basic stack frame analysis for all boards"
+	@echo "           audit: Audit Cargo dependencies for all kernel sources"
+	@echo "          boards: Compiles Tock for all supported boards"
+	@echo "           check: Checks, but does not compile, Tock for all supported boards"
+	@echo "             doc: Builds Tock documentation for all boards"
+	@echo "           stack: Prints a basic stack frame analysis for all boards"
 	@echo "           clean: Clean all builds"
 	@echo "          format: Runs the rustfmt tool on all kernel sources"
 	@echo "            list: Lists available boards"
@@ -121,33 +126,33 @@ endef
 ##
 
 ## Aggregate targets
-.PHONY: allaudit
-allaudit:
+.PHONY: allaudit audit
+allaudit audit:
 	@for f in `./tools/list_lock.sh`;\
 		do echo "$$(tput bold)Auditing $$f";\
 		(cd "$$f" && cargo audit || exit 1);\
 		done
 
-.PHONY: allboards
-allboards:
+.PHONY: allboards boards
+allboards boards:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Build $$f";\
 		$(MAKE) -C "boards/$$f" || exit 1;\
 		done
 
-.PHONY: allcheck
-allcheck:
+.PHONY: allcheck check
+allcheck check:
 	@cargo check
 
-.PHONY: alldoc
-alldoc:
+.PHONY: alldoc doc
+alldoc doc:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Documenting $$f";\
 		$(MAKE) -C "boards/$$f" doc || exit 1;\
 		done
 
-.PHONY: allstack
-allstack:
+.PHONY: allstack stack stack-analysis
+allstack stack stack-analysis:
 	@for f in $(ALL_BOARDS);\
 		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
@@ -286,7 +291,8 @@ ci-runner-github-build:\
 	ci-job-syntax\
 	ci-job-compilation\
 	ci-job-debug-support-targets\
-	ci-job-collect-artifacts
+	ci-job-collect-artifacts\
+	ci-job-cargo-test-build
 	$(call banner,CI-Runner: GitHub build runner DONE)
 
 .PHONY: ci-runner-github-tests
@@ -451,6 +457,9 @@ define ci_setup_tools
 	elif command -v brew > /dev/null; then\
 		echo "Running: brew install libusb-compat pkg-config";\
 		brew install libusb-compat pkg-config;\
+	elif command -v dnf > /dev/null; then\
+		echo "Running: sudo dnf install libusb-devel";\
+		sudo dnf install libusb-devel;\
 	else\
 		echo "";\
 		echo "ERR: Do not know how to install libusb on this platform.";\
@@ -499,9 +508,15 @@ ci-job-miri: ci-setup-miri
 	@for c in $$(tools/list_chips.sh); do cd chips/$$c && CI=true cargo miri test && cd ../..; done
 
 
+.PHONY: ci-job-cargo-test-build
+ci-job-cargo-test-build:
+	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
+	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-nexysvideo" test
+	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
+
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=3e9f48bcdabe57f8f90cf19f01bbbf3c86937267
+QEMU_COMMIT_HASH=af531756d25541a1b3b3d9a14e72e7fedd941a2e
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
@@ -509,7 +524,7 @@ define ci_setup_qemu_riscv
 	@git clone https://github.com/qemu/qemu ./tools/qemu 2>/dev/null || echo "qemu already cloned, checking out"
 	@cd tools/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
-	@$(MAKE) -C "tools/qemu/build" || (echo "You might need to install some missing packages" || exit 127)
+	@$(MAKE) -C "tools/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
 endef
 
 define ci_setup_qemu_opentitan
@@ -522,10 +537,10 @@ define ci_setup_qemu_opentitan
 	@pwd=$$(pwd) && \
 		temp=$$(mktemp -d) && \
 		cd $$temp && \
-		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-snapshot-20191101-1-3845-g000a18cb6.tar.xz' \
+		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-earlgrey_silver_release_v5-157-ga28c280bb.tar.xz' \
 			--output opentitan-dist.tar.xz; \
 		tar -xf opentitan-dist.tar.xz; \
-		mv opentitan-snapshot-20191101-*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
+		mv opentitan-earlgrey_silver_release_*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
 endef
 
 .PHONY: ci-setup-qemu
@@ -550,6 +565,12 @@ define ci_job_qemu
 	@cd tools/qemu-runner;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
+	@cd boards/opentitan/earlgrey-cw310;\
+		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
+		make test
+	@cd boards/opentitan/earlgrey-nexysvideo;\
+		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
+		make test
 endef
 
 .PHONY: ci-job-qemu

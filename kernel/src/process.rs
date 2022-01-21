@@ -9,11 +9,21 @@ use core::str;
 use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
-use crate::mem::{ReadOnlyAppSlice, ReadWriteAppSlice};
+use crate::kernel::Kernel;
 use crate::platform::mpu::{self};
-use crate::sched::Kernel;
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use tock_tbf::types::CommandPermissions;
+
+// Export all process related types via `kernel::process::`.
+pub use crate::process_policies::{
+    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
+    StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
+};
+pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
+pub use crate::process_standard::ProcessStandard;
+pub use crate::process_utilities::{load_processes, load_processes_advanced, ProcessLoadError};
 
 /// Userspace process identifier.
 ///
@@ -87,8 +97,8 @@ impl fmt::Debug for ProcessId {
 }
 
 impl ProcessId {
-    /// Create a new `ProcessId` object based on the app identifier and its index
-    /// in the processes array.
+    /// Create a new `ProcessId` object based on the app identifier and its
+    /// index in the processes array.
     pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
         ProcessId {
             kernel: kernel,
@@ -97,8 +107,8 @@ impl ProcessId {
         }
     }
 
-    /// Create a new `ProcessId` object based on the app identifier and its index
-    /// in the processes array.
+    /// Create a new `ProcessId` object based on the app identifier and its
+    /// index in the processes array.
     ///
     /// This constructor is public but protected with a capability so that
     /// external implementations of `Process` can use it.
@@ -117,9 +127,9 @@ impl ProcessId {
 
     /// Get the location of this app in the processes array.
     ///
-    /// This will return `Some(index)` if the identifier stored in this `ProcessId`
-    /// matches the app saved at the known index. If the identifier does not
-    /// match then `None` will be returned.
+    /// This will return `Some(index)` if the identifier stored in this
+    /// `ProcessId` matches the app saved at the known index. If the identifier
+    /// does not match then `None` will be returned.
     pub(crate) fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
         if self.kernel.processid_is_valid(self) {
@@ -153,9 +163,8 @@ impl ProcessId {
     /// or any space that the kernel is using for any potential bookkeeping.
     pub fn get_editable_flash_range(&self) -> (usize, usize) {
         self.kernel.process_map_or((0, 0), *self, |process| {
-            let start = process.flash_non_protected_start() as usize;
-            let end = process.flash_end() as usize;
-            (start, end)
+            let addresses = process.get_addresses();
+            (addresses.flash_non_protected_start, addresses.flash_end)
         })
     }
 }
@@ -170,13 +179,14 @@ pub trait Process {
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a upcall or an IPC call.
     ///
-    /// This function returns `true` if the `Task` was successfully enqueued,
-    /// and `false` otherwise. This is represented as a simple `bool` because
-    /// this is passed to the capsule that tried to schedule the `Task`.
-    ///
-    /// This will fail if the process is no longer active, and therefore cannot
-    /// execute any new tasks.
-    fn enqueue_task(&self, task: Task) -> bool;
+    /// This function returns `Ok(())` if the `Task` was successfully
+    /// enqueued. If the process is no longer alive,
+    /// `Err(ErrorCode::NODEVICE)` is returned. If the task could not
+    /// be enqueued because there is insufficient space in the
+    /// internal task queue, `Err(ErrorCode::NOMEM)` is
+    /// returned. Other return values must be treated as
+    /// kernel-internal errors.
+    fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
@@ -191,6 +201,10 @@ pub trait Process {
     /// If there are no `Task`s in the queue for this process this will return
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
+
+    /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
+    /// return `None` when called.
+    fn pending_tasks(&self) -> usize;
 
     /// Remove all scheduled upcalls for a given upcall id from the task
     /// queue.
@@ -228,6 +242,18 @@ pub trait Process {
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
+    /// Get the completion code if the process has previously terminated.
+    ///
+    /// If the process has never terminated then there has been no opportunity
+    /// for a completion code to be set, and this will return `None`.
+    ///
+    /// If the process has previously terminated this will return `Some()`. If
+    /// the last time the process terminated it did not provide a completion
+    /// code (e.g. the process faulted), then this will return `Some(None)`. If
+    /// the last time the process terminated it did provide a completion code,
+    /// this will return `Some(Some(completion_code))`.
+    fn get_completion_code(&self) -> Option<Option<u32>>;
+
     /// Stop and clear a process's state, putting it into the `Terminated`
     /// state.
     ///
@@ -235,7 +261,14 @@ pub trait Process {
     /// restarted and run again. This function instead frees grants and any
     /// queued tasks for this process, but leaves the debug information about
     /// the process and other state intact.
-    fn terminate(&self, completion_code: u32);
+    ///
+    /// When a process is terminated, an optional `completion_code` should be
+    /// stored for the process. If the process provided the completion code
+    /// (e.g. via the exit syscall), then this function should be called with
+    /// a completion code of `Some(u32)`. If the kernel is terminating the
+    /// process and therefore has no completion code from the process, it should
+    /// provide `None`.
+    fn terminate(&self, completion_code: Option<u32>);
 
     /// Terminates and attempts to restart the process. The process and current
     /// application always terminate. The kernel may, based on its own policy,
@@ -258,7 +291,14 @@ pub trait Process {
     /// After `restart()` runs the process will either be queued to run its the
     /// application's `_start` function, terminated, or queued to run a
     /// different application's `_start` function.
-    fn try_restart(&self, completion_code: u32);
+    ///
+    /// As the process will be terminated before being restarted, this function
+    /// accepts an optional `completion_code`. If the process provided a
+    /// completion code (e.g. via the exit syscall), then this should be called
+    /// with `Some(u32)`. If the kernel is trying to restart the process and the
+    /// process did not provide a completion code, then this should be called
+    /// with `None`.
+    fn try_restart(&self, completion_code: Option<u32>);
 
     // memop operations
 
@@ -278,22 +318,6 @@ pub trait Process {
     /// the memory pointers is not valid at this point.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
-    /// The start address of allocated RAM for this process.
-    fn mem_start(&self) -> *const u8;
-
-    /// The first address after the end of the allocated RAM for this process.
-    fn mem_end(&self) -> *const u8;
-
-    /// The start address of the flash region allocated for this process.
-    fn flash_start(&self) -> *const u8;
-
-    /// The first address after the end of the flash region allocated for this
-    /// process.
-    fn flash_end(&self) -> *const u8;
-
-    /// The lowest address of the grant region for the process.
-    fn kernel_memory_break(&self) -> *const u8;
-
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
     fn number_writeable_flash_regions(&self) -> usize;
@@ -311,60 +335,54 @@ pub trait Process {
     /// Also optional.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
 
-    // additional memop like functions
-
-    /// Return the highest address the process has access to, or the current
-    /// process memory brk.
-    fn app_memory_break(&self) -> *const u8;
-
-    /// Creates a `ReadWriteAppSlice` from the given offset and size
-    /// in process memory.
+    /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
+    /// process memory.
     ///
     /// ## Returns
     ///
     /// In case of success, this method returns the created
-    /// [`ReadWriteAppSlice`].
+    /// [`ReadWriteProcessBuffer`].
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
-    /// - if the memory is not contained in the process-accessible
-    ///   memory space / `buf_start_addr` and `size` are not a valid
-    ///   read-write buffer (any byte in the range is not read/write
-    ///   accessible to the process), [`ErrorCode::INVAL`]
-    /// - if the process is not active: [`ErrorCode::FAIL`]
-    /// - for all other errors: [`ErrorCode::FAIL`]
-    fn build_readwrite_appslice(
+    /// - If the memory is not contained in the process-accessible memory space
+    ///   / `buf_start_addr` and `size` are not a valid read-write buffer (any
+    ///   byte in the range is not read/write accessible to the process),
+    ///   [`ErrorCode::INVAL`].
+    /// - If the process is not active: [`ErrorCode::FAIL`].
+    /// - For all other errors: [`ErrorCode::FAIL`].
+    fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: *mut u8,
         size: usize,
-    ) -> Result<ReadWriteAppSlice, ErrorCode>;
+    ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
-    /// Creates a [`ReadOnlyAppSlice`] from the given offset and size
-    /// in process memory.
+    /// Creates a [`ReadOnlyProcessBuffer`] from the given offset and size in
+    /// process memory.
     ///
     /// ## Returns
     ///
     /// In case of success, this method returns the created
-    /// [`ReadOnlyAppSlice`].
+    /// [`ReadOnlyProcessBuffer`].
     ///
     /// In case of an error, an appropriate ErrorCode is returned:
     ///
-    /// - if the memory is not contained in the process-accessible
-    ///   memory space / `buf_start_addr` and `size` are not a valid
-    ///   read-only buffer (any byte in the range is not
-    ///   read-accessible to the process), [`ErrorCode::INVAL`]
-    /// - if the process is not active: [`ErrorCode::FAIL`]
-    /// - for all other errors: [`ErrorCode::FAIL`]
-    fn build_readonly_appslice(
+    /// - If the memory is not contained in the process-accessible memory space
+    ///   / `buf_start_addr` and `size` are not a valid read-only buffer (any
+    ///   byte in the range is not read-accessible to the process),
+    ///   [`ErrorCode::INVAL`].
+    /// - If the process is not active: [`ErrorCode::FAIL`].
+    /// - For all other errors: [`ErrorCode::FAIL`].
+    fn build_readonly_process_buffer(
         &self,
         buf_start_addr: *const u8,
         size: usize,
-    ) -> Result<ReadOnlyAppSlice, ErrorCode>;
+    ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 
-    /// Set a single byte within the process address space at
-    /// `addr` to `value`. Return true if `addr` is within the RAM
-    /// bounds currently exposed to the process (thereby writable
-    /// by the process itself) and the value was set, false otherwise.
+    /// Set a single byte within the process address space at `addr` to `value`.
+    /// Return true if `addr` is within the RAM bounds currently exposed to the
+    /// process (thereby writable by the process itself) and the value was set,
+    /// false otherwise.
     ///
     /// ### Safety
     ///
@@ -374,11 +392,13 @@ pub trait Process {
     /// calling this function.
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
 
-    /// Get the first address of process's flash that isn't protected by the
-    /// kernel. The protected range of flash contains the TBF header and
-    /// potentially other state the kernel is storing on behalf of the process,
-    /// and cannot be edited by the process.
-    fn flash_non_protected_start(&self) -> *const u8;
+    /// Return the permissions for this process for a given `driver_num`.
+    ///
+    /// The returned `CommandPermissions` will indicate if any permissions for
+    /// individual command numbers are specified. If there are permissions set
+    /// they are returned as a 64 bit bitmask for sequential command numbers.
+    /// The offset indicates the multiple of 64 command numbers to get permissions for.
+    fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
 
     // mpu
 
@@ -401,6 +421,13 @@ pub trait Process {
         min_region_size: usize,
     ) -> Option<mpu::Region>;
 
+    /// Removes an MPU region from the process that has been previouly added with
+    /// `add_mpu_region`.
+    ///
+    /// It is not valid to call this function when the process is inactive (i.e.
+    /// the process will not run again).
+    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode>;
+
     // grants
 
     /// Allocate memory from the grant region and store the reference in the
@@ -417,7 +444,13 @@ pub trait Process {
     /// - There is not enough available memory to do the allocation, or
     /// - The grant_num is invalid, or
     /// - The grant_num already has an allocated grant.
-    fn allocate_grant(&self, grant_num: usize, size: usize, align: usize) -> Option<NonNull<u8>>;
+    fn allocate_grant(
+        &self,
+        grant_num: usize,
+        driver_num: usize,
+        size: usize,
+        align: usize,
+    ) -> Option<NonNull<u8>>;
 
     /// Check if a given grant for this process has been allocated.
     ///
@@ -470,10 +503,25 @@ pub trait Process {
     fn leave_grant(&self, grant_num: usize);
 
     /// Return the count of the number of allocated grant pointers if the
-    /// process is active. This does not count custom grants.
+    /// process is active. This does not count custom grants. This is used
+    /// to determine if a new grant has been allocated after a call to
+    /// `SyscallDriver::allocate_grant()`.
     ///
     /// Useful for debugging/inspecting the system.
     fn grant_allocated_count(&self) -> Option<usize>;
+
+    /// Get the grant number (grant_num) associated with a given driver number
+    /// if there is a grant associated with that driver_num.
+    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error>;
+
+    // subscribe
+
+    /// Verify that an Upcall function pointer is within process-accessible
+    /// memory.
+    ///
+    /// Returns `true` if the upcall function pointer is valid for this process,
+    /// and `false` otherwise.
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
 
     // functions for processes that are architecture specific
 
@@ -483,8 +531,8 @@ pub trait Process {
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
     ///
-    /// This can fail, if the UKB implementation cannot correctly set the return value. An
-    /// example of how this might occur:
+    /// This can fail, if the UKB implementation cannot correctly set the return
+    /// value. An example of how this might occur:
     ///
     /// 1. The UKB implementation uses the process's stack to transfer values
     ///    between kernelspace and userspace.
@@ -508,9 +556,20 @@ pub trait Process {
     /// switched to.
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    /// Print out the memory map (Grant region, heap, stack, program
-    /// memory, BSS, and data sections) of this process.
-    fn print_memory_map(&self, writer: &mut dyn Write);
+    /// Return process state information related to the location in memory
+    /// of various process data structures.
+    fn get_addresses(&self) -> ProcessAddresses;
+
+    /// Return process state information related to the size in memory of
+    /// various process data structures.
+    fn get_sizes(&self) -> ProcessSizes;
+
+    /// Write stored state as a binary blob into the `out` slice. Returns the number of bytes
+    /// written to `out` on success.
+    ///
+    /// Returns `ErrorCode::SIZE` if `out` is too short to hold the stored state binary
+    /// representation. Returns `ErrorCode::FAIL` on an internal error.
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode>;
 
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
@@ -534,14 +593,9 @@ pub trait Process {
     /// the last syscall that was called.
     fn debug_syscall_called(&self, last_syscall: Syscall);
 
-    /// Return the address of the start of the process heap, if known.
-    fn debug_heap_start(&self) -> Option<*const u8>;
-
-    /// Return the address of the start of the process stack, if known.
-    fn debug_stack_start(&self) -> Option<*const u8>;
-
-    /// Return the lowest recorded address of the process stack, if known.
-    fn debug_stack_end(&self) -> Option<*const u8>;
+    /// Return the last syscall the process called. Returns `None` if the
+    /// process has not called any syscalls or the information is unknown.
+    fn debug_syscall_last(&self) -> Option<Syscall>;
 }
 
 /// Opaque identifier for custom grants allocated dynamically from a process's
@@ -564,8 +618,14 @@ pub struct ProcessCustomGrantIdentifer {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// The process has been removed and no longer exists. For example, the
+    /// kernel could stop a process and re-claim its resources.
     NoSuchApp,
+    /// The process does not have enough memory to complete the requested
+    /// operation.
     OutOfMemory,
+    /// The provided memory address is not accessible or not valid for the
+    /// process.
     AddressOutOfBounds,
     /// The process is inactive (likely in a fault or exit state) and the
     /// attempted operation is therefore invalid.
@@ -634,19 +694,20 @@ pub enum State {
     /// The process faulted and cannot be run.
     Faulted,
 
-    /// The process exited with the `exit-terminate` system call and
-    /// cannot be run.
+    /// The process exited with the `exit-terminate` system call and cannot be
+    /// run.
     Terminated,
 
     /// The process has never actually been executed. This of course happens
     /// when the board first boots and the kernel has not switched to any
-    /// processes yet. It can also happen if an process is terminated and all
-    /// of its state is reset as if it has not been executed yet.
+    /// processes yet. It can also happen if an process is terminated and all of
+    /// its state is reset as if it has not been executed yet.
     Unstarted,
 }
 
-/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising from
-/// the state duplication in the kernel work tracking and process state tracking.
+/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
+/// from the state duplication in the kernel work tracking and process state
+/// tracking.
 pub(crate) struct ProcessStateCell<'a> {
     state: Cell<State>,
     kernel: &'a Kernel,
@@ -743,4 +804,64 @@ pub struct FunctionCall {
     pub argument2: usize,
     pub argument3: usize,
     pub pc: usize,
+}
+
+/// Collection of process state information related to the memory addresses
+/// of different elements of the process.
+pub struct ProcessAddresses {
+    /// The address of the beginning of the process's region in nonvolatile
+    /// memory.
+    pub flash_start: usize,
+    /// The address of the beginning of the region the process has access to in
+    /// nonvolatile memory. This is after the TBF header and any other memory
+    /// the kernel has reserved for its own use.
+    pub flash_non_protected_start: usize,
+    /// The address immediately after the end of the region allocated for this
+    /// process in nonvolatile memory.
+    pub flash_end: usize,
+
+    /// The address of the beginning of the process's allocated region in
+    /// memory.
+    pub sram_start: usize,
+    /// The address of the application break. This is the address immediately
+    /// after the end of the memory the process has access to.
+    pub sram_app_brk: usize,
+    /// The lowest address of any allocated grant. This is the start of the
+    /// region the kernel is using for its own internal state on behalf of this
+    /// process.
+    pub sram_grant_start: usize,
+    /// The address immediately after the end of the region allocated for this
+    /// process in memory.
+    pub sram_end: usize,
+
+    /// The address of the start of the process's heap, if known. Note, managing
+    /// this is completely up to the process, and the kernel relies on the
+    /// process explicitly notifying it of this address. Therefore, its possible
+    /// the kernel does not know the start address, or its start address could
+    /// be incorrect.
+    pub sram_heap_start: Option<usize>,
+    /// The address of the top (or start) of the process's stack, if known.
+    /// Note, managing the stack is completely up to the process, and the kernel
+    /// relies on the process explicitly notifying it of where it started its
+    /// stack. Therefore, its possible the kernel does not know the start
+    /// address, or its start address could be incorrect.
+    pub sram_stack_top: Option<usize>,
+    /// The lowest address the kernel has seen the stack pointer. Note, the
+    /// stack is entirely managed by the process, and the process could
+    /// intentionally obscure this address from the kernel. Also, the stack may
+    /// have reached a lower address, this is only the lowest address seen when
+    /// the process calls a syscall.
+    pub sram_stack_bottom: Option<usize>,
+}
+
+/// Collection of process state related to the size in memory of various process
+/// structures.
+pub struct ProcessSizes {
+    /// The number of bytes used for the grant pointer table.
+    pub grant_pointers: usize,
+    /// The number of bytes used for the pending upcall queue.
+    pub upcall_list: usize,
+    /// The number of bytes used for the process control block (i.e. the
+    /// `ProcessX` struct).
+    pub process_control_block: usize,
 }

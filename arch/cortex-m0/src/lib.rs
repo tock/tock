@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(asm, naked_functions)]
+#![feature(asm, asm_sym, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -38,9 +38,9 @@ pub unsafe extern "C" fn generic_isr() {
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
-    ldr r0, MEXC_RETURN_PSP
+    ldr r0, 300f // MEXC_RETURN_PSP
     cmp lr, r0
-    bne _ggeneric_isr_no_stacking
+    bne 100f
 
     /* We need the most recent kernel's version of r1, which points */
     /* to the Process struct's stored registers field. The kernel's r1 */
@@ -63,13 +63,13 @@ pub unsafe extern "C" fn generic_isr() {
     str r7, [r1, #12]
     pop {{r4-r7}}
 
-    ldr r0, MEXC_RETURN_MSP
-_ggeneric_isr_no_stacking:
+    ldr r0, 200f // MEXC_RETURN_MSP
+100: // _ggeneric_isr_no_stacking
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     movs r1, #0xff
     ands r0, r1
-    /* ISRs start at 16, so substract 16 to get zero-indexed */
+    /* ISRs start at 16, so subtract 16 to get zero-indexed */
     subs r0, r0, #16
 
     /*
@@ -77,7 +77,7 @@ _ggeneric_isr_no_stacking:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
     /* r3 = &NVIC.ICER[r0 / 32] */
-    ldr r2, NVICICER     /* r2 = &NVIC.ICER */
+    ldr r2, 101f      /* r2 = &NVIC.ICER */
     lsrs r3, r0, #5   /* r3 = r0 / 32 */
     lsls r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
     adds r3, r3, r2   /* r3 = r2 + r3 */
@@ -105,11 +105,11 @@ _ggeneric_isr_no_stacking:
     bx lr /* return here since we have extra words in the assembly */
 
 .align 4
-NVICICER:
+101: // NVICICER
   .word 0xE000E180
-MEXC_RETURN_MSP:
+200: // MEXC_RETURN_MSP
   .word 0xFFFFFFF9
-MEXC_RETURN_PSP:
+300: // MEXC_RETURN_PSP
   .word 0xFFFFFFFD",
         options(noreturn)
     );
@@ -139,13 +139,13 @@ pub unsafe extern "C" fn systick_handler() {
     /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
     isb
 
-    ldr r0, ST_EXC_RETURN_MSP
+    ldr r0, 100f // ST_EXC_RETURN_MSP
 
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
     bx   r0
 .align 4
-ST_EXC_RETURN_MSP:
+100: // ST_EXC_RETURN_MSP
   .word 0xFFFFFFF9
     ",
         options(noreturn)
@@ -163,23 +163,23 @@ pub unsafe extern "C" fn svc_handler() {
 pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
-  ldr r0, EXC_RETURN_MSP
+  ldr r0, 200f // EXC_RETURN_MSP
   cmp lr, r0
-  bne to_kernel
-  ldr r1, EXC_RETURN_PSP
+  bne 100f
+  ldr r1, 300f // EXC_RETURN_PSP
   bx r1
 
-to_kernel:
+100: // to_kernel
   ldr r0, =SYSCALL_FIRED
   movs r1, #1
   str r1, [r0, #0]
-  ldr r1, EXC_RETURN_MSP
+  ldr r1, 200f
   bx r1
 
 .align 4
-EXC_RETURN_MSP:
+200: // EXC_RETURN_MSP
   .word 0xFFFFFFF9
-EXC_RETURN_PSP:
+300: // EXC_RETURN_PSP
   .word 0xFFFFFFFD
   ",
         options(noreturn)
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn switch_to_user(
     ",
     inout("r0") user_stack,
     in("r1") process_regs,
-    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _, 
+    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _,
     out("r10") _, out("r11") _, out("r12") _);
 
     user_stack as *mut u8
@@ -366,12 +366,18 @@ unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kern
             /* No ISB required on M0 */
             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
 
-            ldr r0, FEXC_RETURN_MSP
-            bx r0
+            ldr r0, 100f
+            mov lr, r0
+            b 200f // freturn
     .align 4
-    FEXC_RETURN_MSP:
+    100: // FEXC_RETURN_MSP
       .word 0xFFFFFFF9
-        "
+    200: // freturn
+        ",
+            out("r1") _,
+            out("r0") _,
+            out("r2") _,
+            options(nostack),
         );
     }
 }
@@ -394,17 +400,17 @@ pub unsafe extern "C" fn hard_fault_handler() {
 
     movs r2, #4
     tst r3, r2
-    beq _hardfault_msp
+    beq 100f
 
-_hardfault_psp:
+// _hardfault_psp:
     mrs r0, psp
-    b _hardfault_exit
+    b 200f
 
-_hardfault_msp:
+100: // _hardfault_msp
     mrs r0, msp
     adds r1, #1
 
-_hardfault_exit:
+200: // _hardfault_exit
 
     b {}    // Branch to the non-naked fault handler.
     bx lr   // If continued function returns, we need to manually branch to

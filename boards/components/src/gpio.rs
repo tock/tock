@@ -3,6 +3,13 @@
 //!
 //! Usage
 //! -----
+//!
+//! The `gpio_component_helper!` macro takes 'static references to
+//! GPIO pins. When GPIO instances are owned values, the
+//! `gpio_component_helper_owned!` can be used, indicating that the
+//! passed values are owned values. This macro will perform static
+//! allocation of the passed in GPIO pins internally.
+//!
 //! ```rust
 //! let gpio = components::gpio::GpioComponent::new(
 //!     board_kernel,
@@ -56,6 +63,21 @@ macro_rules! gpio_component_helper_max_pin {
 }
 
 #[macro_export]
+macro_rules! gpio_component_helper_owned {
+    (
+        $Pin:ty,
+        $($nr:literal => $pin:expr),* $(,)?
+    ) => {
+        $crate::gpio_component_helper!(
+            $Pin,
+            $(
+                $nr => static_init!($Pin, $pin),
+            )*
+        )
+    };
+}
+
+#[macro_export]
 /// Pins are declared using the following format:
 ///     number => pin
 ///
@@ -101,16 +123,19 @@ macro_rules! gpio_component_buf {
 
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
 }
 
 impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {
             board_kernel: board_kernel,
+            driver_num,
             gpio_pins,
         }
     }
@@ -125,7 +150,10 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> 
         let gpio = static_init_half!(
             static_buffer,
             GPIO<'static, IP>,
-            GPIO::new(self.gpio_pins, self.board_kernel.create_grant(&grant_cap))
+            GPIO::new(
+                self.gpio_pins,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
         for maybe_pin in self.gpio_pins.iter() {
             if let Some(pin) = maybe_pin {

@@ -75,8 +75,8 @@ pub trait Client<K: KeyType> {
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: &'static [u8],
-        key_buf: &'static K,
+        unhashed_key: &'static mut [u8],
+        key_buf: &'static mut K,
     );
 
     /// This callback is called when the append_key operation completes

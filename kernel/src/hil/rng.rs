@@ -49,19 +49,20 @@
 //!
 //! ```
 //! use kernel::hil;
+//! use kernel::hil::time::ConvertTicks;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Time;
 //! use kernel::ErrorCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
-//!     rng: &'a hil::rng::Rng<'a>,
+//!     rng: &'a dyn hil::rng::Rng<'a>,
 //!     alarm: &'a A
 //! }
 //!
 //! impl<'a, A: hil::time::Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let now = self.alarm.now();
-//!         let dt = <A>::ticks_from_seconds(1);
+//!         let dt = self.alarm.ticks_from_seconds(1);
 //!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
@@ -74,13 +75,13 @@
 //!
 //! impl<'a, A: hil::time::Alarm<'a>> hil::rng::Client for RngTest<'a, A> {
 //!     fn randomness_available(&self,
-//!                             randomness: &mut Iterator<Item = u32>,
+//!                             randomness: &mut dyn Iterator<Item = u32>,
 //!                             error: Result<(), ErrorCode>) -> hil::rng::Continue {
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
 //!                 let now = self.alarm.now();
-//!                 let dt = <A>::ticks_from_seconds(1);
+//!                 let dt = self.alarm.ticks_from_seconds(1);
 //!
 //!                 self.alarm.set_alarm(now, dt);
 //!                 hil::rng::Continue::Done

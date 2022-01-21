@@ -1,4 +1,4 @@
-//! Driver for the LTC294X line of coulomb counters.
+//! SyscallDriver for the LTC294X line of coulomb counters.
 //!
 //! - <http://www.linear.com/product/LTC2941>
 //! - <http://www.linear.com/product/LTC2942>
@@ -46,10 +46,13 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -111,9 +114,7 @@ pub enum VBatAlert {
 }
 
 #[derive(Default)]
-pub struct App {
-    upcall: Upcall,
-}
+pub struct App {}
 
 /// Supported events for the LTC294X.
 pub trait LTC294XClient {
@@ -421,12 +422,15 @@ impl gpio::Client for LTC294X<'_> {
 /// interface for providing access to applications.
 pub struct LTC294XDriver<'a> {
     ltc294x: &'a LTC294X<'a>,
-    grants: Grant<App>,
+    grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> LTC294XDriver<'a> {
-    pub fn new(ltc: &'a LTC294X<'a>, grants: Grant<App>) -> LTC294XDriver<'a> {
+    pub fn new(
+        ltc: &'a LTC294X<'a>,
+        grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
             grants: grants,
@@ -438,8 +442,8 @@ impl<'a> LTC294XDriver<'a> {
 impl LTC294XClient for LTC294XDriver<'_> {
     fn interrupt(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(0, 0, 0);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             });
         });
     }
@@ -458,84 +462,61 @@ impl LTC294XClient for LTC294XDriver<'_> {
             | ((charge_alert_high as usize) << 3)
             | ((accumulated_charge_overflow as usize) << 4);
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall
-                    .schedule(1, ret, self.ltc294x.model.get() as usize);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(0, (1, ret, self.ltc294x.model.get() as usize))
+                    .ok();
             });
         });
     }
 
     fn charge(&self, charge: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(2, charge as usize, 0);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (2, charge as usize, 0)).ok();
             });
         });
     }
 
     fn done(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(3, 0, 0);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (3, 0, 0)).ok();
             });
         });
     }
 
     fn voltage(&self, voltage: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(4, voltage as usize, 0);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (4, voltage as usize, 0)).ok();
             });
         });
     }
 
     fn current(&self, current: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |app| {
-                app.upcall.schedule(5, current as usize, 0);
+            let _res = self.grants.enter(*pid, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (5, current as usize, 0)).ok();
             });
         });
     }
 }
 
-impl Driver for LTC294XDriver<'_> {
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Set the callback that that is triggered when events finish and
-    ///   when readings are ready. The first argument represents which callback
-    ///   was triggered.
-    ///   - `0`: Interrupt occurred from the LTC294X.
-    ///   - `1`: Got the status.
-    ///   - `2`: Read the charge used.
-    ///   - `3`: `done()` was called.
-    ///   - `4`: Read the voltage.
-    ///   - `5`: Read the current.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        process_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.upcall, &mut callback);
-                        Ok(())
-                    }
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+impl SyscallDriver for LTC294XDriver<'_> {
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Set the callback that that is triggered when events finish and
+    //   when readings are ready. The first argument represents which callback
+    //   was triggered.
+    //   - `0`: Interrupt occurred from the LTC294X.
+    //   - `1`: Got the status.
+    //   - `2`: Read the charge used.
+    //   - `3`: `done()` was called.
+    //   - `4`: Read the voltage.
+    //   - `5`: Read the current.
 
     /// Request operations for the LTC294X chip.
     ///
@@ -569,7 +550,7 @@ impl Driver for LTC294XDriver<'_> {
 
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -633,5 +614,9 @@ impl Driver for LTC294XDriver<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.grants.enter(processid, |_, _| {})
     }
 }

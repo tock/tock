@@ -1,4 +1,4 @@
-use kernel::common::registers::register_bitfields;
+use kernel::utilities::registers::register_bitfields;
 
 // mtvec contains the address(es) of the trap handler
 register_bitfields![usize,

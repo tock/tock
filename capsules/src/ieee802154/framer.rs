@@ -78,10 +78,13 @@ use crate::net::ieee802154::{
 };
 use crate::net::stream::SResult;
 use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
+
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, OptionalCell};
+
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
+use kernel::processbuffer::ReadableProcessSlice;
+use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::ErrorCode;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
@@ -137,6 +140,22 @@ impl Frame {
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         self.info.data_len += payload.len();
+
+        Ok(())
+    }
+
+    /// Appends payload bytes from a process slice into the frame if
+    /// possible
+    pub fn append_payload_process(
+        &mut self,
+        payload_buf: &ReadableProcessSlice,
+    ) -> Result<(), ErrorCode> {
+        if payload_buf.len() > self.remaining_data_capacity() {
+            return Err(ErrorCode::NOMEM);
+        }
+        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
+        self.info.data_len += payload_buf.len();
 
         Ok(())
     }

@@ -2,12 +2,12 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn_trait_bound, naked_functions)]
+#![feature(asm, asm_sym, const_fn_trait_bound, naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
 
-use kernel::common::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
 pub mod epmp;
@@ -89,13 +89,13 @@ pub extern "C" fn _start() {
             la a0, {sbss}               // a0 = first address of .bss
             la a1, {ebss}               // a1 = first address after .bss
 
-          bss_init_loop:
-            beq  a0, a1, bss_init_done  // If a0 == a1, we are done.
+          100: // bss_init_loop
+            beq  a0, a1, 101f           // If a0 == a1, we are done.
             sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
             addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
-            j bss_init_loop             // Continue the loop.
+            j 100b                      // Continue the loop.
 
-          bss_init_done:
+          101: // bss_init_done
 
 
             // Now initialize .data memory. This involves coping the values right at the
@@ -104,17 +104,17 @@ pub extern "C" fn _start() {
             la a1, {edata}              // a1 = first address after data section in RAM
             la a2, {etext}              // a2 = address of stored data initial values
 
-          data_init_loop:
-            beq  a0, a1, data_init_done // If we have reached the end of the .data
+          200: // data_init_loop
+            beq  a0, a1, 201f           // If we have reached the end of the .data
                                         // section then we are done.
             lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
             sw   a3, 0(a0)              // *a0 = a3. Store initial value into
                                         // next place in .data.
             addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
             addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
-            j data_init_loop            // Continue the loop.
+            j 200b                      // Continue the loop.
 
-          data_init_done:
+          201: // data_init_done
 
             // With that initial setup out of the way, we now branch to the main
             // code, likely defined in a board's main.rs.
@@ -217,10 +217,10 @@ pub extern "C" fn _start_trap() {
             // [1] https://github.com/tock/tock/pull/2308
             // [2] https://github.com/riscv/riscv-isa-manual/releases/download/draft-20201222-42dc13a/riscv-privileged.pdf
             csrrw sp, 0x340, sp // CSR=0x340=mscratch
-            bnez  sp, _from_app // If sp != 0 then we must have come from an app.
+            bnez  sp, 300f      // If sp != 0 then we must have come from an app.
 
 
-        _from_kernel:
+        // _from_kernel:
             // Swap back the zero value for the stack pointer in mscratch
             csrrw sp, 0x340, sp // CSR=0x340=mscratch
 
@@ -243,7 +243,7 @@ pub extern "C" fn _start_trap() {
             // Compare the kernel stack pointer to the bottom of the stack. If
             // the stack pointer is above the bottom of the stack, then continue
             // handling the fault as normal.
-            bgtu sp, t0, _from_kernel_continue  // branch if sp > t0
+            bgtu sp, t0, 100f                   // branch if sp > t0
 
             // If we get here, then we did encounter a stack overflow. We are
             // going to panic at this point, but for that to work we need a
@@ -254,7 +254,7 @@ pub extern "C" fn _start_trap() {
             addi sp, sp, %lo(_estack)
 
 
-        _from_kernel_continue:
+        100: // _from_kernel_continue
 
             // Restore t0, and make sure mscratch is set back to 0 (our flag
             // tracking that the kernel is executing).
@@ -316,7 +316,7 @@ pub extern "C" fn _start_trap() {
 
 
             // Handle entering the trap handler from an app differently.
-        _from_app:
+        300: // _from_app
 
             // At this point all we know is that we entered the trap handler
             // from an app. We don't know _why_ we got a trap, it could be from
@@ -394,12 +394,12 @@ pub extern "C" fn _start_trap() {
             // trap handler so that it does not fire again. If mcause is greater
             // than or equal to zero this was not an interrupt (i.e. the most
             // significant bit is not 1).
-            bge  t0, zero, _from_app_continue
+            bge  t0, zero, 200f
             // Copy mcause into a0 and then call the interrupt disable function.
             mv   a0, t0
             jal  ra, _disable_interrupt_trap_rust_from_app
 
-        _from_app_continue:
+        200: // _from_app_continue
             // Now determine the address of _return_to_kernel and resume the
             // context switching code. We need to load _return_to_kernel into
             // mepc so we can use it to return to the context switch code.
@@ -437,9 +437,10 @@ pub extern "C" fn _start_trap() {
 /// as suggested by the RISC-V developers:
 /// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
+    let res;
     asm!(
-        "
+    "
       .option push
       .option norelax
       .option norvc
@@ -447,13 +448,18 @@ pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: 
       ebreak
       srai x0, x0, 7
       .option pop
-      "
+      ",
+    in("a0") command,
+    in("a1") arg0,
+    in("a2") arg1,
+    lateout("a0") res,
     );
+    res
 }
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
-pub unsafe extern "C" fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) {
+pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }
 

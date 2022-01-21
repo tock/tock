@@ -66,7 +66,7 @@
 //! A user of this flash interface might look like:
 //!
 //! ```rust
-//! use kernel::common::cells::TakeCell;
+//! use kernel::utilities::cells::TakeCell;
 //! use kernel::hil;
 //!
 //! pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {

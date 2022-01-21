@@ -1,4 +1,4 @@
-//! Driver for the ISL29035 digital light sensor.
+//! SyscallDriver for the ISL29035 digital light sensor.
 //!
 //! <http://bit.ly/2rA00cH>
 //!
@@ -20,6 +20,8 @@
 //! let isl29035_virtual_alarm = static_init!(
 //!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
 //!     VirtualMuxAlarm::new(mux_alarm));
+//! isl29035_virtual_alarm.setup();
+//!
 //! let isl29035 = static_init!(
 //!     capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
 //!     capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,
@@ -29,10 +31,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
-use kernel::hil::time;
+use kernel::hil::time::{self, ConvertTicks};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
@@ -65,9 +67,9 @@ impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
         }
     }
 
-    pub fn start_read_lux(&self) {
+    pub fn start_read_lux(&self) -> Result<(), ErrorCode> {
         if self.state.get() == State::Disabled {
-            self.buffer.take().map(|buf| {
+            self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
                 self.i2c.enable();
                 buf[0] = 0;
                 // CMD 1 Register:
@@ -82,22 +84,29 @@ impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
                 // ADC resolution 8-bit (bits 2,3)
                 // Other bits are reserved
                 buf[2] = 0b00001001;
-                // TODO verify errors
-                let _ = self.i2c.write(buf, 3);
-                self.state.set(State::Enabling);
-            });
+
+                if let Err((error, buf)) = self.i2c.write(buf, 3) {
+                    self.buffer.replace(buf);
+                    self.i2c.disable();
+                    Err(error.into())
+                } else {
+                    self.state.set(State::Enabling);
+                    Ok(())
+                }
+            })
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 }
 
 impl<'a, A: time::Alarm<'a>> AmbientLight<'a> for Isl29035<'a, A> {
     fn set_client(&self, client: &'a dyn AmbientLightClient) {
-        self.client.set(client);
+        self.client.set(client)
     }
 
     fn read_light_intensity(&self) -> Result<(), ErrorCode> {
-        self.start_read_lux();
-        Ok(())
+        self.start_read_lux()
     }
 }
 
@@ -108,21 +117,31 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
             self.i2c.enable();
 
             buffer[0] = 0x02 as u8;
-            // TODO verify errors
-            let _ = self.i2c.write_read(buffer, 1, 2);
-            self.state.set(State::ReadingLI);
+            if let Err((_error, buf)) = self.i2c.write_read(buffer, 1, 2) {
+                self.buffer.replace(buf);
+                self.i2c.disable();
+                self.state.set(State::Disabled);
+                self.client.map(|client| client.callback(0));
+            } else {
+                self.state.set(State::ReadingLI);
+            }
         });
     }
 }
 
 impl<'a, A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), Error>) {
-        // TODO(alevy): handle I2C errors
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
+        if status.is_err() {
+            self.state.set(State::Disabled);
+            self.buffer.replace(buffer);
+            self.client.map(|client| client.callback(0));
+            return;
+        }
         match self.state.get() {
             State::Enabling => {
                 // Set a timer to wait for the conversion to be done.
                 // For 8 bits, thats 410 us (per Table 11 in the datasheet).
-                let interval = A::ticks_from_us(410);
+                let interval = self.alarm.ticks_from_us(410);
                 self.alarm.set_alarm(self.alarm.now(), interval);
 
                 // Now wait for timer to expire
@@ -142,9 +161,14 @@ impl<'a, A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
                 let lux = (data * 4000) >> 8;
 
                 buffer[0] = 0;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.state.set(State::Disabling(lux));
+
+                if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Disabled);
+                    self.buffer.replace(buffer);
+                    self.client.map(|client| client.callback(0));
+                } else {
+                    self.state.set(State::Disabling(lux));
+                }
             }
             State::Disabling(lux) => {
                 self.i2c.disable();

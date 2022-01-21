@@ -4,7 +4,7 @@
 //! behave differently, can be found in the LiteX repository under
 //! [`litex/soc/interconnect/csr_eventmanager.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/interconnect/csr_eventmanager.py).
 
-use crate::litex_registers::{IntLike, Read, ReadWrite};
+use crate::litex_registers::{Read, ReadWrite, UIntLike};
 use core::marker::PhantomData;
 
 /// LiteX event manager abstraction
@@ -19,7 +19,7 @@ use core::marker::PhantomData;
 /// peripheral's configuration status registers bank.
 pub struct LiteXEventManager<'a, T, S, P, E>
 where
-    T: IntLike,
+    T: UIntLike,
     S: Read<T>,
     P: ReadWrite<T>,
     E: ReadWrite<T>,
@@ -32,7 +32,7 @@ where
 
 impl<'a, T, S, P, E> LiteXEventManager<'a, T, S, P, E>
 where
-    T: IntLike,
+    T: UIntLike,
     S: Read<T>,
     P: ReadWrite<T>,
     E: ReadWrite<T>,
@@ -169,6 +169,32 @@ where
     /// manager's registers (starting at 0).
     pub fn event_asserted(&self, index: usize) -> bool {
         self.event_enabled(index) && self.event_pending(index)
+    }
+
+    /// Get the next asserted event, starting from 0.
+    ///
+    /// If an asserted event was found, its index is returned. Otherwise, None
+    /// is returned.
+    ///
+    /// This method works by ANDing the enabled and pending bits and using the
+    /// trailing_zeros intrinsic (of which there may be an optimized version
+    /// with special instructions). Thus this is faster than a naive, loop-based
+    /// version.
+    pub fn next_asserted(&self) -> Option<usize> {
+        let ev_bits = core::mem::size_of::<T>() * 8;
+        let enabled = self.events_enabled();
+        let pending = self.events_pending();
+        let asserted = enabled & pending;
+
+        // If there are no interrupts pending (asserted == 0), T::trailing_zeros
+        // will return the number of bits in T, in which case we need to return
+        // None.
+        let trailing_zeros = T::trailing_zeros(asserted) as usize;
+        if trailing_zeros == ev_bits {
+            None
+        } else {
+            Some(trailing_zeros)
+        }
     }
 
     /// Clear a pending event source.

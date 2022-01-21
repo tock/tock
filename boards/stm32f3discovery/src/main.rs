@@ -12,22 +12,22 @@ use capsules::lsm303xx;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
+use stm32f303xc::wdt;
 
 /// Support routines for debugging I/O.
 pub mod io;
 
 // Unit Tests for drivers.
-#[allow(dead_code)]
-mod multi_alarm_test;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
 
@@ -35,19 +35,21 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>> = None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -58,6 +60,7 @@ struct STM32F3Discovery {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
+        8,
     >,
     button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
@@ -70,13 +73,17 @@ struct STM32F3Discovery {
     >,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
+    watchdog: &'static wdt::WindoWdg<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for STM32F3Discovery {
+impl SyscallDriverLookup for STM32F3Discovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -96,15 +103,52 @@ impl Platform for STM32F3Discovery {
     }
 }
 
+impl
+    KernelResources<
+        stm32f303xc::chip::Stm32f3xx<
+            'static,
+            stm32f303xc::chip::Stm32f3xxDefaultPeripherals<'static>,
+        >,
+    > for STM32F3Discovery
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = wdt::WindoWdg<'static>;
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        self.watchdog
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
+
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f303xc::syscfg::Syscfg,
-    exti: &stm32f303xc::exti::Exti,
     spi1: &stm32f303xc::spi::Spi,
     i2c1: &stm32f303xc::i2c::I2C,
     gpio_ports: &'static stm32f303xc::gpio::GpioPorts<'static>,
 ) {
-    use stm32f303xc::exti::LineId;
     use stm32f303xc::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -143,14 +187,13 @@ unsafe fn set_pin_primary_functions(
 
     // button is connected on pa00
     gpio_ports.get_pin(PinId::PA00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, &pin);
+        pin.enable_interrupt();
     });
-    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::EXTI0).enable();
+
+    // enable interrupt for gpio 0
+    gpio_ports.get_pin(PinId::PC01).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // SPI1 has the l3gd20 sensor connected
     gpio_ports.get_pin(PinId::PA06).map(|pin| {
@@ -198,80 +241,85 @@ unsafe fn set_pin_primary_functions(
     });
 
     // ADC1
-    gpio_ports.get_pin(PinId::PA00).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // channel 1 - shared with button
+    // gpio_ports.get_pin(PinId::PA00).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
+    // channel 2
     gpio_ports.get_pin(PinId::PA01).map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
+    // channel 3
     gpio_ports.get_pin(PinId::PA02).map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
+    // channel 4
     gpio_ports.get_pin(PinId::PA03).map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
+    // channel 5
     gpio_ports.get_pin(PinId::PF04).map(|pin| {
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
     // ADC2
-    gpio_ports.get_pin(PinId::PA04).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PA04).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PA05).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PA05).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PA06).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PA06).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PA07).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PA07).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
     // ADC3
-    gpio_ports.get_pin(PinId::PB01).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PB01).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PE09).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PE09).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PE13).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PE13).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PB13).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PB13).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
     // ADC4
-    gpio_ports.get_pin(PinId::PE14).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PE14).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PE15).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PE15).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PB12).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PB12).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PB14).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PB14).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    gpio_ports.get_pin(PinId::PB15).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // gpio_ports.get_pin(PinId::PB15).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
     i2c1.enable_clock();
     i2c1.set_speed(stm32f303xc::i2c::I2CSpeed::Speed400k, 8);
@@ -315,6 +363,7 @@ unsafe fn get_peripherals() -> (
         Stm32f3xxDefaultPeripherals,
         Stm32f3xxDefaultPeripherals::new(rcc, exti)
     );
+
     (peripherals, syscfg, rcc)
 }
 
@@ -325,21 +374,21 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f303xc::init();
 
-    let (peripherals, syscfg, rcc) = get_peripherals();
+    let (peripherals, syscfg, _rcc) = get_peripherals();
+    peripherals.setup_circular_deps();
+
     set_pin_primary_functions(
         syscfg,
-        &peripherals.exti,
         &peripherals.spi1,
         &peripherals.i2c1,
         &peripherals.gpio_ports,
     );
 
     setup_peripherals(&peripherals.tim2);
-    peripherals.setup_circular_deps();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -348,7 +397,7 @@ pub unsafe fn main() {
 
     let chip = static_init!(
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
-        stm32f303xc::chip::Stm32f3xx::new(peripherals, rcc)
+        stm32f303xc::chip::Stm32f3xx::new(peripherals)
     );
     CHIP = Some(chip);
 
@@ -375,35 +424,20 @@ pub unsafe fn main() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
-
-    // // Setup the process inspection console
-    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    // process_console_uart.setup();
-    // pub struct ProcessConsoleCapability;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
-    // let process_console = static_init!(
-    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
-    //     capsules::process_console::ProcessConsole::new(
-    //         process_console_uart,
-    //         &mut capsules::process_console::WRITE_BUF,
-    //         &mut capsules::process_console::READ_BUF,
-    //         &mut capsules::process_console::COMMAND_BUF,
-    //         board_kernel,
-    //         ProcessConsoleCapability,
-    //     )
-    // );
-    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
-    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
-    // process_console.start();
 
     // LEDs
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
         LedHigh::new(
             &peripherals
@@ -453,14 +487,12 @@ pub unsafe fn main() {
                 .get_pin(stm32f303xc::gpio::PinId::PE13)
                 .unwrap()
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, stm32f303xc::gpio::Pin<'static>>
     ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             (
@@ -484,13 +516,18 @@ pub unsafe fn main() {
         components::alarm_mux_component_helper!(stm32f303xc::tim2::Tim2),
     );
 
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
 
     let gpio_ports = &peripherals.gpio_ports;
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             // Left outer connector
@@ -591,24 +628,25 @@ pub unsafe fn main() {
     ));
 
     // L3GD20 sensor
-    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
+    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 = components::l3gd20::L3gd20SpiComponent::new(board_kernel).finalize(
-        components::l3gd20_spi_component_helper!(
-            // spi type
-            stm32f303xc::spi::Spi,
-            // chip select
-            &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
-            // spi mux
-            spi_mux
-        ),
-    );
+    let l3gd20 =
+        components::l3gd20::L3gd20SpiComponent::new(board_kernel, capsules::l3gd20::DRIVER_NUM)
+            .finalize(components::l3gd20_spi_component_helper!(
+                // spi type
+                stm32f303xc::spi::Spi,
+                // chip select
+                &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+                // spi mux
+                spi_mux
+            ));
 
     l3gd20.power_on();
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_temperature =
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
 
     // Comment this if you want to use the ADC MCU temp sensor
     let temp = static_init!(
@@ -623,10 +661,13 @@ pub unsafe fn main() {
         components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
             .finalize(components::i2c_mux_component_helper!());
 
-    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(board_kernel)
-        .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+    let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
+        board_kernel,
+        capsules::lsm303dlhc::DRIVER_NUM,
+    )
+    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
 
-    lsm303dlhc.configure(
+    if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
         false,
         lsm303xx::Lsm303Scale::Scale2G,
@@ -634,10 +675,13 @@ pub unsafe fn main() {
         true,
         lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
         lsm303xx::Lsm303Range::Range1_9G,
-    );
+    ) {
+        debug!("Failed to configure LSM303DLHC sensor ({:?})", error);
+    }
 
-    let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
-        .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
         .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
@@ -661,13 +705,10 @@ pub unsafe fn main() {
     // );
     // kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
-    let adc_channel_0 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel0)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
-
-    let adc_channel_1 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel1)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+    // shared with button
+    // let adc_channel_1 =
+    //     components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel1)
+    //         .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel2)
@@ -685,16 +726,14 @@ pub unsafe fn main() {
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
             .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            adc_channel_0,
-            adc_channel_1,
-            adc_channel_2,
-            adc_channel_3,
-            adc_channel_4,
-            adc_channel_5
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                adc_channel_2,
+                adc_channel_3,
+                adc_channel_4,
+                adc_channel_5,
+            ));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -706,6 +745,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash,
         0x08038000, // Start address for userspace accesible region
         0x8000,     // Length of userspace accesible region (16 pages)
@@ -716,9 +756,32 @@ pub unsafe fn main() {
         stm32f303xc::flash::Flash
     ));
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f303xc::tim2::Tim2
+    ));
+    let _ = process_console.start();
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
+
     let stm32f3discovery = STM32F3Discovery {
         console: console,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
         gpio: gpio,
         led: led,
         button: button,
@@ -729,6 +792,10 @@ pub unsafe fn main() {
         temp: temp,
         adc: adc_syscall,
         nonvolatile_storage: nonvolatile_storage,
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
+        watchdog: &peripherals.watchdog,
     };
 
     // // Optional kernel tests
@@ -750,7 +817,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -771,18 +838,16 @@ pub unsafe fn main() {
     });
 
     // Uncomment this to enable the watchdog
-    // chip.enable_watchdog();
-
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+    peripherals.watchdog.enable();
 
     //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(stm32f303xc::tim2::Tim2))
+    .run();*/
     board_kernel.kernel_loop(
         &stm32f3discovery,
         chip,
         Some(&stm32f3discovery.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }

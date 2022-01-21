@@ -2,14 +2,14 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::ErrorCode;
 
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 use crate::rcc;
 
@@ -290,9 +290,9 @@ impl<'a> Spi<'a> {
             }
             self.transfers.set(SPI_IDLE);
             self.master_client.map(|client| {
-                self.tx_buffer
-                    .take()
-                    .map(|buf| client.read_write_done(buf, self.rx_buffer.take(), self.len.get()))
+                self.tx_buffer.take().map(|buf| {
+                    client.read_write_done(buf, self.rx_buffer.take(), self.len.get(), Ok(()))
+                })
             });
             self.transfers.set(SPI_IDLE);
         }
@@ -350,9 +350,16 @@ impl<'a> Spi<'a> {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<&'static mut [u8]>,
+            Option<&'static mut [u8]>,
+        ),
+    > {
         if write_buffer.is_none() && read_buffer.is_none() {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
         }
 
         if self.transfers.get() == 0 {
@@ -399,7 +406,7 @@ impl<'a> Spi<'a> {
 
             Ok(())
         } else {
-            Err(ErrorCode::BUSY)
+            Err((ErrorCode::BUSY, write_buffer, read_buffer))
         }
     }
 }
@@ -411,7 +418,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.master_client.set(client);
     }
 
-    fn init(&self) {
+    fn init(&self) -> Result<(), ErrorCode> {
         // enable error interrupt (used only for debugging)
         // self.registers.cr2.modify(CR2::ERRIE::SET);
 
@@ -433,31 +440,31 @@ impl<'a> spi::SpiMaster for Spi<'a> {
             // Enable
             CR1::SPE::SET,
         );
+        Ok(())
     }
 
     fn is_busy(&self) -> bool {
         self.registers.sr.is_set(SR::BSY)
     }
 
-    fn write_byte(&self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
         // debug! ("spi write byte {}", out_byte);
         // loop till TXE (Transmit Buffer Empty) becomes 1
         while !self.registers.sr.is_set(SR::TXE) {}
 
         self.registers.dr.modify(DR::DR.val(out_byte));
+        Ok(())
     }
 
-    fn read_byte(&self) -> u8 {
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
         self.read_write_byte(0)
     }
 
-    fn read_write_byte(&self, val: u8) -> u8 {
-        self.write_byte(val);
-
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
+        self.write_byte(val)?;
         // loop till RXNE becomes 1
         while !self.registers.sr.is_set(SR::RXNE) {}
-
-        self.registers.dr.read(DR::DR) as u8
+        Ok(self.registers.dr.read(DR::DR) as u8)
     }
 
     fn read_write_bytes(
@@ -465,21 +472,27 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
         // If busy, don't start
         if self.is_busy() {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        if let Err((err, write_buffer, read_buffer)) =
+            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+        {
+            Err((err, write_buffer.unwrap(), read_buffer))
+        } else {
+            Ok(())
+        }
     }
 
     /// We *only* support 1Mhz. If `rate` is set to any value other than
-    /// `1_000_000`, then this function panics
-    fn set_rate(&self, rate: u32) -> u32 {
+    /// `1_000_000`, then return INVAL
+    fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         // debug! ("stm32f3 spi set rate");
         if rate != 1_000_000 {
-            panic!("rate must be 1_000_000");
+            return Err(ErrorCode::INVAL);
         }
 
         self.set_cr(|| {
@@ -487,7 +500,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
             self.registers.cr1.modify(CR1::BR.val(0b010));
         });
 
-        1_000_000
+        Ok(1_000_000)
     }
 
     /// We *only* support 1Mhz. If we need to return any other value other than
@@ -500,16 +513,18 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         1_000_000
     }
 
-    fn set_clock(&self, polarity: ClockPolarity) {
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
         self.set_polarity(polarity);
+        Ok(())
     }
 
-    fn get_clock(&self) -> ClockPolarity {
+    fn get_polarity(&self) -> ClockPolarity {
         self.get_polarity()
     }
 
-    fn set_phase(&self, phase: ClockPhase) {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
         self.set_phase(phase);
+        Ok(())
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -524,8 +539,9 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.active_after.set(false);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) {
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         self.set_active_slave(cs);
+        Ok(())
     }
 }
 

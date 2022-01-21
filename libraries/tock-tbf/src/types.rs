@@ -2,6 +2,7 @@
 
 use core::convert::TryInto;
 use core::fmt;
+use core::mem::size_of;
 
 /// Error when parsing just the beginning of the TBF header. This is only used
 /// when establishing the linked list structure of apps installed in flash.
@@ -56,6 +57,12 @@ pub enum TbfParseError {
     /// If the slice passed in is not long enough, then a `get()` call will
     /// fail and that will trigger a different error.
     InternalError,
+
+    /// The number of variable length entries (for example the number of
+    /// `TbfHeaderDriverPermission` entries in `TbfHeaderV2Permissions`) is
+    /// too long for Tock to parse.
+    /// This can be fixed by increasing the number in `TbfHeaderV2`.
+    TooManyEntries(usize),
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -82,6 +89,13 @@ impl fmt::Debug for TbfParseError {
             TbfParseError::BadTlvEntry(tipe) => write!(f, "TLV entry type {} is invalid", tipe),
             TbfParseError::BadProcessName => write!(f, "Process name not UTF-8"),
             TbfParseError::InternalError => write!(f, "Internal kernel error. This is a bug."),
+            TbfParseError::TooManyEntries(tipe) => {
+                write!(
+                    f,
+                    "There are too many variable entries of {} for Tock to parse",
+                    tipe
+                )
+            }
         }
     }
 }
@@ -105,6 +119,9 @@ pub enum TbfHeaderTypes {
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
     TbfHeaderFixedAddresses = 5,
+    TbfHeaderPermissions = 6,
+    TbfHeaderPersistentAcl = 7,
+    TbfHeaderKernelVersion = 8,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
@@ -164,6 +181,36 @@ pub struct TbfHeaderV2FixedAddresses {
     start_process_flash: u32,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct TbfHeaderDriverPermission {
+    driver_number: u32,
+    offset: u32,
+    allowed_commands: u64,
+}
+
+/// A list of permissions for this app
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2Permissions<const L: usize> {
+    length: u16,
+    perms: [TbfHeaderDriverPermission; L],
+}
+
+/// A list of persistent access permissions
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2PersistentAcl<const L: usize> {
+    write_id: u32,
+    read_length: u16,
+    read_ids: [u32; L],
+    access_length: u16,
+    access_ids: [u32; L],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2KernelVersion {
+    major: u16,
+    minor: u16,
+}
+
 // Conversion functions from slices to the various TBF fields.
 
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
@@ -209,6 +256,9 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
+            6 => Ok(TbfHeaderTypes::TbfHeaderPermissions),
+            7 => Ok(TbfHeaderTypes::TbfHeaderPersistentAcl),
+            8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
     }
@@ -296,6 +346,180 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderDriverPermission {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderDriverPermission, Self::Error> {
+        Ok(TbfHeaderDriverPermission {
+            driver_number: u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            offset: u32::from_le_bytes(
+                b.get(4..8)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            allowed_commands: u64::from_le_bytes(
+                b.get(8..16)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
+impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L> {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Permissions<L>, Self::Error> {
+        let length = u16::from_le_bytes(
+            b.get(0..2)
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPermissions as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let mut perms: [TbfHeaderDriverPermission; L] = [TbfHeaderDriverPermission {
+            driver_number: 0,
+            offset: 0,
+            allowed_commands: 0,
+        }; L];
+
+        for i in 0..length as usize {
+            let start = 2 + (i * size_of::<TbfHeaderDriverPermission>());
+            let end = start + size_of::<TbfHeaderDriverPermission>();
+            if let Some(perm) = perms.get_mut(i) {
+                *perm = b
+                    .get(start..end as usize)
+                    .ok_or(TbfParseError::BadTlvEntry(
+                        TbfHeaderTypes::TbfHeaderPermissions as usize,
+                    ))?
+                    .try_into()?;
+            } else {
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPermissions as usize,
+                ));
+            }
+        }
+
+        Ok(TbfHeaderV2Permissions { length, perms })
+    }
+}
+
+impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<L> {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2PersistentAcl<L>, Self::Error> {
+        let mut read_end = 6;
+
+        let write_id = u32::from_le_bytes(
+            b.get(0..4)
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let read_length = u16::from_le_bytes(
+            b.get(4..6)
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let mut read_ids: [u32; L] = [0; L];
+        for i in 0..read_length as usize {
+            let start = 6 + (i * size_of::<u32>());
+            read_end = start + size_of::<u32>();
+            if let Some(read_id) = read_ids.get_mut(i) {
+                *read_id = u32::from_le_bytes(
+                    b.get(start..read_end as usize)
+                        .ok_or(TbfParseError::BadTlvEntry(
+                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                        ))?
+                        .try_into()?,
+                );
+            } else {
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ));
+            }
+        }
+
+        let access_length = u16::from_le_bytes(
+            b.get(read_end..(read_end + 2))
+                .ok_or(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ))?
+                .try_into()?,
+        );
+
+        let mut access_ids: [u32; L] = [0; L];
+        for i in 0..access_length as usize {
+            let start = read_end + 2 + (i * size_of::<u32>());
+            let access_end = start + size_of::<u32>();
+            if let Some(access_id) = access_ids.get_mut(i) {
+                *access_id = u32::from_le_bytes(
+                    b.get(start..access_end as usize)
+                        .ok_or(TbfParseError::BadTlvEntry(
+                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                        ))?
+                        .try_into()?,
+                );
+            } else {
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                ));
+            }
+        }
+
+        Ok(TbfHeaderV2PersistentAcl {
+            write_id,
+            read_length,
+            read_ids,
+            access_length,
+            access_ids,
+        })
+    }
+}
+
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2KernelVersion, Self::Error> {
+        Ok(TbfHeaderV2KernelVersion {
+            major: u16::from_le_bytes(
+                b.get(0..2)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            minor: u16::from_le_bytes(
+                b.get(2..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+        })
+    }
+}
+
+/// The command permissions specified by the TBF header.
+///
+/// Use the `get_command_permissions()` function to retrieve these.
+pub enum CommandPermissions {
+    /// The TBF header did not specify any permissions for any driver numbers.
+    NoPermsAtAll,
+    /// The TBF header did specify permissions for at least one driver number,
+    /// but not for the requested driver number.
+    NoPermsThisDriver,
+    /// The bitmask of allowed command numbers starting from the offset provided
+    /// when this enum was created.
+    Mask(u64),
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -308,6 +532,9 @@ pub struct TbfHeaderV2 {
     pub(crate) package_name: Option<&'static str>,
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
+    pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
+    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<8>>,
+    pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -432,6 +659,58 @@ impl TbfHeader {
         match hd.fixed_addresses.as_ref()?.start_process_flash {
             0xFFFFFFFF => None,
             start => Some(start),
+        }
+    }
+
+    /// Get the permissions for a specified driver and offset.
+    ///
+    /// - `driver_num`: The driver to lookup.
+    /// - `offset`: The offset for the driver to find. An offset value of 1 will
+    ///   find a header with offset 1, so the `allowed_commands` will cover
+    ///   command numbers 64 to 127.
+    ///
+    /// If permissions are found for the driver number, this function will
+    /// return `CommandPermissions::Mask`. If there are permissions in the
+    /// header but not for this driver the function will return
+    /// `CommandPermissions::NoPermsThisDriver`. If the process does not have
+    /// any permissions specified, return `CommandPermissions::NoPermsAtAll`.
+    pub fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.permissions {
+                Some(permissions) => {
+                    let mut found_driver_num: bool = false;
+                    for perm in permissions.perms {
+                        if perm.driver_number == driver_num as u32 {
+                            found_driver_num = true;
+                            if perm.offset == offset as u32 {
+                                return CommandPermissions::Mask(perm.allowed_commands);
+                            }
+                        }
+                    }
+                    if found_driver_num {
+                        // We found this driver number but nothing matched the
+                        // requested offset. Since permissions are default off,
+                        // we can return a mask of all zeros.
+                        CommandPermissions::Mask(0)
+                    } else {
+                        CommandPermissions::NoPermsThisDriver
+                    }
+                }
+                _ => CommandPermissions::NoPermsAtAll,
+            },
+            _ => CommandPermissions::NoPermsAtAll,
+        }
+    }
+
+    /// Get the minimum compatible kernel version this process requires.
+    /// Returns `None` if the kernel compatibility header is not included.
+    pub fn get_kernel_version(&self) -> Option<(u16, u16)> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.kernel_version {
+                Some(kernel_version) => Some((kernel_version.major, kernel_version.minor)),
+                _ => None,
+            },
+            _ => None,
         }
     }
 }

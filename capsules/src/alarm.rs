@@ -2,9 +2,11 @@
 //! a point in time has been reached.
 
 use core::cell::Cell;
-use core::mem;
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -19,14 +21,15 @@ enum Expiration {
 #[derive(Copy, Clone)]
 pub struct AlarmData {
     expiration: Expiration,
-    callback: Upcall,
 }
+
+const ALARM_CALLBACK_NUM: usize = 0;
+const NUM_UPCALLS: usize = 1;
 
 impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
             expiration: Expiration::Disabled,
-            callback: Upcall::default(),
         }
     }
 }
@@ -34,12 +37,15 @@ impl Default for AlarmData {
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarms: Grant<AlarmData>,
+    app_alarms: Grant<AlarmData, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
     next_alarm: Cell<Expiration>,
 }
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+    pub const fn new(
+        alarm: &'a A,
+        grant: Grant<AlarmData, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
@@ -63,7 +69,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // are multiple alarms in the past, just store one of them
         // and resolve ordering later, when we fire.
         for alarm in self.app_alarms.iter() {
-            alarm.enter(|alarm| match alarm.expiration {
+            alarm.enter(|alarm, _upcalls| match alarm.expiration {
                 Expiration::Enabled { reference, dt } => {
                     // Do this because `reference` shadowed below
                     let current_reference = reference;
@@ -144,35 +150,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
-    /// Subscribe to alarm expiration
-    ///
-    /// ### `_subscribe_num`
-    ///
-    /// - `0`: Subscribe to alarm expiration
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res: Result<(), ErrorCode> = match subscribe_num {
-            0 => self
-                .app_alarms
-                .enter(app_id, |td| {
-                    mem::swap(&mut callback, &mut td.callback);
-                })
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-
+impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     /// Setup and read the alarm.
     ///
     /// ### `command_num`
@@ -196,7 +174,7 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
         //   - the underlying alarm is currently disabled and we're enabling the first alarm, or
         //   - on an error (i.e. no change to the alarms).
         self.app_alarms
-            .enter(caller_id, |td| {
+            .enter(caller_id, |td, _upcalls| {
                 // helper function to rearm alarm
                 let mut rearm = |reference: usize, dt: usize| {
                     if let Expiration::Disabled = td.expiration {
@@ -235,12 +213,8 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                             }
                         }
                     },
-                    4 /* Set absolute expiration */ => {
-                        let reference = now.into_u32() as usize;
-                        let future_time = data;
-                        let dt = future_time.wrapping_sub(reference);
-                        // if previously unarmed, but now will become armed
-                        rearm(reference, dt)
+                    4 /* Deprecated in 2.0, used to be: set absolute expiration */ => {
+                        (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                     },
                     5 /* Set relative expiration */ => {
                         let reference = now.into_u32() as usize;
@@ -249,11 +223,6 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         rearm(reference, dt)
                     },
                     6 /* Set absolute expiration with reference point */ => {
-                        // Taking a reference timestamp from userspace
-                        // prevents wraparound bugs; future versions of
-                        // libtock will use only this call and deprecate
-                        // command #4; for now it is added as an additional
-                        // comamnd for backwards compatibility. -pal
                         let reference = data;
                         let dt = data2;
                         rearm(reference, dt)
@@ -271,12 +240,16 @@ impl<'a, A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                 },
             )
     }
+
+    fn allocate_grant(&self, appid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.app_alarms.enter(appid, |_, _| {})
+    }
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
         let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
-        self.app_alarms.each(|_, alarm| {
+        self.app_alarms.each(|_processid, alarm, upcalls| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
@@ -286,11 +259,16 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
-                    alarm.callback.schedule(
-                        now.into_u32() as usize,
-                        reference.wrapping_add(dt) as usize,
-                        0,
-                    );
+                    upcalls
+                        .schedule_upcall(
+                            ALARM_CALLBACK_NUM,
+                            (
+                                now.into_u32() as usize,
+                                reference.wrapping_add(dt) as usize,
+                                0,
+                            ),
+                        )
+                        .ok();
                 }
             }
         });

@@ -1,15 +1,18 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use kernel::common::deferred_call;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::deferred_call;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 use crate::adc;
 use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
+use crate::i2c;
 use crate::interrupts;
 use crate::resets::Resets;
+use crate::spi;
+use crate::sysinfo;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::watchdog::Watchdog;
@@ -25,7 +28,6 @@ pub enum Processor {
 pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
     mpu: cortexm0p::mpu::MPU,
     userspace_kernel_boundary: cortexm0p::syscall::SysCall,
-    scheduler_timer: cortexm0p::systick::SysTick,
     interrupt_service: &'a I,
     sio: &'a SIO,
     processor0_interrupt_mask: (u128, u128),
@@ -37,7 +39,6 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
-            scheduler_timer: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
             interrupt_service,
             sio: sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC1),
@@ -49,8 +50,6 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
 impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
-    type SchedulerTimer = cortexm0p::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -91,14 +90,6 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
         &self.mpu
     }
 
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
-    }
-
     fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
         &self.userspace_kernel_boundary
     }
@@ -131,9 +122,12 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub pins: RPPins<'a>,
     pub uart0: Uart<'a>,
     pub adc: adc::Adc,
+    pub spi0: spi::Spi<'a>,
+    pub sysinfo: sysinfo::SysInfo,
+    pub i2c0: i2c::I2c<'a>,
 }
 
-impl Rp2040DefaultPeripherals<'_> {
+impl<'a> Rp2040DefaultPeripherals<'a> {
     pub const fn new() -> Self {
         Self {
             resets: Resets::new(),
@@ -145,7 +139,16 @@ impl Rp2040DefaultPeripherals<'_> {
             pins: RPPins::new(),
             uart0: Uart::new_uart0(),
             adc: adc::Adc::new(),
+            spi0: spi::Spi::new_spi0(),
+            sysinfo: sysinfo::SysInfo::new(),
+            i2c0: i2c::I2c::new_i2c0(),
         }
+    }
+
+    pub fn resolve_dependencies(&'a self) {
+        self.spi0.set_clocks(&self.clocks);
+        self.uart0.set_clocks(&self.clocks);
+        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
     }
 }
 
@@ -164,6 +167,10 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
                 self.sio.handle_proc_interrupt(Processor::Processor1);
                 true
             }
+            interrupts::SPI0_IRQ => {
+                self.spi0.handle_interrupt();
+                true
+            }
             interrupts::UART0_IRQ => {
                 self.uart0.handle_interrupt();
                 true
@@ -174,6 +181,10 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::IO_IRQ_BANK0 => {
                 self.pins.handle_interrupt();
+                true
+            }
+            interrupts::I2C0_IRQ => {
+                self.i2c0.handle_interrupt();
                 true
             }
             _ => false,

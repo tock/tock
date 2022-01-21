@@ -12,13 +12,15 @@
 use crate::dma::{DMAChannel, DMAClient, DMAPeripheral};
 use crate::pm;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet
@@ -523,12 +525,12 @@ struct TWISClock {
 }
 impl ClockInterface for TWISClock {
     fn is_enabled(&self) -> bool {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         slave_clock.is_enabled()
     }
 
     fn enable(&self) {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         if self.master.is_enabled() {
             panic!("I2C: Request for slave clock, but master active");
         }
@@ -536,7 +538,7 @@ impl ClockInterface for TWISClock {
     }
 
     fn disable(&self) {
-        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        let slave_clock = self.slave.unwrap(); // Unwrap fail = I2C: Use of slave with no clock
         slave_clock.disable();
     }
 }
@@ -595,10 +597,7 @@ impl PeripheralManagement<TWISClock> for I2CHw {
     type RegisterType = TWISRegisters;
 
     fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
-        &*self
-            .slave_mmio_address
-            .as_ref()
-            .expect("Access of non-existent slave")
+        &*self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
     }
 
     fn get_clock(&self) -> &TWISClock {
@@ -1501,5 +1500,3 @@ impl hil::i2c::I2CSlave for I2CHw {
         self.slave_listen();
     }
 }
-
-impl hil::i2c::I2CMasterSlave for I2CHw {}

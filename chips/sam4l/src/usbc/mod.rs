@@ -10,16 +10,16 @@ use crate::scif;
 use core::cell::Cell;
 use core::ptr;
 use core::slice;
-use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
-    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
-    WriteOnly,
-};
-use kernel::common::StaticRef;
 use kernel::debug as debugln;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
+    WriteOnly,
+};
+use kernel::utilities::StaticRef;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or
@@ -27,13 +27,13 @@ use kernel::hil::usb::TransferType;
 
 macro_rules! client_warn {
     [ $( $arg:expr ),+ ] => {
-        debugln!($( $arg ),+);
+        debugln!($( $arg ),+)
     };
 }
 
 macro_rules! client_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 
@@ -45,7 +45,7 @@ macro_rules! debug1 {
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {
-        panic!($( $arg ),+);
+        panic!($( $arg ),+)
     };
 }
 
@@ -458,14 +458,14 @@ impl<'a> Usbc<'a> {
     where
         F: FnOnce(&mut State) -> R,
     {
-        let mut state = self.state.take().expect("map_state: state value is in use");
+        let mut state = self.state.take().unwrap(); // Unwrap fail = map_state: state value is in use
         let result = closure(&mut state);
         self.state.set(state);
         result
     }
 
     fn get_state(&self) -> State {
-        self.state.expect("get_state: state value is in use")
+        self.state.unwrap_or_panic() // Unwrap fail = get_state: state value is in use
     }
 
     fn set_state(&self, state: State) {

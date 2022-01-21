@@ -54,7 +54,7 @@ the key will be used in the storage.
 
 TicKV ensures durability and once a transaction has completed
 and been committed to flash it will remain there. TicKV also takes measures
-to apply wear levelling to the flash storage.
+to apply wear leveling to the flash storage.
 
 ## Using TicKV
 
@@ -79,7 +79,7 @@ TicKV saves and restores objects from flash. TicKV objects contain the value
 the user wanted to store as well as extra header data. Objects are internal to
 TicKV and users don't need to understand them in detail to use it.
 
-For more details on the technical implementation see the [SPEC.md](./spec.md) file.
+For more details on the technical implementation see the [SPEC.md](./SPEC.md) file.
 
 ### Collisions
 
@@ -89,8 +89,8 @@ added. The collision will be reported to the user with
 
 ### Power loss protection
 
-TicKV ensures that in the event of a power loss, all commited data remains
-commited. This is the durability guarantee as part of the ACID semantics.
+TicKV ensures that in the event of a power loss, all committed data remains
+committed. This is the durability guarantee as part of the ACID semantics.
 The only data that can be lost in the event of a power loss is
 the data which hasn't been write to flash yet.
 

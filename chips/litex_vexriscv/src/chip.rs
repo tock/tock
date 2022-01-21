@@ -2,10 +2,9 @@
 
 use core::fmt::Write;
 use kernel;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
 use kernel::debug;
-use kernel::hil::time::Alarm;
-use kernel::InterruptService;
+use kernel::platform::chip::InterruptService;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{mcause, mie::mie, CSR};
 use rv32i::pmp::PMP;
 use rv32i::syscall::SysCall;
@@ -19,27 +18,21 @@ static mut INTERRUPT_CONTROLLER: VexRiscvInterruptController = VexRiscvInterrupt
 // The VexRiscv "Secure" variant of
 // [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv)
 // has 16 PMP slots
-pub struct LiteXVexRiscv<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> {
+pub struct LiteXVexRiscv<I: 'static + InterruptService<()>> {
     soc_identifier: &'static str,
     userspace_kernel_boundary: SysCall,
     interrupt_controller: &'static VexRiscvInterruptController,
     pmp: PMP<8>,
-    scheduler_timer: kernel::VirtualSchedulerTimer<A>,
     interrupt_service: &'static I,
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRiscv<A, I> {
-    pub unsafe fn new(
-        soc_identifier: &'static str,
-        alarm: &'static A,
-        interrupt_service: &'static I,
-    ) -> Self {
+impl<I: 'static + InterruptService<()>> LiteXVexRiscv<I> {
+    pub unsafe fn new(soc_identifier: &'static str, interrupt_service: &'static I) -> Self {
         Self {
             soc_identifier,
             userspace_kernel_boundary: SysCall::new(),
             interrupt_controller: &INTERRUPT_CONTROLLER,
             pmp: PMP::new(),
-            scheduler_timer: kernel::VirtualSchedulerTimer::new(alarm),
             interrupt_service,
         }
     }
@@ -58,24 +51,12 @@ impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> LiteXVexRis
     }
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + InterruptService<()>> kernel::Chip
-    for LiteXVexRiscv<A, I>
-{
+impl<I: 'static + InterruptService<()>> kernel::platform::chip::Chip for LiteXVexRiscv<I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
-    type SchedulerTimer = kernel::VirtualSchedulerTimer<A>;
-    type WatchDog = ();
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &SysCall {

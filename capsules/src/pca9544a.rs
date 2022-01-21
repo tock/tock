@@ -1,4 +1,4 @@
-//! Driver for the PCA9544A I2C Selector.
+//! SyscallDriver for the PCA9544A I2C Selector.
 //!
 //! This chip allows for multiple I2C devices with the same addresses to
 //! sit on the same I2C bus.
@@ -29,9 +29,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -56,20 +59,22 @@ enum ControlField {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct PCA9544A<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> PCA9544A<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8], grant: Grant<App>) -> Self {
+    pub fn new(
+        i2c: &'a dyn i2c::I2CDevice,
+        buffer: &'static mut [u8],
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> Self {
         Self {
             i2c,
             state: Cell::new(State::Idle),
@@ -143,8 +148,10 @@ impl i2c::I2CClient for PCA9544A<'_> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
-                        app.callback.schedule((field as usize) + 1, ret as usize, 0);
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        upcalls
+                            .schedule_upcall(0, (field as usize + 1, ret as usize, 0))
+                            .ok();
                     });
                 });
 
@@ -154,8 +161,8 @@ impl i2c::I2CClient for PCA9544A<'_> {
             }
             State::Done => {
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
-                        app.callback.schedule(0, 0, 0);
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                     });
                 });
 
@@ -168,38 +175,13 @@ impl i2c::I2CClient for PCA9544A<'_> {
     }
 }
 
-impl Driver for PCA9544A<'_> {
-    /// Setup callback for event done.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Upcall is triggered when a channel is finished being selected
-    ///   or when the current channel setup is returned.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+impl SyscallDriver for PCA9544A<'_> {
+    // Setup callback for event done.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Upcall is triggered when a channel is finished being selected
+    //   or when the current channel setup is returned.
 
     /// Control the I2C selector.
     ///
@@ -226,7 +208,7 @@ impl Driver for PCA9544A<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -254,5 +236,9 @@ impl Driver for PCA9544A<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

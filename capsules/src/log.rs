@@ -60,7 +60,7 @@
 //!         )
 //!     );
 //!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
-//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).expect("no deferred call slot available for log storage"));
+//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).unwrap()); // Unwrap fail = no deferred call slot available for log storage
 //!
 //!     log.set_read_client(log_storage_read_client);
 //!     log.set_append_client(log_storage_append_client);
@@ -70,12 +70,13 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// Globally declare entry ID type.

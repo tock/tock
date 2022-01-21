@@ -54,9 +54,11 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
-use core::mem;
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -64,20 +66,19 @@ pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     subscribed: bool,
 }
 
 pub struct TemperatureSensor<'a> {
     driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
 impl<'a> TemperatureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> TemperatureSensor<'a> {
         TemperatureSensor {
             driver: driver,
@@ -88,7 +89,7 @@ impl<'a> TemperatureSensor<'a> {
 
     fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -104,54 +105,23 @@ impl<'a> TemperatureSensor<'a> {
             })
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
     }
-
-    fn configure_callback(
-        &self,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app| {
-                mem::swap(&mut app.callback, &mut callback);
-            })
-            .map_err(ErrorCode::from);
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
 }
 
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app| {
+            cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback.schedule(temp_val, 0, 0);
+                    upcalls.schedule_upcall(0, (temp_val, 0, 0)).ok();
                 }
             });
         }
     }
 }
 
-impl Driver for TemperatureSensor<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // subscribe to temperature reading with callback
-            0 => self.configure_callback(callback, app_id),
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
-
+impl SyscallDriver for TemperatureSensor<'_> {
     fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
@@ -161,5 +131,9 @@ impl Driver for TemperatureSensor<'_> {
             1 => self.enqueue_command(appid),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

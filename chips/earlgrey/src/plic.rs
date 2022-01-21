@@ -1,13 +1,13 @@
 //! Platform Level Interrupt Control peripheral driver.
 
-use kernel::common::cells::VolatileCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::LocalRegisterCopy;
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::LocalRegisterCopy;
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
-    unsafe { StaticRef::new(0x4101_0000 as *const PlicRegisters) };
+    unsafe { StaticRef::new(0x4800_0000 as *const PlicRegisters) };
 
 pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
 
@@ -15,22 +15,25 @@ pub const PLIC_REGS: usize = 6;
 
 register_structs! {
     pub PlicRegisters {
-        /// Interrupt Pending Register
-        (0x000 => pending: [ReadOnly<u32>; PLIC_REGS]),
-        /// Interrupt Source Register
-        (0x018 => source: [ReadWrite<u32>; PLIC_REGS]),
         /// Interrupt Priority Registers
-        (0x030 => priority: [ReadWrite<u32, priority::Register>; 177]),
-        (0x2f4 => _reserved0),
+        (0x000 => priority: [ReadWrite<u32, priority::Register>; 181]),
+        (0x2d4 => _reserved0),
+        /// Interrupt Pending Register
+        (0x1000 => pending: [ReadOnly<u32>; PLIC_REGS]),
+        (0x1018 => _reserved1),
         /// Interrupt Enable Register
-        (0x300 => enable: [ReadWrite<u32>; PLIC_REGS]),
+        (0x2000 => enable: [ReadWrite<u32>; PLIC_REGS]),
+        (0x2018 => _reserved2),
         /// Priority Threshold Register
-        (0x318 => threshold: ReadWrite<u32, priority::Register>),
+        (0x200000 => threshold: ReadWrite<u32, priority::Register>),
         /// Claim/Complete Register
-        (0x31c => claim: ReadWrite<u32>),
+        (0x200004 => claim: ReadWrite<u32>),
+        (0x200008 => _reserved3),
         /// MSIP Register
-        (0x320 => msip: ReadWrite<u32>),
-        (0x324 => @END),
+        (0x4000000 => msip: ReadWrite<u32>),
+        (0x4000004 => _reserved4),
+        (0x4004000 => alert_test: ReadWrite<u32>),
+        (0x4004004 => @END),
     }
 }
 
@@ -67,14 +70,9 @@ impl Plic {
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        // Ensure we don't enable interrupt 171 (ENTROPYSRC_ESENTROPYVALID) as
-        // we have no way to disable the interrupt.
-        self.registers.enable[0].set(0xFFFF_FFFF);
-        self.registers.enable[1].set(0xFFFF_FFFF);
-        self.registers.enable[2].set(0xFFFF_FFFF);
-        self.registers.enable[3].set(0xFFFF_FFFF);
-        self.registers.enable[4].set(0xFFFF_FFFF);
-        self.registers.enable[5].set(0xFFFF_F7FF);
+        for enable in self.registers.enable.iter() {
+            enable.set(0xFFFF_FFFF);
+        }
 
         // Set the max priority for each interrupt. This is not really used
         // at this point.

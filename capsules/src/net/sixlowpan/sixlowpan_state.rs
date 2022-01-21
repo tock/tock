@@ -232,13 +232,15 @@ use crate::net::ipv6::IP6Packet;
 use crate::net::sixlowpan::sixlowpan_compression;
 use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
+
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::cells::{MapCell, TakeCell};
-use kernel::common::list::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::{Frequency, Ticks};
+use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::ErrorCode;
 
 // Reassembly timeout in seconds
@@ -770,7 +772,7 @@ impl<'a> RxState<'a> {
                 .map(|packet| {
                     client.receive(&packet, self.dgram_size.get() as usize, result);
                 })
-                .expect("Error: `packet` is None in call to end_receive.");
+                .unwrap(); // Unwrap fail = Error: `packet` is None in call to end_receive.
         });
     }
 }
@@ -925,10 +927,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             // The packet buffer should *always* be there; in particular,
             // since this state is not busy, it must have the packet buffer.
             // Otherwise, we are in an inconsistent state and can fail.
-            let mut packet = state.packet.take().expect(
-                "Error: `packet` in RxState struct is `None` \
-                 in call to `receive_single_packet`.",
-            );
+            let mut packet = state.packet.take().unwrap();
             if is_lowpan(payload) {
                 let decompressed = sixlowpan_compression::decompress(
                     &self.ctx_store,

@@ -10,6 +10,7 @@
 pub mod litex_registers;
 
 pub mod event_manager;
+pub mod gpio;
 pub mod led_controller;
 pub mod liteeth;
 pub mod timer;

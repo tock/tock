@@ -2,13 +2,12 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::Chip;
-use kernel::InterruptService;
+use kernel::platform::chip::Chip;
+use kernel::platform::chip::InterruptService;
 
 pub struct Apollo3<I: InterruptService<()> + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
     interrupt_service: &'static I,
 }
 
@@ -17,7 +16,6 @@ impl<I: InterruptService<()> + 'static> Apollo3<I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
             interrupt_service,
         }
     }
@@ -59,7 +57,7 @@ impl Apollo3DefaultPeripherals {
     }
 }
 
-impl kernel::InterruptService<()> for Apollo3DefaultPeripherals {
+impl kernel::platform::chip::InterruptService<()> for Apollo3DefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -86,8 +84,6 @@ impl kernel::InterruptService<()> for Apollo3DefaultPeripherals {
 impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -113,14 +109,6 @@ impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm4::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

@@ -1,14 +1,14 @@
 Raspberry Pi Pico - RP2040
 ==========================
 
-<img src="https://www.raspberrypi.org/homepage-9df4b/static/bdc42b00ebe8f2312c4d229beb9325bf/53263/7d247ace-afb2-4555-b7b3-4f236eb779d6_Raspberry%2BPi%2BPico%2B1.jpg" width="35%">
+<img src="https://images.prismic.io/rpf-products/7d247ace-afb2-4555-b7b3-4f236eb779d6_Raspberry%20Pi%20Pico%201.jpg" width="35%">
 
 The [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/) is a
 board developed by the Raspberry Pi Foundation and is based on the RP2040 chip.
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
@@ -75,4 +75,3 @@ $ make program
 ```
 
 This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](#flash-the-tock-kernel).
-

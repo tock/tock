@@ -84,6 +84,8 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        isl29035_virtual_alarm.setup();
+
         let isl29035 = static_init_half!(
             static_buffer.1,
             Isl29035<'static, VirtualMuxAlarm<'static, A>>,
@@ -97,6 +99,7 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
 
 pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
     i2c_mux: &'static MuxI2C<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
@@ -104,11 +107,13 @@ pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
 impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
         i2c: &'static MuxI2C<'static>,
         alarm: &'static MuxAlarm<'static, A>,
     ) -> Self {
         AmbientLightComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             i2c_mux: i2c,
             alarm_mux: alarm,
         }
@@ -131,6 +136,8 @@ impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        isl29035_virtual_alarm.setup();
+
         let isl29035 = static_init_half!(
             static_buffer.1,
             Isl29035<'static, VirtualMuxAlarm<'static, A>>,
@@ -140,7 +147,10 @@ impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
         isl29035_virtual_alarm.set_alarm_client(isl29035);
         let ambient_light = static_init!(
             AmbientLight<'static>,
-            AmbientLight::new(isl29035, self.board_kernel.create_grant(&grant_cap))
+            AmbientLight::new(
+                isl29035,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
+            )
         );
         hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
         ambient_light

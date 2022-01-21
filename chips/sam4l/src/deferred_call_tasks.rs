@@ -10,6 +10,7 @@ use core::convert::TryFrom;
 #[derive(Copy, Clone)]
 pub enum Task {
     Flashcalw = 0,
+    CRCCU = 1,
 }
 
 impl TryFrom<usize> for Task {
@@ -18,6 +19,7 @@ impl TryFrom<usize> for Task {
     fn try_from(value: usize) -> Result<Task, ()> {
         match value {
             0 => Ok(Task::Flashcalw),
+            1 => Ok(Task::CRCCU),
             _ => Err(()),
         }
     }

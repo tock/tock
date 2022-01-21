@@ -51,20 +51,27 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
-use core::mem;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
+
+/// ### `subscribe_num`
+///
+/// - `0`: Subscribe to interrupts from all pins with interrupts enabled.
+///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
+const UPCALL_NUM: usize = 0;
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-    apps: Grant<Upcall>,
+    apps: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-        grant: Grant<Upcall>,
+        grant: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
             if let Some(pin) = maybe_pin {
@@ -137,45 +144,16 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
             let pin_state = pin.read();
 
             // schedule callback with the pin number and value
-            self.apps.each(|_, callback| {
-                callback.schedule(pin_num as usize, pin_state as usize, 0);
+            self.apps.each(|_, _, upcalls| {
+                upcalls
+                    .schedule_upcall(UPCALL_NUM, (pin_num as usize, pin_state as usize, 0))
+                    .ok();
             });
         }
     }
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
-    /// Subscribe to GPIO pin events.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Subscribe to interrupts from all pins with interrupts enabled.
-    ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // subscribe to all pin interrupts (no affect or reliance on
-            // individual pins being configured as interrupts)
-            0 => self
-                .apps
-                .enter(app_id, |app| {
-                    mem::swap(&mut **app, &mut callback);
-                })
-                .map_err(ErrorCode::from),
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-
+impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     /// Query and control pin values and states.
     ///
     /// Each byte of the `data` argument is treated as its own field.
@@ -352,5 +330,9 @@ impl<'a, IP: gpio::InterruptPin<'a>> Driver for GPIO<'a, IP> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

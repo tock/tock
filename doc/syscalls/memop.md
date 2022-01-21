@@ -12,7 +12,7 @@ All memop calls pass an operation type as the first parameter. Some include
 an argument in the second parameter:
 
 ```rust
-memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
+memop(op_type: u32, argument: u32) -> [[ VARIES ]]
 ```
 
 ## Memory Operations
@@ -25,7 +25,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Argument 1** `as *u8`: Address of the new program break (aka maximum
     accessible value).
 
-    **Returns** `Result<(), ErrorCode> as u32`: `Ok(())` or `NOMEM`.
+    **Returns** `Result<(), ErrorCode>`: `Ok(())` or `NOMEM`.
 
   * ### Operation type `1`: `sbrk`
 
@@ -117,7 +117,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the stack top.
 
-    **Returns** `Result<(), ErrorCode> as u32`: Always `Ok(())`.
+    **Returns** `Result<(), ErrorCode>`: Always `Ok(())`.
 
   * ### Operation type `11`: (debug) Specify heap location
 
@@ -125,4 +125,4 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
 
     **Argument 1** `as *const u8`: Address of the heap start.
 
-    **Returns** `Result<(), ErrorCode> as u32`: Always `Ok(())`.
+    **Returns** `Result<(), ErrorCode>`: Always `Ok(())`.

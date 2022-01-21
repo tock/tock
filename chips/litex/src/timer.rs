@@ -5,11 +5,11 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::common::cells::OptionalCell;
-use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::event_manager::LiteXEventManager;
@@ -387,7 +387,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
         // at least once (even if the alarm time has already passed).
 
         let reference = self.reference_time.get();
-        let alarm_time = self.alarm_time.expect("alarm not set");
+        let alarm_time = self.alarm_time.unwrap_or_panic(); // Unwrap fail = alarm not set
 
         if !self.now().within_range(reference, alarm_time) {
             // It's time, ring the alarm

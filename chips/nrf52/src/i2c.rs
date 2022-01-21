@@ -3,13 +3,13 @@
 //! This module supports nRF52's two I2C master (`TWI`) peripherals,
 //! and the I2C slave (`TWIS`).
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::cells::VolatileCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use nrf5x::pinmux::Pinmux;
 
 /// Uninitialized `TWI` instances.
@@ -360,8 +360,6 @@ impl hil::i2c::I2CSlave for TWI {
         self.registers.tasks_preparerx.write(TASK::TASK::SET);
     }
 }
-
-impl hil::i2c::I2CMasterSlave for TWI {}
 
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in

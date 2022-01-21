@@ -13,7 +13,8 @@ that Tock supports.
 | [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)           | ARM Cortex-M4   | nRF52840       | jLink      | tockloader     | No            |
 | [ACD52832](acd52832/README.md)                                       | ARM Cortex-M4   | nRF52832       | jLink      | tockloader     | No            |
 | [Nano 33 BLE](nano33ble/README.md)                                   | ARM Cortex-M4   | nRF52840       | Bootloader | tockloader     | No            |
-| [Clue nRF52840](clue_nrf52840/README.md)                             | ARM Cortex-M4   | nRF52840       | nrfutil    | custom         | No            |
+| [Nano RP2040 Connect](nano_rp2040_connect/README.md)                 | ARM Cortex-M0+  | RP2040         | custom     | custom         | No            |
+| [Clue nRF52840](clue_nrf52840/README.md)                             | ARM Cortex-M4   | nRF52840       | Bootloader | tockloader     | No            |
 | [BBC Micro:bit v2](microbit_v2/README.md)                            | ARM Cortex-M4   | nRF52833       | openocd    | tockloader     | No            |
 | [ST Nucleo F446RE](nucleo_f446re/README.md)                          | ARM Cortex-M4   | STM32F446      | openocd    | custom         | #1827         |
 | [ST Nucleo F429ZI](nucleo_f429zi/README.md)                          | ARM Cortex-M4   | STM32F429      | openocd    | custom         | #1827         |
@@ -23,12 +24,14 @@ that Tock supports.
 | [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md)    | ARM Cortex-M4   | Apollo3        | custom     | custom         | No            |
 | [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)              | ARM Cortex-M7   | i.MX RT 1052   | custom     | custom         | No            |
 | [Teensy 4.0](teensy40/README.md)                                     | ARM Cortex-M7   | i.MX RT 1062   | custom     | custom         | No            |
+| [Pico Explorer Base](pico_explorer_base/README.md)                   | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [Raspberry Pi Pico](raspberry_pi_pico/README.md)                     | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | Yes (5.1)     |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No            |
 | [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | Yes (5.1)     |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No            |
+| [ESP32-C3-DevKitM-1](esp32-c3-devkitM-1/README.md)                   | RISC-V-ish RV32I| ESP32-C3       | custom     | custom         | No            |
 
 # Out of Tree Boards
 

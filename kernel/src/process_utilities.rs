@@ -6,11 +6,11 @@ use core::fmt;
 use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::debug;
-use crate::platform::Chip;
+use crate::kernel::Kernel;
+use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
-use crate::sched::Kernel;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -44,6 +44,20 @@ pub enum ProcessLoadError {
         actual_address: u32,
         expected_address: u32,
     },
+
+    /// A process requires a newer version of the kernel or did not specify
+    /// a required version. Processes can include the KernelVersion TBF header stating
+    /// their compatible kernel version (^major.minor).
+    ///
+    /// Boards may not require processes to include the KernelVersion TBF header, and
+    /// the kernel supports ignoring a missing KernelVersion TBF header. In that case,
+    /// this error will not be returned for a process missing a KernelVersion TBF
+    /// header.
+    ///
+    /// `version` is the `(major, minor)` kernel version the process indicates it
+    /// requires. If `version` is `None` then the process did not include the
+    /// KernelVersion TBF header.
+    IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
@@ -98,6 +112,18 @@ impl fmt::Debug for ProcessLoadError {
                 actual_address, expected_address
             ),
 
+            ProcessLoadError::IncompatibleKernelVersion { version } => match version {
+                Some((major, minor)) => write!(
+                    f,
+                    "Process is incompatible with the kernel. Running: {}.{}, Requested: {}.{}",
+                    crate::MAJOR,
+                    crate::MINOR,
+                    major,
+                    minor
+                ),
+                None => write!(f, "Process did not provide a TBF kernel version header"),
+            },
+
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
     }
@@ -113,7 +139,7 @@ impl fmt::Debug for ProcessLoadError {
 /// allocated number of processes are created. This buffer is a non-static slice,
 /// ensuring that this code cannot hold onto the slice past the end of this function
 /// (instead, processes store a pointer and length), which necessary for later
-/// creation of `AppSlice`'s in this memory region to be sound.
+/// creation of `ProcessBuffer`s in this memory region to be sound.
 /// A reference to each process is stored in the provided `procs` array.
 /// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
@@ -125,13 +151,15 @@ impl fmt::Debug for ProcessLoadError {
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
-pub fn load_processes<C: Chip>(
+#[inline(always)]
+pub fn load_processes_advanced<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
+    require_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -148,7 +176,8 @@ pub fn load_processes<C: Chip>(
     let mut remaining_memory = app_memory;
 
     // Try to discover up to `procs.len()` processes in flash.
-    for i in 0..procs.len() {
+    let mut index = 0;
+    while index < procs.len() {
         // Get the first eight bytes of flash to check if there is another
         // app.
         let test_header_slice = match remaining_flash.get(0..8) {
@@ -218,24 +247,30 @@ pub fn load_processes<C: Chip>(
                     version,
                     remaining_memory,
                     fault_policy,
-                    i,
+                    require_kernel_version,
+                    index,
                 )?
             };
             process_option.map(|process| {
                 if config::CONFIG.debug_load_processes {
+                    let addresses = process.get_addresses();
                     debug!(
                         "Loaded process[{}] from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X} = {:?}",
-                        i,
+                        index,
                         entry_flash.as_ptr() as usize,
                         entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                        process.mem_start() as usize,
-                        process.mem_end() as usize - 1,
+                        addresses.sram_start,
+                        addresses.sram_end - 1,
                         process.get_process_name()
                     );
                 }
 
                 // Save the reference to this process in the processes array.
-                procs[i] = Some(process);
+                procs[index] = Some(process);
+                // Can now increment index to use the next spot in the processes
+                // array. Padding apps mean we might detect valid headers but
+                // not actually insert a new process in the array.
+                index += 1;
             });
             unused_memory
         } else {
@@ -246,4 +281,31 @@ pub fn load_processes<C: Chip>(
     }
 
     Ok(())
+}
+
+/// This is a wrapper function for `load_processes_advanced` that uses
+/// the default arguments that mainstream boards should provide.
+///
+/// Default arguments are:
+///  - `require_kernel_version`: prevent loading processes that do not provide a `KernelVersion`
+#[inline(always)]
+pub fn load_processes<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &mut [u8], // not static, so that process.rs cannot hold on to slice w/o unsafe
+    procs: &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+    capability: &dyn ProcessManagementCapability,
+) -> Result<(), ProcessLoadError> {
+    load_processes_advanced(
+        kernel,
+        chip,
+        app_flash,
+        app_memory,
+        procs,
+        fault_policy,
+        true,
+        capability,
+    )
 }

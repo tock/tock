@@ -5,12 +5,12 @@
 //! - Date: September 17, 2020
 
 use crate::pm::{self, PBDClock};
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks};
 use kernel::hil::Controller;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -317,7 +317,7 @@ impl time::Time for Ast<'_> {
 }
 
 impl<'a> time::Counter<'a> for Ast<'a> {
-    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {}
 
     fn start(&self) -> Result<(), ErrorCode> {
         self.enable();

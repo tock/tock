@@ -1,7 +1,8 @@
 use crate::net::ipv6::IP6Header;
 use crate::net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
-use kernel::common::cells::OptionalCell;
+
 use kernel::debug;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 // To provide some context for the entire rx chain:

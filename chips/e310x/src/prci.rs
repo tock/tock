@@ -1,6 +1,6 @@
 //! Power Reset Clock Interrupt controller instantiation.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use sifive::prci::PrciRegisters;
 
 pub const PRCI_BASE: StaticRef<PrciRegisters> =

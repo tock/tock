@@ -21,7 +21,7 @@ fn earlgrey_nexysvideo_flash(
     };
 
     // Open the first serialport available.
-    let port_name = &serialport::available_ports().expect("No serial port")[0].port_name;
+    let port_name = &serialport::available_ports().expect("No serial port")[1].port_name;
     println!("Connecting to OpenTitan port: {:?}", port_name);
     let port = serialport::open_with_settings(port_name, &s).expect("Failed to open serial port");
 
@@ -34,7 +34,7 @@ fn earlgrey_nexysvideo_flash(
     // Flash the Tock kernel and app
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/earlgrey-nexysvideo")
+        .arg("../../boards/opentitan/earlgrey-nexysvideo")
         .arg(format!(
             "OPENTITAN_TREE={}",
             env::var("OPENTITAN_TREE").unwrap()
@@ -49,7 +49,6 @@ fn earlgrey_nexysvideo_flash(
     // Make sure the image is flashed
     p.exp_string("Processing frame #13, expecting #13")?;
     p.exp_string("Processing frame #67, expecting #67")?;
-    p.exp_string("Processing frame #101, expecting #101")?;
 
     p.exp_string("Boot ROM initialisation has completed, jump into flash")?;
 
@@ -114,14 +113,14 @@ fn earlgrey_nexysvideo_c_hello_and_printf_long() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20032080.0x10008000.tbf"
+            "examples/tests/printf_long/build/rv32imc/rv32imc.0x20030880.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
     p.exp_string("Hi welcome to Tock. This test makes sure that a greater than 64 byte message can be printed.")?;
@@ -159,14 +158,14 @@ fn earlgrey_nexysvideo_recv_short_and_recv_long() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/tests/console_recv_long/build/rv32imc/rv32imc.0x20040080.0x10008000.tbf"
+            "examples/tests/console_recv_long/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Error doing UART receive: -2")?;
 
@@ -202,7 +201,7 @@ fn earlgrey_nexysvideo_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/c_hello/build/rv32imc/rv32imc.0x20032080.0x10008000.tbf"
+            "examples/c_hello/build/rv32imc/rv32imc.0x20030880.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
@@ -219,14 +218,14 @@ fn earlgrey_nexysvideo_blink_and_c_hello_and_buttons() -> Result<(), Error> {
         .arg(format!(
             "{}/{}",
             env::var("LIBTOCK_C_TREE").unwrap(),
-            "examples/buttons/build/rv32imc/rv32imc.0x20033080.0x1000B000.tbf"
+            "examples/buttons/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
         ))
         .stdout(app)
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = earlgrey_nexysvideo_flash("../../tools/board-runner/app").unwrap();
+    let mut p = earlgrey_nexysvideo_flash("../../../tools/board-runner/app").unwrap();
 
     p.exp_string("Hello World!")?;
 
@@ -262,18 +261,15 @@ fn earlgrey_nexysvideo_console_timeout() -> Result<(), Error> {
     );
     let mut p = earlgrey_nexysvideo_flash(&app).unwrap();
 
-    // Send message
-    p.send_line("Test message")?;
-
-    // Wait 25 seconds
-    let timeout = time::Duration::from_secs(25);
+    // Wait 5 seconds
+    let timeout = time::Duration::from_secs(5);
     thread::sleep(timeout);
 
-    // Send enter
-    p.send_line("")?;
+    // Send a 60 charecter message
+    p.send_line("This is a test message that we are sending. Look at us go...")?;
 
     // Check the message
-    p.exp_string("Userspace call to read console returned: Test message")?;
+    p.exp_string("Userspace call to read console returned: This is a test message that we are sending. Look at us go...")?;
 
     Ok(())
 }
@@ -371,10 +367,67 @@ fn earlgrey_nexysvideo_multi_alarm_test() -> Result<(), Error> {
     Ok(())
 }
 
+fn earlgrey_nexysvideo_sha_hmac_test() -> Result<(), Error> {
+    let app = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("app")
+        .unwrap();
+
+    let mut build = Command::new("cat")
+        .arg(format!(
+            "{}/{}",
+            env::var("LIBTOCK_C_TREE").unwrap(),
+            "examples/tests/hmac/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf"
+        ))
+        .stdout(app)
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let app = OpenOptions::new()
+        .append(true)
+        .create(false)
+        .open("app")
+        .unwrap();
+
+    let mut build = Command::new("cat")
+        .arg(format!(
+            "{}/{}",
+            env::var("LIBTOCK_C_TREE").unwrap(),
+            "examples/tests/sha/build/rv32imc/rv32imc.0x20034080.0x10008000.tbf"
+        ))
+        .stdout(app)
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let mut p = earlgrey_nexysvideo_flash("../../../tools/board-runner/app").unwrap();
+
+    p.exp_string("HMAC Example Test")?;
+    p.exp_string("SHA Example Test")?;
+
+    p.exp_string("Running HMAC...")?;
+    p.exp_string("0: 0xeb")?;
+    p.exp_string("10: 0xde")?;
+
+    p.exp_string("Running SHA...")?;
+    p.exp_string("0: 0x68")?;
+    p.exp_string("10: 0x8f")?;
+    p.exp_string("31: 0x15")?;
+
+    let timeout = time::Duration::from_secs(10);
+    thread::sleep(timeout);
+
+    Ok(())
+}
+
 pub fn all_earlgrey_nexysvideo_tests() {
     println!("Tock board-runner starting...");
     println!();
     println!("Running earlgrey_nexysvideo tests...");
+
     earlgrey_nexysvideo_c_hello()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_c_hello job failed with {}", e));
     earlgrey_nexysvideo_blink()
@@ -406,43 +459,26 @@ pub fn all_earlgrey_nexysvideo_tests() {
     earlgrey_nexysvideo_console_timeout()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_console_timeout job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_malloc_test1()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_malloc_test1 job failed with {}", e));
+    earlgrey_nexysvideo_malloc_test1()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_malloc_test1 job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test1()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test1 job failed with {}", e));
+    earlgrey_nexysvideo_stack_size_test1()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test1 job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
-    // earlgrey_nexysvideo_stack_size_test2()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test2 job failed with {}", e));
+    earlgrey_nexysvideo_stack_size_test2()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_stack_size_test2 job failed with {}", e));
 
     earlgrey_nexysvideo_mpu_stack_growth()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_stack_growth job failed with {}", e));
 
-    // Disabled by default.
-    // Requires:
-    //    STACK_SIZE       = 2048
-    //    APP_HEAP_SIZE    = 4096
-    //    KERNEL_HEAP_SIZE = 2048
     // earlgrey_nexysvideo_mpu_walk_region()
-    // .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_walk_region job failed with {}", e));
+    //     .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_mpu_walk_region job failed with {}", e));
 
     earlgrey_nexysvideo_multi_alarm_test()
         .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_multi_alarm_test job failed with {}", e));
+
+    earlgrey_nexysvideo_sha_hmac_test()
+        .unwrap_or_else(|e| panic!("earlgrey_nexysvideo_sha_hmac_test job failed with {}", e));
 
     println!("earlgrey_nexysvideo SUCCESS.");
 }

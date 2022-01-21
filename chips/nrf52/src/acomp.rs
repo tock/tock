@@ -20,13 +20,13 @@
 //! - Single-pin capacitive sensor support
 //! - Event generation on output changes
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil::analog_comparator;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil::analog_comparator;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 /// The nrf52840 only has one analog comparator, so it does need channels

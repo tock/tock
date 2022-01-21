@@ -7,6 +7,7 @@
 #![crate_name = "lowrisc"]
 #![crate_type = "rlib"]
 
+pub mod csrng;
 pub mod flash_ctrl;
 pub mod gpio;
 pub mod hmac;

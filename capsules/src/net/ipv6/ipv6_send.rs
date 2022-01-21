@@ -22,11 +22,13 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
+
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::leasable_buffer::LeasableBuffer;
+
 use kernel::debug;
-use kernel::hil::time;
+use kernel::hil::time::{self, ConvertTicks};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::ErrorCode;
 
 /// This trait must be implemented by upper layers in order to receive
@@ -274,7 +276,7 @@ impl<'a, A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
             // fragment, before passing the send_done callback back to the client. This
             // could be optimized by checking if it is the last fragment before setting the timer.
             self.alarm
-                .set_alarm(self.alarm.now(), A::ticks_from_ms(100));
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
         }
     }
 }

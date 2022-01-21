@@ -16,7 +16,8 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
 
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 pub struct Dac<'a> {
     dac: &'a dyn hil::dac::DacChannel,
@@ -28,7 +29,7 @@ impl<'a> Dac<'a> {
     }
 }
 
-impl Driver for Dac<'_> {
+impl SyscallDriver for Dac<'_> {
     /// Control the DAC.
     ///
     /// ### `command_num`
@@ -48,5 +49,9 @@ impl Driver for Dac<'_> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
+        Ok(())
     }
 }

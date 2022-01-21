@@ -30,7 +30,7 @@ use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
@@ -57,7 +57,7 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
 pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
-    alarm: A,
+    alarm: &'a A,
     test_counter: Cell<usize>,
     icmp_sender: &'a dyn ICMP6Sender<'a>,
     net_cap: &'static NetworkCapability,
@@ -85,6 +85,8 @@ pub unsafe fn run(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    ipsender_virtual_alarm.setup();
+
     let sixlowpan = static_init!(
         Sixlowpan<
             'static,
@@ -137,12 +139,18 @@ pub unsafe fn run(
         ICMP6SendStruct::new(ip6_sender)
     );
 
+    let alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    alarm.setup();
+
     let icmp_lowpan_test = static_init!(
         LowpanICMPTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         LowpanICMPTest::new(
             //sixlowpan_tx,
             //radio_mac,
-            VirtualMuxAlarm::new(mux_alarm),
+            alarm,
             icmp_send_struct,
             net_cap
         )
@@ -174,7 +182,7 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 
 impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     pub fn new(
-        alarm: A,
+        alarm: &'a A,
         icmp_sender: &'a dyn ICMP6Sender<'a>,
         net_cap: &'static NetworkCapability,
     ) -> LowpanICMPTest<'a, A> {
@@ -191,7 +199,7 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = A::ticks_from_ms(TEST_DELAY_MS);
+        let delta = self.alarm.ticks_from_ms(TEST_DELAY_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delta);
     }

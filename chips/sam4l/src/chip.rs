@@ -5,13 +5,12 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::common::deferred_call;
-use kernel::{Chip, InterruptService};
+use kernel::deferred_call;
+use kernel::platform::chip::{Chip, InterruptService};
 
 pub struct Sam4l<I: InterruptService<Task> + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    scheduler_timer: cortexm4::systick::SysTick,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
@@ -21,7 +20,6 @@ impl<I: InterruptService<Task> + 'static> Sam4l<I> {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            scheduler_timer: cortexm4::systick::SysTick::new(),
             pm,
             interrupt_service,
         }
@@ -67,7 +65,7 @@ impl Sam4lDefaultPeripherals {
             adc: crate::adc::Adc::new(crate::dma::DMAPeripheral::ADCIFE_RX, pm),
             aes: crate::aes::Aes::new(),
             ast: crate::ast::Ast::new(),
-            crccu: crate::crccu::Crccu::new(),
+            crccu: crate::crccu::Crccu::new(crate::crccu::BASE_ADDRESS),
             dac: crate::dac::Dac::new(),
             dma_channels: [
                 DMAChannel::new(DMAChannelNum::DMAChannel00),
@@ -154,7 +152,7 @@ impl Sam4lDefaultPeripherals {
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
     }
 }
-impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
+impl InterruptService<Task> for Sam4lDefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -230,6 +228,7 @@ impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
     unsafe fn service_deferred_call(&self, task: Task) -> bool {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
+            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
         }
         true
     }
@@ -238,8 +237,6 @@ impl kernel::InterruptService<Task> for Sam4lDefaultPeripherals {
 impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -270,14 +267,6 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {

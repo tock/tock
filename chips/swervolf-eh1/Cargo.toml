@@ -2,7 +2,7 @@
 name = "swervolf-eh1"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 swerv = { path = "../swerv" }

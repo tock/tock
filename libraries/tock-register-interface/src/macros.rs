@@ -1,202 +1,5 @@
 //! Macros for cleanly defining peripheral registers.
 
-/// Helper macro for computing bitmask of variable number of bits
-#[macro_export]
-macro_rules! bitmask {
-    ($numbits:expr) => {
-        (1 << ($numbits - 1)) + ((1 << ($numbits - 1)) - 1)
-    };
-}
-
-/// Helper macro for defining register fields.
-#[macro_export]
-macro_rules! register_bitmasks {
-    {
-        // BITFIELD_NAME OFFSET(x)
-        $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+ $(,)?
-        ]
-    } => {
-        $(#[$outer])*
-        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
-    };
-    {
-        // BITFIELD_NAME OFFSET
-        // All fields are 1 bit
-        $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident $offset:expr ),+ $(,)?
-        ]
-    } => {
-        $(#[$outer])*
-        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
-    };
-
-    {
-        // BITFIELD_NAME OFFSET(x) NUMBITS(y)
-        $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+ $(,)?
-        ]
-    } => {
-        $(#[$outer])*
-        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits, []); )*
-    };
-
-    {
-        // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
-        $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
-               $values:tt ),+ $(,)?
-        ]
-    } => {
-        $(#[$outer])*
-        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits,
-                              $values); )*
-    };
-    {
-        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
-                    $offset:expr, $numbits:expr,
-                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+ $(,)?]
-    } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
-        // to seperately support the case of zero-variant enums not supporting non-default
-        // representations.
-        #[allow(non_upper_case_globals)]
-        #[allow(unused)]
-        pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
-
-        #[allow(non_snake_case)]
-        #[allow(unused)]
-        $(#[$outer])*
-        pub mod $field {
-            #[allow(unused_imports)]
-            use $crate::registers::{FieldValue, TryFromValue};
-            use super::$reg_desc;
-
-            $(
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            $(#[$inner])*
-            pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $value);
-            )*
-
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $crate::bitmask!($numbits));
-
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, 0);
-
-            #[allow(dead_code)]
-            #[allow(non_camel_case_types)]
-            #[repr($valtype)] // so that values larger than isize::MAX can be stored
-            $(#[$outer])*
-            pub enum Value {
-                $(
-                    $(#[$inner])*
-                    $valname = $value,
-                )*
-            }
-
-            impl TryFromValue<$valtype> for Value {
-                type EnumType = Value;
-
-                fn try_from(v: $valtype) -> Option<Self::EnumType> {
-                    match v {
-                        $(
-                            $(#[$inner])*
-                            x if x == Value::$valname as $valtype => Some(Value::$valname),
-                        )*
-
-                        _ => Option::None
-                    }
-                }
-            }
-        }
-    };
-    {
-        $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
-                    $offset:expr, $numbits:expr,
-                    []
-    } => { //same pattern as previous match arm, for 0 elements in array. Removes code associated with array.
-        #[allow(non_upper_case_globals)]
-        #[allow(unused)]
-        pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new($crate::bitmask!($numbits), $offset);
-
-        #[allow(non_snake_case)]
-        #[allow(unused)]
-        $(#[$outer])*
-        pub mod $field {
-            #[allow(unused_imports)]
-            use $crate::registers::{FieldValue, TryFromValue};
-            use super::$reg_desc;
-
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $crate::bitmask!($numbits));
-
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, 0);
-
-            #[allow(dead_code)]
-            #[allow(non_camel_case_types)]
-            $(#[$outer])*
-            pub enum Value {}
-
-            impl TryFromValue<$valtype> for Value {
-                type EnumType = Value;
-
-                fn try_from(_v: $valtype) -> Option<Self::EnumType> {
-                    Option::None
-                }
-            }
-        }
-    };
-}
-
-/// Define register types and fields.
-#[macro_export]
-macro_rules! register_bitfields {
-    {
-        $valtype:ident, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),* $(,)?
-    } => {
-        $(
-            #[allow(non_snake_case)]
-            $(#[$inner])*
-            $vis mod $reg {
-                // Visibility note: This is left always `pub` as it is not
-                // meaningful to restrict access to the `Register` element of
-                // the register module if the module itself is in scope
-                //
-                // (if you can access $reg, you can access $reg::Register)
-                #[derive(Clone, Copy)]
-                pub struct Register;
-                impl $crate::registers::RegisterLongName for Register {}
-
-                use $crate::registers::Field;
-
-                $crate::register_bitmasks!( $valtype, Register, $fields );
-            }
-        )*
-    }
-}
-
 #[macro_export]
 macro_rules! register_fields {
     // Macro entry point.
@@ -276,44 +79,152 @@ macro_rules! register_fields {
     };
 }
 
+// TODO: All of the rustdoc tests below use a `should_fail` attribute instead of
+// `should_panic` because a const panic will result in a failure to evaluate a
+// constant value, and thus a compiler error. However, this means that these
+// examples could break for unrelated reasons, trigger a compiler error, but not
+// test the desired assertion any longer. This should be switched to a
+// `should_panic`-akin attribute which works for const panics, once that is
+// available.
+/// Statically validate the size and offsets of the fields defined
+/// within the register struct through the [`register_structs!`]
+/// macro.
+///
+/// This macro expands to an expression which contains static
+/// assertions about various parameters of the individual fields in
+/// the register struct definition. It will test for:
+///
+/// - Proper start offset of padding fields. It will fail in cases
+///   such as
+///
+///   ```should_fail
+///   # #[macro_use]
+///   # extern crate tock_registers;
+///   # use tock_registers::register_structs;
+///   # use tock_registers::registers::ReadWrite;
+///   register_structs! {
+///       UartRegisters {
+///           (0x04 => _reserved),
+///           (0x08 => foo: ReadWrite<u32>),
+///           (0x0C => @END),
+///       }
+///   }
+///   # // This is required for rustdoc to not place this code snipped into an
+///   # // fn main() {...} function.
+///   # fn main() { }
+///   ```
+///
+///   In this example, the start offset of `_reserved` should have been `0x00`
+///   instead of `0x04`.
+///
+/// - Correct start offset and end offset (start offset of next field) in actual
+///   fields. It will fail in cases such as
+///
+///   ```should_fail
+///   # #[macro_use]
+///   # extern crate tock_registers;
+///   # use tock_registers::register_structs;
+///   # use tock_registers::registers::ReadWrite;
+///   register_structs! {
+///       UartRegisters {
+///           (0x00 => foo: ReadWrite<u32>),
+///           (0x05 => bar: ReadWrite<u32>),
+///           (0x08 => @END),
+///       }
+///   }
+///   # // This is required for rustdoc to not place this code snipped into an
+///   # // fn main() {...} function.
+///   # fn main() { }
+///   ```
+///
+///   In this example, the start offset of `bar` and thus the end offset of
+///   `foo` should have been `0x04` instead of `0x05`.
+///
+/// - Invalid alignment of fields.
+///
+/// - That the end marker matches the actual generated struct size. This will
+///   fail in cases such as
+///
+///   ```should_fail
+///   # #[macro_use]
+///   # extern crate tock_registers;
+///   # use tock_registers::register_structs;
+///   # use tock_registers::registers::ReadWrite;
+///   register_structs! {
+///       UartRegisters {
+///           (0x00 => foo: ReadWrite<u32>),
+///           (0x04 => bar: ReadWrite<u32>),
+///           (0x10 => @END),
+///       }
+///   }
+///   # // This is required for rustdoc to not place this code snipped into an
+///   # // fn main() {...} function.
+///   # fn main() { }
+///   ```
 #[macro_export]
 macro_rules! test_fields {
+    // This macro works by iterating over all defined fields, until it hits an
+    // ($size:expr => @END) field. Each iteration generates an expression which,
+    // when evaluated, yields the current byte offset in the fields. Thus, when
+    // reading a field or padding, the field or padding length must be added to
+    // the returned size.
+    //
+    // By feeding this expression recursively into the macro, deeper invocations
+    // can continue validating fields through knowledge of the current offset
+    // and the remaining fields.
+    //
+    // The nested expression returned by this macro is guaranteed to be
+    // const-evaluable.
+
     // Macro entry point.
     (@root $struct:ident $(<$life:lifetime>)? { $($input:tt)* } ) => {
-        $crate::test_fields!(@munch $struct $(<$life>)? sum ($($input)*) -> {});
+        // Start recursion at offset 0.
+        $crate::test_fields!(@munch $struct $(<$life>)? ($($input)*) : 0);
     };
 
-    // Print the tests once all fields have been munched.
-    // We wrap the tests in a "detail" function that potentially takes a lifetime parameter, so that
-    // the lifetime is declared inside it - therefore all types using the lifetime are well-defined.
-    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
+    // Consume the ($size:expr => @END) field, which MUST be the last field in
+    // the register struct.
+    (@munch $struct:ident $(<$life:lifetime>)?
         (
             $(#[$attr_end:meta])*
             ($size:expr => @END),
         )
-        -> {$($stmts:block)*}
+        : $stmts:expr
     ) => {
-        {
-        fn detail $(<$life>)? ()
-        {
-            let mut $sum: usize = 0;
-            $($stmts)*
-            let size = core::mem::size_of::<$struct $(<$life>)?>();
-            assert!(
-                size == $size,
-                "Invalid size for struct {} (expected {:#X} but was {:#X})",
-                stringify!($struct),
-                $size,
-                size
-            );
-        }
+        const _: () = {
+            // We've reached the end! Normally it is sufficient to compare the
+            // struct's size to the reported end offet. However, we must
+            // evaluate the previous iterations' expressions for them to have an
+            // effect anyways, so we can perform an internal sanity check on
+            // this value as well.
+            const sum: usize = $stmts;
 
-        detail();
-        }
+            const fn struct_size $(<$life>)? () -> usize
+            {
+                core::mem::size_of::<$struct $(<$life>)?>()
+            }
+
+            assert!(
+                struct_size() == $size,
+                "{}",
+                concat!(
+                    "Invalid size for struct ",
+                    stringify!($struct),
+                    " (expected ",
+                    $size,
+                    ", actual struct size differs)",
+                ),
+            );
+
+            // Internal sanity check. If we have reached this point and
+            // correctly iterated over the struct's fields, the current offset
+            // and the claimed end offset MUST be equal.
+            assert!(sum == $size);
+        };
     };
 
-    // Munch field.
-    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
+    // Consume a proper ($offset:expr => $field:ident: $ty:ty) field.
+    (@munch $struct:ident $(<$life:lifetime>)?
         (
             $(#[$attr:meta])*
             ($offset_start:expr => $vis:vis $field:ident: $ty:ty),
@@ -321,46 +232,77 @@ macro_rules! test_fields {
             ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
         )
-        -> {$($output:block)*}
+        : $output:expr
     ) => {
         $crate::test_fields!(
-            @munch $struct $(<$life>)? $sum (
+            @munch $struct $(<$life>)? (
                 $(#[$attr_next])*
                 ($offset_end => $($next)*),
                 $($after)*
-            ) -> {
-                $($output)*
+            ) : {
+                // Evaluate the previous iterations' expression to determine the
+                // current offset.
+                const sum: usize = $output;
+
+                // Validate the start offset of the current field. This check is
+                // mostly relevant for when this is the first field in the
+                // struct, as any subsequent start offset error will be detected
+                // by an end offset error of the previous field.
+                assert!(
+                    sum == $offset_start,
+                    "{}",
+                    concat!(
+                        "Invalid start offset for field ",
+                        stringify!($field),
+                        " (expected ",
+                        $offset_start,
+                        " but actual value differs)",
+                    ),
+                );
+
+                // Validate that the start offset of the current field within
+                // the struct matches the type's minimum alignment constraint.
+                const align: usize = core::mem::align_of::<$ty>();
+                // Clippy can tell that (align - 1) is zero for some fields, so
+                // we allow this lint and further encapsule the assert! as an
+                // expression, such that the allow attr can apply.
+                #[allow(clippy::bad_bit_mask)]
                 {
                     assert!(
-                        $sum == $offset_start,
-                        "Invalid start offset for field {} (expected {:#X} but was {:#X})",
-                        stringify!($field),
-                        $offset_start,
-                        $sum
-                    );
-                    let align = core::mem::align_of::<$ty>();
-                    assert!(
-                        $sum & (align - 1) == 0,
-                        "Invalid alignment for field {} (expected alignment of {:#X} but offset was {:#X})",
-                        stringify!($field),
-                        align,
-                        $sum
-                    );
-                    $sum += core::mem::size_of::<$ty>();
-                    assert!(
-                        $sum == $offset_end,
-                        "Invalid end offset for field {} (expected {:#X} but was {:#X})",
-                        stringify!($field),
-                        $offset_end,
-                        $sum
+                        sum & (align - 1) == 0,
+                        "{}",
+                        concat!(
+                            "Invalid alignment for field ",
+                            stringify!($field),
+                            " (offset differs from expected)",
+                        ),
                     );
                 }
+
+                // Add the current field's length to the offset and validate the
+                // end offset of the field based on the next field's claimed
+                // start offset.
+                const new_sum: usize = sum + core::mem::size_of::<$ty>();
+                assert!(
+                    new_sum == $offset_end,
+                    "{}",
+                    concat!(
+                        "Invalid end offset for field ",
+                        stringify!($field),
+                        " (expected ",
+                        $offset_end,
+                        " but actual value differs)",
+                    ),
+                );
+
+                // Provide the updated offset to the next iteration
+                new_sum
             }
         );
     };
 
-    // Munch padding.
-    (@munch $struct:ident $(<$life:lifetime>)? $sum:ident
+    // Consume a padding ($offset:expr => $padding:ident) field.
+    (@munch $struct:ident $(<$life:lifetime>)?
         (
             $(#[$attr:meta])*
             ($offset_start:expr => $padding:ident),
@@ -368,31 +310,41 @@ macro_rules! test_fields {
             ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
         )
-        -> {$($output:block)*}
+        : $output:expr
     ) => {
         $crate::test_fields!(
-            @munch $struct $(<$life>)? $sum (
+            @munch $struct $(<$life>)? (
                 $(#[$attr_next])*
                 ($offset_end => $($next)*),
                 $($after)*
-            ) -> {
-                $($output)*
-                {
-                    assert!(
-                        $sum == $offset_start,
-                        "Invalid start offset for padding {} (expected {:#X} but was {:#X})",
+            ) : {
+                // Evaluate the previous iterations' expression to determine the
+                // current offset.
+                const sum: usize = $output;
+
+                // Validate the start offset of the current padding field. This
+                // check is mostly relevant for when this is the first field in
+                // the struct, as any subsequent start offset error will be
+                // detected by an end offset error of the previous field.
+                assert!(
+                    sum == $offset_start,
+                    concat!(
+                        "Invalid start offset for padding ",
                         stringify!($padding),
+                        " (expected ",
                         $offset_start,
-                        $sum
-                    );
-                    $sum = $offset_end;
-                }
+                        " but actual value differs)",
+                    ),
+                );
+
+                // The padding field is automatically sized. Provide the start
+                // offset of the next field to the next iteration.
+                $offset_end
             }
         );
     };
 }
 
-#[cfg(not(feature = "no_std_unit_tests"))]
 #[macro_export]
 macro_rules! register_structs {
     {
@@ -405,33 +357,15 @@ macro_rules! register_structs {
     } => {
         $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name $(<$life>)? { $($fields)* } ); )*
 
-        #[cfg(test)]
-        mod test_register_structs {
+        mod static_validate_register_structs {
         $(
             #[allow(non_snake_case)]
             mod $name {
                 use super::super::*;
-                #[test]
-                fn test_offsets() {
-                    $crate::test_fields!(@root $name $(<$life>)? { $($fields)* } )
-                }
+
+                $crate::test_fields!(@root $name $(<$life>)? { $($fields)* } );
             }
         )*
         }
-    };
-}
-
-#[cfg(feature = "no_std_unit_tests")]
-#[macro_export]
-macro_rules! register_structs {
-    {
-        $(
-            $(#[$attr:meta])*
-            $vis_struct:vis $name:ident $(<$life:lifetime>)? {
-                $( $fields:tt )*
-            }
-        ),*
-    } => {
-        $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name $(<$life>)? { $($fields)* } ); )*
     };
 }

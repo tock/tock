@@ -38,8 +38,9 @@ Tock Guides
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
 - **[Style](Style.md)** - Stylistic aspects of Tock code.
+- **[Code Size](CodeSize.md)** - Guide for how to write code and configure Tock to reduce code size.
 
 ### Management of Tock
 - **[Working Groups](wg)** - Development groups for specific aspects of Tock.
-- **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
-
+- **[Code Review Process](CodeReview.md)** - Process for pull request reviews.
+- **[Tock Management](Maintenance.md)** - Management processes for Tock, including releases.

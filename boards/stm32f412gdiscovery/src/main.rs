@@ -11,32 +11,31 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::rng::RngComponent;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
-use kernel::Platform;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
 
 /// Support routines for debugging I/O.
 pub mod io;
 
-#[allow(dead_code)]
-mod multi_alarm_test;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None, None, None, None];
 
 static mut CHIP: Option<&'static stm32f412g::chip::Stm32f4xx<Stm32f412gDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -48,8 +47,11 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedLow<'static, stm32f412g::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, stm32f412g::gpio::Pin<'static>>,
+        4,
+    >,
     button: &'static capsules::button::Button<'static, stm32f412g::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -61,13 +63,16 @@ struct STM32F412GDiscovery {
     screen: &'static capsules::screen::Screen<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for STM32F412GDiscovery {
+impl SyscallDriverLookup for STM32F412GDiscovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -83,6 +88,45 @@ impl Platform for STM32F412GDiscovery {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
+    }
+}
+
+impl
+    KernelResources<
+        stm32f412g::chip::Stm32f4xx<
+            'static,
+            stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals<'static>,
+        >,
+    > for STM32F412GDiscovery
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm4::systick::SysTick;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
     }
 }
 
@@ -118,12 +162,10 @@ unsafe fn setup_dma(
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f412g::syscfg::Syscfg,
-    exti: &stm32f412g::exti::Exti,
     i2c1: &stm32f412g::i2c::I2C,
     gpio_ports: &'static stm32f412g::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
-    use stm32f412g::exti::LineId;
     use stm32f412g::gpio::{AlternateFunction, Mode, PinId, PortId};
 
     syscfg.enable_clock();
@@ -155,63 +197,33 @@ unsafe fn set_pin_primary_functions(
     // uncomment this if you do not plan to use the joystick up, as they both use Exti0
     // joystick selection is connected on pa00
     // gpio_ports.get_pin(PinId::PA00).map(|pin| {
-    //     // By default, upon reset, the pin is in input mode, with no internal
-    //     // pull-up, no internal pull-down (i.e., floating).
-    //     //
-    //     // Only set the mapping between EXTI line and the Pin and let capsule do
-    //     // the rest.
-    //     exti.associate_line_gpiopin(LineId::Exti0, pin);
+    //     pin.enable_interrupt();
     // });
-    // // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    // cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI0).enable();
 
     // joystick down is connected on pg01
     gpio_ports.get_pin(PinId::PG01).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti1, pin);
+        pin.enable_interrupt();
     });
-    // EXTI1 interrupts is delivered at IRQn 7 (EXTI1)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI1).enable();
 
     // joystick left is connected on pf15
     gpio_ports.get_pin(PinId::PF15).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti15, pin);
+        pin.enable_interrupt();
     });
-    // EXTI15_10 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI15_10).enable();
 
     // joystick right is connected on pf14
     gpio_ports.get_pin(PinId::PF14).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti14, pin);
+        pin.enable_interrupt();
     });
-    // EXTI15_10 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI15_10).enable();
 
     // joystick up is connected on pg00
     gpio_ports.get_pin(PinId::PG00).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti0, pin);
+        pin.enable_interrupt();
     });
-    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
-    cortexm4::nvic::Nvic::new(stm32f412g::nvic::EXTI0).enable();
+
+    // enable interrupt for D0
+    gpio_ports.get_pin(PinId::PG09).map(|pin| {
+        pin.enable_interrupt();
+    });
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
@@ -246,12 +258,7 @@ unsafe fn set_pin_primary_functions(
 
     // FT6206 interrupt
     gpio_ports.get_pin(PinId::PG05).map(|pin| {
-        // By default, upon reset, the pin is in input mode, with no internal
-        // pull-up, no internal pull-down (i.e., floating).
-        //
-        // Only set the mapping between EXTI line and the Pin and let capsule do
-        // the rest.
-        exti.associate_line_gpiopin(LineId::Exti5, pin);
+        pin.enable_interrupt();
     });
 
     // ADC
@@ -400,12 +407,7 @@ pub unsafe fn main() {
     );
 
     // We use the default HSI 16Mhz clock
-    set_pin_primary_functions(
-        syscfg,
-        &base_peripherals.exti,
-        &base_peripherals.i2c1,
-        &base_peripherals.gpio_ports,
-    );
+    set_pin_primary_functions(syscfg, &base_peripherals.i2c1, &base_peripherals.gpio_ports);
 
     setup_dma(
         dma1,
@@ -450,35 +452,20 @@ pub unsafe fn main() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
-
-    // // Setup the process inspection console
-    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    // process_console_uart.setup();
-    // pub struct ProcessConsoleCapability;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
-    // let process_console = static_init!(
-    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
-    //     capsules::process_console::ProcessConsole::new(
-    //         process_console_uart,
-    //         &mut capsules::process_console::WRITE_BUF,
-    //         &mut capsules::process_console::READ_BUF,
-    //         &mut capsules::process_console::COMMAND_BUF,
-    //         board_kernel,
-    //         ProcessConsoleCapability,
-    //     )
-    // );
-    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
-    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
-    // process_console.start();
 
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, stm32f412g::gpio::Pin>,
         LedLow::new(
             base_peripherals
@@ -504,14 +491,12 @@ pub unsafe fn main() {
                 .get_pin(stm32f412g::gpio::PinId::PE03)
                 .unwrap()
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, stm32f412g::gpio::Pin>
     ));
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f412g::gpio::Pin,
             // Select
@@ -570,12 +555,17 @@ pub unsafe fn main() {
         components::alarm_mux_component_helper!(stm32f412g::tim2::Tim2),
     );
 
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(stm32f412g::tim2::Tim2));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(stm32f412g::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f412g::gpio::Pin,
             // Arduino like RX/TX
@@ -608,7 +598,8 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng = RngComponent::new(board_kernel, &peripherals.trng).finalize(());
+    let rng =
+        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
 
     // FT6206
 
@@ -654,18 +645,27 @@ pub unsafe fn main() {
             base_peripherals
                 .gpio_ports
                 .get_pin(stm32f412g::gpio::PinId::PD11)
-                .unwrap()
         ),
     );
 
     let _ = tft.init();
 
-    let screen = components::screen::ScreenComponent::new(board_kernel, tft, Some(tft))
-        .finalize(components::screen_buffer_size!(57600));
+    let screen = components::screen::ScreenComponent::new(
+        board_kernel,
+        capsules::screen::DRIVER_NUM,
+        tft,
+        Some(tft),
+    )
+    .finalize(components::screen_buffer_size!(57600));
 
-    let touch =
-        components::touch::TouchComponent::new(board_kernel, ft6x06, Some(ft6x06), Some(tft))
-            .finalize(());
+    let touch = components::touch::MultiTouchComponent::new(
+        board_kernel,
+        capsules::touch::DRIVER_NUM,
+        ft6x06,
+        Some(ft6x06),
+        Some(tft),
+    )
+    .finalize(());
 
     touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
@@ -688,7 +688,8 @@ pub unsafe fn main() {
             adc_mux
         ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature = board_kernel.create_grant(&grant_cap);
+    let grant_temperature =
+        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
@@ -720,29 +721,55 @@ pub unsafe fn main() {
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
             .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
 
-    let adc_syscall = components::adc::AdcVirtualComponent::new(board_kernel).finalize(
-        components::adc_syscall_component_helper!(
-            adc_channel_0,
-            adc_channel_1,
-            adc_channel_2,
-            adc_channel_3,
-            adc_channel_4,
-            adc_channel_5
-        ),
-    );
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                adc_channel_0,
+                adc_channel_1,
+                adc_channel_2,
+                adc_channel_3,
+                adc_channel_4,
+                adc_channel_5
+            ));
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        stm32f412g::tim2::Tim2
+    ));
+    let _ = process_console.start();
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
 
     let stm32f412g = STM32F412GDiscovery {
-        console: console,
-        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        led: led,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
+        console,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
+        led,
+        button,
+        alarm,
+        gpio,
         adc: adc_syscall,
-        touch: touch,
-        screen: screen,
+        touch,
+        screen,
         temperature: temp,
-        rng: rng,
+        rng,
+
+        scheduler,
+        systick: cortexm4::systick::SysTick::new(),
     };
 
     // // Optional kernel tests
@@ -776,7 +803,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -796,17 +823,15 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-
     //Uncomment to run multi alarm test
-    //multi_alarm_test::run_multi_alarm(mux_alarm);
+    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(components::multi_alarm_test_component_buf!(stm32f412g::tim2::Tim2))
+    .run();*/
 
     board_kernel.kernel_loop(
         &stm32f412g,
         chip,
         Some(&stm32f412g.ipc),
-        scheduler,
         &main_loop_capability,
     );
 }

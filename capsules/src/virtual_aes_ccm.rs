@@ -54,7 +54,7 @@
 //! ccm_mux.initialize_callback_handle(
 //!     dynamic_deferred_caller
 //!         .register(ccm_mux)
-//!         .expect("no deferred call slot available for ccm mux"),
+//!         .unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
 //! );
 //! const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 //! let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -80,20 +80,22 @@
 //!
 //! ```
 
-use crate::net::stream::SResult;
-use crate::net::stream::{encode_bytes, encode_u16};
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::debug;
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::common::{List, ListLink, ListNode};
-use kernel::debug;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
+    AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
 };
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
+
+use crate::net::stream::SResult;
+use crate::net::stream::{encode_bytes, encode_u16};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {
@@ -135,41 +137,33 @@ impl CryptFunctionParameters {
     }
 }
 
-pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
+pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     aes: &'a A,
-    clients: List<'a, VirtualAES128CCM<'a, A>>,
+    client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
+    ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
     inflight: OptionalCell<&'a VirtualAES128CCM<'a, A>>,
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> {
     pub fn new(aes: &'a A, deferred_caller: &'a DynamicDeferredCall) -> MuxAES128CCM<'a, A> {
         aes.enable(); // enable the hardware, in case it's forgotten elsewhere
         MuxAES128CCM {
             aes: aes,
-            clients: List::new(),
+            client: OptionalCell::empty(),
+            ccm_clients: List::new(),
             inflight: OptionalCell::empty(),
             deferred_caller: deferred_caller,
             handle: OptionalCell::empty(),
         }
     }
 
-    /// manually re-enable the hardware
-    pub fn enable(&self) {
-        self.aes.enable();
-    }
-
-    /// disable the underlying hardware
-    pub fn disable(&self) {
-        self.aes.disable();
-    }
-
-    /// inorder to receive callbacks correctly, please call  
+    /// inorder to receive callbacks correctly, please call
     /// ```rust
     /// mux.initialize_callback_handle(
     ///     dynamic_deferred_caller.register(mux)
-    ///     .expect("no deferred call slot available for ccm mux")
+    ///     .unwrap() // Unwrap fail = no deferred call slot available for ccm mux
     /// );
     /// ```
     /// after the creation of the mux
@@ -187,7 +181,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
 
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.clients.iter().find(|node| node.queued_up.is_some());
+            let mnode = self
+                .ccm_clients
+                .iter()
+                .find(|node| node.queued_up.is_some());
             mnode.map(|node| {
                 self.inflight.set(node);
                 let parameters: CryptFunctionParameters = node.queued_up.take().unwrap();
@@ -195,17 +192,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
                 let _ = node.crypt_r(parameters).map_err(|(ecode, _)| {
                     // notice that we didn't put the parameters back...
                     // because it's already eaten
-                    if node.crypt_client.is_none() {
-                        debug!(
-                            "virtual_aes_ccm: no crypt_client is registered in VirtualAES128CCM"
-                        );
+                    if node.ccm_client.is_none() {
+                        debug!("virtual_aes_ccm: no ccm_client is registered in VirtualAES128CCM");
                     }
                     if node.buf.is_none() {
                         debug!("virtual_aes_ccm: no buffer is binded with VirtualAES128CCM");
                     }
                     // notify the client that there's a failure
                     node.buf.take().map(|buf| {
-                        node.crypt_client.map(move |client| {
+                        node.ccm_client.map(move |client| {
                             client.crypt_done(buf, Err(ecode), false);
                         });
                     });
@@ -219,39 +214,44 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> MuxAES128CCM<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> DynamicDeferredCallClient for MuxAES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DynamicDeferredCallClient
+    for MuxAES128CCM<'a, A>
+{
     fn call(&self, _handle: DeferredCallHandle) {
         self.do_next_op();
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
     for MuxAES128CCM<'a, A>
 {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.inflight.is_none() {
-            panic!("MuxAES128CCM: crypt_done is called but inflight is none!");
+            self.client.map(move |client| {
+                client.crypt_done(source, dest);
+            });
+            return;
         }
         self.inflight.map(move |vaes_ccm| {
             // vaes_ccm.crypt_done might call additional start_ccm_crypt / start_ccm_auth
             // when the encryption is *really* done, inflight will be cleared by remove_from_queue
             // and it will call do_next_op to perform the next operation
             // self.do_next_op() will be called when the encryption is failed or is really done
-            // search for self.crypt_client
+            // search for self.ccm_client
             vaes_ccm.crypt_done(source, dest);
         });
     }
 }
 
-pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
+pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     mux: &'a MuxAES128CCM<'a, A>,
     aes: &'a A,
     next: ListLink<'a, VirtualAES128CCM<'a, A>>,
 
-    crypt_buf: TakeCell<'a, [u8]>,
+    crypt_buf: TakeCell<'static, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
+    ccm_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
@@ -265,7 +265,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     queued_up: OptionalCell<CryptFunctionParameters>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a, A> {
     pub fn new(
         mux: &'a MuxAES128CCM<'a, A>,
         crypt_buf: &'static mut [u8],
@@ -277,7 +277,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
-            crypt_client: OptionalCell::empty(),
+            ccm_client: OptionalCell::empty(),
             state: Cell::new(CCMState::Idle),
             confidential: Cell::new(false),
             encrypting: Cell::new(false),
@@ -292,7 +292,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
 
     /// bind itself to self.mux, should be called after static_init!
     pub fn setup(&'a self) {
-        self.mux.clients.push_head(self);
+        self.mux.ccm_clients.push_head(self);
     }
 
     /// Prepares crypt_buf with the input for the CCM* authentication and
@@ -415,6 +415,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             panic!("Called start_ccm_auth when not idle");
         }
 
+        // We are performing CBC-MAC, so always encrypting.
+        self.aes.set_mode_aes128cbc(true)?;
+
         let iv = [0u8; AES128_BLOCK_SIZE];
         let res = self.aes.set_iv(&iv);
         if res != Ok(()) {
@@ -437,8 +440,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             self.crypt_auth_len.get()
         };
 
-        // We are performing CBC-MAC, so always encrypting.
-        self.aes.set_mode_aes128cbc(true);
         self.aes.start_message();
         match self.aes.crypt(None, crypt_buf, 0, auth_end) {
             None => {
@@ -468,6 +469,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         //     }
         // });
 
+        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
+
+        let res = self.aes.set_key(&self.key.get());
+        if res != Ok(()) {
+            return res;
+        }
+
         let mut iv = [0u8; AES128_BLOCK_SIZE];
         // flags = reserved | reserved | 0 | (L - 1)
         // Since L = 2, flags = 1.
@@ -478,7 +486,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
             return res;
         }
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get());
         self.aes.start_message();
         let crypt_buf = match self.crypt_buf.take() {
             None => panic!("Cannot perform CCM* encrypt because crypt_buf is not present."),
@@ -536,7 +543,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.state.set(CCMState::Idle);
         self.remove_from_queue();
         self.mux.do_next_op();
-        self.crypt_client.map(|client| {
+        self.ccm_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, Ok(()), tag_valid);
             });
@@ -574,7 +581,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
         self.state.set(CCMState::Idle);
         self.remove_from_queue();
         self.mux.do_next_op();
-        self.crypt_client.map(|client| {
+        self.ccm_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, Ok(()), tag_valid);
             });
@@ -664,11 +671,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> VirtualAES128CCM<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::AES128CCM<'a>
     for VirtualAES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a dyn symmetric_encryption::CCMClient) {
-        self.crypt_client.set(client);
+        self.ccm_client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -727,10 +734,96 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::AES128<'a>
     for VirtualAES128CCM<'a, A>
 {
-    fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
+    fn enable(&self) {
+        self.aes.enable();
+    }
+
+    fn disable(&self) {
+        self.aes.disable();
+    }
+
+    fn set_client(&'a self, client: &'a dyn symmetric_encryption::Client<'a>) {
+        self.mux.client.set(client);
+    }
+
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.set_key(key)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.set_iv(iv)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn start_message(&self) {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.start_message()
+        }
+    }
+
+    fn crypt(
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
+        start_index: usize,
+        stop_index: usize,
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.crypt(source, dest, start_index, stop_index)
+        } else {
+            Some((Err(ErrorCode::BUSY), source, dest))
+        }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128Ctr for VirtualAES128CCM<'a, A> {
+    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.set_mode_aes128ctr(encrypting)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128ECB for VirtualAES128CCM<'a, A> {
+    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.set_mode_aes128ecb(encrypting)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128CBC for VirtualAES128CCM<'a, A> {
+    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        if self.mux.inflight.is_none() {
+            self.mux.aes.set_mode_aes128cbc(encrypting)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
+    for VirtualAES128CCM<'a, A>
+{
+    fn crypt_done(&self, _: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {
             CCMState::Idle => {}
@@ -763,16 +856,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
 
                     let res = self.start_ccm_encrypt();
                     if res != Ok(()) {
-                        // Return client buffer to client
-                        self.buf.take().map(|buf| {
-                            self.crypt_client.map(move |client| {
-                                client.crypt_done(buf, res, false);
-                            });
-                        });
                         // The operation fails, immediately remove the request and perform the next operation
                         self.state.set(CCMState::Idle);
                         self.remove_from_queue();
                         self.mux.do_next_op();
+
+                        // Return client buffer to client
+                        self.buf.take().map(|buf| {
+                            self.ccm_client.map(move |client| {
+                                client.crypt_done(buf, res, false);
+                            });
+                        });
                     }
                 } else {
                     self.reverse_end_ccm();
@@ -799,9 +893,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     });
                     let res = self.start_ccm_auth();
                     if res != Ok(()) {
-                        // Return client buffer to client
+                        // Return client buffer to ccm_clients
                         self.buf.take().map(|buf| {
-                            self.crypt_client.map(move |client| {
+                            self.ccm_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
                             });
                         });
@@ -817,7 +911,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
 }
 
 // Fit in the linked list
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> ListNode<'a, VirtualAES128CCM<'a, A>>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> ListNode<'a, VirtualAES128CCM<'a, A>>
     for VirtualAES128CCM<'a, A>
 {
     fn next(&'a self) -> &'a ListLink<'a, VirtualAES128CCM<'a, A>> {

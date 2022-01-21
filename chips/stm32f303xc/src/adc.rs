@@ -2,12 +2,12 @@
 
 use crate::rcc;
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
@@ -590,7 +590,8 @@ impl<'a> Adc<'a> {
             // Clear interrupt
             self.registers.ier.modify(IER::EOCIE::CLEAR);
             let data = self.registers.dr.read(DR::RDATA);
-            self.client.map(|client| client.sample_ready(data as u16));
+            self.client
+                .map(|client| client.sample_ready((data as u16) << 4));
             if self.status.get() == ADCStatus::Continuous {
                 self.registers.ier.modify(IER::EOCIE::SET);
             }

@@ -22,6 +22,7 @@ use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::spi::SpiMasterDevice;
 use kernel::hil::time::Alarm;
 use kernel::static_init_half;
 
@@ -114,6 +115,7 @@ impl<
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux_alarm)
         );
+        mx25r6435f_virtual_alarm.setup();
 
         let mx25r6435f = static_init_half!(
             static_buffer.2,
@@ -132,6 +134,7 @@ impl<
                 Some(self.hold_pin)
             )
         );
+        mx25r6435f_spi.setup();
         mx25r6435f_spi.set_client(mx25r6435f);
         mx25r6435f_virtual_alarm.set_alarm_client(mx25r6435f);
         mx25r6435f

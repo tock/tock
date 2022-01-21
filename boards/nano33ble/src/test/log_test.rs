@@ -32,15 +32,15 @@
 use capsules::log;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::common::cells::{NumericCellExt, TakeCell};
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt, InterruptEdge};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::static_init;
 use kernel::storage_volume;
+use kernel::utilities::cells::{NumericCellExt, TakeCell};
 use kernel::ErrorCode;
 use nrf52840::{
     gpio::{GPIOPin, Pin},
@@ -79,10 +79,16 @@ pub unsafe fn run(
             .expect("no deferred call slot available for log storage"),
     );
 
+    let alarm = static_init!(
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    alarm.setup();
+
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Rtc>>,
-        LogTest::new(log, &mut BUFFER, VirtualMuxAlarm::new(mux_alarm), &TEST_OPS)
+        LogTest::new(log, &mut BUFFER, alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -170,10 +176,10 @@ enum TestOp {
 
 type Log = log::Log<'static, Nvmc>;
 
-struct LogTest<A: Alarm<'static>> {
+struct LogTest<A: 'static + Alarm<'static>> {
     log: &'static Log,
     buffer: TakeCell<'static, [u8]>,
-    alarm: A,
+    alarm: &'static A,
     state: Cell<TestState>,
     ops: &'static [TestOp],
     op_index: Cell<usize>,
@@ -182,11 +188,11 @@ struct LogTest<A: Alarm<'static>> {
     write_val: Cell<u64>,
 }
 
-impl<A: Alarm<'static>> LogTest<A> {
+impl<A: 'static + Alarm<'static>> LogTest<A> {
     fn new(
         log: &'static Log,
         buffer: &'static mut [u8],
-        alarm: A,
+        alarm: &'static A,
         ops: &'static [TestOp],
     ) -> LogTest<A> {
         // Recover test state.
@@ -439,7 +445,7 @@ impl<A: Alarm<'static>> LogTest<A> {
     }
 
     fn wait(&self) {
-        let delay = A::ticks_from_ms(WAIT_MS);
+        let delay = self.alarm.ticks_from_ms(WAIT_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delay);
     }

@@ -1,10 +1,10 @@
 //! Internal Timer
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::register_bitfields;
 use kernel::hil::time;
-use kernel::hil::time::{Alarm, Counter, Ticks, Ticks32, Time};
+use kernel::hil::time::{Alarm, ConvertTicks, Counter, Ticks, Ticks32, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::register_bitfields;
 use kernel::ErrorCode;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
@@ -85,7 +85,7 @@ impl time::Time for Timer<'_> {
 }
 
 impl<'a> Counter<'a> for Timer<'a> {
-    fn set_overflow_client(&'a self, _client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {
         // We have no way to know when this happens
     }
 
@@ -180,10 +180,10 @@ impl<'a> Alarm<'a> for Timer<'a> {
     }
 }
 
-impl kernel::SchedulerTimer for Timer<'_> {
+impl kernel::platform::scheduler_timer::SchedulerTimer for Timer<'_> {
     fn start(&self, us: u32) {
         let now = self.now();
-        let tics = Self::ticks_from_us(us);
+        let tics = self.ticks_from_us(us);
         self.set_alarm(now, tics);
     }
 

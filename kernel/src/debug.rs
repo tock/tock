@@ -49,19 +49,21 @@
 //! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
 
-use crate::ErrorCode;
 use core::cell::Cell;
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::str;
 
-use crate::common::cells::NumericCellExt;
-use crate::common::cells::{MapCell, TakeCell};
-use crate::common::queue::Queue;
-use crate::common::ring_buffer::RingBuffer;
+use crate::collections::queue::Queue;
+use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
+use crate::platform::chip::Chip;
 use crate::process::Process;
-use crate::Chip;
+use crate::process::ProcessPrinter;
+use crate::utilities::binary_write::BinaryToWriteWrapper;
+use crate::utilities::cells::NumericCellExt;
+use crate::utilities::cells::{MapCell, TakeCell};
+use crate::ErrorCode;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
@@ -99,35 +101,37 @@ pub trait IoWrite {
 /// the system once this function returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip>(
+pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
+    process_printer: &'static Option<&'static PP>,
 ) {
     panic_begin(nop);
     panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
     panic_cpu_state(chip, writer);
-    panic_process_info(processes, writer);
+    panic_process_info(processes, process_printer, writer);
 }
 
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
+    process_printer: &'static Option<&'static PP>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic
     // information and return
-    panic_print(writer, panic_info, nop, processes, chip);
+    panic_print(writer, panic_info, nop, processes, chip, process_printer);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
@@ -176,17 +180,26 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_process_info<W: Write>(
+pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     procs: &'static [Option<&'static dyn Process>],
+    process_printer: &'static Option<&'static PP>,
     writer: &mut W,
 ) {
-    // print data about each process
-    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-    for idx in 0..procs.len() {
-        procs[idx].as_ref().map(|process| {
-            process.print_full_process(writer);
-        });
-    }
+    process_printer.map(|printer| {
+        // print data about each process
+        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+        for idx in 0..procs.len() {
+            procs[idx].map(|process| {
+                // Print the memory map and basic process info.
+                //
+                // Because we are using a synchronous printer we do not need to
+                // worry about looping on the print function.
+                printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
+                // Print all of the process details.
+                process.print_full_process(writer);
+            });
+        }
+    });
 }
 
 /// Blinks a recognizable pattern forever.
@@ -376,7 +389,7 @@ unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
 }
 
 unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    try_get_debug_writer().expect("Must call `set_debug_writer_wrapper` in board initialization.")
+    try_get_debug_writer().unwrap() // Unwrap fail = Must call `set_debug_writer_wrapper` in board initialization.
 }
 
 /// Function used by board main.rs to set a reference to the writer.
@@ -527,7 +540,14 @@ impl Write for DebugWriterWrapper {
     }
 }
 
-pub fn begin_debug_fmt(args: Arguments) {
+pub fn debug_print(args: Arguments) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write(writer, args);
+    writer.publish_bytes();
+}
+
+pub fn debug_println(args: Arguments) {
     let writer = unsafe { get_debug_writer() };
 
     let _ = write(writer, args);
@@ -535,14 +555,24 @@ pub fn begin_debug_fmt(args: Arguments) {
     writer.publish_bytes();
 }
 
-pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
-
+fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();
     let count = writer.get_count();
+    writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
+}
 
-    let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
+pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write_header(writer, file_line);
+    let _ = write(writer, args);
+    writer.publish_bytes();
+}
+
+pub fn debug_verbose_println(args: Arguments, file_line: &(&'static str, u32)) {
+    let writer = unsafe { get_debug_writer() };
+
+    let _ = write_header(writer, file_line);
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
     writer.publish_bytes();
@@ -556,10 +586,10 @@ macro_rules! debug {
         debug!("")
     });
     ($msg:expr $(,)?) => ({
-        $crate::debug::begin_debug_fmt(format_args!($msg))
+        $crate::debug::debug_println(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::begin_debug_fmt(format_args!($fmt, $($arg)+))
+        $crate::debug::debug_println(format_args!($fmt, $($arg)+))
     });
 }
 
@@ -571,7 +601,7 @@ macro_rules! debug_verbose {
         debug_verbose!("")
     });
     ($msg:expr $(,)?) => ({
-        $crate::debug::begin_debug_verbose_fmt(format_args!($msg), {
+        $crate::debug::debug_verbose_println(format_args!($msg), {
             // TODO: Maybe make opposite choice of panic!, no `static`, more
             // runtime code for less static data
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
@@ -579,7 +609,7 @@ macro_rules! debug_verbose {
         })
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::begin_debug_verbose_fmt(format_args!($fmt, $($arg)+), {
+        $crate::debug::debug_verbose_println(format_args!($fmt, $($arg)+), {
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
             &_FILE_LINE
         })

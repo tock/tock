@@ -1,11 +1,11 @@
 //! Timer driver.
 
 use crate::chip_config::CONFIG;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Ticks64};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
 
@@ -22,9 +22,10 @@ impl time::Frequency for Freq10KHz {
 
 register_structs! {
     pub TimerRegisters {
-        (0x000 => ctrl: ReadWrite<u32, ctrl::Register>),
+        (0x000 => alert_test: WriteOnly<u32>),
+        (0x004 => ctrl: ReadWrite<u32, ctrl::Register>),
 
-        (0x004 => _reserved),
+        (0x008 => _reserved),
 
         (0x100 => config: ReadWrite<u32, config::Register>),
 
@@ -107,7 +108,7 @@ impl time::Time for RvTimer<'_> {
 }
 
 impl<'a> time::Counter<'a> for RvTimer<'a> {
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
     }
 

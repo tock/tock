@@ -30,9 +30,11 @@
 
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
+
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, OptionalCell};
-use kernel::common::{List, ListLink, ListNode};
+
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::ErrorCode;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences

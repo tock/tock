@@ -1,10 +1,10 @@
 //! General Purpose Input/Output driver.
 
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, Field, FieldValue, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, Field, FieldValue, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 #[repr(C)]
 pub struct GpioRegisters {
@@ -297,6 +297,3 @@ impl<'a> hil::gpio::Interrupt<'a> for GpioPin<'a> {
         regs.rise_ip.is_set(self.pin) || regs.fall_ip.is_set(self.pin)
     }
 }
-
-impl hil::gpio::Pin for GpioPin<'_> {}
-impl<'a> hil::gpio::InterruptPin<'a> for GpioPin<'a> {}

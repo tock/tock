@@ -41,72 +41,51 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::flash::HasClient;
+use kernel::hil::hasher::Hasher;
 use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! flash_user_component_helper {
-    ($F:ty) => {{
-        use capsules::virtual_flash::MuxFlash;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<MuxFlash<'static, $F>> = MaybeUninit::uninit();
-        &mut BUF1
-    };};
-}
-
-pub struct FlashMuxComponent<F: 'static + hil::flash::Flash> {
-    flash: &'static F,
-}
-
-impl<F: 'static + hil::flash::Flash> FlashMuxComponent<F> {
-    pub fn new(flash: &'static F) -> FlashMuxComponent<F> {
-        FlashMuxComponent { flash }
-    }
-}
-
-impl<F: 'static + hil::flash::Flash> Component for FlashMuxComponent<F> {
-    type StaticInput = &'static mut MaybeUninit<MuxFlash<'static, F>>;
-    type Output = &'static MuxFlash<'static, F>;
-
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let mux_flash = static_init_half!(s, MuxFlash<'static, F>, MuxFlash::new(self.flash));
-
-        mux_flash
-    }
-}
-
-// Setup static space for the objects.
-#[macro_export]
 macro_rules! tickv_component_helper {
-    ($F:ty) => {{
+    ($F:ty, $H:ty) => {{
         use capsules::tickv::TicKVStore;
         use capsules::virtual_flash::FlashUser;
         use core::mem::MaybeUninit;
         use kernel::hil;
         static mut BUF1: MaybeUninit<FlashUser<'static, $F>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<TicKVStore<'static, FlashUser<'static, $F>>> =
+        static mut BUF2: MaybeUninit<TicKVStore<'static, FlashUser<'static, $F>, $H>> =
             MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
 
-pub struct TicKVComponent<F: 'static + hil::flash::Flash> {
+pub struct TicKVComponent<
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    H: 'static + Hasher<'static, 8>,
+> {
     mux_flash: &'static MuxFlash<'static, F>,
+    hasher: &'static H,
     region_offset: usize,
     flash_size: usize,
-    tickfs_read_buf: &'static mut [u8; 512],
+    tickfs_read_buf: &'static mut [u8; 64],
     flash_read_buffer: &'static mut F::Page,
 }
 
-impl<F: 'static + hil::flash::Flash> TicKVComponent<F> {
+impl<
+        F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+        H: Hasher<'static, 8>,
+    > TicKVComponent<F, H>
+{
     pub fn new(
+        hasher: &'static H,
         mux_flash: &'static MuxFlash<'static, F>,
         region_offset: usize,
         flash_size: usize,
-        tickfs_read_buf: &'static mut [u8; 512],
+        tickfs_read_buf: &'static mut [u8; 64],
         flash_read_buffer: &'static mut F::Page,
     ) -> Self {
         Self {
+            hasher,
             mux_flash,
             region_offset,
             flash_size,
@@ -116,12 +95,16 @@ impl<F: 'static + hil::flash::Flash> TicKVComponent<F> {
     }
 }
 
-impl<F: 'static + hil::flash::Flash> Component for TicKVComponent<F> {
+impl<
+        F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+        H: 'static + Hasher<'static, 8>,
+    > Component for TicKVComponent<F, H>
+{
     type StaticInput = (
         &'static mut MaybeUninit<FlashUser<'static, F>>,
-        &'static mut MaybeUninit<TicKVStore<'static, FlashUser<'static, F>>>,
+        &'static mut MaybeUninit<TicKVStore<'static, FlashUser<'static, F>, H>>,
     );
-    type Output = &'static TicKVStore<'static, FlashUser<'static, F>>;
+    type Output = &'static TicKVStore<'static, FlashUser<'static, F>, H>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let _grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -134,9 +117,10 @@ impl<F: 'static + hil::flash::Flash> Component for TicKVComponent<F> {
 
         let driver = static_init_half!(
             static_buffer.1,
-            TicKVStore<'static, FlashUser<'static, F>>,
+            TicKVStore<'static, FlashUser<'static, F>, H>,
             TicKVStore::new(
                 virtual_flash,
+                self.hasher,
                 self.tickfs_read_buf,
                 self.flash_read_buffer,
                 self.region_offset,

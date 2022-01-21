@@ -1,12 +1,12 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::deferred_call::DeferredCall;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::deferred_calls::DeferredCallTask;

@@ -86,6 +86,7 @@ impl<A: 'static + Alarm<'static>> Component for SHT3xComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        sht3x_alarm.setup();
 
         let sht3x = static_init_half!(
             static_buffer.2,

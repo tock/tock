@@ -85,10 +85,14 @@ jobs:
         run: |
           sudo apt update
         if: matrix.os == 'ubuntu-latest'
-      - name: Install dependencies
+      - name: Install dependencies for ubuntu-latest
         run: |
-          sudo apt install libudev-dev
+          sudo apt install libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies for macos-latest
+        run: |
+          brew install zeromq
+        if: matrix.os == 'macos-latest'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
       - name: ci-job-libraries

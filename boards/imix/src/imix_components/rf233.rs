@@ -19,6 +19,7 @@ use capsules::rf233::RF233;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::spi::SpiMasterDevice;
 use kernel::static_init;
 
 pub struct RF233Component {

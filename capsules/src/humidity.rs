@@ -49,10 +49,11 @@
 //! ```
 
 use core::cell::Cell;
-use core::mem;
 
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -66,20 +67,19 @@ pub enum HumidityCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall,
     subscribed: bool,
 }
 
 pub struct HumiditySensor<'a> {
     driver: &'a dyn hil::sensors::HumidityDriver<'a>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
 impl<'a> HumiditySensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::HumidityDriver<'a>,
-        grant: Grant<App>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> HumiditySensor<'a> {
         HumiditySensor {
             driver: driver,
@@ -95,7 +95,7 @@ impl<'a> HumiditySensor<'a> {
         appid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app| {
+            .enter(appid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -113,55 +113,23 @@ impl<'a> HumiditySensor<'a> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
-
-    fn configure_callback(
-        &self,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app| {
-                mem::swap(&mut app.callback, &mut callback);
-            })
-            .map_err(ErrorCode::from);
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
 }
 
 impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app| {
+            cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     self.busy.set(false);
                     app.subscribed = false;
-                    app.callback.schedule(tmp_val, 0, 0);
+                    upcalls.schedule_upcall(0, (tmp_val, 0, 0)).ok();
                 }
             });
         }
     }
 }
 
-impl Driver for HumiditySensor<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        match subscribe_num {
-            // subscribe to temperature reading with callback
-            0 => self.configure_callback(callback, app_id),
-            _ => Err((callback, ErrorCode::NOSUPPORT)),
-        }
-    }
-
+impl SyscallDriver for HumiditySensor<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -178,5 +146,9 @@ impl Driver for HumiditySensor<'_> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

@@ -4,12 +4,12 @@ pub const UART_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x8000_2000 as *const UartRegisters) };
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 register_structs! {
@@ -93,9 +93,6 @@ impl<'a> Uart<'a> {
         self.registers.ier.set(0xF);
     }
 }
-
-impl<'a> hil::uart::UartData<'a> for Uart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Uart<'a> {}
 
 impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {

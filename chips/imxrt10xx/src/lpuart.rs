@@ -1,14 +1,14 @@
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use crate::ccm;
+use crate::{ccm, dma};
 
 /// LP Universal asynchronous receiver transmitter
 #[repr(C)]
@@ -326,12 +326,16 @@ pub struct Lpuart<'a> {
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
     tx_len: Cell<usize>,
-    tx_status: Cell<LPUARTStateTX>, // rx_len: Cell<usize>,
+    tx_status: Cell<LPUARTStateTX>,
+    tx_dma_channel: OptionalCell<&'a dma::DmaChannel>,
+    tx_dma_source: dma::DmaHardwareSource,
 
     rx_buffer: TakeCell<'static, [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<USARTStateRX>,
+    rx_dma_channel: OptionalCell<&'a dma::DmaChannel>,
+    rx_dma_source: dma::DmaHardwareSource,
 }
 
 impl<'a> Lpuart<'a> {
@@ -339,6 +343,8 @@ impl<'a> Lpuart<'a> {
         Lpuart::new(
             LPUART1_BASE,
             LpuartClock(ccm::PeripheralClock::ccgr5(ccm, ccm::HCLK5::LPUART1)),
+            dma::DmaHardwareSource::Lpuart1Transfer,
+            dma::DmaHardwareSource::Lpuart1Receive,
         )
     }
 
@@ -346,10 +352,17 @@ impl<'a> Lpuart<'a> {
         Lpuart::new(
             LPUART2_BASE,
             LpuartClock(ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::LPUART2)),
+            dma::DmaHardwareSource::Lpuart2Transfer,
+            dma::DmaHardwareSource::Lpuart2Receive,
         )
     }
 
-    const fn new(base_addr: StaticRef<LpuartRegisters>, clock: LpuartClock<'a>) -> Lpuart<'a> {
+    const fn new(
+        base_addr: StaticRef<LpuartRegisters>,
+        clock: LpuartClock<'a>,
+        tx_dma_source: dma::DmaHardwareSource,
+        rx_dma_source: dma::DmaHardwareSource,
+    ) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
             clock: clock,
@@ -361,12 +374,40 @@ impl<'a> Lpuart<'a> {
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
             tx_status: Cell::new(LPUARTStateTX::Idle),
+            tx_dma_channel: OptionalCell::empty(),
+            tx_dma_source,
 
             rx_buffer: TakeCell::empty(),
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(USARTStateRX::Idle),
+            rx_dma_channel: OptionalCell::empty(),
+            rx_dma_source,
         }
+    }
+
+    /// Set the DMA channel for transferring data from this UART peripheral
+    pub fn set_tx_dma_channel(&'static self, dma_channel: &'static dma::DmaChannel) {
+        dma_channel.set_client(self, self.tx_dma_source);
+        unsafe {
+            // Safety: pointing to static memory
+            dma_channel.set_destination(&self.registers.data as *const _ as *const u8);
+        }
+        dma_channel.set_interrupt_on_completion(true);
+        dma_channel.set_disable_on_completion(true);
+        self.tx_dma_channel.set(dma_channel);
+    }
+
+    /// Set the DMA channel used for receiving data from this UART peripheral
+    pub fn set_rx_dma_channel(&'static self, dma_channel: &'static dma::DmaChannel) {
+        dma_channel.set_client(self, self.rx_dma_source);
+        unsafe {
+            // Safety: pointing to static memory
+            dma_channel.set_source(&self.registers.data as *const _ as *const u8);
+        }
+        dma_channel.set_interrupt_on_completion(true);
+        dma_channel.set_disable_on_completion(true);
+        self.rx_dma_channel.set(dma_channel);
     }
 
     pub fn is_enabled_clock(&self) -> bool {
@@ -394,6 +435,16 @@ impl<'a> Lpuart<'a> {
         self.registers.data.set(byte.into());
 
         while !self.registers.stat.is_set(STAT::TC) {}
+    }
+
+    /// Returns true if the transmit is enabled
+    pub fn is_transmit_enabled(&self) -> bool {
+        self.registers.ctrl.is_set(CTRL::TE)
+    }
+
+    /// Returns `true` if receive is enabled
+    pub fn is_receive_enabled(&self) -> bool {
+        self.registers.ctrl.is_set(CTRL::RE)
     }
 
     fn enable_transmit_complete_interrupt(&self) {
@@ -522,14 +573,37 @@ impl<'a> Lpuart<'a> {
             });
         }
     }
-}
 
-impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
-    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
-        self.tx_client.set(client);
+    fn check_status(&self) -> kernel::hil::uart::Error {
+        use kernel::hil::uart::Error;
+        let stat = self.registers.stat.extract();
+        if stat.is_set(STAT::PF) {
+            Error::ParityError
+        } else if stat.is_set(STAT::FE) {
+            Error::FramingError
+        } else if stat.is_set(STAT::OR) {
+            Error::OverrunError
+        } else {
+            Error::None
+        }
     }
 
-    fn transmit_buffer(
+    /// Clear all status flags
+    fn clear_status(&self) {
+        self.registers.stat.modify(
+            STAT::IDLE::SET
+                + STAT::OR::SET
+                + STAT::NF::SET
+                + STAT::FE::SET
+                + STAT::PF::SET
+                + STAT::RXEDGIF::SET
+                + STAT::MA1F::SET
+                + STAT::MA2F::SET,
+        )
+    }
+
+    /// Execute an interrupt-driven transfer.
+    fn transmit_buffer_interrupt(
         &self,
         tx_data: &'static mut [u8],
         tx_len: usize,
@@ -550,16 +624,175 @@ impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    /// Execute a transfer using a DMA channel.
+    ///
+    /// When this call returns, the transfer buffer is associated
+    /// with the internal DMA channel, and the DMA peripheral will schedule
+    /// the transfer to the serial output.
+    fn transmit_buffer_dma(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.tx_buffer.is_some() {
+            return Err((ErrorCode::BUSY, tx_buffer));
+        } else if !self.is_transmit_enabled() {
+            return Err((ErrorCode::OFF, tx_buffer));
+        } else if tx_len > tx_buffer.len() {
+            return Err((ErrorCode::SIZE, tx_buffer));
+        } else if self.tx_dma_channel.is_none() {
+            return Err((ErrorCode::FAIL, tx_buffer));
+        }
+
+        self.tx_dma_channel
+            .map(move |dma_channel| unsafe {
+                dma_channel.set_source_buffer(&tx_buffer[..tx_len]);
+
+                self.tx_buffer.put(Some(tx_buffer));
+                self.tx_len.set(tx_len);
+                dma_channel.enable();
+                self.registers.baud.modify(BAUD::TDMAE::SET);
+                Ok(())
+            })
+            .unwrap() // OK: checked is_some above
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+    /// Abort an interrupt-driven transfer.
+    fn transmit_abort_interrupt(&self) -> Result<(), ErrorCode> {
         if self.tx_status.get() != LPUARTStateTX::Idle {
             self.tx_status.set(LPUARTStateTX::AbortRequested);
             Err(ErrorCode::BUSY)
         } else {
             Ok(())
+        }
+    }
+
+    /// Abort a DMA transfer.
+    fn transmit_abort_dma(&self) -> Result<(), ErrorCode> {
+        self.registers.baud.modify(BAUD::TDMAE::CLEAR);
+        while self.registers.baud.is_set(BAUD::TDMAE) {
+            cortexm7::support::nop();
+        }
+        self.tx_dma_channel.map(|dma_channel| {
+            while dma_channel.is_hardware_signaling() {
+                cortexm7::support::nop();
+            }
+            dma_channel.disable();
+        });
+        Ok(())
+    }
+
+    /// Schedule an interrupt-driver UART receive.
+    fn receive_buffer_interrupt(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.rx_status.get() == USARTStateRX::Idle {
+            if rx_len <= rx_buffer.len() {
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_position.set(0);
+                self.rx_len.set(rx_len);
+                self.rx_status.set(USARTStateRX::Receiving);
+                self.enable_receive_interrupt();
+                Ok(())
+            } else {
+                Err((ErrorCode::SIZE, rx_buffer))
+            }
+        } else {
+            Err((ErrorCode::BUSY, rx_buffer))
+        }
+    }
+
+    /// Execute a receive using a DMA channel.
+    ///
+    /// When this call returns, the receive buffer is associated with
+    /// the internal DMA channel, and the DMA peripheral will move bytes
+    /// from the peripheral into memory until the buffer is filled.
+    fn receive_buffer_dma(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_size: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.rx_buffer.is_some() {
+            return Err((ErrorCode::BUSY, rx_buffer));
+        } else if !self.is_receive_enabled() {
+            return Err((ErrorCode::OFF, rx_buffer));
+        } else if rx_size > rx_buffer.len() {
+            return Err((ErrorCode::SIZE, rx_buffer));
+        } else if self.rx_dma_channel.is_none() {
+            return Err((ErrorCode::FAIL, rx_buffer));
+        }
+
+        self.rx_dma_channel
+            .map(move |dma_channel| unsafe {
+                dma_channel.set_destination_buffer(&mut rx_buffer[..rx_size]);
+
+                self.clear_status();
+                self.rx_buffer.put(Some(rx_buffer));
+                self.rx_len.set(rx_size);
+
+                dma_channel.enable();
+                self.registers.baud.modify(BAUD::RDMAE::SET);
+                Ok(())
+            })
+            .unwrap() // Safe: checked is_none above
+    }
+
+    /// Abort an interrupt-driven receive.
+    fn receive_abort_interrupt(&self) -> Result<(), ErrorCode> {
+        if self.rx_status.get() != USARTStateRX::Idle {
+            self.rx_status.set(USARTStateRX::AbortRequested);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Abort a DMA receive.
+    fn receive_abort_dma(&self) -> Result<(), ErrorCode> {
+        self.registers.baud.modify(BAUD::RDMAE::CLEAR);
+        while self.registers.baud.is_set(BAUD::RDMAE) {
+            cortexm7::support::nop();
+        }
+
+        self.rx_dma_channel.map(|dma_channel| {
+            while dma_channel.is_hardware_signaling() {
+                cortexm7::support::nop();
+            }
+            dma_channel.disable()
+        });
+        Ok(())
+    }
+}
+
+impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.tx_dma_channel.is_some() {
+            self.transmit_buffer_dma(tx_data, tx_len)
+        } else {
+            self.transmit_buffer_interrupt(tx_data, tx_len)
+        }
+    }
+
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        // TODO implement for interrupt-, DMA-based transmits.
+        Err(ErrorCode::FAIL)
+    }
+
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        if self.tx_dma_channel.is_some() {
+            self.transmit_abort_dma()
+        } else {
+            self.transmit_abort_interrupt()
         }
     }
 }
@@ -607,23 +840,15 @@ impl<'a> hil::uart::Configure for Lpuart<'a> {
         self.registers.water.modify(WATER::RXWATER::CLEAR);
         self.registers.water.modify(WATER::TXWATER::CLEAR);
 
-        // Enable TX and RX FIFO
+        // Disable TX and RX FIFO
         self.registers.fifo.modify(FIFO::TXFE::CLEAR);
         self.registers.fifo.modify(FIFO::RXFE::CLEAR);
 
         // Flush RX FIFO and TX FIFO
-        self.registers.fifo.modify(FIFO::TXFLUSH::CLEAR);
-        self.registers.fifo.modify(FIFO::RXFLUSH::CLEAR);
+        self.registers.fifo.modify(FIFO::TXFLUSH::SET);
+        self.registers.fifo.modify(FIFO::RXFLUSH::SET);
 
-        // Clear all status registers
-        self.registers.stat.modify(STAT::RXEDGIF::SET);
-        self.registers.stat.modify(STAT::IDLE::SET);
-        self.registers.stat.modify(STAT::OR::SET);
-        self.registers.stat.modify(STAT::NF::SET);
-        self.registers.stat.modify(STAT::FE::SET);
-        self.registers.stat.modify(STAT::PF::SET);
-        self.registers.stat.modify(STAT::MA1F::SET);
-        self.registers.stat.modify(STAT::MA2F::SET);
+        self.clear_status();
 
         // Set the CTS configuration/TX CTS source.
         self.registers.modir.modify(MODIR::TXCTSC::CLEAR);
@@ -650,38 +875,27 @@ impl<'a> hil::uart::Receive<'a> for Lpuart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.rx_status.get() == USARTStateRX::Idle {
-            if rx_len <= rx_buffer.len() {
-                self.rx_buffer.put(Some(rx_buffer));
-                self.rx_position.set(0);
-                self.rx_len.set(rx_len);
-                self.rx_status.set(USARTStateRX::Receiving);
-                self.enable_receive_interrupt();
-                Ok(())
-            } else {
-                Err((ErrorCode::SIZE, rx_buffer))
-            }
+        if self.rx_dma_channel.is_some() {
+            self.receive_buffer_dma(rx_buffer, rx_len)
         } else {
-            Err((ErrorCode::BUSY, rx_buffer))
+            self.receive_buffer_interrupt(rx_buffer, rx_len)
         }
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
+        // TODO handle interrupt-/DMA-based word receives
         Err(ErrorCode::FAIL)
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        if self.rx_status.get() != USARTStateRX::Idle {
-            self.rx_status.set(USARTStateRX::AbortRequested);
-            Err(ErrorCode::BUSY)
+        if self.rx_dma_channel.is_some() {
+            self.receive_abort_dma()
         } else {
-            Ok(())
+            self.receive_abort_interrupt()
         }
     }
 }
 
-impl<'a> hil::uart::UartData<'a> for Lpuart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Lpuart<'a> {}
 struct LpuartClock<'a>(ccm::PeripheralClock<'a>);
 
 impl ClockInterface for LpuartClock<'_> {
@@ -695,5 +909,70 @@ impl ClockInterface for LpuartClock<'_> {
 
     fn disable(&self) {
         self.0.disable();
+    }
+}
+
+impl<'a> dma::DmaClient for Lpuart<'a> {
+    fn transfer_complete(&self, result: dma::Result) {
+        match result {
+            // Successful transfer from memory to peripheral
+            Ok(source) if source == self.tx_dma_source => {
+                self.registers.baud.modify(BAUD::TDMAE::CLEAR);
+                let result = if self.registers.fifo.is_set(FIFO::TXOF) {
+                    Err(ErrorCode::FAIL)
+                } else {
+                    Ok(())
+                };
+                self.tx_client.map(|client| {
+                    client.transmitted_buffer(
+                        self.tx_buffer.take().unwrap(),
+                        self.tx_len.take(),
+                        result,
+                    );
+                });
+            }
+            // Unsuccessful transfer from memory to peripheral
+            Err(source) if source == self.tx_dma_source => {
+                self.registers.baud.modify(BAUD::TDMAE::CLEAR);
+                self.tx_client.map(|client| {
+                    client.transmitted_buffer(
+                        self.tx_buffer.take().unwrap(),
+                        self.tx_len.take(),
+                        Err(ErrorCode::FAIL),
+                    );
+                });
+            }
+            // Successful transfer from peripheral into memory
+            Ok(source) if source == self.rx_dma_source => {
+                self.registers.baud.modify(BAUD::RDMAE::CLEAR);
+                let err = self.check_status();
+                let code = if kernel::hil::uart::Error::None == err {
+                    Ok(())
+                } else {
+                    Err(ErrorCode::FAIL)
+                };
+                self.rx_client.map(|client| {
+                    client.received_buffer(
+                        self.rx_buffer.take().unwrap(),
+                        self.rx_len.take(),
+                        code,
+                        err,
+                    );
+                });
+            }
+            // Unsuccessful transfer from peripheral into memory
+            Err(source) if source == self.rx_dma_source => {
+                self.registers.baud.modify(BAUD::RDMAE::CLEAR);
+                self.rx_client.map(|client| {
+                    client.received_buffer(
+                        self.rx_buffer.take().unwrap(),
+                        self.rx_len.take(),
+                        Err(ErrorCode::FAIL),
+                        kernel::hil::uart::Error::Aborted,
+                    );
+                });
+            }
+            _ => panic!("DMA channel has reference to the wrong DMA client"),
+        }
     }
 }

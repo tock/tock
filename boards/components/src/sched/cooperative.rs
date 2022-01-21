@@ -13,16 +13,16 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::procs::Process;
+use kernel::process::Process;
+use kernel::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
 use kernel::{static_init, static_init_half};
-use kernel::{CoopProcessNode, CooperativeSched};
 
 #[macro_export]
 macro_rules! coop_component_helper {
     ($N:expr $(,)?) => {{
         use core::mem::MaybeUninit;
+        use kernel::scheduler::cooperative::CoopProcessNode;
         use kernel::static_buf;
-        use kernel::CoopProcessNode;
         const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
         static mut BUF: [MaybeUninit<CoopProcessNode<'static>>; $N] = [UNINIT; $N];
         &mut BUF

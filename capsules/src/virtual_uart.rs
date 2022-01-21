@@ -43,14 +43,14 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::ErrorCode;
 
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::dynamic_deferred_call::{
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::uart;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::ErrorCode;
 
 const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
@@ -337,8 +337,6 @@ pub struct UartDevice<'a> {
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
-
-impl<'a> uart::UartData<'a> for UartDevice<'a> {}
 
 impl<'a> UartDevice<'a> {
     pub const fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {

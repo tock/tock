@@ -24,7 +24,7 @@ pub struct Config<'a> {
     pub uart_baudrate: u32,
 }
 
-/// Config for running EarlGrey on an FPGA. Also the default configuration.
+/// Config for running EarlGrey on an Nexys Video FPGA. Also the default configuration.
 #[cfg(any(
     feature = "config_fpga_nexysvideo",
     not(feature = "config_disable_default")
@@ -36,11 +36,20 @@ pub const CONFIG: Config = Config {
     uart_baudrate: 115200,
 };
 
+/// Config for running EarlGrey on the CW310 FPGA
+#[cfg(feature = "config_fpga_cw310")]
+pub const CONFIG: Config = Config {
+    name: "fpga_cw310",
+    cpu_freq: 10_000_000,
+    peripheral_freq: 2_500_000,
+    uart_baudrate: 115200,
+};
+
 /// Config for running EarlGrey in a verilog simulator.
 #[cfg(feature = "config_sim_verilator")]
 pub const CONFIG: Config = Config {
     name: "sim_verilator",
     cpu_freq: 500_000,
     peripheral_freq: 125_000,
-    uart_baudrate: 9600,
+    uart_baudrate: 7200,
 };

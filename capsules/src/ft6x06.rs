@@ -1,4 +1,4 @@
-//! Driver for the FT6x06 Touch Panel.
+//! SyscallDriver for the FT6x06 Touch Panel.
 //!
 //! I2C Interface
 //!
@@ -23,10 +23,10 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
@@ -85,23 +85,25 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
         self.touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
                 let status = match buffer[2] >> 6 {
-                    0x00 => TouchStatus::Pressed,
-                    0x01 => TouchStatus::Released,
-                    0x02 => TouchStatus::Moved,
-                    _ => TouchStatus::Released,
+                    0x00 => Some(TouchStatus::Pressed),
+                    0x01 => Some(TouchStatus::Released),
+                    0x02 => Some(TouchStatus::Moved),
+                    _ => None,
                 };
-                let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
-                let y = (((buffer[4] & 0x0F) as u16) << 8) + (buffer[5] as u16);
-                let pressure = Some(buffer[6] as u16);
-                let size = Some(buffer[7] as u16);
-                client.touch_event(TouchEvent {
-                    status,
-                    x,
-                    y,
-                    id: 0,
-                    pressure,
-                    size,
-                });
+                if let Some(status) = status {
+                    let x = (((buffer[2] & 0x0F) as u16) << 8) + (buffer[3] as u16);
+                    let y = (((buffer[4] & 0x0F) as u16) << 8) + (buffer[5] as u16);
+                    let pressure = Some(buffer[6] as u16);
+                    let size = Some(buffer[7] as u16);
+                    client.touch_event(TouchEvent {
+                        status,
+                        x,
+                        y,
+                        id: 0,
+                        pressure,
+                        size,
+                    });
+                }
             }
         });
         self.gesture_client.map(|client| {
@@ -122,33 +124,37 @@ impl<'a> i2c::I2CClient for Ft6x06<'a> {
         });
         self.multi_touch_client.map(|client| {
             if self.num_touches.get() <= 2 {
-                for touch_event in 0..self.num_touches.get() {
-                    let status = match buffer[touch_event * 8 + 2] >> 6 {
-                        0x00 => TouchStatus::Pressed,
-                        0x01 => TouchStatus::Released,
-                        0x02 => TouchStatus::Moved,
-                        _ => TouchStatus::Released,
+                let mut num_touches = 0;
+                for touch_event in 0..2 {
+                    let status = match buffer[touch_event * 6 + 2] >> 6 {
+                        0x00 => Some(TouchStatus::Pressed),
+                        0x01 => Some(TouchStatus::Released),
+                        0x02 => Some(TouchStatus::Moved),
+                        _ => None,
                     };
-                    let x = (((buffer[touch_event * 8 + 2] & 0x0F) as u16) << 8)
-                        + (buffer[touch_event * 8 + 3] as u16);
-                    let y = (((buffer[touch_event * 8 + 4] & 0x0F) as u16) << 8)
-                        + (buffer[touch_event * 8 + 5] as u16);
-                    let pressure = Some(buffer[touch_event * 8 + 6] as u16);
-                    let size = Some(buffer[touch_event * 8 + 7] as u16);
-                    let id = (buffer[touch_event * 8 + 4] >> 4) as usize;
-                    self.events.map(|buffer| {
-                        buffer[touch_event] = TouchEvent {
-                            status,
-                            x,
-                            y,
-                            id,
-                            pressure,
-                            size,
-                        };
-                    });
+                    if let Some(status) = status {
+                        let x = (((buffer[touch_event * 6 + 2] & 0x0F) as u16) << 8)
+                            + (buffer[touch_event * 6 + 3] as u16);
+                        let y = (((buffer[touch_event * 6 + 4] & 0x0F) as u16) << 8)
+                            + (buffer[touch_event * 6 + 5] as u16);
+                        let pressure = Some(buffer[touch_event * 6 + 6] as u16);
+                        let size = Some(buffer[touch_event * 6 + 7] as u16);
+                        let id = (buffer[touch_event * 6 + 4] >> 4) as usize;
+                        self.events.map(|buffer| {
+                            buffer[num_touches] = TouchEvent {
+                                status,
+                                x,
+                                y,
+                                id,
+                                pressure,
+                                size,
+                            };
+                        });
+                        num_touches = num_touches + 1;
+                    }
                 }
                 self.events.map(|buffer| {
-                    client.touch_events(buffer, self.num_touches.get());
+                    client.touch_events(buffer, num_touches);
                 });
             }
         });

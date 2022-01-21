@@ -3,9 +3,10 @@
 use core::convert::TryFrom;
 use core::fmt::Write;
 
-use crate::driver::CommandReturn;
 use crate::errorcode::ErrorCode;
 use crate::process;
+
+pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
 /// Helper function to split a u64 into a higher and lower u32.
 ///
@@ -37,6 +38,7 @@ pub enum SyscallClass {
     ReadOnlyAllow = 4,
     Memop = 5,
     Exit = 6,
+    UserspaceReadableAllow = 7,
 }
 
 /// Enumeration of the yield system calls based on the Yield identifier
@@ -62,6 +64,7 @@ impl TryFrom<u8> for SyscallClass {
             4 => Ok(SyscallClass::ReadOnlyAllow),
             5 => Ok(SyscallClass::Memop),
             6 => Ok(SyscallClass::Exit),
+            7 => Ok(SyscallClass::UserspaceReadableAllow),
             i => Err(i),
         }
     }
@@ -100,6 +103,17 @@ pub enum Syscall {
     /// the buffer identifier, `allow_address` is the address, and `allow_size`
     /// is the size.
     ReadWriteAllow {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *mut u8,
+        allow_size: usize,
+    },
+
+    /// Structure representing an invocation of the ReadWriteAllow system call
+    /// class, but with shared kernel and app access. `driver_number` is the
+    /// driver identifier, `subdriver_number` is the buffer identifier,
+    // `allow_address` is the address, and `allow_size` is the size.
+    UserspaceReadableAllow {
         driver_number: usize,
         subdriver_number: usize,
         allow_address: *mut u8,
@@ -170,6 +184,12 @@ impl Syscall {
                 allow_address: r2 as *mut u8,
                 allow_size: r3,
             }),
+            Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1,
@@ -221,10 +241,11 @@ pub enum SyscallReturnVariant {
 /// [`encode_syscall_return`](SyscallReturn::encode_syscall_return)
 /// method.
 ///
-/// Capsules do not use this struct. Capsules use higher level Rust types
-/// (e.g. [`ReadWriteAppSlice`](crate::ReadWriteAppSlice) and
-/// [`Upcall`](crate::Upcall)) or wrappers around this struct
-/// ([`CommandReturn`](crate::CommandReturn)) which limit the
+/// Capsules do not use this struct. Capsules use higher level Rust
+/// types
+/// (e.g. [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer)
+/// and `GrantKernelData`) or wrappers around this struct
+/// ([`CommandReturn`](crate::syscall_driver::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallReturn {
@@ -253,20 +274,26 @@ pub enum SyscallReturn {
     // These following types are used by the scheduler so that it can
     // return values to userspace in an architecture (pointer-width)
     // independent way. The kernel passes these types (rather than
-    // AppSlice or Upcall) for two reasons. First, since the
+    // ProcessBuffer or Upcall) for two reasons. First, since the
     // kernel/scheduler makes promises about the lifetime and safety
-    // of these types (e.g., an accepted allow does not overlap with
-    // an existing accepted AppSlice), it does not want to leak them
-    // to other code. Second, if subscribe or allow calls pass invalid
-    // values (pointers out of valid memory), the kernel cannot
-    // construct an AppSlice or Upcall type but needs to be able to
-    // return a failure. -pal 11/24/20
+    // of these types, it does not want to leak them to other
+    // code. Second, if subscribe or allow calls pass invalid values
+    // (pointers out of valid memory), the kernel cannot construct an
+    // ProcessBuffer or Upcall type but needs to be able to return a
+    // failure. -pal 11/24/20
     /// Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
     AllowReadWriteSuccess(*mut u8, usize),
     /// Read/Write allow failure case, returns the passed allowed
     /// buffer and size to the process.
     AllowReadWriteFailure(ErrorCode, *mut u8, usize),
+
+    /// Shared Read/Write allow success case, returns the previous allowed
+    /// buffer and size to the process.
+    UserspaceReadableAllowSuccess(*mut u8, usize),
+    /// Shared Read/Write allow failure case, returns the passed allowed
+    /// buffer and size to the process.
+    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
 
     /// Read only allow success case, returns the previous allowed
     /// buffer and size to the process.
@@ -277,10 +304,10 @@ pub enum SyscallReturn {
 
     /// Subscribe success case, returns the previous upcall function
     /// pointer and application data.
-    SubscribeSuccess(*const u8, usize),
+    SubscribeSuccess(*const (), usize),
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
-    SubscribeFailure(ErrorCode, *const u8, usize),
+    SubscribeFailure(ErrorCode, *const (), usize),
 }
 
 impl SyscallReturn {
@@ -292,6 +319,30 @@ impl SyscallReturn {
     /// handle it as a SyscallReturn for more generic code paths.
     pub(crate) fn from_command_return(res: CommandReturn) -> Self {
         res.into_inner()
+    }
+
+    /// Returns true if the `SyscallReturn` is any success type.
+    pub(crate) fn is_success(&self) -> bool {
+        match self {
+            SyscallReturn::Success => true,
+            SyscallReturn::SuccessU32(_) => true,
+            SyscallReturn::SuccessU32U32(_, _) => true,
+            SyscallReturn::SuccessU32U32U32(_, _, _) => true,
+            SyscallReturn::SuccessU64(_) => true,
+            SyscallReturn::SuccessU64U32(_, _) => true,
+            SyscallReturn::AllowReadWriteSuccess(_, _) => true,
+            SyscallReturn::UserspaceReadableAllowSuccess(_, _) => true,
+            SyscallReturn::AllowReadOnlySuccess(_, _) => true,
+            SyscallReturn::SubscribeSuccess(_, _) => true,
+            SyscallReturn::Failure(_) => false,
+            SyscallReturn::FailureU32(_, _) => false,
+            SyscallReturn::FailureU32U32(_, _, _) => false,
+            SyscallReturn::FailureU64(_, _) => false,
+            SyscallReturn::AllowReadWriteFailure(_, _, _) => false,
+            SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
+            SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
+            SyscallReturn::SubscribeFailure(_, _, _) => false,
+        }
     }
 
     /// Encode the system call return value into 4 registers, following
@@ -359,7 +410,18 @@ impl SyscallReturn {
                 *a1 = ptr as u32;
                 *a2 = len as u32;
             }
+            &SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
+                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
+                *a1 = ptr as u32;
+                *a2 = len as u32;
+            }
             &SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
+                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
+                *a1 = usize::from(err) as u32;
+                *a2 = ptr as u32;
+                *a3 = len as u32;
+            }
+            &SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
@@ -586,4 +648,8 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
+
+    /// Store architecture specific (e.g. CPU registers or status flags) data
+    /// for a process. On success returns the number of elements written to out.
+    fn store_context(&self, state: &Self::StoredState, out: &mut [u8]) -> Result<usize, ErrorCode>;
 }

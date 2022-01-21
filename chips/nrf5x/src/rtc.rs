@@ -1,11 +1,11 @@
 //! RTC driver, nRF5X-family
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Ticks, Time};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
@@ -126,7 +126,7 @@ impl Time for Rtc<'_> {
 }
 
 impl<'a> time::Counter<'a> for Rtc<'a> {
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
         self.registers.intenset.write(Inte::OVRFLW::SET);
     }

@@ -1,4 +1,4 @@
-//! Driver for the ST LPS25HB pressure sensor.
+//! SyscallDriver for the ST LPS25HB pressure sensor.
 //!
 //! <http://www.st.com/en/mems-and-sensors/lps25hb.html>
 //!
@@ -19,10 +19,14 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::errorcode::into_statuscode;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -94,16 +98,14 @@ enum State {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct LPS25HB<'a> {
     i2c: &'a dyn i2c::I2CDevice,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -112,7 +114,7 @@ impl<'a> LPS25HB<'a> {
         i2c: &'a dyn i2c::I2CDevice,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-        apps: Grant<App>,
+        apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         // setup and return struct
         Self {
@@ -125,24 +127,30 @@ impl<'a> LPS25HB<'a> {
         }
     }
 
-    pub fn read_whoami(&self) {
-        self.buffer.take().map(|buf| {
+    pub fn read_whoami(&self) -> Result<(), ErrorCode> {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
             // turn on i2c to send commands
             self.i2c.enable();
 
             buf[0] = Registers::WhoAmI as u8;
-            // TODO verify errors
-            let _ = self.i2c.write(buf, 1);
-            self.state.set(State::SelectWhoAmI);
-        });
+
+            if let Err((_error, buf)) = self.i2c.write(buf, 1) {
+                self.buffer.replace(buf);
+                self.i2c.disable();
+                Err(_error.into())
+            } else {
+                self.state.set(State::SelectWhoAmI);
+                Ok(())
+            }
+        })
     }
 
-    pub fn take_measurement(&self) {
+    pub fn take_measurement(&self) -> Result<(), ErrorCode> {
         self.interrupt_pin.make_input();
         self.interrupt_pin
             .enable_interrupts(gpio::InterruptEdge::RisingEdge);
 
-        self.buffer.take().map(|buf| {
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buf| {
             // turn on i2c to send commands
             self.i2c.enable();
 
@@ -151,20 +159,39 @@ impl<'a> LPS25HB<'a> {
             buf[2] = 0;
             buf[3] = 0;
             buf[4] = CTRL_REG4_INTERRUPT1_DATAREADY;
-            // TODO verify errors
-            let _ = self.i2c.write(buf, 5);
-            self.state.set(State::TakeMeasurementInit);
-        });
+
+            if let Err((_error, buf)) = self.i2c.write(buf, 5) {
+                self.buffer.replace(buf);
+                self.i2c.disable();
+                Err(_error.into())
+            } else {
+                self.state.set(State::TakeMeasurementInit);
+                Ok(())
+            }
+        })
     }
 }
 
 impl i2c::I2CClient for LPS25HB<'_> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
+        if status != Ok(()) {
+            self.state.set(State::Idle);
+            self.buffer.replace(buffer);
+            self.owning_process.map(|pid| {
+                let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                });
+            });
+            return;
+        }
         match self.state.get() {
             State::SelectWhoAmI => {
-                // TODO verify errors
-                let _ = self.i2c.read(buffer, 1);
-                self.state.set(State::ReadingWhoAmI);
+                if let Err((_error, buffer)) = self.i2c.read(buffer, 1) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                } else {
+                    self.state.set(State::ReadingWhoAmI);
+                }
             }
             State::ReadingWhoAmI => {
                 self.buffer.replace(buffer);
@@ -173,27 +200,68 @@ impl i2c::I2CClient for LPS25HB<'_> {
             }
             State::TakeMeasurementInit => {
                 buffer[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 1);
-                self.state.set(State::TakeMeasurementClear);
+                if let Err((error, buffer)) = self.i2c.write(buffer, 1) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.owning_process.map(|pid| {
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls
+                                .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
+                                .ok();
+                        });
+                    });
+                } else {
+                    self.state.set(State::TakeMeasurementClear);
+                }
             }
             State::TakeMeasurementClear => {
-                // TODO verify errors
-                let _ = self.i2c.read(buffer, 3);
-                self.state.set(State::TakeMeasurementConfigure);
+                if let Err((error, buffer)) = self.i2c.read(buffer, 3) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.owning_process.map(|pid| {
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls
+                                .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
+                                .ok();
+                        });
+                    });
+                } else {
+                    self.state.set(State::TakeMeasurementConfigure);
+                }
             }
             State::TakeMeasurementConfigure => {
                 buffer[0] = Registers::CtrlReg1 as u8 | REGISTER_AUTO_INCREMENT;
                 buffer[1] = CTRL_REG1_POWER_ON | CTRL_REG1_BLOCK_DATA_ENABLE;
                 buffer[2] = CTRL_REG2_ONE_SHOT;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 3);
-                self.state.set(State::Done);
+
+                if let Err((error, buffer)) = self.i2c.write(buffer, 3) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.owning_process.map(|pid| {
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls
+                                .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
+                                .ok();
+                        });
+                    });
+                } else {
+                    self.state.set(State::Done);
+                }
             }
             State::ReadMeasurement => {
-                // TODO verify errors
-                let _ = self.i2c.read(buffer, 3);
-                self.state.set(State::GotMeasurement);
+                if let Err((error, buffer)) = self.i2c.read(buffer, 3) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.owning_process.map(|pid| {
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls
+                                .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
+                                .ok();
+                        });
+                    });
+                } else {
+                    self.state.set(State::GotMeasurement);
+                }
             }
             State::GotMeasurement => {
                 let pressure = (((buffer[2] as u32) << 16)
@@ -204,17 +272,30 @@ impl i2c::I2CClient for LPS25HB<'_> {
                 let pressure_ubar = (pressure * 1000) / 4096;
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |app| {
-                        app.callback.schedule(pressure_ubar as usize, 0, 0);
+                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        upcalls
+                            .schedule_upcall(0, (pressure_ubar as usize, 0, 0))
+                            .ok();
                     });
                 });
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
-                // TODO verify errors
-                let _ = self.i2c.write(buffer, 2);
-                self.interrupt_pin.disable_interrupts();
-                self.state.set(State::Done);
+
+                if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.owning_process.map(|pid| {
+                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                            upcalls
+                                .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
+                                .ok();
+                        });
+                    });
+                } else {
+                    self.interrupt_pin.disable_interrupts();
+                    self.state.set(State::Done);
+                }
             }
             State::Done => {
                 self.buffer.replace(buffer);
@@ -234,40 +315,18 @@ impl gpio::Client for LPS25HB<'_> {
 
             // select sensor voltage register and read it
             buf[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
-            // TODO verify errors
-            let _ = self.i2c.write(buf, 1);
-            self.state.set(State::ReadMeasurement);
+
+            if let Err((_error, buf)) = self.i2c.write(buf, 1) {
+                self.buffer.replace(buf);
+                self.i2c.disable();
+            } else {
+                self.state.set(State::ReadMeasurement);
+            }
         });
     }
 }
 
-impl Driver for LPS25HB<'_> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        appid: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(appid, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
-
+impl SyscallDriver for LPS25HB<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -284,7 +343,7 @@ impl Driver for LPS25HB<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -294,12 +353,16 @@ impl Driver for LPS25HB<'_> {
         }
         match command_num {
             // Take a pressure measurement
-            1 => {
-                self.take_measurement();
-                CommandReturn::success()
-            }
+            1 => match self.take_measurement() {
+                Ok(()) => CommandReturn::success(),
+                Err(error) => CommandReturn::failure(error),
+            },
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

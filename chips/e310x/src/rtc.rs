@@ -1,6 +1,6 @@
 //! RTC instantiation.
 
-use kernel::common::StaticRef;
+use kernel::utilities::StaticRef;
 use sifive::rtc::RtcRegisters;
 
 pub const RTC_BASE: StaticRef<RtcRegisters> =

@@ -9,11 +9,11 @@
 use core;
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil::uart;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use nrf5x::pinmux;
 
@@ -162,11 +162,11 @@ register_bitfields! [u32,
 pub struct Uarte<'a> {
     registers: StaticRef<UarteRegisters>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
-    tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
+    tx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_remaining_bytes: Cell<usize>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    rx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
+    rx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
     rx_remaining_bytes: Cell<usize>,
     rx_abort_in_progress: Cell<bool>,
     offset: Cell<usize>,
@@ -184,11 +184,11 @@ impl<'a> Uarte<'a> {
         Uarte {
             registers: UARTE_BASE,
             tx_client: OptionalCell::empty(),
-            tx_buffer: kernel::common::cells::TakeCell::empty(),
+            tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_remaining_bytes: Cell::new(0),
             rx_client: OptionalCell::empty(),
-            rx_buffer: kernel::common::cells::TakeCell::empty(),
+            rx_buffer: kernel::utilities::cells::TakeCell::empty(),
             rx_remaining_bytes: Cell::new(0),
             rx_abort_in_progress: Cell::new(false),
             offset: Cell::new(0),
@@ -435,9 +435,6 @@ impl<'a> Uarte<'a> {
         self.enable_tx_interrupts();
     }
 }
-
-impl<'a> uart::UartData<'a> for Uarte<'a> {}
-impl<'a> uart::Uart<'a> for Uarte<'a> {}
 
 impl<'a> uart::Transmit<'a> for Uarte<'a> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {

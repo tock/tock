@@ -21,9 +21,9 @@
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::static_init;
@@ -63,9 +63,7 @@ impl Component for UartMuxComponent {
             )
         );
         uart_mux.initialize_callback_handle(
-            self.deferred_caller
-                .register(uart_mux)
-                .expect("no deferred call slot available for uart mux"),
+            self.deferred_caller.register(uart_mux).unwrap(), // Unwrap fail = no deferred call slot available for uart mux
         );
 
         uart_mux.initialize();
@@ -78,16 +76,19 @@ impl Component for UartMuxComponent {
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl ConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
         uart_mux: &'static MuxUart,
     ) -> ConsoleComponent {
         ConsoleComponent {
             board_kernel: board_kernel,
+            driver_num: driver_num,
             uart_mux: uart_mux,
         }
     }
@@ -110,7 +111,7 @@ impl Component for ConsoleComponent {
                 console_uart,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
-                self.board_kernel.create_grant(&grant_cap)
+                self.board_kernel.create_grant(self.driver_num, &grant_cap)
             )
         );
         hil::uart::Transmit::set_transmit_client(console_uart, console);

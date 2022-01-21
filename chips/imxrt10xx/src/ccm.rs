@@ -1,7 +1,7 @@
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 register_structs! {
     /// Clock Controller Module
@@ -600,6 +600,21 @@ impl Ccm {
     pub fn is_enabled_dcdc_clock(&self) -> bool {
         self.registers.ccgr[6].read(CCGR::CG3) != 0
     }
+
+    /// Enable the DMA clock gate
+    pub fn enable_dma_clock(&self) {
+        self.registers.ccgr[5].modify(CCGR::CG3.val(0b11));
+    }
+
+    /// Disable the DMA clock gate
+    pub fn disable_dma_clock(&self) {
+        self.registers.ccgr[5].modify(CCGR::CG3.val(0b00));
+    }
+
+    /// Indicates if the DMA clock gate is enabled
+    pub fn is_enabled_dma_clock(&self) -> bool {
+        self.registers.ccgr[5].read(CCGR::CG3) != 0
+    }
 }
 
 /// Clock selections for the main peripheral
@@ -724,6 +739,7 @@ pub enum HCLK4 {
 
 pub enum HCLK5 {
     LPUART1,
+    DMA,
     // and others ...
 }
 
@@ -766,6 +782,7 @@ impl ClockInterface for PeripheralClock<'_> {
             },
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.is_enabled_lpuart1_clock(),
+                HCLK5::DMA => self.ccm.is_enabled_dma_clock(),
             },
             ClockGate::CCGR6(ref v) => match v {
                 HCLK6::DCDC => self.ccm.is_enabled_dcdc_clock(),
@@ -798,6 +815,7 @@ impl ClockInterface for PeripheralClock<'_> {
             },
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.enable_lpuart1_clock(),
+                HCLK5::DMA => self.ccm.enable_dma_clock(),
             },
             ClockGate::CCGR6(ref v) => match v {
                 HCLK6::DCDC => self.ccm.enable_dcdc_clock(),
@@ -830,6 +848,7 @@ impl ClockInterface for PeripheralClock<'_> {
             },
             ClockGate::CCGR5(ref v) => match v {
                 HCLK5::LPUART1 => self.ccm.disable_lpuart1_clock(),
+                HCLK5::DMA => self.ccm.disable_dma_clock(),
             },
             ClockGate::CCGR6(ref v) => match v {
                 HCLK6::DCDC => self.ccm.disable_dcdc_clock(),

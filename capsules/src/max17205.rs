@@ -1,4 +1,4 @@
-//! Driver for the Maxim MAX17205 fuel gauge.
+//! SyscallDriver for the Maxim MAX17205 fuel gauge.
 //!
 //! <https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html>
 //!
@@ -38,9 +38,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::i2c;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -388,18 +391,19 @@ impl i2c::I2CClient for MAX17205<'_> {
 }
 
 #[derive(Default)]
-pub struct App {
-    callback: Upcall,
-}
+pub struct App {}
 
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
     owning_process: OptionalCell<ProcessId>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a> MAX17205Driver<'a> {
-    pub fn new(max: &'a MAX17205, grant: Grant<App>) -> Self {
+    pub fn new(
+        max: &'a MAX17205,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> Self {
         Self {
             max17205: max,
             owning_process: OptionalCell::empty(),
@@ -411,9 +415,17 @@ impl<'a> MAX17205Driver<'a> {
 impl MAX17205Client for MAX17205Driver<'_> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app| {
-                app.callback
-                    .schedule(kernel::into_statuscode(error), status as usize, 0);
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            status as usize,
+                            0,
+                        ),
+                    )
+                    .ok();
             });
         });
     }
@@ -426,81 +438,79 @@ impl MAX17205Client for MAX17205Driver<'_> {
         error: Result<(), ErrorCode>,
     ) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app| {
-                app.callback.schedule(
-                    kernel::into_statuscode(error),
-                    percent as usize,
-                    (capacity as usize) << 16 | (full_capacity as usize),
-                );
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            percent as usize,
+                            (capacity as usize) << 16 | (full_capacity as usize),
+                        ),
+                    )
+                    .ok();
             });
         });
     }
 
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app| {
-                app.callback.schedule(
-                    kernel::into_statuscode(error),
-                    voltage as usize,
-                    current as usize,
-                );
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            voltage as usize,
+                            current as usize,
+                        ),
+                    )
+                    .ok();
             });
         });
     }
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app| {
-                app.callback
-                    .schedule(kernel::into_statuscode(error), coulomb as usize, 0);
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            coulomb as usize,
+                            0,
+                        ),
+                    )
+                    .ok();
             });
         });
     }
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |app| {
-                app.callback.schedule(
-                    kernel::into_statuscode(error),
-                    (rid & 0xffffffff) as usize,
-                    (rid >> 32) as usize,
-                );
+            let _ = self.apps.enter(*pid, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(error),
+                            (rid & 0xffffffff) as usize,
+                            (rid >> 32) as usize,
+                        ),
+                    )
+                    .ok();
             });
         });
     }
 }
 
-impl Driver for MAX17205Driver<'_> {
-    /// Setup callback.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a callback for when all events complete or data is ready.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = self
-            .apps
-            .enter(app_id, |app| {
-                match subscribe_num {
-                    0 => {
-                        core::mem::swap(&mut app.callback, &mut callback);
-                        Ok(())
-                    }
-
-                    // default
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| Err(e.into()));
-        match res {
-            Ok(()) => Ok(callback),
-            Err(e) => Err((callback, e)),
-        }
-    }
+impl SyscallDriver for MAX17205Driver<'_> {
+    // Setup callback.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a callback for when all events complete or data is ready.
 
     /// Setup and read the MAX17205.
     ///
@@ -528,7 +538,7 @@ impl Driver for MAX17205Driver<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_| current_process == &process_id)
+                .enter(*current_process, |_, _| current_process == &process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -557,5 +567,9 @@ impl Driver for MAX17205Driver<'_> {
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

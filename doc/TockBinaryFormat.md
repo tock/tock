@@ -15,6 +15,8 @@
     + [`3` Package Name](#3-package-name)
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
+    + [`7` Persistent ACL](#7-persistent-acl)
+    + [`8` Kernel Version](#8-kernel-version)
 - [Code](#code)
 
 <!-- tocstop -->
@@ -88,6 +90,7 @@ struct TbfHeader {
     flash_regions: Option<TbfHeaderWriteableFlashRegions>,
     fixed_address: Option<TbfHeaderV2FixedAddresses>,
     permissions: Option<TbfHeaderV2Permissions>,
+    persistent_acl: Option<TbfHeaderV2PersistentAcl>,
 }
 
 // Identifiers for the optional header structs.
@@ -98,6 +101,8 @@ enum TbfHeaderTypes {
     TbfHeaderPicOption1 = 4,
     TbfHeaderFixedAddresses = 5,
     TbfHeaderPermissions = 6,
+    TbfHeaderPersistent = 7,
+    TbfHeaderKernelVersion = 8,
 }
 
 // Type-length-value header to identify each struct.
@@ -154,6 +159,23 @@ struct TbfHeaderV2Permissions {
     base: TbfHeaderTlv,
     length: u16,
     perms: [TbfHeaderDriverPermission],
+}
+
+// A list of persistent access permissions
+struct TbfHeaderV2PersistentAcl {
+    base: TbfHeaderTlv,
+    write_id: u32,
+    read_length: u16,
+    read_ids: [u32],
+    access_length: u16,
+    access_ids: [u32],
+}
+
+// Kernel Version
+struct TbfHeaderV2KernelVersion {
+    base: TbfHeaderTlv,
+    major: u16,
+    minor: u16
 }
 ```
 
@@ -364,10 +386,80 @@ included, so long as no `offset` is repeated for a single driver. When
 multiple `offset`s and `allowed_commands`s are used they are ORed together,
 so that they all apply.
 
+#### `7` Persistent ACL
+
+The `Persistent ACL` section is used to identify what access the app has to
+persistent storage.
+
+The data is stored in the `TbfHeaderV2PersistentAcl` field, which includes a
+`write_id` and a number of `read_ids`.
+
+```
+0             2             4             6             8              x            x+2
++-------------+---------------------------+-------------+---------...--+-------------+---------...--+
+| Type (6)    | write_id                  | read_length | read_ids     |access_ids|  access_ids  |
++-------------+-------------+-------------+-------------+---------...--+-------------+---------...--+
+```
+
+`write_id` indicates the id that all new persistent data is written with.
+All new data created will be stored with permissions from the `write_id`
+field. For existing data see the `access_ids` section below.
+Only apps with the same id listed in the `read_ids` can read the data.
+Apps with the same `access_ids` or `write_id` can overwrite the data.
+`write_id` does not need to be unique, that is multiple apps can have the
+same id.
+A `write_id` of `0x00` indicates that the app can not perform write operations.
+
+`read_ids` list all of the ids that this app has permission to read. The
+`read_length` specifiies the length of the `read_ids` in elements (not bytes).
+`read_length` can be `0` indicating that there are no `read_ids`.
+
+`access_ids` list all of the ids that this app has permission to write.
+`access_ids` are different to `write_id` in that `write_id` applies to new data
+while `access_ids` allows modification of existing data.
+The `access_length` specifiies the length of the `access_ids` in elements (not bytes).
+`access_length` can be `0` indicating that there are no `access_ids`.
+
+For example an app has a `write_id` of `1`, `read_ids` of `2, 3` and
+`access_ids` of `3, 4`. If the app was to write new data, it would be stored
+with id `1`. The app is able to read data stored with id `2` or `3`, note that
+it can not read the data that it writes. The app is also able to overwrite
+existing data that was stored with id `3` or `4`.
+
+An example of when `access_ids` would be useful is on a system where each app
+logs errors in its own write_region. An error-reporting app reports these
+errors over the network, and once the reported errors are acked erases them
+from the log. In this case `access_ids` allow an app to erase multiple
+different regions.
+
+#### `8` Kernel Version
+
+The `compatibility` header is designed to prevent the kernel
+from running applications that are not compatible with it.
+
+It defines the following two items:
+* `Kernel major` or `V` is the kernel major number (for Tock 2.0, it is 2)
+* `Kernel minor` or `v` is the kernel minor number (for Tock 2.0, it is 0)
+
+Apps defining this header are compatible with kernel version ^V.v (>= V.v and < (V+1).0)
+
+The kernel version header refers only to the ABI and API exposed by the kernel 
+itself, it does not cover API changes within drivers. 
+
+A kernel major and minor version guarantees the ABI for exchanging 
+data between kernel and userspace and the the system call numbers.
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (8)    | Length (4)  | Kernel major| Kernel minor|
++-------------+-------------+---------------------------+
+```
+
+
 ## Code
 
 The process code itself has no particular format. It will reside in flash,
 but the specific address is determined by the platform. Code in the binary
 should be able to execute successfully at any address, e.g. using position
 independent code.
-

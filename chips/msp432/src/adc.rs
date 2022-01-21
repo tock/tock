@@ -3,13 +3,13 @@
 use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use core::{mem, slice};
-use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 const ADC_BASE: StaticRef<AdcRegisters> =
@@ -573,12 +573,22 @@ enum AdcMode {
     Disabled,
 }
 
-/// This function converts an u8-array to an u16-array.
-/// The provivided reference to the buffer must have an even length, otherwise the function will
-/// panic because the conversion from u8 to u16 would end up in undefined behavior if the last word
-/// of the buffer converted is accessed!
-/// This function is necessary since the DMA returns only u8-buffers whereas the ADC-traits only
-/// work with u16 buffers.
+/// This function converts a `&'static mut [u8]` slice reference to a
+/// `&'static mut [u16]` slice.
+///
+/// ## Safety
+///
+/// It is a necessary condition for the passed buffer to have an even
+/// length, otherwise the function will panic because the conversion
+/// from `u8` to `u16` would end up in undefined behavior if the last
+/// word of the buffer converted is accessed!
+///
+/// Furthermore, this function assumes that the passed buffer is well
+/// aligned, to `core::mem::align_of::<u16>()`. Improper alignment of
+/// the passed buffer will result in undefined behavior.
+///
+/// This function is necessary since the DMA returns only `u8`-buffers
+/// whereas the ADC-traits only work with `u16`-buffers.
 unsafe fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
     if (buf.len() % 2) > 0 {
         panic!("ADC: cannot convert an u8 array with an odd length to an u16 array");
@@ -588,9 +598,11 @@ unsafe fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
     slice::from_raw_parts_mut(buf_ptr, buf.len() / 2)
 }
 
-/// This function converts an u16-array to an u8-array.
-/// Since the DMA only accepts only u8-buffers and the ADC-traits use u16-buffers, they have to be
-/// converted.
+/// This function converts a `&'static mut [u16]` slice reference to a
+/// `&'static mut [u8]` slice reference.
+///
+/// Since the DMA only accepts only `u8`-buffers and the ADC-traits
+/// use `u16`-buffers, they have to be converted.
 unsafe fn buf_u16_to_buf_u8(buf: &'static mut [u16]) -> &'static mut [u8] {
     let buf_ptr = mem::transmute::<*mut u16, *mut u8>(buf.as_mut_ptr());
     slice::from_raw_parts_mut(buf_ptr, buf.len() * 2)

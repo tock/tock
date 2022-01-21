@@ -132,7 +132,7 @@ use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
 use kernel::ErrorCode;
 
@@ -209,17 +209,15 @@ pub unsafe fn initialize_all(
     )
     .finalize(());
 
+    let alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    alarm.setup();
+
     let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        LowpanTest::new(
-            static_init!(
-                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-                VirtualMuxAlarm::new(mux_alarm)
-            ),
-            port_table,
-            mock_udp1,
-            mock_udp2,
-        )
+        LowpanTest::new(alarm, port_table, mock_udp1, mock_udp2,)
     );
 
     udp_lowpan_test.alarm.set_alarm_client(udp_lowpan_test);
@@ -264,7 +262,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = A::ticks_from_ms(TEST_DELAY_MS);
+        let delta = self.alarm.ticks_from_ms(TEST_DELAY_MS);
         let now = self.alarm.now();
         self.alarm.set_alarm(now, delta);
     }

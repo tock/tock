@@ -16,6 +16,8 @@ pub enum NUM {
     Adc                   = 0x00005,
     Dac                   = 0x00006,
     AnalogComparator      = 0x00007,
+    LowLevelDebug         = 0x00008,
+    ReadOnlyState         = 0x00009,
 
     // Kernel
     Ipc                   = 0x10000,
@@ -37,6 +39,8 @@ pub enum NUM {
     Crc                   = 0x40002,
     Hmac                  = 0x40003,
     CtapHid               = 0x40004,
+    Sha                   = 0x40005,
+    Aes                   = 0x40006,
 
     // Storage
     AppFlash              = 0x50000,
@@ -58,6 +62,7 @@ pub enum NUM {
     L3gd20                = 0x70005,
     Lsm303dlch            = 0x70006,
     Mlx90614              = 0x70007,
+    Lsm6dsoxtr            = 0x70008,
 
     // Other ICs
     Ltc294x               = 0x80000,

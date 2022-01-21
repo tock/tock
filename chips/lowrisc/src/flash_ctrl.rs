@@ -2,43 +2,68 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::cells::OptionalCell;
-use kernel::common::cells::TakeCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 register_structs! {
     pub FlashCtrlRegisters {
-        (0x00 => intr_state: ReadWrite<u32, INTR::Register>),
-        (0x04 => intr_enable: ReadWrite<u32, INTR::Register>),
-        (0x08 => intr_test: WriteOnly<u32, INTR::Register>),
-        (0x0C => ctrl_regwen: ReadOnly<u32, CTRL_REGWEN::Register>),
-        (0x10 => control: ReadWrite<u32, CONTROL::Register>),
-        (0x14 => addr: ReadWrite<u32, ADDR::Register>),
-        (0x18 => region_cfg_regwen: [ReadWrite<u32, REGION_CFG_REGWEN::Register>; 8]),
-        (0x38 => mp_region_cfg: [ReadWrite<u32, MP_REGION_CFG::Register>; 8]),
-        (0x58 => bank0_info_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 8]),
-        (0x78 => bank0_info_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 8]),
-        (0x98 => bank1_info_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 8]),
-        (0xB8 => bank1_info_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 8]),
-        (0xD8 => default_region: ReadWrite<u32, DEFAULT_REGION::Register>),
-        (0xDC => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
-        (0xE0 => mp_bank_cfg: ReadWrite<u32, MP_BANK_CFG::Register>),
-        (0xE4 => op_status: ReadWrite<u32, OP_STATUS::Register>),
-        (0xE8 => status: ReadOnly<u32, STATUS::Register>),
-        (0xEC => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
-        (0xF0 => scratch: ReadWrite<u32, SCRATCH::Register>),
-        (0xF4 => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
-        (0xF8 => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
-        (0xFC => prog_fifo: ReadWrite<u32>),
-        (0x100 => rd_fifo: ReadOnly<u32>),
-        (0x104 => @END),
+        (0x000 => intr_state: ReadWrite<u32, INTR::Register>),
+        (0x004 => intr_enable: ReadWrite<u32, INTR::Register>),
+        (0x008 => intr_test: WriteOnly<u32, INTR::Register>),
+        (0x00C => alert_test: WriteOnly<u32>),
+        (0x010 => disable: ReadWrite<u32>),
+        (0x014 => exec: ReadWrite<u32>),
+        (0x018 => init: ReadWrite<u32, INIT::Register>),
+        (0x01C => ctrl_regwen: ReadOnly<u32, CTRL_REGWEN::Register>),
+        (0x020 => control: ReadWrite<u32, CONTROL::Register>),
+        (0x024 => addr: ReadWrite<u32, ADDR::Register>),
+        (0x028 => prog_type_en: ReadWrite<u32, PROG_TYPE_EN::Register>),
+        (0x02c => erase_suspend: ReadWrite<u32, ERASE_SUSPEND::Register>),
+        (0x030 => region_cfg_regwen: [ReadWrite<u32, REGION_CFG_REGWEN::Register>; 8]),
+        (0x050 => mp_region_cfg_shadowed: [ReadWrite<u32, MP_REGION_CFG::Register>; 8]),
+        (0x070 => default_region_shadowed: ReadWrite<u32, DEFAULT_REGION::Register>),
+
+        (0x074 => bank0_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
+        (0x09C => bank0_info0_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
+        (0x0C4 => bank0_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
+        (0x0C8 => bank0_info1_page_cfg_shadowed: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
+        (0x0CC => bank0_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
+        (0x0D4 => bank0_info2_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
+
+        (0x0DC => bank1_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
+        (0x104 => bank1_info0_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
+        (0x12C => bank1_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
+        (0x130 => bank1_info1_page_cfg_shadowed: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
+        (0x134 => bank1_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
+        (0x13C => bank1_info2_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
+
+        (0x144 => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
+        (0x148 => mp_bank_cfg_shadowed: ReadWrite<u32, MP_BANK_CFG::Register>),
+        (0x14C => op_status: ReadWrite<u32, OP_STATUS::Register>),
+        (0x150 => status: ReadOnly<u32, STATUS::Register>),
+        (0x154 => err_code: ReadOnly<u32>),
+        (0x158 => fault_status: ReadOnly<u32>),
+        (0x15C => err_addr: ReadOnly<u32>),
+        (0x160 => ecc_single_err_cnt: ReadOnly<u32>),
+        (0x164 => ecc_single_addr: [ReadOnly<u32>; 2]),
+        (0x16C => phy_err_cfg_regwen: ReadOnly<u32>),
+        (0x170 => phy_err_cfg: ReadOnly<u32>),
+        (0x174 => phy_alert_cfg: ReadOnly<u32>),
+        (0x178 => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
+        (0x17C => scratch: ReadWrite<u32, SCRATCH::Register>),
+        (0x180 => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
+        (0x184 => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
+        (0x188 => prog_fifo: WriteOnly<u32>),
+        (0x18C => rd_fifo: ReadOnly<u32>),
+        (0x190=> @END),
     }
 }
 
@@ -51,6 +76,9 @@ register_bitfields![u32,
         OP_DONE OFFSET(4) NUMBITS(1) [],
         OP_ERROR OFFSET(5) NUMBITS(1) []
     ],
+    INIT [
+        VAL OFFSET(0) NUMBITS(1) []
+    ],
     CTRL_REGWEN [
         EN OFFSET(0) NUMBITS(1) []
     ],
@@ -61,7 +89,10 @@ register_bitfields![u32,
             PROG = 1,
             ERASE = 2
         ],
-        PROG_SEL OFFSET(6) NUMBITS(1) [],
+        PROG_SEL OFFSET(6) NUMBITS(1) [
+            NORMAL = 0,
+            REPAIR = 1,
+        ],
         ERASE_SEL OFFSET(7) NUMBITS(1) [
             PAGE = 0,
             BANK = 1
@@ -74,8 +105,15 @@ register_bitfields![u32,
             //     only accessible by the controller.
             INFO = 1
         ],
-        INFO_SEL OFFSET(9) NUMBITS(1) [],
+        INFO_SEL OFFSET(9) NUMBITS(2) [],
         NUM OFFSET(16) NUMBITS(12) []
+    ],
+    PROG_TYPE_EN [
+        NORMAL OFFSET(0) NUMBITS(1) [],
+        REPAIR OFFSET(1) NUMBITS(1) [],
+    ],
+    ERASE_SUSPEND [
+        REQ OFFSET(0) NUMBITS(1) [],
     ],
     ADDR [
         START OFFSET(0) NUMBITS(32) []
@@ -89,18 +127,25 @@ register_bitfields![u32,
         PROG_EN OFFSET(2) NUMBITS(1) [],
         ERASE_EN OFFSET(3) NUMBITS(1) [],
         SCRAMBLE_EN OFFSET(4) NUMBITS(1) [],
+        ECC_EN OFFSET(5) NUMBITS(1) [],
+        HE_EN OFFSET(6) NUMBITS(1) [],
         BASE OFFSET(8) NUMBITS(8) [],
         SIZE OFFSET(20) NUMBITS(8) []
     ],
     BANK_INFO_REGWEN [
-        REGION OFFSET(0) NUMBITS(1) []
+        REGION OFFSET(0) NUMBITS(1) [
+            Locked = 0,
+            Enabled =1,
+        ]
     ],
     BANK_INFO_PAGE_CFG [
         EN OFFSET(0) NUMBITS(1) [],
         RD_EN OFFSET(1) NUMBITS(1) [],
         PROG_EN OFFSET(2) NUMBITS(1) [],
         ERASE_EN OFFSET(3) NUMBITS(1) [],
-        SCRAMBLE_EN OFFSET(4) NUMBITS(1) []
+        SCRAMBLE_EN OFFSET(4) NUMBITS(1) [],
+        ECC_EN OFFSET(5) NUMBITS(1) [],
+        HE_EN OFFSET(6) NUMBITS(1) [],
     ],
     BANK_CFG_REGWEN [
         BANK OFFSET(0) NUMBITS(1) []
@@ -109,7 +154,9 @@ register_bitfields![u32,
         RD_EN OFFSET(0) NUMBITS(1) [],
         PROG_EN OFFSET(1) NUMBITS(1) [],
         ERASE_EN OFFSET(2) NUMBITS(1) [],
-        SCRAMBLE_EN OFFSET(3) NUMBITS(1) []
+        SCRAMBLE_EN OFFSET(3) NUMBITS(1) [],
+        ECC_EN OFFSET(4) NUMBITS(1) [],
+        HE_EN OFFSET(5) NUMBITS(1) [],
     ],
     MP_BANK_CFG [
         ERASE_EN_0 OFFSET(0) NUMBITS(1) [],
@@ -125,7 +172,6 @@ register_bitfields![u32,
         PROG_FULL OFFSET(2) NUMBITS(1) [],
         PROG_EMPTY OFFSET(3) NUMBITS(1) [],
         INIT_WIP OFFSET(4) NUMBITS(1) [],
-        ERROR_ADDR OFFSET(8) NUMBITS(8) []
     ],
     PHY_STATUS [
         INIT_WIP OFFSET(0) NUMBITS(1) [],
@@ -144,7 +190,7 @@ register_bitfields![u32,
     ]
 ];
 
-pub const PAGE_SIZE: usize = 512;
+pub const PAGE_SIZE: usize = 64;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
 
@@ -240,43 +286,52 @@ impl<'a> FlashCtrl<'a> {
     }
 
     fn configure_data_partition(&self, num: FlashRegion) {
-        self.registers.default_region.write(
-            DEFAULT_REGION::RD_EN::SET
-                + DEFAULT_REGION::PROG_EN::SET
-                + DEFAULT_REGION::ERASE_EN::SET,
-        );
+        for _ in 0..2 {
+            self.registers.default_region_shadowed.write(
+                DEFAULT_REGION::RD_EN::SET
+                    + DEFAULT_REGION::PROG_EN::SET
+                    + DEFAULT_REGION::ERASE_EN::SET,
+            );
+        }
 
-        self.registers.mp_region_cfg[num as usize].write(
-            MP_REGION_CFG::BASE.val(256)
-                + MP_REGION_CFG::SIZE.val(0x1)
-                + MP_REGION_CFG::RD_EN::SET
-                + MP_REGION_CFG::PROG_EN::SET
-                + MP_REGION_CFG::ERASE_EN::SET
-                + MP_REGION_CFG::SCRAMBLE_EN::CLEAR
-                + MP_REGION_CFG::EN::SET,
-        );
+        for _ in 0..2 {
+            self.registers.mp_region_cfg_shadowed[num as usize].write(
+                MP_REGION_CFG::BASE.val(256)
+                    + MP_REGION_CFG::SIZE.val(0x1)
+                    + MP_REGION_CFG::RD_EN::SET
+                    + MP_REGION_CFG::PROG_EN::SET
+                    + MP_REGION_CFG::ERASE_EN::SET
+                    + MP_REGION_CFG::SCRAMBLE_EN::CLEAR
+                    + MP_REGION_CFG::ECC_EN::CLEAR
+                    + MP_REGION_CFG::EN::SET,
+            );
+        }
         self.data_configured.set(true);
     }
 
     fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) {
-        if bank == FlashBank::BANK0 {
-            self.registers.bank0_info_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::SET
-                    + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                    + BANK_INFO_PAGE_CFG::EN::SET,
-            );
-        } else if bank == FlashBank::BANK1 {
-            self.registers.bank1_info_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::SET
-                    + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                    + BANK_INFO_PAGE_CFG::EN::SET,
-            );
-        } else {
-            panic!("Unsupported bank");
+        for _ in 0..2 {
+            if bank == FlashBank::BANK0 {
+                self.registers.bank0_info0_page_cfg_shadowed[num as usize].write(
+                    BANK_INFO_PAGE_CFG::RD_EN::SET
+                        + BANK_INFO_PAGE_CFG::PROG_EN::SET
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::SET
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
+                        + BANK_INFO_PAGE_CFG::ECC_EN::CLEAR
+                        + BANK_INFO_PAGE_CFG::EN::SET,
+                );
+            } else if bank == FlashBank::BANK1 {
+                self.registers.bank1_info0_page_cfg_shadowed[num as usize].write(
+                    BANK_INFO_PAGE_CFG::RD_EN::SET
+                        + BANK_INFO_PAGE_CFG::PROG_EN::SET
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::SET
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
+                        + BANK_INFO_PAGE_CFG::ECC_EN::CLEAR
+                        + BANK_INFO_PAGE_CFG::EN::SET,
+                );
+            } else {
+                panic!("Unsupported bank");
+            }
         }
         self.info_configured.set(true);
     }
@@ -375,11 +430,6 @@ impl<'a> FlashCtrl<'a> {
                     }
                 }
             } else if self.registers.control.matches_all(CONTROL::OP::ERASE) {
-                // Disable erase
-                self.registers
-                    .mp_bank_cfg
-                    .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
-
                 self.flash_client.map(move |client| {
                     client.erase_complete(hil::flash::Error::CommandComplete);
                 });
@@ -411,7 +461,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
         // Enable interrupts and set the FIFO level
@@ -450,7 +500,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
         // Set the address
@@ -502,13 +552,15 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK0, self.region_num);
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
         }
 
-        // Enable erase
-        self.registers
-            .mp_bank_cfg
-            .modify(MP_BANK_CFG::ERASE_EN_0::SET + MP_BANK_CFG::ERASE_EN_1::SET);
+        // Disable bank erase
+        for _ in 0..2 {
+            self.registers
+                .mp_bank_cfg_shadowed
+                .modify(MP_BANK_CFG::ERASE_EN_0::CLEAR + MP_BANK_CFG::ERASE_EN_1::CLEAR);
+        }
 
         // Set the address
         self.registers.addr.write(ADDR::START.val(addr as u32));

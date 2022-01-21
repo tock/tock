@@ -79,14 +79,15 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
-use kernel::{CommandReturn, Driver, ErrorCode, ProcessId};
-
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::TakeCell;
+use kernel::{ErrorCode, ProcessId};
 
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 
 /// Syscall driver number.
 use crate::driver;
@@ -168,7 +169,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
             }
         });
         self.row_set(self.rows[self.current_row.get()]);
-        let interval = A::ticks_from_ms(self.timing as u32);
+        let interval = self.alarm.ticks_from_ms(self.timing as u32);
         self.alarm.set_alarm(self.alarm.now(), interval);
     }
 
@@ -235,7 +236,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     fn toggle_index(&self, led_index: usize) -> Result<(), ErrorCode> {
         if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[led_index / 8] = bits[led_index % 8] ^ (1 << (led_index % 8)));
+                .map(|bits| bits[led_index / 8] = bits[led_index / 8] ^ (1 << (led_index % 8)));
             Ok(())
         } else {
             Err(ErrorCode::INVAL)
@@ -263,7 +264,7 @@ impl<'a, L: Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     }
 }
 
-impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
+impl<'a, L: Pin, A: Alarm<'a>> SyscallDriver for LedMatrixDriver<'a, L, A> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -294,6 +295,10 @@ impl<'a, L: Pin, A: Alarm<'a>> Driver for LedMatrixDriver<'a, L, A> {
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
+
+    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
+        Ok(())
+    }
 }
 // one Led from the matrix
 pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
@@ -305,7 +310,7 @@ pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
 impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
     pub fn new(matrix: &'a LedMatrixDriver<'a, L, A>, col: usize, row: usize) -> Self {
         if col >= matrix.cols_len() || row >= matrix.rows_len() {
-            panic!("LET at position ({}, {}) does not exist", col, row);
+            panic!("LED at position ({}, {}) does not exist", col, row);
         }
         LedMatrixLed { matrix, col, row }
     }

@@ -42,19 +42,20 @@
 //! use kernel::hil::entropy::Entropy32;
 //! use kernel::hil::entropy::Client32;
 //! use kernel::hil::time::Alarm;
+//! use kernel::hil::time::ConvertTicks;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::AlarmClient;
 //! use kernel::ErrorCode;
 //!
 //! struct EntropyTest<'a, A: 'a + Alarm<'a>> {
-//!     entropy: &'a Entropy32 <'a>,
+//!     entropy: &'a dyn Entropy32 <'a>,
 //!     alarm: &'a A
 //! }
 //!
 //! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let now = self.alarm.now();
-//!         let dt = <A>::ticks_from_seconds(1);
+//!         let dt = self.alarm.ticks_from_seconds(1);
 //!         self.alarm.set_alarm(now, dt);
 //!     }
 //! }
@@ -67,13 +68,13 @@
 //!
 //! impl<'a, A: Alarm<'a>> Client32 for EntropyTest<'a, A> {
 //!     fn entropy_available(&self,
-//!                          entropy: &mut Iterator<Item = u32>,
+//!                          entropy: &mut dyn Iterator<Item = u32>,
 //!                          error: Result<(), ErrorCode>) -> hil::entropy::Continue {
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
 //!                 let now = self.alarm.now();
-//!                 let dt = <A>::ticks_from_seconds(1);
+//!                 let dt = self.alarm.ticks_from_seconds(1);
 //!                 self.alarm.set_alarm(now, dt);
 //!                 hil::entropy::Continue::Done
 //!             },

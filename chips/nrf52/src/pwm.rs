@@ -1,10 +1,10 @@
 //! PWM driver for nRF52.
 
-use kernel::common::cells::VolatileCell;
-use kernel::common::registers::interfaces::Writeable;
-use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use nrf5x;
 
@@ -189,6 +189,11 @@ impl Pwm {
         frequency_hz: usize,
         duty_cycle: usize,
     ) -> Result<(), ErrorCode> {
+        // If frequency is 0, we can just stop the PWM and have it do nothing.
+        if frequency_hz == 0 {
+            return self.stop_pwm(pin);
+        }
+
         let prescaler = 0;
         let counter_top = (16000000 / frequency_hz) >> prescaler;
 

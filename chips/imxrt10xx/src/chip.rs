@@ -3,14 +3,13 @@
 use core::fmt::Write;
 use cortexm7;
 use kernel::debug;
-use kernel::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService};
 
 use crate::nvic;
 
 pub struct Imxrt10xx<I: InterruptService<()> + 'static> {
     mpu: cortexm7::mpu::MPU,
     userspace_kernel_boundary: cortexm7::syscall::SysCall,
-    scheduler_timer: cortexm7::systick::SysTick,
     interrupt_service: &'static I,
 }
 
@@ -19,7 +18,6 @@ impl<I: InterruptService<()> + 'static> Imxrt10xx<I> {
         Imxrt10xx {
             mpu: cortexm7::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
-            scheduler_timer: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
             interrupt_service,
         }
     }
@@ -30,6 +28,7 @@ pub struct Imxrt10xxDefaultPeripherals {
     pub iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs,
     pub ccm: &'static crate::ccm::Ccm,
     pub dcdc: crate::dcdc::Dcdc<'static>,
+    pub dma: crate::dma::Dma<'static>,
     pub ccm_analog: crate::ccm_analog::CcmAnalog,
     pub ports: crate::gpio::Ports<'static>,
     pub lpi2c1: crate::lpi2c::Lpi2c<'static>,
@@ -46,6 +45,7 @@ impl Imxrt10xxDefaultPeripherals {
             iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs::new(),
             ccm,
             dcdc: crate::dcdc::Dcdc::new(ccm),
+            dma: crate::dma::Dma::new(ccm),
             ccm_analog: crate::ccm_analog::CcmAnalog::new(),
             ports: crate::gpio::Ports::new(ccm),
             lpi2c1: crate::lpi2c::Lpi2c::new_lpi2c1(ccm),
@@ -76,6 +76,20 @@ impl InterruptService<()> for Imxrt10xxDefaultPeripherals {
             nvic::GPIO5_1 => self.ports.gpio5.handle_interrupt(),
             nvic::GPIO5_2 => self.ports.gpio5.handle_interrupt(),
             nvic::SNVS_LP_WRAPPER => debug!("Interrupt: SNVS_LP_WRAPPER"),
+            nvic::DMA0_16..=nvic::DMA15_31 => {
+                let low = (interrupt - nvic::DMA0_16) as usize;
+                let high = low + 16;
+                for channel in [&self.dma.channels[low], &self.dma.channels[high]] {
+                    if channel.is_interrupt() | channel.is_error() {
+                        channel.handle_interrupt();
+                    }
+                }
+            }
+            nvic::DMA_ERROR => {
+                while let Some(channel) = self.dma.error_channel() {
+                    channel.handle_interrupt();
+                }
+            }
             _ => {
                 return false;
             }
@@ -91,8 +105,6 @@ impl InterruptService<()> for Imxrt10xxDefaultPeripherals {
 impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
-    type SchedulerTimer = cortexm7::systick::SysTick;
-    type WatchDog = ();
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -116,14 +128,6 @@ impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {
         &self.mpu
-    }
-
-    fn scheduler_timer(&self) -> &cortexm7::systick::SysTick {
-        &self.scheduler_timer
-    }
-
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
     }
 
     fn userspace_kernel_boundary(&self) -> &cortexm7::syscall::SysCall {

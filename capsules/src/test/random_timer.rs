@@ -5,9 +5,11 @@
 //!
 //! Author: Philip Levis <plevis@google.com>
 //! Last Modified: 6/22/2020
+
 use core::cell::Cell;
+
 use kernel::debug;
-use kernel::hil::time::{Ticks, Timer, TimerClient};
+use kernel::hil::time::{ConvertTicks, Ticks, Timer, TimerClient};
 
 pub struct TestRandomTimer<'a, T: 'a> {
     timer: &'a T,
@@ -44,7 +46,7 @@ impl<'a, T: Timer<'a>> TestRandomTimer<'a, T> {
                 // Try delays of zero in 1 of 11 cases
                 us = 0;
             }
-            let new_interval = T::ticks_from_us(us);
+            let new_interval = self.timer.ticks_from_us(us);
             self.interval.set(new_interval.into_u32());
             if us % 7 == 0 {
                 let new_counter = 2 + self.interval.get() * 23 % 13;

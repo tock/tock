@@ -13,26 +13,57 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-use capsules::process_console;
+use core::marker::PhantomData;
+use core::mem::MaybeUninit;
+
+use capsules::process_console::{self, ProcessConsole};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::static_init;
+use kernel::hil::time::Alarm;
+use kernel::process::ProcessPrinter;
+use kernel::{static_init, static_init_half};
 
-pub struct ProcessConsoleComponent {
-    board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static MuxUart<'static>,
+#[macro_export]
+macro_rules! process_console_component_helper {
+    ($A: ty) => {{
+        use capsules::process_console::ProcessConsole;
+        use capsules::virtual_alarm::VirtualMuxAlarm;
+        use components::process_console::Capability;
+        use core::mem::MaybeUninit;
+
+        static mut BUFFER: MaybeUninit<ProcessConsole<VirtualMuxAlarm<'static, $A>, Capability>> =
+            MaybeUninit::uninit();
+
+        static mut ALARM: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
+
+        (&mut BUFFER, &mut ALARM)
+    }};
 }
 
-impl ProcessConsoleComponent {
+pub struct ProcessConsoleComponent<A: 'static + Alarm<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    uart_mux: &'static MuxUart<'static>,
+    alarm_mux: &'static MuxAlarm<'static, A>,
+    _alarm: PhantomData<A>,
+    process_printer: &'static dyn ProcessPrinter,
+}
+
+impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         uart_mux: &'static MuxUart,
-    ) -> ProcessConsoleComponent {
+        alarm_mux: &'static MuxAlarm<'static, A>,
+        process_printer: &'static dyn ProcessPrinter,
+    ) -> ProcessConsoleComponent<A> {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
+            alarm_mux: alarm_mux,
+            _alarm: PhantomData,
+            process_printer,
         }
     }
 }
@@ -54,11 +85,15 @@ extern "C" {
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl Component for ProcessConsoleComponent {
-    type StaticInput = ();
-    type Output = &'static process_console::ProcessConsole<'static, Capability>;
+impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
+    type StaticInput = (
+        &'static mut MaybeUninit<ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+    );
+    type Output =
+        &'static process_console::ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
         console_uart.setup();
@@ -77,10 +112,20 @@ impl Component for ProcessConsoleComponent {
             bss_end: &_ezero as *const u8,
         };
 
-        let console = static_init!(
-            process_console::ProcessConsole<'static, Capability>,
-            process_console::ProcessConsole::new(
+        let console_alarm = static_init_half!(
+            static_buffer.1,
+            VirtualMuxAlarm<'static, A>,
+            VirtualMuxAlarm::new(self.alarm_mux)
+        );
+        console_alarm.setup();
+
+        let console = static_init_half!(
+            static_buffer.0,
+            ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>,
+            ProcessConsole::new(
                 console_uart,
+                console_alarm,
+                self.process_printer,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
                 &mut process_console::QUEUE_BUF,
@@ -92,6 +137,7 @@ impl Component for ProcessConsoleComponent {
         );
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);
+        console_alarm.set_alarm_client(console);
 
         console
     }

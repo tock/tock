@@ -1,8 +1,8 @@
 //! ARM Cortex-M SysTick peripheral.
 
-use kernel::common::registers::interfaces::{Readable, Writeable};
-use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
-use kernel::common::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
 #[repr(C)]
 struct SystickRegisters {
@@ -89,7 +89,7 @@ impl SysTick {
     /// Initialize the `SysTick` with an explicit clock speed and external source
     ///
     /// Use this constructor if the core implementation does not have a
-    /// pre-calibration value and you need an external clock source for  
+    /// pre-calibration value and you need an external clock source for
     /// the Systick.
     ///
     ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
@@ -117,7 +117,7 @@ impl SysTick {
     }
 }
 
-impl kernel::SchedulerTimer for SysTick {
+impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
     fn start(&self, us: u32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit

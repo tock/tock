@@ -17,8 +17,8 @@
 
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
-use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::i2c;
 use kernel::static_init_half;
 
@@ -40,7 +40,7 @@ macro_rules! i2c_component_helper {
         use core::mem::MaybeUninit;
         static mut BUF: MaybeUninit<I2CDevice<'static>> = MaybeUninit::uninit();
         &mut BUF
-    };};
+    }};
 }
 
 pub struct I2CMuxComponent {
@@ -80,9 +80,7 @@ impl Component for I2CMuxComponent {
         );
 
         mux_i2c.initialize_callback_handle(
-            self.deferred_caller
-                .register(mux_i2c)
-                .expect("no deferred call slot available for I2C mux"),
+            self.deferred_caller.register(mux_i2c).unwrap(), // Unwrap fail = no deferred call slot available for I2C mux
         );
 
         self.i2c.set_master_client(mux_i2c);

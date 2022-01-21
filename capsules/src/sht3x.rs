@@ -1,4 +1,4 @@
-//! Driver for SHT3x Temperature and Humidity Sensor
+//! SyscallDriver for SHT3x Temperature and Humidity Sensor
 //!
 //! Author: Cosmin Daniel Radu <cosmindanielradu19@gmail.com>
 //!
@@ -7,14 +7,13 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{self, Alarm, ConvertTicks};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub static BASE_ADDR: u8 = 0x44;
 
-#[repr(u16)]
 enum_from_primitive! {
     enum Registers {
         /// Measurement High Repeatability with Clock Stretch Enabled
@@ -203,7 +202,7 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                     }
                     State::Read => {
                         self.buffer.replace(buffer);
-                        let interval = A::ticks_from_ms(20);
+                        let interval = self.alarm.ticks_from_ms(20);
                         self.alarm.set_alarm(self.alarm.now(), interval);
                     }
                     _ => {}

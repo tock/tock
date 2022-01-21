@@ -1,10 +1,10 @@
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::dma1;
@@ -503,9 +503,6 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         Err(ErrorCode::BUSY)
     }
 }
-
-impl<'a> hil::uart::UartData<'a> for Usart<'a> {}
-impl<'a> hil::uart::Uart<'a> for Usart<'a> {}
 
 impl dma1::StreamClient for Usart<'_> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {

@@ -24,6 +24,7 @@
 //!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
 //! );
+//! virtual_alarm_buzzer.setup();
 //!
 //! let buzzer = static_init!(
 //!     capsules::buzzer_driver::Buzzer<
@@ -40,11 +41,12 @@
 
 use core::cmp;
 
-use core::mem;
-use kernel::common::cells::OptionalCell;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::time::Frequency;
-use kernel::{CommandReturn, Driver, ErrorCode, Grant, ProcessId, Upcall};
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
@@ -63,7 +65,6 @@ pub enum BuzzerCommand {
 
 #[derive(Default)]
 pub struct App {
-    callback: Upcall, // Optional callback to signal when the buzzer event is over.
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
@@ -73,7 +74,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // Alarm to stop the buzzer after some time.
     alarm: &'a A,
     // Per-app state.
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     // Which app is currently using the buzzer.
     active_app: OptionalCell<ProcessId>,
     // Max buzz time.
@@ -85,7 +86,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         pwm_pin: &'a dyn hil::pwm::PwmPin,
         alarm: &'a A,
         max_duration_ms: usize,
-        grant: Grant<App>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Buzzer<'a, A> {
         Buzzer {
             pwm_pin: pwm_pin,
@@ -107,7 +108,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
-                .enter(app_id, |app| {
+                .enter(app_id, |app, _| {
                     // Some app is using the storage, we must wait.
                     if app.pending_command.is_some() {
                         // No more room in the queue, nowhere to store this
@@ -150,7 +151,7 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
             let appid = appiter.processid();
-            let started_command = appiter.enter(|app| {
+            let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {
                     // Mark this driver as being in use.
@@ -173,8 +174,8 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
         let _ = self.pwm_pin.stop();
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
-            let _ = self.apps.enter(app_id, |app| {
-                app.callback.schedule(0, 0, 0);
+            let _ = self.apps.enter(app_id, |_app, upcalls| {
+                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             });
         });
 
@@ -184,31 +185,12 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
-    /// Setup callbacks.
-    ///
-    /// ### `subscribe_num`
-    ///
-    /// - `0`: Setup a buzz done callback.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app| mem::swap(&mut app.callback, &mut callback))
-                .map_err(ErrorCode::from),
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
+impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
+    // Setup callbacks.
+    //
+    // ### `subscribe_num`
+    //
+    // - `0`: Setup a buzz done callback.
 
     /// Command interface.
     ///
@@ -247,5 +229,9 @@ impl<'a, A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

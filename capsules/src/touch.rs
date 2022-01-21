@@ -13,16 +13,32 @@
 
 use core::cell::Cell;
 use core::mem;
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
-use kernel::hil::touch::{GestureEvent, TouchEvent, TouchStatus};
-use kernel::{
-    CommandReturn, Driver, ErrorCode, Grant, ProcessId, ReadWrite, ReadWriteAppSlice, Upcall,
-};
+use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
+use kernel::processbuffer::WriteableProcessBuffer;
+use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Touch as usize;
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    /// Allow a buffer for the multi touch. See header for format
+    // Buffer data format
+    //  0         1           2              4              6           7             8          ...
+    // +---------+-----------+--------------+--------------+-----------+---------------+-------- ...
+    // | id (u8) | type (u8) | x (u16)      | y (u16)      | size (u8) | pressure (u8) |         ...
+    // +---------+-----------+--------------+--------------+-----------+---------------+-------- ...
+    // | Touch 0                                                                       | Touch 1 ...
+    pub const EVENTS: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
 
 fn touch_status_to_number(status: &TouchStatus) -> usize {
     match status {
@@ -34,10 +50,6 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    touch_callback: Upcall,
-    gesture_callback: Upcall,
-    multi_touch_callback: Upcall,
-    events_buffer: ReadWriteAppSlice,
     ack: bool,
     dropped_events: usize,
     x: u16,
@@ -50,10 +62,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            touch_callback: Upcall::default(),
-            gesture_callback: Upcall::default(),
-            multi_touch_callback: Upcall::default(),
-            events_buffer: ReadWriteAppSlice::default(),
             ack: true,
             dropped_events: 0,
             x: 0,
@@ -74,7 +82,7 @@ pub struct Touch<'a> {
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
     screen: Option<&'a dyn hil::screen::Screen>,
-    apps: Grant<App>,
+    apps: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
 
@@ -83,7 +91,7 @@ impl<'a> Touch<'a> {
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen>,
-        grant: Grant<App>,
+        grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> Touch<'a> {
         Touch {
             touch: touch,
@@ -101,24 +109,39 @@ impl<'a> Touch<'a> {
     fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app| if app.touch_enable { true } else { false }) {
+            if app.enter(|app, _| if app.touch_enable { true } else { false }) {
                 enabled = true;
                 break;
             }
         }
-        self.touch.map_or(Err(ErrorCode::NODEVICE), |touch| {
-            if enabled {
-                touch.enable()
-            } else {
-                touch.disable()
-            }
-        })
+        self.touch.map_or_else(
+            || {
+                // if there is no single touch device
+                // try to use the multi touch device and
+                // report only a single touch
+                self.multi_touch
+                    .map_or(Err(ErrorCode::NODEVICE), |multi_touch| {
+                        if enabled {
+                            multi_touch.enable()
+                        } else {
+                            multi_touch.disable()
+                        }
+                    })
+            },
+            |touch| {
+                if enabled {
+                    touch.enable()
+                } else {
+                    touch.disable()
+                }
+            },
+        )
     }
 
     fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app| if app.multi_touch_enable { true } else { false }) {
+            if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {
                 enabled = true;
                 break;
             }
@@ -170,7 +193,7 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
         //     event.status, event.x, event.y, event.size, event.pressure
         // );
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|app, kernel_data| {
                 let event_status = touch_status_to_number(&event.status);
                 if app.x != event.x || app.y != event.y || app.status != event_status {
                     app.x = event.x;
@@ -184,11 +207,16 @@ impl<'a> hil::touch::TouchClient for Touch<'a> {
                         Some(size) => size as usize,
                         None => 0,
                     };
-                    app.touch_callback.schedule(
-                        event_status,
-                        (event.x as usize) << 16 | event.y as usize,
-                        pressure_size,
-                    );
+                    kernel_data
+                        .schedule_upcall(
+                            0,
+                            (
+                                event_status,
+                                (event.x as usize) << 16 | event.y as usize,
+                                pressure_size,
+                            ),
+                        )
+                        .ok();
                 }
             });
         }
@@ -202,77 +230,88 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
         } else {
             num_events
         };
-        // debug!("{} touch(es)", len);
-        for app in self.apps.iter() {
-            app.enter(|app| {
-                if app.ack {
-                    app.dropped_events = 0;
+        if len > 0 {
+            // report the first touch as single touch
+            // for applications that only use single touches
+            self.touch_event(touch_events[0]);
+            // debug!("{} touch(es)", len);
+            for app in self.apps.iter() {
+                app.enter(|app, kernel_data| {
+                    if app.ack {
+                        app.dropped_events = 0;
 
-                    let num = app.events_buffer.mut_map_or(0, |buffer| {
-                        let num = if buffer.len() / 8 < len {
-                            buffer.len() / 8
-                        } else {
-                            len
-                        };
+                        let num = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::EVENTS)
+                            .and_then(|events| {
+                                events.mut_enter(|buffer| {
+                                    let num = if buffer.len() / 8 < len {
+                                        buffer.len() / 8
+                                    } else {
+                                        len
+                                    };
 
-                        for event_index in 0..num {
-                            let mut event = touch_events[event_index].clone();
-                            self.update_rotation(&mut event);
-                            let event_status = touch_status_to_number(&event.status);
-                            // debug!(
-                            //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
-                            //     event.status, event.x, event.y, event.size, event.pressure
-                            // );
-                            // one touch entry is 8 bytes long
-                            let offset = event_index * 8;
-                            if buffer.len() > event_index + 8 {
-                                buffer[offset] = event.id as u8;
-                                buffer[offset + 1] = event_status as u8;
-                                buffer[offset + 2] = ((event.x & 0xFFFF) >> 8) as u8;
-                                buffer[offset + 3] = (event.x & 0xFF) as u8;
-                                buffer[offset + 4] = ((event.y & 0xFFFF) >> 8) as u8;
-                                buffer[offset + 5] = (event.y & 0xFF) as u8;
-                                buffer[offset + 6] = if let Some(size) = event.size {
-                                    size as u8
-                                } else {
-                                    0
-                                };
-                                buffer.as_mut()[offset + 7] = if let Some(pressure) = event.pressure
-                                {
-                                    pressure as u8
-                                } else {
-                                    0
-                                };
-                            } else {
-                                break;
-                            }
+                                    for event_index in 0..num {
+                                        let mut event = touch_events[event_index].clone();
+                                        self.update_rotation(&mut event);
+                                        let event_status = touch_status_to_number(&event.status);
+                                        // debug!(
+                                        //     " multitouch {:?} x {} y {} size {:?} pressure {:?}",
+                                        //     event.status, event.x, event.y, event.size, event.pressure
+                                        // );
+                                        // one touch entry is 8 bytes long
+                                        let offset = event_index * 8;
+                                        if buffer.len() > event_index + 8 {
+                                            buffer[offset].set(event.id as u8);
+                                            buffer[offset + 1].set(event_status as u8);
+                                            buffer[offset + 2].set((event.x & 0xFF) as u8);
+                                            buffer[offset + 3].set(((event.x & 0xFFFF) >> 8) as u8);
+                                            buffer[offset + 4].set((event.y & 0xFF) as u8);
+                                            buffer[offset + 5].set(((event.y & 0xFFFF) >> 8) as u8);
+                                            buffer[offset + 6].set(
+                                                if let Some(size) = event.size {
+                                                    size as u8
+                                                } else {
+                                                    0
+                                                },
+                                            );
+                                            buffer[offset + 7].set(
+                                                if let Some(pressure) = event.pressure {
+                                                    pressure as u8
+                                                } else {
+                                                    0
+                                                },
+                                            );
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    num
+                                })
+                            })
+                            .unwrap_or(0);
+                        let dropped_events = app.dropped_events;
+                        if num > 0 {
+                            app.ack = false;
+                            kernel_data
+                                .schedule_upcall(
+                                    2,
+                                    (num, dropped_events, if num < len { len - num } else { 0 }),
+                                )
+                                .ok();
                         }
-                        num
-                    });
-                    let dropped_events = app.dropped_events;
-                    if num > 0 {
-                        app.ack = false;
-                        app.multi_touch_callback.schedule(
-                            num,
-                            dropped_events,
-                            if num < len { len - num } else { 0 },
-                        );
+                    } else {
+                        app.dropped_events = app.dropped_events + 1;
                     }
-
-                // app.ack == false;
-                } else {
-                    app.dropped_events = app.dropped_events + 1;
-                }
-            });
+                });
+            }
         }
     }
 }
 
 impl<'a> hil::touch::GestureClient for Touch<'a> {
     fn gesture_event(&self, event: GestureEvent) {
-        // debug!("gesture {:?}", event);
         for app in self.apps.iter() {
-            app.enter(|app| {
+            app.enter(|_app, kernel_data| {
                 let gesture_id = match event {
                     GestureEvent::SwipeUp => 1,
                     GestureEvent::SwipeDown => 2,
@@ -281,103 +320,13 @@ impl<'a> hil::touch::GestureClient for Touch<'a> {
                     GestureEvent::ZoomIn => 5,
                     GestureEvent::ZoomOut => 6,
                 };
-                app.gesture_callback.schedule(gesture_id, 0, 0);
+                kernel_data.schedule_upcall(1, (gesture_id, 0, 0)).ok();
             });
         }
     }
 }
 
-impl<'a> Driver for Touch<'a> {
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteAppSlice,
-    ) -> Result<ReadWriteAppSlice, (ReadWriteAppSlice, ErrorCode)> {
-        match allow_num {
-            // allow a buffer for the multi touch
-            // buffer data format
-            //  0         1           2                  4                  6           7             8         ...
-            // +---------+-----------+------------------+------------------+-----------+---------------+--------- ...
-            // | id (u8) | type (u8) | x (u16)          | y (u16)          | size (u8) | pressure (u8) |          ...
-            // +---------+-----------+------------------+------------------+-----------+---------------+--------- ...
-            // | Touch 0                                                                               | Touch 1  ...
-            2 => {
-                if self.multi_touch.is_some() {
-                    let res = self
-                        .apps
-                        .enter(appid, |app| {
-                            mem::swap(&mut app.events_buffer, &mut slice);
-                        })
-                        .map_err(ErrorCode::from);
-                    match res {
-                        Err(e) => Err((slice, e)),
-                        Ok(_) => Ok(slice),
-                    }
-                } else {
-                    Err((slice, ErrorCode::NOSUPPORT))
-                }
-            }
-            _ => Err((slice, ErrorCode::NOSUPPORT)),
-        }
-    }
-
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        mut callback: Upcall,
-        app_id: ProcessId,
-    ) -> Result<Upcall, (Upcall, ErrorCode)> {
-        let res = match subscribe_num {
-            // subscribe to touch
-            0 => {
-                let r = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.touch_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                let _ = self.touch_enable();
-                r
-            }
-
-            // subscribe to gestures
-            1 => {
-                let r = self
-                    .apps
-                    .enter(app_id, |app| {
-                        mem::swap(&mut app.gesture_callback, &mut callback);
-                    })
-                    .map_err(ErrorCode::from);
-                let _ = self.touch_enable();
-                r
-            }
-
-            // subscribe to multi touch
-            2 => {
-                if self.multi_touch.is_some() {
-                    let r = self
-                        .apps
-                        .enter(app_id, |app| {
-                            mem::swap(&mut app.multi_touch_callback, &mut callback);
-                        })
-                        .map_err(ErrorCode::from);
-                    let _ = self.multi_touch_enable();
-                    r
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        if let Err(e) = res {
-            Err((callback, e))
-        } else {
-            Ok(callback)
-        }
-    }
-
+impl<'a> SyscallDriver for Touch<'a> {
     fn command(
         &self,
         command_num: usize,
@@ -395,7 +344,7 @@ impl<'a> Driver for Touch<'a> {
             // touch enable
             1 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.touch_enable = true;
                     })
                     .unwrap_or(());
@@ -406,7 +355,7 @@ impl<'a> Driver for Touch<'a> {
             // touch disable
             2 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.touch_enable = false;
                     })
                     .unwrap_or(());
@@ -417,7 +366,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch ack
             10 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.ack = true;
                     })
                     .unwrap_or(());
@@ -427,7 +376,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch enable
             11 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.multi_touch_enable = true;
                     })
                     .unwrap_or(());
@@ -438,7 +387,7 @@ impl<'a> Driver for Touch<'a> {
             // multi touch disable
             12 => {
                 self.apps
-                    .enter(appid, |app| {
+                    .enter(appid, |app, _| {
                         app.multi_touch_enable = false;
                     })
                     .unwrap_or(());
@@ -462,5 +411,9 @@ impl<'a> Driver for Touch<'a> {
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
+    }
+
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(processid, |_, _| {})
     }
 }

@@ -14,37 +14,46 @@ use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
+use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::{gpio::Configure, led::LedHigh};
-use kernel::ClockInterface;
+use kernel::platform::chip::ClockInterface;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
 
 /// Actual process memory
-static mut PROCESSES: [Option<&'static dyn kernel::procs::Process>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 /// What should we do if a process faults?
-const FAULT_RESPONSE: kernel::procs::PanicFaultPolicy = kernel::procs::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 /// Teensy 4 platform
 struct Teensy40 {
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, imxrt1060::gpio::Pin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, imxrt1060::gpio::Pin<'static>>,
+        1,
+    >,
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
     >,
+
+    scheduler: &'static RoundRobinSched<'static>,
+    systick: cortexm7::systick::SysTick,
 }
 
-impl kernel::Platform for Teensy40 {
+impl SyscallDriverLookup for Teensy40 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -53,6 +62,66 @@ impl kernel::Platform for Teensy40 {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
+    }
+}
+
+impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>>
+    for Teensy40
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = RoundRobinSched<'static>;
+    type SchedulerTimer = cortexm7::systick::SysTick;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        &self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &self.systick
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
+
+/// Static configurations for DMA channels.
+///
+/// All DMA channels must be unique.
+mod dma_config {
+    use super::imxrt1060::nvic;
+
+    /// DMA channel for LPUART2_RX (arbitrary).
+    pub const LPUART2_RX: usize = 7;
+    /// DMA channel for LPUART2_TX (arbitrary).
+    pub const LPUART2_TX: usize = 8;
+
+    /// Add your DMA interrupt vector numbers here.
+    const DMA_INTERRUPTS: &[u32] = &[nvic::DMA7_23, nvic::DMA8_24];
+
+    /// Enable DMA interrupts for the selected channels.
+    #[inline(always)]
+    pub fn enable_interrupts() {
+        DMA_INTERRUPTS
+            .iter()
+            .copied()
+            // Safety: creating NVIC vector in platform code. Vector is valid.
+            .map(|vector| unsafe { cortexm7::nvic::Nvic::new(vector) })
+            .for_each(|intr| intr.enable());
     }
 }
 
@@ -72,6 +141,7 @@ unsafe fn get_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPer
 
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Set the ARM clock frequency to 600MHz
 ///
@@ -162,8 +232,17 @@ pub unsafe fn main() {
         peripherals.ccm.perclk_divider(),
     );
 
+    peripherals.dma.clock().enable();
+    peripherals.dma.reset_tcds();
+    peripherals
+        .lpuart2
+        .set_rx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_RX]);
+    peripherals
+        .lpuart2
+        .set_tx_dma_channel(&peripherals.dma.channels[dma_config::LPUART2_TX]);
+
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
-    cortexm7::nvic::Nvic::new(imxrt1060::nvic::LPUART2).enable();
+    dma_config::enable_interrupts();
 
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
@@ -189,23 +268,29 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Setup the console
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(());
 
     // LED
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, imxrt1060::gpio::Pin>
     ));
 
     // Alarm
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
         components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
     );
-    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -215,7 +300,18 @@ pub unsafe fn main() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
-    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+    let ipc = kernel::ipc::IPC::new(
+        board_kernel,
+        kernel::ipc::DRIVER_NUM,
+        &memory_allocation_capability,
+    );
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+        .finalize(components::rr_component_helper!(NUM_PROCS));
 
     //
     // Platform
@@ -225,6 +321,9 @@ pub unsafe fn main() {
         console,
         ipc,
         alarm,
+
+        scheduler,
+        systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
     };
 
     //
@@ -245,7 +344,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::procs::load_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -262,15 +361,7 @@ pub unsafe fn main() {
     )
     .unwrap();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
-    board_kernel.kernel_loop(
-        &teensy40,
-        chip,
-        Some(&teensy40.ipc),
-        scheduler,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&teensy40, chip, Some(&teensy40.ipc), &main_loop_capability);
 }
 
 /// Space for the stack buffer

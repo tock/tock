@@ -1,7 +1,9 @@
-use crate::common::cells::OptionalCell;
-use crate::ErrorCode;
+//! HIL for General Purpose Input-Output (GPIO) pins.
 
 use core::cell::Cell;
+
+use crate::utilities::cells::OptionalCell;
+use crate::ErrorCode;
 
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Clone, Copy, Debug)]
@@ -12,7 +14,7 @@ pub enum FloatingState {
 }
 
 /// Enum for selecting which edge to trigger interrupts on.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum InterruptEdge {
     RisingEdge,
     FallingEdge,
@@ -23,7 +25,7 @@ pub enum InterruptEdge {
 /// so this is a valid option. `Function` means the pin has been configured to
 /// a special function. Determining which function it outside the scope of the HIL,
 /// and should instead use a chip-specific API.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Configuration {
     /// Cannot be read or written or used; effectively inactive.
     LowPower,
@@ -69,6 +71,12 @@ pub trait InterruptPin<'a>: Pin + Interrupt<'a> {}
 /// either input or output and also to source interrupts which
 /// pass a value.
 pub trait InterruptValuePin<'a>: Pin + InterruptWithValue<'a> {}
+
+// Provide blanket implementations for all trait groups
+impl<T: Input + Output + Configure> Pin for T {}
+impl<'a, T: Pin + Interrupt<'a>> InterruptPin<'a> for T {}
+impl<'a, T: Pin + InterruptWithValue<'a>> InterruptValuePin<'a> for T {}
+
 /// Control and configure a GPIO pin.
 pub trait Configure {
     /// Return the current pin configuration.
@@ -363,9 +371,6 @@ impl<'a, IP: InterruptPin<'a>> Output for InterruptValueWrapper<'a, IP> {
         self.source.toggle()
     }
 }
-
-impl<'a, IP: InterruptPin<'a>> InterruptValuePin<'a> for InterruptValueWrapper<'a, IP> {}
-impl<'a, IP: InterruptPin<'a>> Pin for InterruptValueWrapper<'a, IP> {}
 
 impl<'a, IP: InterruptPin<'a>> Client for InterruptValueWrapper<'a, IP> {
     fn fired(&self) {

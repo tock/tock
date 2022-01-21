@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(asm)]
+#![feature(asm, asm_sym)]
 #![feature(naked_functions)]
 #![no_std]
 
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // is something other than 0xfffffff9, then we are coming from an app which
     // has called a syscall.
     cmp lr, #0xfffffff9
-    bne to_kernel
+    bne 100f // to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Set thread mode to unprivileged to run the application.
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // Switch to the app.
     bx lr
 
-  to_kernel:
+  100: // to_kernel
     // An application called a syscall. We mark this in the global variable
     // `SYSCALL_FIRED` which is stored in the syscall file.
     // `UserspaceKernelBoundary` will use this variable to decide why the app
@@ -239,20 +239,19 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     ldr r0, ={sbss}     // r0 = first address of .bss
     ldr r1, ={ebss}     // r1 = first address after .bss
 
-    movs r2, #0          // r2 = 0
+    movs r2, #0         // r2 = 0
 
-  bss_init_loop:
+  100: // bss_init_loop
     cmp r1, r0          // We increment r0. Check if we have reached r1
                         // (end of .bss), and stop if so.
-    beq bss_init_done   // If r0 == r1, we are done.
+    beq 101f            // If r0 == r1, we are done.
     stm r0!, {{r2}}     // Write a word to the address in r0, and increment r0.
                         // Since r2 contains zero, this will clear the memory
                         // pointed to by r0. Using `stm` (store multiple) with the
                         // bang allows us to also increment r0 automatically.
-    b bss_init_loop     // Continue the loop.
+    b 100b              // Continue the loop.
 
-  bss_init_done:
-
+  101: // bss_init_done
 
     // Now initialize .data memory. This involves coping the values right at the
     // end of the .text section (in flash) into the .data section (in RAM).
@@ -260,17 +259,17 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     ldr r1, ={edata}    // r1 = first address after data section in RAM
     ldr r2, ={etext}    // r2 = address of stored data initial values
 
-  data_init_loop:
+  200: // data_init_loop
     cmp r1, r0          // We increment r0. Check if we have reached the end
                         // of the data section, and if so we are done.
-    beq data_init_done  // r0 == r1, and we have iterated through the .data section
+    beq 201f            // r0 == r1, and we have iterated through the .data section
     ldm r2!, {{r3}}     // r3 = *(r2), r2 += 1. Load the initial value into r3,
                         // and use the bang to increment r2.
     stm r0!, {{r3}}     // *(r0) = r3, r0 += 1. Store the value to memory, and
                         // increment r0.
-    b data_init_loop    // Continue the loop.
+    b 200b              // Continue the loop.
 
-  data_init_done:
+  201: // data_init_done
 
     // Now that memory has been initialized, we can jump to main() where the
     // board initialization takes place and Rust code starts.

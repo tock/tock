@@ -1,15 +1,15 @@
 //! SHA256 HMAC (Hash-based Message Authentication Code).
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{
+use kernel::hil;
+use kernel::hil::digest::{self, DigestHash};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::common::StaticRef;
-use kernel::hil;
-use kernel::hil::digest;
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 register_structs! {
@@ -17,18 +17,21 @@ register_structs! {
         (0x00 => intr_state: ReadWrite<u32, INTR_STATE::Register>),
         (0x04 => intr_enable: ReadWrite<u32, INTR_ENABLE::Register>),
         (0x08 => intr_test: ReadWrite<u32, INTR_TEST::Register>),
-        (0x0C => cfg: ReadWrite<u32, CFG::Register>),
-        (0x10 => cmd: ReadWrite<u32, CMD::Register>),
-        (0x14 => status: ReadOnly<u32, STATUS::Register>),
-        (0x18 => err_code: ReadOnly<u32>),
-        (0x1C => wipe_secret: WriteOnly<u32>),
-        (0x20 => key: [WriteOnly<u32>; 8]),
-        (0x40 => digest: [ReadOnly<u32>; 8]),
-        (0x60 => msg_length_lower: ReadOnly<u32>),
-        (0x64 => msg_length_upper: ReadOnly<u32>),
-        (0x68 => _reserved0),
+        (0x0C => alert_test: ReadWrite<u32>),
+        (0x10 => cfg: ReadWrite<u32, CFG::Register>),
+        (0x14 => cmd: ReadWrite<u32, CMD::Register>),
+        (0x18 => status: ReadOnly<u32, STATUS::Register>),
+        (0x1C => err_code: ReadOnly<u32>),
+        (0x20 => wipe_secret: WriteOnly<u32>),
+        (0x24 => key: [WriteOnly<u32>; 8]),
+        (0x44 => digest: [ReadOnly<u32>; 8]),
+        (0x64 => msg_length_lower: ReadOnly<u32>),
+        (0x68 => msg_length_upper: ReadOnly<u32>),
+        (0x6C => _reserved0),
         (0x800 => msg_fifo: WriteOnly<u32>),
-        (0x804 => @END),
+        (0x804 => msg_fifo_8: WriteOnly<u8>),
+        (0x805 => _reserved1),
+        (0x808 => @END),
     }
 }
 
@@ -74,6 +77,8 @@ pub struct Hmac<'a> {
     data_len: Cell<usize>,
     data_index: Cell<usize>,
 
+    verify: Cell<bool>,
+
     digest: Cell<Option<&'static mut [u8; 32]>>,
 }
 
@@ -85,6 +90,7 @@ impl Hmac<'_> {
             data: Cell::new(None),
             data_len: Cell::new(0),
             data_index: Cell::new(0),
+            verify: Cell::new(false),
             digest: Cell::new(None),
         }
     }
@@ -108,23 +114,24 @@ impl Hmac<'_> {
 
                     let data_idx = idx + i * 4;
 
-                    let mut d = (slice[data_idx + 0] as u32) << 0;
-                    d |= (slice[data_idx + 1] as u32) << 8;
-                    d |= (slice[data_idx + 2] as u32) << 16;
-                    d |= (slice[data_idx + 3] as u32) << 24;
+                    let mut d = (slice[data_idx + 3] as u32) << 0;
+                    d |= (slice[data_idx + 2] as u32) << 8;
+                    d |= (slice[data_idx + 1] as u32) << 16;
+                    d |= (slice[data_idx + 0] as u32) << 24;
 
                     regs.msg_fifo.set(d);
                     self.data_index.set(data_idx + 4);
                 }
 
-                let idx = self.data_index.get();
+                if (data_len % 4) != 0 {
+                    let idx = self.data_index.get();
 
-                for i in 0..(data_len % 4) {
-                    let data_idx = idx + i;
-                    let d = (slice[data_idx]) as u32;
+                    for i in 0..(data_len % 4) {
+                        let data_idx = idx + i;
 
-                    regs.msg_fifo.set(d);
-                    self.data_index.set(data_idx + 1)
+                        regs.msg_fifo_8.set(slice[data_idx]);
+                        self.data_index.set(data_idx + 1)
+                    }
                 }
             }
             self.data.set(Some(LeasableBuffer::new(slice)));
@@ -146,20 +153,40 @@ impl Hmac<'_> {
             self.client.map(|client| {
                 let digest = self.digest.take().unwrap();
 
-                for i in 0..8 {
-                    let d = regs.digest[i].get().to_ne_bytes();
-
-                    let idx = i * 4;
-
-                    digest[idx + 0] = d[0];
-                    digest[idx + 1] = d[1];
-                    digest[idx + 2] = d[2];
-                    digest[idx + 3] = d[3];
-                }
-
                 regs.intr_state.modify(INTR_STATE::HMAC_DONE::SET);
 
-                client.hash_done(Ok(()), digest);
+                if self.verify.get() {
+                    let mut equal = true;
+
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        if digest[idx + 0] != d[0]
+                            || digest[idx + 1] != d[1]
+                            || digest[idx + 2] != d[2]
+                            || digest[idx + 3] != d[3]
+                        {
+                            equal = false;
+                        }
+                    }
+
+                    client.verification_done(Ok(equal), digest);
+                } else {
+                    for i in 0..8 {
+                        let d = regs.digest[i].get().to_ne_bytes();
+
+                        let idx = i * 4;
+
+                        digest[idx + 0] = d[0];
+                        digest[idx + 1] = d[1];
+                        digest[idx + 2] = d[2];
+                        digest[idx + 3] = d[3];
+                    }
+
+                    client.hash_done(Ok(()), digest);
+                }
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
             // Clear the FIFO empty interrupt
@@ -183,26 +210,22 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                if self.verify.get() {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                } else {
+                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                }
             });
         }
     }
 }
 
-impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
-        self.client.set(client);
-    }
-
+impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
-
-        // Ensure the HMAC is setup
-        regs.cfg
-            .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
 
         regs.cmd.modify(CMD::START::SET);
 
@@ -227,6 +250,15 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
         Ok(self.data_len.get())
     }
 
+    fn clear_data(&self) {
+        let regs = self.registers;
+
+        regs.cmd.modify(CMD::START::CLEAR);
+        regs.wipe_secret.set(1 as u32);
+    }
+}
+
+impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
     fn run(
         &'a self,
         digest: &'static mut [u8; 32],
@@ -246,36 +278,64 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
 
         Ok(())
     }
+}
 
-    fn clear_data(&self) {
-        let regs = self.registers;
+impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
+    fn verify(
+        &'a self,
+        compare: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        self.verify.set(true);
 
-        regs.cmd.modify(CMD::START::CLEAR);
-        regs.wipe_secret.set(1 as u32);
+        self.run(compare)
+    }
+}
+
+impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
+        self.client.set(client);
     }
 }
 
 impl hil::digest::HMACSha256 for Hmac<'_> {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
+        let mut key_idx = 0;
 
-        if key.len() != 32 {
+        if key.len() > 32 {
             return Err(ErrorCode::NOSUPPORT);
         }
 
         // Ensure the HMAC is setup
-        regs.cfg
-            .write(CFG::ENDIAN_SWAP::SET + CFG::SHA_EN::SET + CFG::DIGEST_SWAP::SET);
+        regs.cfg.write(
+            CFG::HMAC_EN::SET + CFG::SHA_EN::SET + CFG::ENDIAN_SWAP::CLEAR + CFG::DIGEST_SWAP::SET,
+        );
 
-        for i in 0..8 {
+        for i in 0..(key.len() / 4) {
             let idx = i * 4;
 
-            let mut k = key[idx + 0] as u32;
-            k |= (key[i * 4 + 1] as u32) << 8;
-            k |= (key[i * 4 + 2] as u32) << 16;
-            k |= (key[i * 4 + 3] as u32) << 24;
+            let mut k = key[idx + 3] as u32;
+            k |= (key[i * 4 + 2] as u32) << 8;
+            k |= (key[i * 4 + 1] as u32) << 16;
+            k |= (key[i * 4 + 0] as u32) << 24;
 
             regs.key[i as usize].set(k);
+            key_idx = i + 1;
+        }
+
+        if (key.len() % 4) != 0 {
+            let mut k = 0;
+
+            for i in 0..(key.len() % 4) {
+                k = k | (key[key_idx * 4 + i] as u32) << (8 * (3 - i));
+            }
+
+            regs.key[key_idx].set(k);
+            key_idx = key_idx + 1;
+        }
+
+        for i in key_idx..8 {
+            regs.key[i as usize].set(0);
         }
 
         Ok(())
@@ -290,6 +350,34 @@ impl hil::digest::HMACSha384 for Hmac<'_> {
 
 impl hil::digest::HMACSha512 for Hmac<'_> {
     fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl hil::digest::Sha256 for Hmac<'_> {
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
+        let regs = self.registers;
+
+        // Ensure the SHA is setup
+        regs.cfg.write(
+            CFG::HMAC_EN::CLEAR
+                + CFG::SHA_EN::SET
+                + CFG::ENDIAN_SWAP::CLEAR
+                + CFG::DIGEST_SWAP::SET,
+        );
+
+        Ok(())
+    }
+}
+
+impl hil::digest::Sha384 for Hmac<'_> {
+    fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl hil::digest::Sha512 for Hmac<'_> {
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
 }

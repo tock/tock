@@ -2,7 +2,9 @@
 
 use core::marker::PhantomData;
 
-use tock_registers::registers::{Field, IntLike, Readable, RegisterLongName, Writeable};
+use tock_registers::fields::Field;
+use tock_registers::interfaces::{Readable, Writeable};
+use tock_registers::{RegisterLongName, UIntLike};
 
 pub const MINSTRETH: usize = 0xB82;
 pub const MINSTRET: usize = 0xB02;
@@ -18,8 +20,8 @@ pub const MEPC: usize = 0x341;
 pub const MCAUSE: usize = 0x342;
 pub const MTVAL: usize = 0x343;
 pub const MIP: usize = 0x344;
-pub const MSECCFG: usize = 0x390;
-pub const MSECCFGH: usize = 0x391;
+pub const MSECCFG: usize = 0x747;
+pub const MSECCFGH: usize = 0x757;
 pub const PMPCFG0: usize = 0x3A0;
 pub const PMPCFG1: usize = 0x3A1;
 pub const PMPCFG2: usize = 0x3A2;
@@ -103,17 +105,17 @@ pub const PMPADDR63: usize = 0x3EF;
 
 /// Read/Write registers.
 #[derive(Copy, Clone)]
-pub struct ReadWriteRiscvCsr<T: IntLike, R: RegisterLongName, const V: usize> {
+pub struct ReadWriteRiscvCsr<T: UIntLike, R: RegisterLongName, const V: usize> {
     associated_register: PhantomData<R>,
     associated_length: PhantomData<T>,
 }
 
 // morally speaking, these should be implemented; however not yet needed
-//pub struct WriteOnlyRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
+//pub struct WriteOnlyRiscvCsr<T: UIntLike, R: RegisterLongName = ()> {
 //value: T,
 //associated_register: PhantomData<R>}
 
-//pub struct ReadOnlyRiscvCsr<T: IntLike, R: RegisterLongName = ()> {
+//pub struct ReadOnlyRiscvCsr<T: UIntLike, R: RegisterLongName = ()> {
 //value: T,
 //associated_register: PhantomData<R>}
 

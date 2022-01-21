@@ -1,0 +1,178 @@
+## Attendees
+
+ - Pat Pannuto
+ - Leon Schuermann
+ - Arjun Deopujari
+ - Branden Ghena
+ - Jett Rink
+ - Philip Levis
+ - Alexandru Radovici
+ - Vadim Sukhomlinov
+ - Johnathan Van Why
+ - Hudson Ayers
+ - Anthony Quiroga
+
+
+## Agenda
+
+ - Update
+ - Tock 2.0 Progress
+ - Time HIL
+
+
+## Updates
+ - Leon: Working on removing unsoundness from DMA; expect to open a PR in the next few hours. Appreciate if folks can review quickly and get this in before 2.0 testing.
+ - Alexandru: A bunch of students are working on checking I2C drivers for error handling. A few PRs have shown up already, expect several more to come.
+ - Phil: Update on behalf of Hudson- looking with some Stanford undergrads at code size savings. Forcing inlining of a few select functions causes a domino effect that results in much more inlining and 1kb+ of code size savings (in particular `finalize`)
+    - Branden: Can we just do the `finalize` and be happy?
+    - Phil: Sure, it's a question of brittleness.
+    - Phil: There was a bug in the Rust compiler that inline threshold was ignored on `-Oz`, but is seen on `-Os`; investing around this still
+ - Phil: Another student working on attributing data (e.g. embedded strings for error messages) to methods that cause their inclusion. Not going to be perfect, the stuff that's `.word` afterwords we can pick up; the fancier addressing seems used for some other stuff, which would require some runtime interpretation to find.
+    - Branden: but that should be the minority
+    - Phil: Maybe? Found some examples where pairs of halfword mov's were pointing to giant strings. Unclear at this stage how many are which way
+    - Branden: So maybe if you have unattributed ones, could just read the actual string and figure out where it goes?
+    - Phil: Eeeehhh... things get broken up and tricker
+    - Hudson: Two strings that are together when printed and in source end up _way_ away in the binary for reasons wholly unknown
+    - Phil: We'll get the easy stuff for now, and then look at the hard stuff
+
+
+## Tock 2.0
+ - Hudson: Main blocker is still @bradjc's kernel re-org PR. Making steady progress, but still stuff to do there
+ - Phil: Once that PR is ready/merged; what's the next step?
+ - Hudson: A series of recent PRs from Alexandru that warn users about 1.x apps on 2.x kernel; after that - testing
+ - Phil: Should we talk about the raising errors?
+ - Hudson: We talked about it a bunch last call
+ - Phil: Okay, I can read those notes. Consensus was TBF header approach?
+ - Hudson: Yeah, pretty much.
+ - Phil: Okay, will read PR; put some comments there.
+ - Alexandru: I have added documentation to the PR to make clear what is checked
+ - Phil: Specifically it's about ABI not API?
+ - Alexandru: It is about both; ABI for how data is sent, API for the numbering of syscalls
+
+ - Jett: General question: what is the tentative general plan for 2.0 release out the door?
+ - Branden: That's a good question. We're down to the last few PRs. That will then require considerable testing. Every time we've put a date on that we've missed.
+ - Phil: Yeah, the core ABI stuff was ready a little while ago, but the we said we really want to improve the gaurentees in the core, and this reorg stuff should be the last.
+ - Phil: I'm of the opinion that we set a deadline as deadlines help.
+ - Phil: I would argue for mid-August; get it done before the semester starts.
+ - Branden: Agreed
+ - Jett: What is the release/testing plan?
+ - Pat: Basically https://github.com/tock/tock/issues/2030
+ - Johnathan: The 2.0 libtock-rs release will likely trail the Tock 2.0 release by a bit. Will be on vacation for a few weeks coming up shortly.
+ - Phil: Sounds like we should set a deadline for mid-August
+ - Branden: Really a Brad question, but we should be in a position to have the lingering PRs in by end of next week is
+ - Jett: Summarizing, PRs in by end of month, then two weeks testing?
+ - Phil: Yeah. Aug 1 all PRs in; Aug 15 end of testing deadline
+ - Phil: So when do we call a code freeze and say only release fixes?
+ - Hudson: Historically that's been whenever we tag the first release candidate
+ - Branden: This relates to the PR for the new RPi
+ - Branden: Yeah, if we add new boards they will be added to the testing; though in this case Alexandru is willing to add and test things
+ - Alexandru: Here, it will be overlapping testing anyway. That's actually a base board then expansion board. There is effectively no difference between the Pico and Explorer board
+ - Phil: I had suggested holding off as I was unsure about adding it to the list of supported boards when it was merged so close to the 2.0 release
+ - Phil: The real concern would be around deep core kernel PRs
+ - Branden: We can apply some taste and thought to it
+ - Leon: Indeed, blanket statements don't make sense. e.g. we should update the LiteX bitstream
+ - Phil: I realize we can do it by taste, just need to agree on taste :)
+ - Phil: Are we just going to continue approving PR's as before?
+ - Leon: Allow things until Aug 1, then defer things
+ - Phil: Yeah, let me propose something more structured: Let's stop merging PR's, except those known for 2.0. Next Friday, we look at all the open PRs which seem ready, pull those in on August 1 (can do on the next call), then start testing.
+ - Branden: That seems like a good plan
+ - Phil: In short, basically stop non pre-approved 2.0 merges
+ - Jett: Hoping my Copy/Clone can get in!
+ - Phil/Branden: Yeah that one should go
+ - Alexandru: There are also some issues with SPI that I have in a PR that should come through.
+ - Phil: Yeah, that one is just missing CI
+ - Alexandru: Right, don't remember what was wrong there, but I will look to fix that quickly
+ - Phil: Right so we can pull that in; should we add a tag or organize anything?
+ - Pat: What we have done before is a `Post-2.0` tag. Everything will either be merged, closed, or explicitly schosen to be deferred.
+ - Alexandru: I will fix in the next few days, should be ready by early next week.
+
+
+## Time HIL (https://github.com/tock/tock/pull/2665)
+ - Branden: Start with Jett for background?
+ - Jett: We have downstream code, and was using `Alarm` as a trait object. We were doing this for code cleanliness rather than size. Couldn't do that when updating since there are methods now. Doesn't seem like it was an explicit choice to prevent trait objects. The PR just moves this out to a separate trait that's auto-implemented. This now allows `Time` `Alarm` etc to be trait objects.
+ - Jett: Maybe for Alarm or Timer generic parameters will be correct, but we have seen some examples where dynamic trait object is better because otherwise there are too many copies. The goal here is just to allow the option of a trait object.
+ - Jett: The other change is it adds the corrolary `to` for the `from`s
+ - Branden: So the behavior didn't change, there is just some additional functionality, but how you can access it changed?
+ - Jett: Yeah, that's a good question. The end user can now use `Time` `Alarm` etc as a dynamic object if you want to. You have access to more methods. And you now access via `self.method()` rather than `A::method()`. You use the instance to do things rather than the trait.
+ - Jett: Hudson did code size analysis already, it's none/trivial.
+ - Leon: Apart from the formal issues of whether this requires a new TRD, I like the new syntax a lot, and it makes the code more readable. However, do want to express concern for dynamic trait objects, particularly in the time HIL, trait objects can significantly reduce the compiler's ability to make optimizations (which is harder with time as it's so pervasive).
+ - Leon: I also think that the compiler sometimes cannot correctly drop implementations. Bascially once people use it in the wrong way, size could blow up.
+ - Hudson: The flip side is that people are limited in what they can do.
+ - Leon: But that hasn't happened yet has it?
+ - Pat: My understanding was the downstream had exactly this need, which motivated this PR?
+ - Jett: That is correct.
+ - Leon: Ah, okay.
+ - Jett/Leon: In short, all of the upstream code should not be using it as a trait object since it doesn't make sense in their use cases.
+ - Alexandru: I started around Tock 1.4 and had issues using Alarm as generic
+ - Hudson: Jett started at 1.6 and was able to use it as generic
+ - Phil: The underlying question is do you want to be able to check things at runtime or compile time? The intention was to be able to do all of this statically
+ - Leon: This confused me at first as well, but I don't think that doing this as a dynamic trait object loses this. I think because of all of the associated type specifications you still get the compile-time checks
+ - Jett: That's correct.
+ - Phil: I think the PR comments cover much of this- I agree this is an improvement, indeed using `dyn` time is generally bad, but we should not strictly preclude it either. I think the real question here is the TRD. What is the magnitude of change that triggers a new TRD version?
+ - Phil: Say we have a new TRD (10x), this is a pretty small change, does this lay the groundwork for having lots of little TRDs? What are our criteria for creating a new TRD?
+ - Leon: I've read through the time TRD pretty carefully. The changes are really restricted to the code examples. The only change is the additional trait that you need to import, which is almost an implementation detail.
+ - Phil: Right, but the situation is such that code that worked and adhered to existing TRD does need an update. I agree that the change is minor though. So therin is the question, is it that we can do it because it's a very small change, or that we shouldn't modify setting precedent of making very small changes.
+ - Leon: I was under the understanding that TRDs express semantics, and not that the TRD code examples are verbatim.
+ - Jett: I'm coming at this new, so I gave the TRD changes inline. What changed was the code examples as well as a short descriptor about how/why it should (not) be `dyn` for most users. Here I think with such a small augmentation. We could take advantage
+ - Phil: Unfortunately, the standards perspective dictates that a new TRD should be required. We are all deep in git, but we shouldn't assume that people are all living in git. I think it's important that these documents exist and are meaningful on their own, rather than as part of a git repository. This is the same reason that it's important to have names in files and licenses in files.
+ - Phil: That said, I think we can do a `git mv` or something such that the new version has the history and linkage.
+ - Jett: So it sounds like we are in agreement that we should go ahead with the PR, the question is the bookeeping?
+ - Phil: It absolutely requires a new TRD, it's finalized.
+ - Phil: The real question is, what are the criteria for allowing the replacement of a new TRD.
+ - Leon: My question is are these changes sufficient to make the old TRD invalid?
+ - Leon: My question is are the code examples in a TRD binding?
+ - Jett: Would a misspelling in a code snippet of a finalized TRD require a new TRD?
+ - Phil: You would leave the typo.
+ - Phil: POSIX has `creat`.
+ - Branden: So the two choices are to leave the misspelling or a new spec?
+ - Phil: Yeah, pretty much.
+ - Branden: Backing up to Leon's question, then the view is that any TRD change requires a new TRD.
+ - Leon: I understand that, but we should document this.
+ - Jett: So should I make a new TRD in my PR?
+ - Branden: I think that is what needs to happen.
+ - Branden: I think the question we are still discussing is what is the bar for accepting new TRDs at all. So one proposal is that there is a functional, needed use.
+ - Phil: Steps in core APIs should be rare and infrequent events. This is in tension with the git view of development. I'm in favor of this change conceptually, but what I really want to avoid is obseleting TRDs every few months. These core changes break interfaces and create churn making it really hard for downstream consumers.
+ - Jett: That's actually one of the reasons I really want to get this in before 2.0, to avoid breakage that would be introduced by 2.0.
+ - Branden: Yeah, and it being 2.0 makes it a good time for such major changes.
+ - Phil: Is the bar for obsoleting a TRD a major Tock revision?
+ - Leon: I think that's a dangerous bar as then it makes people unduly hesistant to ever finalize.
+ - Phil: That's the difference between software engineering and software crafting.
+ - Phil: At the same time, if we find there are a few that need updating, tying them to a significant revision of the operation system may make a lot of sense.
+ - Branden: Yeah, I find it hard to come up with a generalized bar. This current case makes that sound good, but it's hard to predict the future. What happens if Jett comes back in 6 months ands says we *need* this new HIL change for our things to work? We would be pretty incentivized to change the HIL.
+ - Branden: So, in the short term, what should Jett do now?
+ - Branden: This is an acceptible time (it's 2.0) and he needs a new TRD (via `git mv` and obsolete the TRD)
+ - Leon: To follow other TRD updates, there should be a dedicated TRD PR
+ - Jett: Same PR or two PRs?
+ - Phil: Two PRs.
+ - Jett: So I can reference example code that's not yet submitted?
+ - Phil: Yeah, so make a `git mv` to a new TRD number: draft, revision 1. Get that in. Then get the code in. Then we finalize it. That's the general process.
+ - Branden: Thanks for working through our bureaucracy here Jett
+ - Jett: No problem
+ - Phil: I know it seems baroque, but this kind of system is _so_ useful to end users.
+ - Branden: I think a lot of the people on the call weren't here in the earlier days of Tock, when Brad, Pat, and myself made Phil-at-Google's life miserable.
+ - Phil: YES
+ - Branden: As Tock matures, we need more and more stability
+ - Phil: I touched on this a bit earlier, but some of software engineering has been lost in the favor of software crafting; but for an OS, we really need proper engineering.
+ - Jett: Thinking of things that might need TRDs in the future: if we wanted to add a new helper method to the interface; should we avoid code snippets
+ - Phil: It gets subtle, but a TRD will specify traits. Generally, we shouldn't modify those. Here, the discussion is easier as this is fairly strictly an addition of a new trait. It doesn't invalidate any other behavior.
+ - Leon: Well, it moves methods
+ - Phil: Yes, but not functionality
+ - Phil: Right, and in a strict addition case, it would just be a new TRD (that does not obsolete the existing one)
+ - Jett: GPIO as example, if we added new members to the GPIO trait, that would require a new TRD
+ - Phil: Yeah, it does not matter how it's implemented, the interface has changed.
+ - Leon: So if it's auto-implemented it would not require any changes for downstream clients
+ - Pat: And to be clear, when we add new interfaces, it would obsolete the old TRD or act as a new supplemental one?
+ - Phil: Supplemental.
+ - Branden: So if Jett could've done this just by adding new traits, we wouldn't need to obsolete
+ - Alexandru: How are TRDs numbered?
+ - Branden: Monotonically increasing.
+ - Phil: Generally, a TRD does not have a number until the finalization.
+ - Phil: e.g. Alistair is starting the TRD for the shared allows, but that doesn't have a number yet (because something like this new time might come in first)
+ - Alexandru: Numbers start are 1 or 100?
+ - Phil: 1-99 are 'best common practices'; they touch everything. 1 defines how TRDs work. 2 might explain in more detail TRD finalization.
+
+ - Jett: What about the VirtualAlarm stuff? Can that make 2.0? (#2676)
+ - Branden: I think that might be a bit too late for 2.0
+ - Phil: If it's a bug, let's try to fix it.
+ - Branden: Look at #2676
+ - Phil: Okay, Jett and I will converse electronically

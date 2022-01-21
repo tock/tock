@@ -1,13 +1,13 @@
 //! Timer (TIMER_Ax)
 
 use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::common::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::common::StaticRef;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
 };
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
@@ -336,7 +336,7 @@ impl<'a> Time for TimerA<'a> {
 }
 
 impl<'a> Counter<'a> for TimerA<'a> {
-    fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
 
     fn start(&self) -> Result<(), ErrorCode> {
         self.setup_for_alarm();
@@ -359,7 +359,7 @@ impl<'a> Counter<'a> for TimerA<'a> {
 }
 
 impl<'a> Alarm<'a> for TimerA<'a> {
-    fn set_alarm_client(&'a self, client: &'a dyn AlarmClient) {
+    fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
         self.alarm_client.set(client);
     }
 
