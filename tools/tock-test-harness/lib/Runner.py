@@ -8,7 +8,7 @@ from pathlib import Path
 TOCK_BOARD_DIR = f'{Path.home()}/actions-runner/_work/tock/tock/boards/'
 LIBTOCK_C_DIR = f'{Path.home()}/libtock-c/'
 CI_TEST_DIR = f'{LIBTOCK_C_DIR}/examples/ci-tests/'
-CONFIG_FILE = f'{Path.home()}tock/tools/tock-test-harness/config.toml'
+CONFIG_FILE = f'{Path.home()}/tock/tools/tock-test-harness/config.toml'
 BOARD_CONFIG_FILE = 'test.config.toml'
 
 # This dictionary maps the board to the universal test
