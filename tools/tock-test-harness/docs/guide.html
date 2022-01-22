@@ -1,0 +1,74 @@
+<html>
+
+<head>
+  <link type="text/css" rel="stylesheet" href="main.css">
+  <!-- CSS only -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+</head>
+
+<body>
+  <h1>Tock Hardware CI</h1>
+  <ul class="nav">
+    <li><a href="index.html">About</a></li>
+    <li><a class="active" href="guide.html">Guide</a></li>
+    <li><a href="team.html">The Team</a></li>
+  </ul>
+
+  <h3>Installation</h3>
+  <p>Click <a href="https://goodoomoodoo.github.io/tock-test-harness/GUIDE">here</a> to see the installation guide on
+    how to set up your very
+    own hardware harness and connect it to the main Tock repository.
+  </p>
+
+  <h3>About the Repo</h1>
+    <h5>Our design consists of one main repo which uses two existing Tock repos.</h5>
+    <ul>
+      <li><a href="https://github.com/goodoomoodoo/tock-test-harness">Tock Test Harness</a> (Our main repo) (Owned by us
+        for now until we officially launch the CI)
+        <br>
+        which consists of:
+        <ul>
+          <li>lib: a folder containing all python code that runs on the Pi during testing.</li>
+          <li>runner_init.py: a script used in the initial setup of the Pi</li>
+          <li>config.toml: a configuration file created by runner_init that saves information about the target board for
+            that Pi as well as a harness identifier.</li>
+        </ul>
+      </li>
+      <li>
+        <a href="https://github.com/goodoomoodoo/tock">Tock</a>: (The main Tock OS repo) (Forked for now until we
+        officially launch the CI)
+        <br>
+        from which we use:
+        <ul>
+          <li>/.github/workflows/ci-test.yaml: a configuration file that specifies to Github what to run and where (all
+            of the tests for each Raspberry Pi)</li>
+          <li>
+            boards: a directory we use to compile Tock for the target board as
+            well as save board-specific test information in a configuration file called test.config.toml.
+          </li>
+        </ul>
+      </li>
+      <li><a href="https://github.com/goodoomoodoo/libtock-c">libtock-c</a>: (The main repo for Tock OS apps) (Forked
+        for now until we
+        officially launch the CI)
+        <br>
+        from which we use:
+        <ul>
+          <li>/examples/ci-test, where there is a directory for each test.
+            <br>
+            These are general and can be tested by any board with the
+            necessary features tested in the test. The name of a test directory can be uniquely specified in the
+            "test.config.toml" file. Inside the directory is a test.py file and main.c file for the Raspberry Pi test
+            and Tock test app respectively, as well as a Makefile to compile the test app.
+          </li>
+        </ul>
+      </li>
+
+    </ul>
+
+
+
+</body>
+
+</html>

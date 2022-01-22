@@ -1,0 +1,69 @@
+<html>
+
+<head>
+  <link type="text/css" rel="stylesheet" href="main.css">
+  <!-- CSS only -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+</head>
+
+<body>
+  <h1>Tock Hardware CI</h1>
+  <ul class="nav">
+    <li><a class="active" href="index.html">About</a></li>
+    <li><a href="guide.html">Guide</a></li>
+    <li><a href="team.html">The Team</a></li>
+  </ul>
+
+  <h3>Overview</h3>
+  <p>Tock is an embedded operating system that supports many embedded
+    boards and provides an abstraction layer for many of their features
+    and capabilities. Up until our project, developers have had to manually
+    test the OS on each of their respective boards and provide feedback in forums and Github issue threads. Our goal
+    is
+    to speed up and automate this process, allowing for a true CI experience. After every to the main tock repository,
+    our system automatically runs a set of tests on actual
+    hardware
+    and then reports back the outcome of these tests to the Github "Actions" tab.</p>
+
+  <h3>Motivation</h3>
+  <p>Because Tock is an open source software, many people contribute features to make
+    it a better place. However, developers usually only carry out tests on
+    different boards before the release every year, and this makes debugging very
+    hard. Issues and bugs could potentially appear in any added feature since
+    the prior release. The goal of our hardware CI test is to test features on all supported
+    boards as soon as the developers add them. Therefore, at the end of the release
+    cycle, the developers won't need to go through an extensive trial and
+    error process to figure out which added features in the past year have caused failures.
+  </p>
+
+  <h3>Workflow Diagram</h3>
+  <img id="workflow" src="workflow.png">
+  <ol>
+    <li>Code is pushed or accepted via a pull request.</li>
+    <li>Github servers send a message to each Raspberry Pi.</li>
+    <li>The Raspberry Pi starts by getting the most recent copy of Tock OS.</li>
+    <li>The Raspberry Pi starts its tests.</li>
+    <li>The Pi reads its local config file for information on what board is connected to it.</li>
+    <li>This information is parsed.</li>
+    <li>The Pi builds the version of Tock respective to its own embedded target board.</li>
+    <li>The Pi flashes the newly built binary onto the embedded target board.</li>
+    <li>The Pi retrieves the newest version of the tests and builds them.</li>
+    <li>The Pi installs and runs the test apps serially.</li>
+    <li>The Action Runner listens to standard out where the Pi logs the output.</li>
+    <li>Finally, the action runner sends the output and return code to Github where it is displayed in the
+      "Actions" tab.</li>
+  </ol>
+  <h3><a href="overview.pdf">Project Overview</a></h3>
+  <h3><a href="specification.pdf">Project Specification</a></h3>
+  <h3><a href="oral_update.pdf">Oral Project Update</a></h3>
+  <h3><a href="milestone_report.pdf">Milestone Report</a></h3>
+  <h3><a href="final_presentation.pdf">Final Oral Presentation</a></h3>
+  <h3><a href="https://drive.google.com/file/d/1ZfpR1kZYHT-JdZlbPgnnp8x3tlI_YJOa/view">Final Project Video</a></h3>
+  <h3><a href="final_paper.pdf">Final Report</a></h3>
+  <br>
+  <br>
+  <br>
+</body>
+
+</html>
