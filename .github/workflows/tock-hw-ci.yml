@@ -1,4 +1,4 @@
-# Just a demo
+# Demo for nrf52840dk
 name: tock-hw-ci
 
 on:
@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: python3 ~/tock-test-harness/lib/main.py -b
+      run: python3 ~/tock/tools/tock-test-harness/lib/main.py -b
       
   install:
     
@@ -25,7 +25,7 @@ jobs:
     needs: build
     steps:
     - name: Install
-      run: python3 ~/tock-test-harness/lib/main.py -i
+      run: python3 ~/tock/tools/tock-test-harness/lib/main.py -i
       
   test:
     
@@ -33,5 +33,5 @@ jobs:
     needs: install
     steps:
     - name: HW Test
-      run: python3 ~/tock-test-harness/lib/main.py -t
+      run: python3 ~/tock/tools/tock-test-harness/lib/main.py -t
       
