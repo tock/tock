@@ -7,7 +7,7 @@ Application Completion Codes
 **Status:** Draft<br/>
 **Author:** Alyssa Haroldsen<br/>
 **Draft-Created:** December 6, 2021<br/>
-**Draft-Modified:** December 7, 2021<br/>
+**Draft-Modified:** January 25, 2022<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -42,10 +42,27 @@ itself.
 ===============================
 A completion code of `0` passed to the `exit` syscall MUST indicate normal app
 termination. A non-zero completion code SHOULD be used to indicate abnormal
-termination. A completion code between `1` and `1024` inclusive SHOULD be the
-same value as one of the error codes specified in [TRD 104][error-codes].
+termination. This distinction is useful so that a Tock kernel can handle
+success/failure cases differently, e.g. by printing error messages,
+and so that kernel extensions (such as process exit handlers defined by a board)
+or external tools (such as a tool designed to parse the output from a kernel
+with *trace\_syscalls* enabled) can match on these two cases.
+This behavior also matches the convention for Unix exit codes, such that it
+likely matches the expectations for users coming from that domain.
 
-The kernel MAY treat zero and non-zero completion codes differently.
+A completion code between `1` and `1024` inclusive SHOULD be the
+same value as one of the error codes specified in [TRD 104][error-codes].
+This requirement is a SHOULD rather than a MUST because it is useful in the
+common case (it allows software to infer something about the cause of an
+error that led to an exit, and possibly print a useful message) but also
+allows a process to do something else if needed (e.g. for compatibility
+with some other standard of exit codes).
+
+Accordingly, the core kernel MUST NOT assume any semantic meaning for completion
+codes or take actions based on their values besides printing error messages.
+While there are common and conventional uses of certain values, applications
+are not required to follow these and may assign their own semantic meanings
+to values.
 
 | **Completion Code** | **Meaning**                                   |
 | ------------------- | --------------------------------------------- |
