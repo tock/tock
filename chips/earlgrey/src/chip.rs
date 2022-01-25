@@ -5,7 +5,7 @@ use kernel;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
+use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
 use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
 
@@ -212,28 +212,25 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
 
     fn service_pending_interrupts(&self) {
         loop {
-            let mip = CSR.mip.extract();
-
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
+            if self.plic.get_saved_interrupts().is_none() {
                 break;
             }
         }
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        CSR.mie.modify(mie::mext::SET + mie::mtimer::CLEAR);
         self.plic.enable_all();
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        let mip = CSR.mip.extract();
-        self.plic.get_saved_interrupts().is_some() || mip.matches_any(mip::mtimer::SET)
+        self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {
