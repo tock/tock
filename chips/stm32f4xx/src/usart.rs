@@ -8,7 +8,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::dma;
-use crate::dma::{dma1, dma2, DmaPeripheral};
+use crate::dma::{dma1, dma2};
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -174,17 +174,17 @@ enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
-pub struct Usart<'a> {
+pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock<'a>,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
-    tx_dma: OptionalCell<dma::Stream<'a>>,
-    tx_dma_pid: DmaPeripheral,
-    rx_dma: OptionalCell<dma::Stream<'a>>,
-    rx_dma_pid: DmaPeripheral,
+    tx_dma: OptionalCell<&'a dma::Stream<'a, DMA>>,
+    tx_dma_pid: DMA::Peripheral,
+    rx_dma: OptionalCell<&'a dma::Stream<'a, DMA>>,
+    rx_dma_pid: DMA::Peripheral,
 
     tx_len: Cell<usize>,
     rx_len: Cell<usize>,
@@ -194,16 +194,56 @@ pub struct Usart<'a> {
 }
 
 // for use by `set_dma`
-pub struct TxDMA<'a>(pub dma::Stream<'a>);
-pub struct RxDMA<'a>(pub dma::Stream<'a>);
+pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
+pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
-impl<'a> Usart<'a> {
+impl<'a> Usart<'a, dma1::Dma1<'a>> {
+    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART2_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+                rcc,
+            )),
+            dma1::Dma1Peripheral::USART2_TX,
+            dma1::Dma1Peripheral::USART2_RX,
+        )
+    }
+
+    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART3_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+                rcc,
+            )),
+            dma1::Dma1Peripheral::USART3_TX,
+            dma1::Dma1Peripheral::USART3_RX,
+        )
+    }
+}
+
+impl<'a> Usart<'a, dma2::Dma2<'a>> {
+    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+        Self::new(
+            USART1_BASE,
+            UsartClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+                rcc,
+            )),
+            dma2::Dma2Peripheral::USART1_TX,
+            dma2::Dma2Peripheral::USART1_RX,
+        )
+    }
+}
+
+impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: UsartClock<'a>,
-        tx_dma_pid: DmaPeripheral,
-        rx_dma_pid: DmaPeripheral,
-    ) -> Usart<'a> {
+        tx_dma_pid: DMA::Peripheral,
+        rx_dma_pid: DMA::Peripheral,
+    ) -> Usart<'a, DMA> {
         Usart {
             registers: base_addr,
             clock: clock,
@@ -224,42 +264,6 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
-        Self::new(
-            USART1_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
-                rcc,
-            )),
-            dma::DmaPeripheral::Dma2Peripheral(dma2::Dma2Peripheral::USART1_TX),
-            dma::DmaPeripheral::Dma2Peripheral(dma2::Dma2Peripheral::USART1_RX),
-        )
-    }
-
-    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
-        Self::new(
-            USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
-                rcc,
-            )),
-            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART2_TX),
-            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART2_RX),
-        )
-    }
-
-    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
-        Self::new(
-            USART3_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
-                rcc,
-            )),
-            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART3_TX),
-            dma::DmaPeripheral::Dma1Peripheral(dma1::Dma1Peripheral::USART3_RX),
-        )
-    }
-
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
@@ -272,7 +276,7 @@ impl<'a> Usart<'a> {
         self.clock.disable();
     }
 
-    pub fn set_dma(&self, tx_dma: TxDMA<'a>, rx_dma: RxDMA<'a>) {
+    pub fn set_dma(&self, tx_dma: TxDMA<'a, DMA>, rx_dma: RxDMA<'a, DMA>) {
         self.tx_dma.set(tx_dma.0);
         self.rx_dma.set(rx_dma.0);
     }
@@ -389,7 +393,7 @@ impl<'a> Usart<'a> {
         self.registers.sr.modify(SR::TC::CLEAR);
     }
 
-    fn transfer_done(&self, pid: dma::DmaPeripheral) {
+    fn transfer_done(&self, pid: DMA::Peripheral) {
         if pid == self.tx_dma_pid {
             self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
             self.enable_transmit_complete_interrupt();
@@ -417,7 +421,7 @@ impl<'a> Usart<'a> {
     }
 }
 
-impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
+impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, DMA> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -463,7 +467,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
     }
 }
 
-impl<'a> hil::uart::Configure for Usart<'a> {
+impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
@@ -506,7 +510,7 @@ impl<'a> hil::uart::Configure for Usart<'a> {
     }
 }
 
-impl<'a> hil::uart::Receive<'a> for Usart<'a> {
+impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -547,15 +551,15 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
     }
 }
 
-impl dma1::StreamClient for Usart<'_> {
+impl<'a> dma::StreamClient<'a, dma1::Dma1<'a>> for Usart<'a, dma1::Dma1<'a>> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
-        self.transfer_done(pid.into());
+        self.transfer_done(pid);
     }
 }
 
-impl dma2::StreamClient for Usart<'_> {
+impl<'a> dma::StreamClient<'a, dma2::Dma2<'a>> for Usart<'a, dma2::Dma2<'a>> {
     fn transfer_done(&self, pid: dma2::Dma2Peripheral) {
-        self.transfer_done(pid.into());
+        self.transfer_done(pid);
     }
 }
 

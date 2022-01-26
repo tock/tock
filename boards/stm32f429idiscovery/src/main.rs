@@ -128,11 +128,10 @@ impl
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
     dma: &stm32f429zi::dma::dma2::Dma2,
-    dma_streams: &'static [stm32f429zi::dma::dma2::Stream; 8],
-    usart1: &'static stm32f429zi::usart::Usart,
+    dma_streams: &'static [stm32f429zi::dma::Stream<'static, stm32f429zi::dma::dma2::Dma2>; 8],
+    usart1: &'static stm32f429zi::usart::Usart<stm32f429zi::dma::dma2::Dma2>,
 ) {
-    use dma::dma2::Dma2Peripheral;
-    use stm32f429zi::dma;
+    use stm32f429zi::dma::dma2::Dma2Peripheral;
     use stm32f429zi::usart;
 
     dma.enable_clock();
@@ -141,8 +140,8 @@ unsafe fn setup_dma(
     let usart1_rx_stream = &dma_streams[Dma2Peripheral::USART1_RX.get_stream_idx()];
 
     usart1.set_dma(
-        usart::TxDMA(dma::Stream::Dma2Stream(usart1_tx_stream)),
-        usart::RxDMA(dma::Stream::Dma2Stream(usart1_rx_stream)),
+        usart::TxDMA(&usart1_tx_stream),
+        usart::RxDMA(&usart1_rx_stream),
     );
 
     usart1_tx_stream.set_client(usart1);

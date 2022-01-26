@@ -16,7 +16,6 @@ pub mod adc;
 pub mod dbg;
 pub mod deferred_calls;
 pub mod dma;
-pub use dma::dma1; // for backwards compatibility, old import still sometimes used by boards
 pub mod exti;
 pub mod fsmc;
 pub mod gpio;

@@ -11,8 +11,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::dma1;
-use crate::dma1::Dma1Peripheral;
+use crate::dma;
+use crate::dma::dma1::{Dma1, Dma1Peripheral};
 use crate::rcc;
 
 /// Serial peripheral interface
@@ -152,9 +152,9 @@ pub struct Spi<'a> {
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    tx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
     tx_dma_pid: Dma1Peripheral,
-    rx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    rx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
     rx_dma_pid: Dma1Peripheral,
 
     dma_len: Cell<usize>,
@@ -166,8 +166,8 @@ pub struct Spi<'a> {
 }
 
 // for use by `set_dma`
-pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
-pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
+pub struct TxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
+pub struct RxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
 
 impl<'a> Spi<'a> {
     pub const fn new(
@@ -470,8 +470,8 @@ impl<'a> spi::SpiMaster for Spi<'a> {
     }
 }
 
-impl dma1::StreamClient for Spi<'_> {
-    fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
+impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
+    fn transfer_done(&self, pid: Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.disable_tx();
         }

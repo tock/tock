@@ -19,15 +19,15 @@ pub struct Stm32f4xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 
 pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub adc1: crate::adc::Adc<'a>,
-    pub dma1_streams: [crate::dma1::Stream<'a>; 8],
-    pub dma2_streams: [crate::dma::dma2::Stream<'a>; 8],
+    pub dma1_streams: [crate::dma::Stream<'a, dma1::Dma1<'a>>; 8],
+    pub dma2_streams: [crate::dma::Stream<'a, dma2::Dma2<'a>>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
-    pub usart1: crate::usart::Usart<'a>,
-    pub usart2: crate::usart::Usart<'a>,
-    pub usart3: crate::usart::Usart<'a>,
+    pub usart1: crate::usart::Usart<'a, dma2::Dma2<'a>>,
+    pub usart2: crate::usart::Usart<'a, dma1::Dma1<'a>>,
+    pub usart3: crate::usart::Usart<'a, dma1::Dma1<'a>>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub fsmc: crate::fsmc::Fsmc<'a>,
 }
@@ -36,13 +36,13 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     pub fn new(
         rcc: &'a crate::rcc::Rcc,
         exti: &'a crate::exti::Exti<'a>,
-        dma1: &'a crate::dma1::Dma1<'a>,
-        dma2: &'a crate::dma::dma2::Dma2<'a>,
+        dma1: &'a dma1::Dma1<'a>,
+        dma2: &'a dma2::Dma2<'a>,
     ) -> Self {
         Self {
             adc1: crate::adc::Adc::new(rcc),
-            dma1_streams: crate::dma1::new_dma1_stream(dma1),
-            dma2_streams: crate::dma::dma2::new_dma2_stream(dma2),
+            dma1_streams: dma1::new_dma1_stream(dma1),
+            dma2_streams: dma2::new_dma2_stream(dma2),
             exti,
             i2c1: crate::i2c::I2C::new(rcc),
             spi3: crate::spi::Spi::new(
@@ -51,8 +51,8 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
                     crate::rcc::PeripheralClockType::APB1(crate::rcc::PCLK1::SPI3),
                     rcc,
                 )),
-                crate::dma1::Dma1Peripheral::SPI3_TX,
-                crate::dma1::Dma1Peripheral::SPI3_RX,
+                dma1::Dma1Peripheral::SPI3_TX,
+                dma1::Dma1Peripheral::SPI3_RX,
             ),
             tim2: crate::tim2::Tim2::new(rcc),
             usart1: crate::usart::Usart::new_usart1(rcc),
