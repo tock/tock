@@ -242,7 +242,7 @@ pub struct TbfHeaderV2KernelVersion {
     minor: u16,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TbfFooterV2CredentialsType {
     Padding = 0,
     CleartextID = 1,

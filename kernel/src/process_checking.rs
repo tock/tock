@@ -3,10 +3,12 @@ use crate::dynamic_deferred_call::{
 };
 use crate::hil::digest::{ClientData, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha512};
-use crate::utilities::cells::OptionalCell;
 use crate::ErrorCode;
+use crate::process::{Process, State};
+use crate::utilities::cells::OptionalCell;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
+
 
 #[derive(Debug)]
 pub enum CheckResult {
@@ -27,11 +29,46 @@ pub trait Client<'a> {
 pub trait AppCredentialsChecker<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>);
     fn require_credentials(&self) -> bool;
+
     fn check_credentials(
         &self,
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
+    
+    fn different_identifier(&self, 
+	                    process_a: &dyn Process,
+			    process_b: &dyn Process) -> bool;
+
+    // Return whether there is a currently running process that has
+    // the same application identifier as `process`. This means that
+    // if `process` is currently running, `has_unique_identifier`
+    // returns false.
+    fn has_unique_identifier(&self,
+                             process: &dyn Process,
+                             processes: &[Option<&'a dyn Process>]) -> bool {
+        let len = processes.len();
+        if process.get_state() != State::Unstarted && process.get_state() != State::Terminated {
+            return false;
+        }
+
+        // Note that this causes `process` to compare against itself;
+        // however, since `process` should not be running, it will
+        // not check the identifiers and say they are different. This means
+        // this method returns false if the process is running.
+        for i in 0..len {
+            let checked_process = processes[i];
+            let diff = checked_process
+                .map_or(true, |other| {
+                    !other.is_running() ||
+                        self.different_identifier(process, other)
+                });
+            if !diff {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 pub struct AppCheckerPermissive<'a> {
@@ -62,6 +99,13 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerPermissive<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
     }
+
+    fn different_identifier(&self, 
+	                    _process_a: &dyn Process,
+			    _process_b: &dyn Process) -> bool {
+        true
+    }
+    
 }
 
 pub struct AppCheckerSimulated<'a> {
@@ -126,6 +170,18 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
     }
+
+    
+    // This checker doesn't allow you to run two processes with the
+    // same name.
+    fn different_identifier(&self, 
+	                    process_a: &dyn Process,
+			    process_b: &dyn Process) -> bool {
+        return false;
+        /*let a = process_a.get_process_name();
+        let b = process_b.get_process_name();
+        !a.eq(b)*/
+    }
 }
 
 trait AppCheckerHMAC: DigestDataVerify<'static, 64_usize> + Sha512 {}
@@ -163,6 +219,28 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
 
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
+    }
+
+    fn different_identifier(&self, 
+	                    process_a: &dyn Process,
+			    process_b: &dyn Process) -> bool {
+        let credentials_a = process_a.get_credentials();
+        let credentials_b = process_b.get_credentials();
+        credentials_a.map_or(true, |a|
+          credentials_b.map_or(true, |b| {
+              if a.format() != b.format() {
+                  return true;
+              } else {
+                  let data_a = a.data();
+                  let data_b = b.data();
+                  for (p1, p2) in data_a.iter().zip(data_b.iter()) {
+                      if p1 != p2 {
+                          return true
+                      }
+                  }
+              }
+              false
+       }))
     }
 }
 

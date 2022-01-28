@@ -236,7 +236,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
-        if !self.is_active() {
+        if !self.is_running() {
             return Err(ErrorCode::NODEVICE);
         }
 
@@ -287,11 +287,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.state.update(State::CredentialsFailed);
     }
 
+    
+    fn get_credentials(&self) -> Option<TbfFooterV2Credentials> {
+        let c = self.credentials.take();
+        self.credentials.insert(c);
+        c
+    }
+    
     /// Enqueue the initialization function of a process onto its task list;
     /// this is used to start a process. Should only be called when a process
     /// is in the `State::Unstarted` state.
-    fn enqueue_init_task(&self) -> Result<(), ErrorCode> {
-        if self.state.get() != State::Unstarted {
+    fn enqueue_init_task(&self, _cap: &dyn capabilities::ProcessInitCapability) -> Result<(), ErrorCode> {
+        if self.state.get() != State::Unstarted &&
+           self.state.get() != State::Terminated {
             return Err(ErrorCode::NODEVICE);
         }
 
@@ -317,6 +325,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 argument3: self.app_break.get() as usize,
             }))
         });
+
+        self.state.update(State::Yielded);
+        
         Ok(())
     }
 
@@ -357,6 +368,16 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
+    fn is_running(&self) -> bool {
+        match self.state.get() {
+            State::Running |
+            State::Yielded |
+            State::StoppedRunning |
+            State::StoppedYielded => true,
+            _ => false
+        }
+    }
+    
     fn get_state(&self) -> State {
         self.state.get()
     }
@@ -416,13 +437,17 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
-        let _res = self.restart();
+        let _res = self.reset();
 
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
     }
 
     fn terminate(&self, completion_code: Option<u32>) {
+        if !self.is_running() {
+            return;
+        }
+        
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -561,7 +586,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if self.is_running() {
             return Err(Error::InactiveApp);
         }
 
@@ -571,7 +596,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return Err(Error::InactiveApp);
         }
 
@@ -603,7 +628,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         buf_start_addr: *mut u8,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode> {
-        if !self.is_active() {
+        if !self.is_running() {
             // Do not operate on an inactive process
             return Err(ErrorCode::FAIL);
         }
@@ -669,7 +694,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode> {
-        if !self.is_active() {
+        if !self.is_running() {
             // Do not operate on an inactive process
             return Err(ErrorCode::FAIL);
         }
@@ -748,7 +773,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn grant_is_allocated(&self, grant_num: usize) -> Option<bool> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return None;
         }
 
@@ -770,7 +795,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         align: usize,
     ) -> Option<NonNull<u8>> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return None;
         }
 
@@ -833,7 +858,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         align: usize,
     ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return None;
         }
 
@@ -853,7 +878,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error> {
         // Do not try to access the grant region of inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return Err(Error::InactiveApp);
         }
 
@@ -896,7 +921,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         identifier: ProcessCustomGrantIdentifer,
     ) -> Result<*mut u8, Error> {
         // Do not try to access the grant region of inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return Err(Error::InactiveApp);
         }
 
@@ -910,7 +935,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn leave_grant(&self, grant_num: usize) {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return;
         }
 
@@ -934,7 +959,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn grant_allocated_count(&self) -> Option<usize> {
         // Do not modify an inactive process.
-        if !self.is_active() {
+        if !self.is_running() {
             return None;
         }
 
@@ -1066,7 +1091,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
-        if !self.is_active() {
+        if !self.is_running() {
             return None;
         }
 
@@ -1743,11 +1768,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Restart the process, resetting all of its state and re-initializing it
-    /// to start running.  Assumes the process is not running but is still in
-    /// flash and still has its memory region allocated to it. This implements
-    /// the mechanism of restart.
-    fn restart(&self) -> Result<(), ErrorCode> {
+    /// Reset the process, resetting all of its state and re-initializing it
+    /// so it can start runnning.  Assumes the process is not running but is still in
+    /// flash and still has its memory region allocated to it. This does not
+    /// start the process, as that requires the kernel to check that its application
+    /// identifier does not overlap with a running process.       
+
+    fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
         // invalidate any stored `ProcessId`s that point to the old version of
@@ -1871,12 +1898,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         self.restart_count.increment();
 
         // Mark the state as `Unstarted` for the scheduler.
-        if self.state.get() != State::Unchecked {
-            self.state.update(State::Unstarted);
-            // Mark that we restarted this process.
-            self.enqueue_init_task()
-        } else {
-            Err(ErrorCode::NODEVICE)
+        match self.state.get() {
+            State::Unchecked |
+            State::CredentialsFailed => {
+                Err(ErrorCode::NODEVICE)
+            },
+            _ => {
+                self.state.update(State::Unstarted);
+                Ok(())
+            }
         }
     }
 
@@ -2015,7 +2045,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// explicitly exits.
     fn is_active(&self) -> bool {
         let current_state = self.state.get();
-        current_state != State::Terminated && current_state != State::Faulted
+        match self.state.get() {
+            State::Terminated |
+            State::Faulted |
+            State::Unchecked |
+            State::CredentialsFailed => false,
+            _ => true
+        }
     }
 
     /// The start address of allocated RAM for this process.

@@ -12,6 +12,8 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'terminate n' terminates the process with name n, moving to the Unstarted state
+//!  - 'boot n' tries to boot an Unstarted process with name n
 //!  - 'panic' causes the kernel to run the panic handler
 //!  - 'process n' prints the memory map of process with name n
 //!  - 'kernel' prints the kernel memory map
@@ -611,6 +613,57 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                                 &mut console_writer,
                                                 format_args!("Process {} now faulted\n", proc_name),
                                             );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("terminate") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.terminate(None);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} terminated\n", proc_name),
+                                            );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("boot") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            
+                                            let res = self.kernel.submit_process(proc);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            match res {
+                                                Ok(()) => {
+                                                    let _ = write(
+                                                        &mut console_writer,
+                                                        format_args!("Process {} booted\n", proc_name),
+                                                    );
+                                                },
+                                                Err(e) => {
+                                                    let _ = write(
+                                                        &mut console_writer,
+                                                        format_args!("Process {} could not boot: {:?}\n", proc_name, e),
+                                                    );
+                                                }
+                                            }
 
                                             let _ = self.write_bytes(
                                                 &(console_writer.buf)[..console_writer.size],

@@ -23,8 +23,8 @@ use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
-use crate::process::ProcessId;
-use crate::process::{self, Task};
+use crate::process::{self, Process, ProcessId, Task};
+use crate::process_checking::AppCredentialsChecker;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -60,6 +60,10 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    checker: Option<&'static dyn AppCredentialsChecker<'static>>,
+
+    init_cap: KernelProcessInitCapability,
 }
 
 /// Enum used to inform scheduler why a process stopped executing (aka why
@@ -116,17 +120,29 @@ fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
         })
 }
 
+struct KernelProcessInitCapability {}
+unsafe impl capabilities::ProcessInitCapability for KernelProcessInitCapability {}
+
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
-        Kernel {
-            work: Cell::new(0),
-            processes,
-            process_identifier_max: Cell::new(0),
-            grant_counter: Cell::new(0),
-            grants_finalized: Cell::new(false),
+    pub fn new(processes: &'static [Option<&'static dyn process::Process>],
+               checker: Option<&'static dyn AppCredentialsChecker>) -> Kernel {
+        unsafe {
+            Kernel {
+                work: Cell::new(0),
+                processes,
+                process_identifier_max: Cell::new(0),
+                grant_counter: Cell::new(0),
+                grants_finalized: Cell::new(false),
+                checker: checker,
+                init_cap: KernelProcessInitCapability {}
+            }
         }
     }
 
+    pub(crate) fn checker(&self) -> Option<&'static dyn AppCredentialsChecker<'static>> {
+        self.checker
+    }
+    
     /// Something was scheduled for a process, so there is more work to do.
     ///
     /// This is only exposed in the core kernel crate.
@@ -1305,6 +1321,19 @@ impl Kernel {
                 // system call class.
                 _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
             },
+        }
+    }
+
+    /// Submit a process that has been checked to the kernel to run,
+    /// so the kernel can check whether its application identifier is
+    /// unique to determine if it is runnable.  The process must be in
+    /// the `Unstarted` or `Terminated` state.
+    pub fn submit_process(&self, process: &dyn Process) -> Result<(), ErrorCode> {
+        if self.checker.map_or(true, |c|
+                               c.has_unique_identifier(process, self.processes)) {
+            process.enqueue_init_task(&self.init_cap)
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 }

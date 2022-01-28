@@ -15,6 +15,7 @@ use crate::create_capability;
 use crate::debug;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
+use crate::process;
 use crate::process::Process;
 use crate::process_checking;
 use crate::process_checking::AppCredentialsChecker;
@@ -180,7 +181,6 @@ pub fn load_and_check_processes<C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    checker: Option<&'static dyn AppCredentialsChecker>,
     capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     load_processes(
@@ -192,7 +192,7 @@ pub fn load_and_check_processes<C: Chip>(
         fault_policy,
         capability_management,
     )?;
-    let _res = check_processes(procs, checker);
+    let _res = check_processes(procs, kernel);
     Ok(())
 }
 
@@ -284,11 +284,11 @@ fn load_processes<C: Chip>(
 #[inline(always)]
 fn check_processes(
     procs: &'static [Option<&'static dyn Process>],
-    checker: Option<&'static dyn AppCredentialsChecker>,
+    kernel: &'static Kernel,
 ) -> Result<(), ProcessLoadError> {
     let capability = create_capability!(ProcessApprovalCapability);
 
-    if checker.is_none() {
+    if kernel.checker().is_none() {
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: no checker provided, load and run all processes");
         }
@@ -296,7 +296,7 @@ fn check_processes(
             let res = proc.map(|p| {
                 p.mark_credentials_pass(None, &capability)
                     .or(Err(ProcessLoadError::InternalError))?;
-                p.enqueue_init_task()
+                kernel.submit_process(p)
                     .or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
             });
@@ -306,7 +306,7 @@ fn check_processes(
         }
         Ok(())
     } else {
-        checker.map_or(Err(ProcessLoadError::InternalError), |c| {
+        kernel.checker().map_or(Err(ProcessLoadError::InternalError), |c| {
             #[allow(unused_mut)] // machine doesn't need mut
             let machine = unsafe {
                 static_init!(
@@ -315,7 +315,8 @@ fn check_processes(
                         process: Cell::new(0),
                         footer: Cell::new(0),
                         checker: OptionalCell::empty(),
-                        processes: procs
+                        processes: procs,
+                        kernel: kernel
                     }
                 )
             };
@@ -336,6 +337,7 @@ struct ProcessCheckerMachine {
     footer: Cell<usize>,
     checker: OptionalCell<&'static dyn AppCredentialsChecker<'static>>,
     processes: &'static [Option<&'static dyn Process>],
+    kernel: &'static Kernel,
 }
 
 #[derive(Debug)]
@@ -414,8 +416,7 @@ impl ProcessCheckerMachine {
                                 }
                                 p.mark_credentials_pass(None, &capability)
                                     .or(Err(ProcessLoadError::InternalError))?;
-                                p.enqueue_init_task()
-                                    .or(Err(ProcessLoadError::InternalError))?;
+                                self.kernel.submit_process(p);
                             }
                             Ok(true)
                         },
@@ -563,9 +564,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_credentials_pass(Some(credentials), &capability);
-                    if p.enqueue_init_task().is_err() {
-                        debug!("Error starting checked process {}", p.get_process_name());
-                    }
+                    self.kernel.submit_process(p);
                 });
                 self.process.set(self.process.get() + 1);
             }

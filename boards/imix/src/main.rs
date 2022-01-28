@@ -92,7 +92,7 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::StopFaultPolicy = kernel::process::StopFaultPolicy {};
 
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
@@ -349,8 +349,6 @@ pub unsafe fn main() {
         },
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
@@ -359,6 +357,16 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    let checker = static_init!(
+        AppCheckerSimulated<'static>,
+        AppCheckerSimulated::new(dynamic_deferred_caller)
+    );
+    checker.initialize_callback_handle(
+        dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
+    );
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, Some(checker)));
+    
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
@@ -722,13 +730,6 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let checker = static_init!(
-        AppCheckerSimulated<'static>,
-        AppCheckerSimulated::new(dynamic_deferred_caller)
-    );
-    checker.initialize_callback_handle(
-        dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
-    );
     kernel::process::load_and_check_processes(
         board_kernel,
         chip,
@@ -742,7 +743,6 @@ pub unsafe fn main() {
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
-        Some(checker),
         &process_mgmt_cap,
     )
     .unwrap_or_else(|err| {

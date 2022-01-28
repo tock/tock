@@ -188,8 +188,10 @@ pub trait Process {
     /// kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
-    /// Enqueue a `Task` to execute the init function of the process.
-    fn enqueue_init_task(&self) -> Result<(), ErrorCode>;
+    /// Enqueue a `Task` to execute the init function of the process,
+    /// transitioning it from the `Terminated` or `Unstarted` state to
+    /// `Yielded` then `Running`.
+    fn enqueue_init_task(&self, cap: &dyn capabilities::ProcessInitCapability) -> Result<(), ErrorCode>;
 
     /// Transition a loaded but unchecked process into the `Unstarted`
     /// state so it can run. Returns an error if the process was not
@@ -205,6 +207,10 @@ pub trait Process {
     /// Transition a process into the `CredentialsFailed` state, indicating
     /// it should never run.
     fn mark_credentials_fail(&self, capability: &dyn capabilities::ProcessApprovalCapability);
+
+    /// Return the credentials which have made this process runnable, or
+    /// `None` if it was not made runnable or allowed to run without credentials.
+    fn get_credentials(&self) -> Option<TbfFooterV2Credentials>;
 
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
@@ -232,6 +238,10 @@ pub trait Process {
     /// or "yielded".
     fn get_state(&self) -> State;
 
+    /// Returns whether the process is running (has active stack frames)
+    /// or not (has never run, has faulted, or has completed).
+    fn is_running(&self) -> bool;
+    
     /// Move this process from the running state to the yielded state.
     ///
     /// This will fail (i.e. not do anything) if the process was not previously
