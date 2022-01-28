@@ -101,6 +101,7 @@ impl Termination for Result<(), ErrorCode> {
 ===============================
 ```
 Alyssa Haroldsen <kupiakos@google.com>
+Hudson Ayers <hayers@stanford.edu>
 ```
 
 [error-codes]: https://github.com/tock/tock/blob/master/doc/reference/trd104-syscalls.md#33-error-codes
