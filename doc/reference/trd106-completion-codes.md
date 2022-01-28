@@ -68,7 +68,7 @@ to values.
 | ------------------- | --------------------------------------------- |
 | 0                   | Success                                       |
 | 1-1024              | SHOULD be a [TRD 104 error code][error-codes] |
-| 1025-`u32::MAX`     | Not defined                                   |
+| 1025-`u32::MAX`     | Reserved                                      |
 
 4 Implementation
 ===============================
