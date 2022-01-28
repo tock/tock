@@ -7,8 +7,8 @@ Application IDs (AppID)
 **Status:** Draft <br/>
 **Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
-**Draft-Modified:** 2021/10/09 <br/>
-**Draft-Version:** 4 <br/>
+**Draft-Modified:** 2022/01/27 <br/>
+**Draft-Version:** 5 <br/>
 **Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
@@ -163,7 +163,8 @@ generated from application identifiers using the `Compress` trait
 (described below). Kernels using Short IDs to test collisions between
 application identifiers SHOULD implement `Compress` in a manner that
 minimizes cases when two different valid application identifiers
-compress to the same Short ID.
+compress to the same Short ID (e.g., taking the low-order bits
+of a strong cryptographic hash function).
 
 In cases when a process does not have any application
 credentials, the verifier policy MAY assign it a global or local
@@ -431,7 +432,7 @@ pub trait AppCredentialsChecker<'a> {
     fn check_credentials(&self,
                          credentials: TbfFooterV2Credentials,
                          binary: &'a [u8])  ->
-        Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>
+        Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
 }
 ```
 
@@ -473,7 +474,63 @@ location indicated by the `binary_end_offset` field in the Program
 Header. The size of this slice is therefore equal to
 `binary_end_offset`.
 
-6 Short IDs and the `Compress` trait
+6 Application Identifiers and the `ApplicationIdentification` trait
+==============================
+
+The `ApplicationIdentification` trait defines an API for a module that
+decides whether two processes have the same application identifier.
+An implementer of `ApplicationIdentification` implements the
+`different_identifier` method, which performs a pairwise comparison of
+two processes. There is also a `has_unique_identifier` method, which
+compares a process against all of the processes in a process
+array. The trait has a default implementation of this method, but
+implementations may override it.
+
+```rust
+trait AppIdentification {
+    // Returns true if the two processes have different application
+	// identifiers.
+	fn different_identifier(&self, 
+	                        processA: &dyn Process,
+				  		    processB: &dyn Process) -> bool;
+							
+	// Return whether `process` has a unique application identifier (whether 
+	// it does not collide with the application identifier of any `Process`
+	// in `processes`.
+    fn has_unique_identifier(&self,
+                             process: &dyn Process,
+                             processes: &[Option<&dyn Process>]) -> bool {
+        let len = processes.len();
+        if process.get_state() != State::Unstarted && 
+		   process.get_state() != State::Terminated {
+            return false;
+        }
+
+        // Note that this causes `process` to compare against itself;
+        // however, since `process` should not be running, it will
+        // not check the identifiers and say they are different. This means
+        // this method returns false if the process is running.
+        for i in 0..len {
+            let checked_process = processes[i];
+            let diff = checked_process
+                .map_or(true, |other| {
+                    !other.is_running() ||
+                        self.different_identifier(process, other)
+                });
+            if !diff {
+                return false;
+            }
+        }
+        true
+}
+```
+
+This interface encapsulates the method by which a module assigns or
+calculates application identifers. The kernel uses this interfaces to
+determine if a process submitted to run will collide with a running
+process's application identifier.
+
+7 Short IDs and the `Compress` trait
 ===============================
 
 While `TbfFooterV2Credentials` define the identity and credentials of
@@ -571,13 +628,13 @@ mapping from the identifier. `ShortID` values derived from local
 application identifiers, however, MAY be transient and not persist.
 
 
-7 Capsules
+8 Capsules
 ===============================
 
-8 Implementation Considerations
+9 Implementation Considerations
 ===============================
 
-9 Authors' Addresses
+10 Authors' Addresses
 ===============================
 ```
 Philip Levis

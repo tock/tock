@@ -15,10 +15,9 @@ use crate::create_capability;
 use crate::debug;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process;
 use crate::process::Process;
 use crate::process_checking;
-use crate::process_checking::AppCredentialsChecker;
+use crate::process_checking::AppVerifier;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
@@ -288,7 +287,7 @@ fn check_processes(
 ) -> Result<(), ProcessLoadError> {
     let capability = create_capability!(ProcessApprovalCapability);
 
-    if kernel.checker().is_none() {
+    if kernel.verifier().is_none() {
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: no checker provided, load and run all processes");
         }
@@ -306,7 +305,7 @@ fn check_processes(
         }
         Ok(())
     } else {
-        kernel.checker().map_or(Err(ProcessLoadError::InternalError), |c| {
+        kernel.verifier().map_or(Err(ProcessLoadError::InternalError), |v| {
             #[allow(unused_mut)] // machine doesn't need mut
             let machine = unsafe {
                 static_init!(
@@ -314,14 +313,14 @@ fn check_processes(
                     ProcessCheckerMachine {
                         process: Cell::new(0),
                         footer: Cell::new(0),
-                        checker: OptionalCell::empty(),
+                        verifier: OptionalCell::empty(),
                         processes: procs,
                         kernel: kernel
                     }
                 )
             };
-            c.set_client(machine);
-            machine.checker.replace(c);
+            v.set_client(machine);
+            machine.verifier.replace(v);
             machine.next()?;
             Ok(())
         })
@@ -335,7 +334,7 @@ fn check_processes(
 struct ProcessCheckerMachine {
     process: Cell<usize>,
     footer: Cell<usize>,
-    checker: OptionalCell<&'static dyn AppCredentialsChecker<'static>>,
+    verifier: OptionalCell<&'static dyn AppVerifier<'static>>,
     processes: &'static [Option<&'static dyn Process>],
     kernel: &'static Kernel,
 }
@@ -377,7 +376,7 @@ impl ProcessCheckerMachine {
 
             let footer_index = self.footer.get();
             // Try to check the next footer.
-            let check_result = self.checker.map_or(FooterCheckResult::Error, |v| {
+            let check_result = self.verifier.map_or(FooterCheckResult::Error, |v| {
                 check_footer(self.processes[proc_index], *v, footer_index)
             });
             if config::CONFIG.debug_process_credentials {
@@ -395,7 +394,7 @@ impl ProcessCheckerMachine {
                     // credentials or all credentials were Pass: apply
                     // the checker policy to see if the process
                     // should be allowed to run.
-                    let requires = self.checker.map_or(false, |v| v.require_credentials());
+                    let requires = self.verifier.map_or(false, |v| v.require_credentials());
                     let _res = self.processes[proc_index].map_or(
                         Err(ProcessLoadError::InternalError),
                         |p| {
@@ -416,7 +415,7 @@ impl ProcessCheckerMachine {
                                 }
                                 p.mark_credentials_pass(None, &capability)
                                     .or(Err(ProcessLoadError::InternalError))?;
-                                self.kernel.submit_process(p);
+                                self.kernel.submit_process(p).or(Err(ProcessLoadError::InternalError))?;
                             }
                             Ok(true)
                         },
@@ -446,7 +445,7 @@ impl ProcessCheckerMachine {
 // it reached the end of the footer region.
 fn check_footer(
     popt: Option<&'static dyn Process>,
-    checker: &'static dyn AppCredentialsChecker,
+    verifier: &'static dyn AppVerifier,
     next_footer: usize,
 ) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
@@ -506,7 +505,7 @@ fn check_footer(
                         Some(slice) => {
                             footer_slice = slice;
                             if current_footer == next_footer {
-                                match checker.check_credentials(footer, binary_slice) {
+                                match verifier.check_credentials(footer, binary_slice) {
                                     Ok(()) => {
                                         if config::CONFIG.debug_process_credentials {
                                             debug!("Checking: Found {}, checking", current_footer);
@@ -564,7 +563,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_credentials_pass(Some(credentials), &capability);
-                    self.kernel.submit_process(p);
+                    let _res = self.kernel.submit_process(p);
                 });
                 self.process.set(self.process.get() + 1);
             }

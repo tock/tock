@@ -24,7 +24,7 @@ use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::{self, Process, ProcessId, Task};
-use crate::process_checking::AppCredentialsChecker;
+use crate::process_checking::{AppVerifier};
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -61,7 +61,7 @@ pub struct Kernel {
     /// established.
     grants_finalized: Cell<bool>,
 
-    checker: Option<&'static dyn AppCredentialsChecker<'static>>,
+    verifier: Option<&'static dyn AppVerifier<'static>>,
 
     init_cap: KernelProcessInitCapability,
 }
@@ -125,22 +125,20 @@ unsafe impl capabilities::ProcessInitCapability for KernelProcessInitCapability 
 
 impl Kernel {
     pub fn new(processes: &'static [Option<&'static dyn process::Process>],
-               checker: Option<&'static dyn AppCredentialsChecker>) -> Kernel {
-        unsafe {
+               verifier: Option<&'static dyn AppVerifier>) -> Kernel {
             Kernel {
                 work: Cell::new(0),
                 processes,
                 process_identifier_max: Cell::new(0),
                 grant_counter: Cell::new(0),
                 grants_finalized: Cell::new(false),
-                checker: checker,
+                verifier: verifier,
                 init_cap: KernelProcessInitCapability {}
-            }
         }
     }
 
-    pub(crate) fn checker(&self) -> Option<&'static dyn AppCredentialsChecker<'static>> {
-        self.checker
+    pub(crate) fn verifier(&self) -> Option<&'static dyn AppVerifier<'static>> {
+        self.verifier
     }
     
     /// Something was scheduled for a process, so there is more work to do.
@@ -1329,8 +1327,8 @@ impl Kernel {
     /// unique to determine if it is runnable.  The process must be in
     /// the `Unstarted` or `Terminated` state.
     pub fn submit_process(&self, process: &dyn Process) -> Result<(), ErrorCode> {
-        if self.checker.map_or(true, |c|
-                               c.has_unique_identifier(process, self.processes)) {
+        if self.verifier().map_or(true, |v|
+                               v.has_unique_identifier(process, self.processes)) {
             process.enqueue_init_task(&self.init_cap)
         } else {
             Err(ErrorCode::BUSY)

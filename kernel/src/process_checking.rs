@@ -35,7 +35,9 @@ pub trait AppCredentialsChecker<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
-    
+}
+
+pub trait AppIdentification {
     fn different_identifier(&self, 
 	                    process_a: &dyn Process,
 			    process_b: &dyn Process) -> bool;
@@ -46,7 +48,7 @@ pub trait AppCredentialsChecker<'a> {
     // returns false.
     fn has_unique_identifier(&self,
                              process: &dyn Process,
-                             processes: &[Option<&'a dyn Process>]) -> bool {
+                             processes: &[Option<&dyn Process>]) -> bool {
         let len = processes.len();
         if process.get_state() != State::Unstarted && process.get_state() != State::Terminated {
             return false;
@@ -70,6 +72,19 @@ pub trait AppCredentialsChecker<'a> {
         true
     }
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct ShortID {
+    id: u32
+}
+
+pub trait Compress {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
+}
+
+pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppIdentification {}
+impl<'a, T: AppCredentialsChecker<'a> + Compress + AppIdentification> AppVerifier<'a> for T {}
+
 
 pub struct AppCheckerPermissive<'a> {
     pub client: OptionalCell<&'a dyn Client<'a>>,
@@ -99,13 +114,20 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerPermissive<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
     }
+}
 
+impl AppIdentification for AppCheckerPermissive<'_> {
     fn different_identifier(&self, 
 	                    _process_a: &dyn Process,
 			    _process_b: &dyn Process) -> bool {
         true
     }
-    
+}
+
+impl Compress for AppCheckerPermissive<'_> {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+        None
+    }
 }
 
 pub struct AppCheckerSimulated<'a> {
@@ -170,17 +192,23 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
     }
+}
 
-    
+impl AppIdentification for AppCheckerSimulated<'_> {
     // This checker doesn't allow you to run two processes with the
     // same name.
     fn different_identifier(&self, 
 	                    process_a: &dyn Process,
 			    process_b: &dyn Process) -> bool {
-        return false;
-        /*let a = process_a.get_process_name();
+        let a = process_a.get_process_name();
         let b = process_b.get_process_name();
-        !a.eq(b)*/
+        !a.eq(b)
+    }
+}
+
+impl Compress for AppCheckerSimulated<'_> {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+        None
     }
 }
 
@@ -220,7 +248,9 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>) {
         self.client.replace(client);
     }
+}
 
+impl AppIdentification for AppCheckerSha512<'_> {
     fn different_identifier(&self, 
 	                    process_a: &dyn Process,
 			    process_b: &dyn Process) -> bool {
@@ -235,12 +265,12 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
                   let data_b = b.data();
                   for (p1, p2) in data_a.iter().zip(data_b.iter()) {
                       if p1 != p2 {
-                          return true
+                          return true;
                       }
                   }
               }
               false
-       }))
+          }))
     }
 }
 

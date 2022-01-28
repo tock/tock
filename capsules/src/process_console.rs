@@ -776,7 +776,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self
-                                .write_bytes(b"help status list stop start fault process kernel\n");
+                                .write_bytes(b"help status list stop start fault process kernel terminate boot\n");
                         }
                     }
                     Err(_e) => {

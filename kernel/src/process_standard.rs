@@ -2033,27 +2033,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process_memory_end - identifier.offset
     }
 
-    /// Check if the process is active.
-    ///
-    /// "Active" is defined as the process can resume executing in the future.
-    /// This means its state in the `Process` struct is still valid, and that
-    /// the kernel could resume its execution without completely restarting and
-    /// resetting its state.
-    ///
-    /// A process is inactive if the kernel cannot resume its execution, such as
-    /// if the process faults and is in an invalid state, or if the process
-    /// explicitly exits.
-    fn is_active(&self) -> bool {
-        let current_state = self.state.get();
-        match self.state.get() {
-            State::Terminated |
-            State::Faulted |
-            State::Unchecked |
-            State::CredentialsFailed => false,
-            _ => true
-        }
-    }
-
     /// The start address of allocated RAM for this process.
     fn mem_start(&self) -> *const u8 {
         self.memory_start
