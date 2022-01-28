@@ -68,12 +68,34 @@ to values.
 | ------------------- | --------------------------------------------- |
 | 0                   | Success                                       |
 | 1-1024              | SHOULD be a [TRD 104 error code][error-codes] |
-| 1025-`u32::MAX`     | Reserved                                      |
+| 1025-`u32::MAX`     | Not defined                                   |
 
 4 Implementation
 ===============================
 As of writing, libtock [currently implements][termination] this TRD via the
 `Termination` trait.
+
+```rust
+pub trait Termination {
+    fn complete<S: Syscalls>(self) -> !;
+}
+
+impl Termination for () {
+    fn complete<S: Syscalls>(self) -> ! {
+        S::exit_terminate(0)
+    }
+}
+
+impl Termination for Result<(), ErrorCode> {
+    fn complete<S: Syscalls>(self) -> ! {
+        let exit_code = match self {
+            Ok(()) => 0,
+            Err(ec) => ec as u32,
+        };
+        S::exit_terminate(exit_code);
+    }
+}
+```
 
 5 Author's Address
 ===============================
