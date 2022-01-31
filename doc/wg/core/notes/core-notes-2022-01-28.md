@@ -18,7 +18,7 @@ Attendees:
 
 ### uformat library
  * Hudson: On uFormat stuff. I've completely implemented width specifiers, so you can pad numbers with zeros or any type with spaces, at least on the right side of the type. Left spacing for non-numeric types would take a re-architecture. I've gotten the size overhead down to like 1.5 KB out of 13 KB for the applications I'm looking at. So now they only save 11.5 KB by changing to this uFormat solution. Still a pretty big win.
- * Alyssa: Does uformat support lowercase x or uppercase X or both? Would only one save a non-trivial amount of space?
+ * Alyssa: Does ufmt support lowercase x or uppercase X or both? Would only one save a non-trivial amount of space?
  * Hudson: It only supports lowercase, but I think uppercase would be a trivial cost.
  
 ### Hardware CI
