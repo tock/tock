@@ -437,8 +437,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
-        let _res = self.reset();
-
+        if let Ok(()) = self.reset() {
+            let _res = self.kernel.submit_process(self);
+        }
+                
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
     }

@@ -188,16 +188,25 @@ pub trait Process {
     /// kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
-    /// Enqueue a `Task` to execute the init function of the process,
-    /// transitioning it from the `Terminated` or `Unstarted` state to
-    /// `Yielded` then `Running`.
+    /// Enqueue a `Task` to execute the init function of the process.
+    /// The process must be in the the `Terminated` or `Unstarted`
+    /// state, and invoking this method transitions it to the
+    /// `Yielded` state before enqueuing the task. This is the only
+    /// method that transitions a process from `Terminated` or
+    /// `Unstarted` to `Yielded`. Because starting a process has
+    /// security implications (e.g., that every running process has a
+    /// unique application identifier), this method requires a
+    /// Capability.
     fn enqueue_init_task(&self, cap: &dyn capabilities::ProcessInitCapability) -> Result<(), ErrorCode>;
 
     /// Transition a loaded but unchecked process into the `Unstarted`
     /// state so it can run. Returns an error if the process was not
     /// in the `Unchecked` state. The `credentials` field is None if
-    /// all credentials are Pass; if a credential is Accept, it
-    /// is passed in `credentials`.
+    /// all credentials are Pass; if a credential is Accept, it is
+    /// passed in `credentials`. Transitioning a process to
+    /// `Unstarted` has security implications because it means this
+    /// application binary is permitted to run on the system. This
+    /// method therfore requires a Capability.
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
@@ -282,8 +291,10 @@ pub trait Process {
     /// this will return `Some(Some(completion_code))`.
     fn get_completion_code(&self) -> Option<Option<u32>>;
 
-    /// Stop and clear a process's state, putting it into the `Terminated`
-    /// state.
+    /// Stop and clear a process's state. If the process was running
+    /// or has passed credentials checks, put it into the `Terminated`
+    /// state. This method has no effect on processes in the
+    /// `CredentialsFailed` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
