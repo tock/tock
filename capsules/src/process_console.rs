@@ -647,7 +647,6 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
-                                            
                                             let res = self.kernel.submit_process(proc);
                                             let mut console_writer = ConsoleWriter::new();
                                             match res {

@@ -365,8 +365,11 @@ pub unsafe fn main() {
         dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, Some(checker)));
-    
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new(&PROCESSES, Some(checker))
+    );
+
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);

@@ -295,7 +295,8 @@ fn check_processes(
             let res = proc.map(|p| {
                 p.mark_credentials_pass(None, &capability)
                     .or(Err(ProcessLoadError::InternalError))?;
-                kernel.submit_process(p)
+                kernel
+                    .submit_process(p)
                     .or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
             });
@@ -305,25 +306,27 @@ fn check_processes(
         }
         Ok(())
     } else {
-        kernel.verifier().map_or(Err(ProcessLoadError::InternalError), |v| {
-            #[allow(unused_mut)] // machine doesn't need mut
-            let machine = unsafe {
-                static_init!(
-                    ProcessCheckerMachine,
-                    ProcessCheckerMachine {
-                        process: Cell::new(0),
-                        footer: Cell::new(0),
-                        verifier: OptionalCell::empty(),
-                        processes: procs,
-                        kernel: kernel
-                    }
-                )
-            };
-            v.set_client(machine);
-            machine.verifier.replace(v);
-            machine.next()?;
-            Ok(())
-        })
+        kernel
+            .verifier()
+            .map_or(Err(ProcessLoadError::InternalError), |v| {
+                #[allow(unused_mut)] // machine doesn't need mut
+                let machine = unsafe {
+                    static_init!(
+                        ProcessCheckerMachine,
+                        ProcessCheckerMachine {
+                            process: Cell::new(0),
+                            footer: Cell::new(0),
+                            verifier: OptionalCell::empty(),
+                            processes: procs,
+                            kernel: kernel
+                        }
+                    )
+                };
+                v.set_client(machine);
+                machine.verifier.replace(v);
+                machine.next()?;
+                Ok(())
+            })
     }
 }
 
@@ -415,7 +418,9 @@ impl ProcessCheckerMachine {
                                 }
                                 p.mark_credentials_pass(None, &capability)
                                     .or(Err(ProcessLoadError::InternalError))?;
-                                self.kernel.submit_process(p).or(Err(ProcessLoadError::InternalError))?;
+                                self.kernel
+                                    .submit_process(p)
+                                    .or(Err(ProcessLoadError::InternalError))?;
                             }
                             Ok(true)
                         },

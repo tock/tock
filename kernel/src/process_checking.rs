@@ -3,12 +3,11 @@ use crate::dynamic_deferred_call::{
 };
 use crate::hil::digest::{ClientData, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha512};
-use crate::ErrorCode;
 use crate::process::{Process, State};
 use crate::utilities::cells::OptionalCell;
+use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
-
 
 #[derive(Debug)]
 pub enum CheckResult {
@@ -38,17 +37,17 @@ pub trait AppCredentialsChecker<'a> {
 }
 
 pub trait AppIdentification {
-    fn different_identifier(&self, 
-	                    process_a: &dyn Process,
-			    process_b: &dyn Process) -> bool;
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool;
 
     // Return whether there is a currently running process that has
     // the same application identifier as `process`. This means that
     // if `process` is currently running, `has_unique_identifier`
     // returns false.
-    fn has_unique_identifier(&self,
-                             process: &dyn Process,
-                             processes: &[Option<&dyn Process>]) -> bool {
+    fn has_unique_identifier(
+        &self,
+        process: &dyn Process,
+        processes: &[Option<&dyn Process>],
+    ) -> bool {
         let len = processes.len();
         if process.get_state() != State::Unstarted && process.get_state() != State::Terminated {
             return false;
@@ -60,11 +59,9 @@ pub trait AppIdentification {
         // this method returns false if the process is running.
         for i in 0..len {
             let checked_process = processes[i];
-            let diff = checked_process
-                .map_or(true, |other| {
-                    !other.is_running() ||
-                        self.different_identifier(process, other)
-                });
+            let diff = checked_process.map_or(true, |other| {
+                !other.is_running() || self.different_identifier(process, other)
+            });
             if !diff {
                 return false;
             }
@@ -75,7 +72,7 @@ pub trait AppIdentification {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ShortID {
-    id: u32
+    id: u32,
 }
 
 pub trait Compress {
@@ -84,7 +81,6 @@ pub trait Compress {
 
 pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppIdentification {}
 impl<'a, T: AppCredentialsChecker<'a> + Compress + AppIdentification> AppVerifier<'a> for T {}
-
 
 pub struct AppCheckerPermissive<'a> {
     pub client: OptionalCell<&'a dyn Client<'a>>,
@@ -117,9 +113,7 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerPermissive<'a> {
 }
 
 impl AppIdentification for AppCheckerPermissive<'_> {
-    fn different_identifier(&self, 
-	                    _process_a: &dyn Process,
-			    _process_b: &dyn Process) -> bool {
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
         true
     }
 }
@@ -197,9 +191,7 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
 impl AppIdentification for AppCheckerSimulated<'_> {
     // This checker doesn't allow you to run two processes with the
     // same name.
-    fn different_identifier(&self, 
-	                    process_a: &dyn Process,
-			    process_b: &dyn Process) -> bool {
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let a = process_a.get_process_name();
         let b = process_b.get_process_name();
         !a.eq(b)
@@ -251,26 +243,25 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
 }
 
 impl AppIdentification for AppCheckerSha512<'_> {
-    fn different_identifier(&self, 
-	                    process_a: &dyn Process,
-			    process_b: &dyn Process) -> bool {
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let credentials_a = process_a.get_credentials();
         let credentials_b = process_b.get_credentials();
-        credentials_a.map_or(true, |a|
-          credentials_b.map_or(true, |b| {
-              if a.format() != b.format() {
-                  return true;
-              } else {
-                  let data_a = a.data();
-                  let data_b = b.data();
-                  for (p1, p2) in data_a.iter().zip(data_b.iter()) {
-                      if p1 != p2 {
-                          return true;
-                      }
-                  }
-              }
-              false
-          }))
+        credentials_a.map_or(true, |a| {
+            credentials_b.map_or(true, |b| {
+                if a.format() != b.format() {
+                    return true;
+                } else {
+                    let data_a = a.data();
+                    let data_b = b.data();
+                    for (p1, p2) in data_a.iter().zip(data_b.iter()) {
+                        if p1 != p2 {
+                            return true;
+                        }
+                    }
+                }
+                false
+            })
+        })
     }
 }
 

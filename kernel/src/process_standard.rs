@@ -287,19 +287,20 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.state.update(State::CredentialsFailed);
     }
 
-    
     fn get_credentials(&self) -> Option<TbfFooterV2Credentials> {
         let c = self.credentials.take();
         self.credentials.insert(c);
         c
     }
-    
+
     /// Enqueue the initialization function of a process onto its task list;
     /// this is used to start a process. Should only be called when a process
     /// is in the `State::Unstarted` state.
-    fn enqueue_init_task(&self, _cap: &dyn capabilities::ProcessInitCapability) -> Result<(), ErrorCode> {
-        if self.state.get() != State::Unstarted &&
-           self.state.get() != State::Terminated {
+    fn enqueue_init_task(
+        &self,
+        _cap: &dyn capabilities::ProcessInitCapability,
+    ) -> Result<(), ErrorCode> {
+        if self.state.get() != State::Unstarted && self.state.get() != State::Terminated {
             return Err(ErrorCode::NODEVICE);
         }
 
@@ -327,7 +328,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
 
         self.state.update(State::Yielded);
-        
+
         Ok(())
     }
 
@@ -370,14 +371,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn is_running(&self) -> bool {
         match self.state.get() {
-            State::Running |
-            State::Yielded |
-            State::StoppedRunning |
-            State::StoppedYielded => true,
-            _ => false
+            State::Running | State::Yielded | State::StoppedRunning | State::StoppedYielded => true,
+            _ => false,
         }
     }
-    
+
     fn get_state(&self) -> State {
         self.state.get()
     }
@@ -440,7 +438,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         if let Ok(()) = self.reset() {
             let _res = self.kernel.submit_process(self);
         }
-                
+
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
     }
@@ -449,7 +447,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         if !self.is_running() {
             return;
         }
-        
+
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -1901,10 +1899,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Mark the state as `Unstarted` for the scheduler.
         match self.state.get() {
-            State::Unchecked |
-            State::CredentialsFailed => {
-                Err(ErrorCode::NODEVICE)
-            },
+            State::Unchecked | State::CredentialsFailed => Err(ErrorCode::NODEVICE),
             _ => {
                 self.state.update(State::Unstarted);
                 Ok(())

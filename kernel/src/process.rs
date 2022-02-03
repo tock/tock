@@ -197,7 +197,10 @@ pub trait Process {
     /// security implications (e.g., that every running process has a
     /// unique application identifier), this method requires a
     /// Capability.
-    fn enqueue_init_task(&self, cap: &dyn capabilities::ProcessInitCapability) -> Result<(), ErrorCode>;
+    fn enqueue_init_task(
+        &self,
+        cap: &dyn capabilities::ProcessInitCapability,
+    ) -> Result<(), ErrorCode>;
 
     /// Transition a loaded but unchecked process into the `Unstarted`
     /// state so it can run. Returns an error if the process was not
@@ -250,7 +253,7 @@ pub trait Process {
     /// Returns whether the process is running (has active stack frames)
     /// or not (has never run, has faulted, or has completed).
     fn is_running(&self) -> bool;
-    
+
     /// Move this process from the running state to the yielded state.
     ///
     /// This will fail (i.e. not do anything) if the process was not previously
