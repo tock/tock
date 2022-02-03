@@ -147,7 +147,7 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
     // Power up components
     pwr_ctrl.enable_uart0();
@@ -298,7 +298,7 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

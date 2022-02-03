@@ -386,7 +386,7 @@ pub unsafe fn main() {
 
     setup_peripherals(&peripherals.tim2);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
@@ -817,7 +817,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

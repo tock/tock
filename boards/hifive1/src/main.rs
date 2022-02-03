@@ -143,7 +143,7 @@ pub unsafe fn main() {
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -285,7 +285,7 @@ pub unsafe fn main() {
         scheduler_timer,
     };
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

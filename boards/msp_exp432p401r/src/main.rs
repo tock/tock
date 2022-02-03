@@ -228,7 +228,7 @@ pub unsafe fn main() {
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
     let chip = static_init!(
         msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>,
         msp432::chip::Msp432::new(peripherals)
@@ -457,7 +457,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

@@ -249,8 +249,6 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -273,6 +271,10 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
+
+
+    
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
@@ -568,7 +570,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

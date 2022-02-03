@@ -298,7 +298,7 @@ pub unsafe fn main() {
 
     CHIP = Some(chip);
 
-    let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES, None));
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -516,7 +516,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
