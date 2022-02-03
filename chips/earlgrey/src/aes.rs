@@ -65,11 +65,11 @@ register_bitfields![u32,
         FATAL_FAULT OFFSET(1) NUMBITS(1) [],
     ],
     CTRL [
-        OPERATION OFFSET(0) NUMBITS(1) [
-            Encrypting = 0,
-            Decrypting = 1,
+        OPERATION OFFSET(0) NUMBITS(2) [
+            Encrypting = 1,
+            Decrypting = 2,
         ],
-        MODE OFFSET(1) NUMBITS(6) [
+        MODE OFFSET(2) NUMBITS(6) [
             AES_ECB = 1,
             AES_CBC = 2,
             AES_CFB = 4,
@@ -77,13 +77,13 @@ register_bitfields![u32,
             AES_CTR = 16,
             AES_NONE = 32,
         ],
-        KEY_LEN OFFSET(7) NUMBITS(3) [
+        KEY_LEN OFFSET(8) NUMBITS(3) [
             Key128 = 1,
             Key192 = 2,
             Key256 = 4,
         ],
-        MANUAL_OPERATION OFFSET(10) NUMBITS(1) [],
-        FORCE_ZERO_MASKS OFFSET(11) NUMBITS(1) [],
+        MANUAL_OPERATION OFFSET(11) NUMBITS(1) [],
+        FORCE_ZERO_MASKS OFFSET(12) NUMBITS(1) [],
     ],
     TRIGGER [
         START OFFSET(0) NUMBITS(1) [],
