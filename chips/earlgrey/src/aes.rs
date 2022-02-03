@@ -51,9 +51,11 @@ register_structs! {
         (0x6C => data_out2: ReadOnly<u32>),
         (0x70 => data_out3: ReadOnly<u32>),
         (0x74 => ctrl: ReadWrite<u32, CTRL::Register>),
-        (0x78 => trigger: WriteOnly<u32, TRIGGER::Register>),
-        (0x7C => status: ReadOnly<u32, STATUS::Register>),
-        (0x80 => @END),
+        (0x78 => ctrl_aux: ReadWrite<u32>),
+        (0x7C => ctrl_aux_regwen: ReadWrite<u32>),
+        (0x80 => trigger: WriteOnly<u32, TRIGGER::Register>),
+        (0x84 => status: ReadOnly<u32, STATUS::Register>),
+        (0x88 => @END),
     }
 }
 

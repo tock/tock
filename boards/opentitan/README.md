@@ -20,7 +20,7 @@ Programming
 -----------
 
 Tock on OpenTitan requires
-lowRISC/opentitan@937d707e7b1a666bf2a06bbc2c774553d140497a or newer. In
+lowRISC/opentitan@c2f47bc747ebdc9daed7b00e1d603a73a2f1c58b or newer. In
 general it is recommended that users start with the latest OpenTitan bitstream
 and if that results in issues try the one mentioned above.
 
