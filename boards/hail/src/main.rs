@@ -273,8 +273,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
-
-    
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
