@@ -127,6 +127,9 @@ that Verifier policy have this identifier.
 locally unique for the verifier policy that assigned it.  No other
 process binary on the same Tock device have this identifier.
 
+**Short ID**: a 32-bit compressed representation of an application
+identifier.
+
 In normal use of Tock, process binaries are copied into an application
 flash region by a software tool. When the Tock kernel boots, it scans
 this application flash region for process binaries. After inspecting the
@@ -166,7 +169,7 @@ minimizes cases when two different valid application identifiers
 compress to the same Short ID (e.g., taking the low-order bits
 of a strong cryptographic hash function).
 
-In cases when a process does not have any application
+In cases when a process binary does not have any application
 credentials, the verifier policy MAY assign it a global or local
 application identifier. If the verifier policy does not assign a
 process binary an application identifier then the kernel MUST NOT load
