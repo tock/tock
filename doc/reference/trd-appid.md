@@ -120,13 +120,13 @@ to an loaded process. Application Credentials are usually stored in
 [Tock Binary Format][TBF] footers. A TBF object can have multiple
 ApplicationCcredentials.
 
-**Process Checker**: a component of the Tock kernel which is
+**Credentials Checker**: a component of the Tock kernel which is
 responsible for validating Application Credentials and assigning
 Application Identifiers based on them.
 
 **Credentials Checking Policy**: the algorithm that a Credentials
 Checking uses to assign an Application Identifier to a loaded
-process. A Process Checker Policy defines an Application Identifier
+process. A Credentials Checking Policy defines an Application Identifier
 space. Two Tock kernels, using different Credentials Checking Policies
 and loading the same TBF object into one of their processes, can and
 often do assign different Application Identifiers to those processes.
