@@ -164,9 +164,9 @@ it an Application Identifier and decides whether to run it.
 There is a relationship between Application Identifiers and
 Application Credentials, but they are not the same thing. An
 Application Identifier is a numerical representation of the
-Application's Identity, while credentials are the data that, combined
-with a Credentials Checking Policy, bind an Application Identifier to a
-process. 
+Application's identity, while credentials are the data that, combined
+with a Credentials Checking Policy, bind an Application Identifier to
+a process.
 
 Suppose there are two versions (v1.1 and v1.2) of the same
 Application. They have different Userspace Binaries. Each version has
@@ -183,18 +183,25 @@ Application Identifiers MUST be unique across running processes in a
 Tock system.  Global Application Identifiers MUST persist across
 process restarts or reloads.
 
-If the Credentials Checking Policy assigns the same Application Identifier
-to multiple processes, then the Tock kernel MUST NOT run more than one
-of them at any given time. Following the above example, the Tock
-kernel can run v1.1 or v1.2 of the Application, but will not run both
-simultaneously. A kernel MAY perform this check by comparing Short IDs
-generated from application identifiers using the `Compress` trait
-(described below). Kernels using Short IDs to test collisions between
-application identifiers SHOULD implement `Compress` in a manner that
-minimizes cases when two different valid application identifiers
-compress to the same Short ID (e.g., taking the low-order bits of a
-strong cryptographic hash function, or using a known, deterministic
-mapping).
+Application Identifiers are unique among running processes because
+Short IDs are, for security and mangement reasons. Because Short IDs
+used for security settings are often computed from Application
+Identifiers and need to be persistent across reboots of a Userspace
+Binary, this implies that Application Identifiers must be unique as
+well. For futher details, see the Short ID section below.
+
+If the Credentials Checking Policy assigns the same Application
+Identifier to multiple processes, then the Tock kernel MUST NOT run
+more than one of them at any given time. Following the above example,
+the Tock kernel can run v1.1 or v1.2 of the Application, but will not
+run both simultaneously. A kernel MAY perform this check by comparing
+Short IDs generated from application identifiers using the `Compress`
+trait (described below). Kernels using Short IDs to test collisions
+between Application Identifiers SHOULD implement `Compress` in a
+manner that minimizes cases when two different valid application
+identifiers compress to the same Short ID (e.g., taking the low-order
+bits of a strong cryptographic hash function, or using a known,
+deterministic mapping).
 
 In cases when a TBF Object does not have any application credentials,
 the Credentials Checking Policy MAY assign it a global or local
@@ -204,87 +211,90 @@ process.
 
 Consider these five use cases.
 
-  1. A TBF Object with no application credentials: it only runs on
+  1. A TBF Object with no Application Credentials: it only runs on
   kernels that are willing to load TBF Objects without credentials
-  (e.g., research systems). The Credentials Checking Policy defines that
-  TBF Objects with no credentials have a Global Application Identifier
-  of a SHA256 hash of the application binary.
+  (e.g., research systems). The Credentials Checking Policy defines
+  that TBF Objects with no credentials have a Global Application
+  Identifier of a SHA256 hash of the Application Binary.
 
-  1. The verifier policy defines that the Global Application
-  Identifier of a process is the public key used to generate an
-  Application Credentials for the TBF Object.  Before verifiying a
-  signature in a TBF footer, the Credentials Checking Policy decides
-  whether to it accepts the associated public key. The Process Checking Pol
-  assigns a global application identifier as the public key in the TBF
-  header.
+  1. The Credentials Checking Policy defines that the Global
+  Application Identifier of a process is the public key used to
+  generate an Application Credentials for the TBF Object.  Before
+  verifiying a signature in a TBF footer, the Credentials Checking
+  Policy decides whether to it accepts the associated public key. The
+  Process Checking Policy assigns a global application identifier as
+  the public key in the TBF footer.
 
-  1. Multiple separate process binaries that run concurrently need to
-  be signed with a single public key. Each process binary is
-  identified by a unique identifier I. Application credentials for
-  these process binaries consist of a TBF header containing an ECDSA
+  1. Multiple separate Userspace Binaries that run concurrently need
+  to be signed with a single public key. Each Userspace Binary is
+  identified by a unique identifier I. Application Credentials for
+  these process binaries consist of a TBF footer containing an ECDSA
   public key, the unique identifier I, and a signature over the
   process binary and I signed with the private key corresponding to
-  the public key in the header. The kernel decides whether to accept a
-  particular public key for verification. The verifier policy assigns
-  a global application identifier as the concatenation of the public
-  key and I.
+  the public key in the footer. The Credentials Checking Policy
+  decides whether to accept a particular public key for
+  verification. The Credentials Checking Policy assigns a Global
+  Application Identifier as the concatenation of the public key and I.
 
-  1. A Tock system wants to load the same process binary in 
-  two different processes at the same time. It cannot. Every process
-  binary has a single application identifier, and Tock will not run
-  two processes with the same application identifier.
+  1. A Tock system wants to load the same Userspace Binary in two
+  different policies at the same time. The Userspace Binary is stored
+  in a single TBF Object O that the Credentials Checking Policy
+  assigns a Global Application Identifier to. The system wants to load
+  O two different processes at the same time. It cannot. Two processes
+  with the same Application Identifier cannot run simultaneously.
+  
+  1. A Tock system wants to load the same Userspace Binary in two
+  different processes at the same time. The system administrator
+  installs two TBF Objects on the device, which contain the same
+  Userspace Binary. The Userspace Binaries have no credentials.  The
+  Credentials Checking Policy assigns a Local Application Identifier
+  to each Userspace Binary based on its position in flash.
 
-  1. A Tock system wants to load the same application binary
-  in two different processes at the same time. The system administrator
-  installs two process binaries on the device, which contain the
-  same application binary. The process binaries have no credentials.
-  The verifier policy assigns a local application identifier to each
-  process binary based on its order in application flash.
+An Application Identifier provides an identity for a Userspace Binary.
+It allows the Tock kernel to know about the provenance and origin of
+the binary and make access control or security decisions based on this
+information. For example, a kernel may allow only Applications whose
+Application Credentials use a particular trusted public key to access
+restricted functionality, but restrict other applications to use a
+subset of available system calls.
 
-An application identifier provides an identity for an application
-binary. It allows the Tock kernel to know about the provenance and
-origin of the binary and make access control or security decisions
-based on this information. For example, a kernel may allow only
-applications whose credentials use a particular trusted public key to
-access restricted functionality, but restrict other applications to
-use a subset of available system calls.
+Application Identifiers are distinct from process identifiers. An
+Application Identifier is per-application (persists across restarts of
+a Userspace Binary, for example), while a process identifier
+identifies a particular execution of that binary. At any time on a
+Tock device, each process has a unique process identifier, but they
+can be re-used over time (like POSIX process identifiers).
 
-Application identifiers are distinct from process
-identifiers. An application identifier is per-application (persists
-across restarts of a process binary, for example), while a process
-identifier identifies a particular execution of that binary. At any
-time on a Tock device, each process has a unique process identifier,
-but they can be re-used over time (like POSIX process identifiers).
+As the above examples illustrate, Application Credentials can vary in
+size and content. The credentials that a kernel's Credentials Checking
+Policy will accept depends on its use case. Certain devices will only
+accept Application Credentials which include a particular public key,
+while others will accept many. Furthermore, the internal format of
+these credentials can vary.  Finally, the cryptography used in
+credentials can vary, either due to security policies or certification
+requirements.
 
-As the above examples illustrate, application credentials can vary in
-size and content. The credentials that a kernel's verifier policy will
-accept depends on its use case. Certain devices will only accept
-credentials which include a particular public key, while others will
-accept many. Furthermore, the internal format of these credentials can
-vary.  Finally, the cryptography used in credentials can vary, either
-due to security policies or certification requirements.
-
-Because the verifier policy is responsible for assigning application
-identifiers to process binaries, it is possible for the same process
-binary to have different application identifiers on different Tock
-systems.  For example, suppose a process binary has two application
-credential TBF headers: one signs with a key A, and the other with key
-B. Tock systems using a verifier policy that accepts key A may assign
-A as the global application identifier, while Tock systems using a
-different verifier policy that accepts key B may assign B as the
-global application identifier.
+Because the Process Checking Policy is responsible for assigning
+Application Identifiers to processes, it is possible for the same
+Userspace Binary to have different Application Identifiers on
+different Tock systems.  For example, suppose a process binary has two
+Application Credentials TBF footers: one signs with a key A, and the
+other with key B. Tock systems using a Credentials Checking Policy
+that accepts key A may assign A as the Global Application Identifier,
+while Tock systems using a different policy that accepts key B may
+assign B as the Global Application Identifier.
 
 4 Credentials in Tock Binary Format Objects
 ===============================
 
-Application credentials are usually stored in a [Tock Binary
-Format][TBF] object, along with the process binary they are associated
-with. They are usually stored as footers (after the TBF header and
-application binary) to simplify computing integrity values such as
-checksums or hashes. This requires have a TBF header that specifies
-where the application binary ends and the footers begin, information
-which the previous `TbfHeaderV2Main` header (the Main Header) does not
-include.  Including application credentials in a process binary
+Application Credentials are usually stored in a [Tock Binary
+Format][TBF] object, along with the Userspace Binary they are
+associated with. They are usually stored as footers (after the TBF
+header and application binary) to simplify computing integrity values
+such as checksums or hashes. This requires have a TBF header that
+specifies where the application binary ends and the footers begin,
+information which the `TbfHeaderV2Main` header (the Main Header) does
+not include.  Including Application Credentials in a TBF Object
 therefore requires using an alternative `TbfHeaderV2Program` header
 (the Program Header), which specifics where footers begin. This
 section describes the format and semantics of Program Headers and
@@ -648,6 +658,16 @@ through APIs and does not leak internal state.
 `ShortID` values MUST be locally unique among running processes.  The
 mapping between global application identifiers and `ShortID` values
 MUST be deterministic. 
+
+
+Short IDs are locally unique for three reasons. First, it simplifies
+process management and naming: a particular application identifier
+uniquely identifies a running process. Second, it ensures that
+resources bound to an application identifier (such as non-volatile
+storage) do not have to handle concurrent accesses from multiple
+processes. Finally, generally one does not want two copies of the same
+Application running: they can create conflicting responses and
+behaviors.
 
 `ShortID` values MAY persist across boots and restarts of a process
 binary. If `ShortID` is derived from a global application identifier,
