@@ -132,13 +132,19 @@ pip3 install --user -r python-requirements.txt
 
 LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
 ```
+### Build Boot Rom/OTP Image
+Build only the targets we care about.
+```shell
+ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
+ninja -C build-out sw/device/otp_img/otp_img_sim_verilator.vmem
+```
 
 ### Test Verilator
 
 ```shell
 build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-    --meminit=rom,./build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
-    --meminit=otp,./build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+    --meminit=rom,./build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
+    --meminit=otp,./build-out/sw/device/otp_img/otp_img_sim_verilator.vmem
 
 # Read the output, you want to attach screen to UART
 screen /dev/pts/4
