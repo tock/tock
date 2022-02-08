@@ -30,8 +30,9 @@ developing Tock.
 
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
-3. Command line utilities: make
-4. A supported board or QEMU configuration.
+3. Host toolchain (gcc, glibc)
+4. Command line utilities: make, find
+5. A supported board or QEMU configuration.
 
    If you are just starting to work with TockOS, you should look in
    the [`boards/` subdirectory](../boards/README.md) and choose one of
@@ -61,6 +62,7 @@ $ pip3 install --upgrade tockloader
 
 Ubuntu:
 ```
+$ apt install -y build-essential python3-pip curl
 $ curl https://sh.rustup.rs -sSf | sh
 $ pip3 install --upgrade tockloader --user
 $ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
