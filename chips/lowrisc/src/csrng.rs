@@ -21,7 +21,7 @@ register_structs! {
         (0x14 => ctrl: ReadWrite<u32, CTRL::Register>),
         (0x18 => cmd_req: WriteOnly<u32, COMMAND::Register>),
         (0x1C => sw_cmd_sts: ReadOnly<u32, SW_CMD_STS::Register>),
-        (0x20 => genbits_vld: ReadOnly<u32>),
+        (0x20 => genbits_vld: ReadOnly<u32, GENBIT_VLD::Register>),
         (0x24 => genbits: ReadOnly<u32>),
         (0x28 => int_state_num: ReadWrite<u32>),
         (0x2C => int_state_val: ReadOnly<u32>),
@@ -47,11 +47,16 @@ register_bitfields![u32,
     CTRL [
         ENABLE OFFSET(0) NUMBITS(4) [
             ENABLE = 0xA,
+            DISABLE = 0x5,
         ],
         SW_APP_ENABLE OFFSET(4) NUMBITS(4) [
             ENABLE = 0xA,
+            DISABLE = 0x5,
         ],
-        READ_INT_STATE OFFSET(4) NUMBITS(4) [],
+        READ_INT_STATE OFFSET(8) NUMBITS(4) [
+            ENABLE = 0xA,
+            DISABLE = 0x5,
+        ],
     ],
     COMMAND [
         ACMD OFFSET(0) NUMBITS(4) [
@@ -64,6 +69,9 @@ register_bitfields![u32,
         CLEN OFFSET(4) NUMBITS(4) [],
         FLAGS OFFSET(8) NUMBITS(4) [],
         GLEN OFFSET(12) NUMBITS(19) [],
+    ],
+    GENBIT_VLD [
+        GENBITS_VLD OFFSET(0) NUMBITS(1) [],
     ],
     SW_CMD_STS [
         CMD_RDY OFFSET(0) NUMBITS(1) [],
@@ -83,11 +91,10 @@ impl Iterator for CsRngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let ret = self.0.registers.genbits.get();
-        if ret == 0 {
-            None
+        if self.0.registers.genbits_vld.is_set(GENBIT_VLD::GENBITS_VLD) {
+            Some(self.0.registers.genbits.get())
         } else {
-            Some(ret)
+            None
         }
     }
 }
@@ -173,13 +180,16 @@ impl<'a> Entropy32<'a> for CsRng<'a> {
             return Err(ErrorCode::FAIL);
         }
 
-        self.registers
-            .ctrl
-            .write(CTRL::ENABLE::ENABLE + CTRL::SW_APP_ENABLE::ENABLE);
+        self.registers.ctrl.write(
+            CTRL::ENABLE::ENABLE + CTRL::READ_INT_STATE::ENABLE + CTRL::SW_APP_ENABLE::ENABLE,
+        );
 
-        self.registers
-            .cmd_req
-            .write(COMMAND::ACMD::INSTANTIATE + COMMAND::CLEN.val(0));
+        self.registers.cmd_req.write(
+            COMMAND::ACMD::INSTANTIATE
+                + COMMAND::FLAGS.val(0)
+                + COMMAND::CLEN.val(0)
+                + COMMAND::GLEN.val(0),
+        );
         while !self.registers.sw_cmd_sts.is_set(SW_CMD_STS::CMD_RDY) {}
 
         self.disable_interrupts();
@@ -188,7 +198,7 @@ impl<'a> Entropy32<'a> for CsRng<'a> {
         // Get 256 bits of entropy
         self.registers
             .cmd_req
-            .write(COMMAND::ACMD::GENERATE + COMMAND::GLEN.val(0x2));
+            .write(COMMAND::ACMD::GENERATE + COMMAND::FLAGS.val(0) + COMMAND::GLEN.val(0x2));
 
         Ok(())
     }
