@@ -7,7 +7,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
-#![feature(asm, naked_functions)]
+#![feature(naked_functions)]
+
+use core::arch::asm;
 
 use capsules::i2c_master::I2CMasterDriver;
 use capsules::virtual_alarm::VirtualMuxAlarm;

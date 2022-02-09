@@ -1,5 +1,6 @@
 //! High-level setup and interrupt mapping for the chip.
 
+use core::arch::asm;
 use core::fmt::Write;
 
 use kernel;

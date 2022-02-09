@@ -1,5 +1,6 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
+use core::arch::asm;
 use core::convert::TryInto;
 use core::fmt::Write;
 use core::mem::size_of;

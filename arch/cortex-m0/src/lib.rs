@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(asm, asm_sym, naked_functions)]
+#![feature(asm_sym, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -12,6 +12,8 @@ pub use cortexm::support;
 pub use cortexm::nvic;
 pub use cortexm::print_cortexm_state as print_cortexm0_state;
 pub use cortexm::syscall;
+
+use core::arch::asm;
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

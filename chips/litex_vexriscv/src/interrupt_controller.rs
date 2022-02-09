@@ -107,6 +107,7 @@ mod vexriscv_irq_raw {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_getmask() -> usize {
         let mask: usize;
+        use core::arch::asm;
         asm!("csrr {mask}, {csr}", mask = out(reg) mask, csr = const CSR_IRQ_MASK);
         mask
     }
@@ -116,6 +117,7 @@ mod vexriscv_irq_raw {
 
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_setmask(mask: usize) {
+        use core::arch::asm;
         asm!("csrw {csr}, {mask}", csr = const CSR_IRQ_MASK, mask = in(reg) mask);
     }
 
@@ -127,6 +129,7 @@ mod vexriscv_irq_raw {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_pending() -> usize {
         let pending: usize;
+        use core::arch::asm;
         asm!("csrr {pending}, {csr}", pending = out(reg) pending, csr = const CSR_IRQ_PENDING);
         pending
     }

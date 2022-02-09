@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::cell::Cell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};

@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]

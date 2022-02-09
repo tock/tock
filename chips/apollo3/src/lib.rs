@@ -2,7 +2,7 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn_trait_bound)]
+#![feature(const_fn_trait_bound)]
 #![no_std]
 
 // Peripherals
@@ -17,6 +17,8 @@ pub mod nvic;
 pub mod pwrctrl;
 pub mod stimer;
 pub mod uart;
+
+use core::arch::asm;
 
 use cortexm4::{
     generic_isr, hard_fault_handler, initialize_ram_jump_to_main, scb, svc_handler,

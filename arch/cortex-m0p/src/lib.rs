@@ -2,7 +2,6 @@
 
 #![crate_name = "cortexm0p"]
 #![crate_type = "rlib"]
-#![feature(asm)]
 #![feature(naked_functions)]
 #![no_std]
 
@@ -25,6 +24,8 @@ pub use cortexm::unhandled_interrupt;
 pub use cortexm0::generic_isr;
 pub use cortexm0::hard_fault_handler;
 pub use cortexm0::systick_handler;
+
+use core::arch::asm;
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]

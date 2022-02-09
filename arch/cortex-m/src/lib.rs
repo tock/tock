@@ -2,10 +2,11 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(asm, asm_sym)]
+#![feature(asm_sym)]
 #![feature(naked_functions)]
 #![no_std]
 
+use core::arch::asm;
 use core::fmt::Write;
 
 pub mod mpu;

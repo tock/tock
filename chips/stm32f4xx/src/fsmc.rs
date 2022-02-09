@@ -1,4 +1,5 @@
 use crate::rcc;
+use core::arch::asm;
 use core::cell::Cell;
 use kernel::deferred_call::DeferredCall;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
