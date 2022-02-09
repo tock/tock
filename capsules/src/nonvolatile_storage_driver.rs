@@ -72,14 +72,14 @@ pub const DRIVER_NUM: usize = driver::NUM::NvmStorage as usize;
 mod ro_allow {
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const READ: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 pub static mut BUFFER: [u8; 512] = [0; 512];

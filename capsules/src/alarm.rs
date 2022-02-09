@@ -24,7 +24,7 @@ pub struct AlarmData {
 }
 
 const ALARM_CALLBACK_NUM: usize = 0;
-const NUM_UPCALLS: usize = 1;
+const NUM_UPCALLS: u8 = 1;
 
 impl Default for AlarmData {
     fn default() -> AlarmData {

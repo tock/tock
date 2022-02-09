@@ -22,21 +22,21 @@ mod ro_allow {
     // input value
     pub const VALUE: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const VALUE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for upcalls
 mod upcalls {
     pub const VALUE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 pub struct KVSystemDriver<
