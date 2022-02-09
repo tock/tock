@@ -84,27 +84,6 @@ ifeq ($(CI),true)
   RUSTC_FLAGS_TOCK += -D warnings
 endif
 
-# The following flags should only be passed to the board's binary crate, but
-# not to any of its dependencies (the kernel, capsules, chips, etc.). The
-# dependencies wouldn't use it, but because the link path is different for each
-# board, Cargo wouldn't be able to cache builds of the dependencies.
-#
-# Indeed, as far as Cargo is concerned, building the kernel with
-# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
-# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
-# for each board instead of caching it per board (even if in reality the same
-# kernel is built because the link-arg isn't used by the kernel).
-#
-# Ultimately, this should move to the Cargo.toml, for example when
-# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
-#
-# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
-# the former is forwarded to all the dependencies (being passed to cargo via
-# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
-# the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTC_FLAGS_FOR_BIN ?= \
-  -C link-arg=-L$(abspath .) \
-
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
 # error otherwise.
@@ -326,19 +305,14 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 show-target:
 	$(info $(TARGET))
 
-# This rule is a copy of the rule used to build the release target, but
-# `cargo rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
-# interface of `cargo build`, rather than `cargo rustc`, so we need to move
-# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only means
-# that cargo cannot reuse built dependencies built using `cargo bloat`.
-# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details.
-# To pass additional flags to `cargo bloat`, populate the
-# CARGO_BLOAT_FLAGS environment variable, e.g. call
+# This rule is a copy of the rule used to build the release target, but `cargo
+# rustc` has been replaced with `cargo bloat`. To pass additional flags to
+# `cargo bloat`, populate the CARGO_BLOAT_FLAGS environment variable, e.g. call
 # `CARGO_BLOAT_FLAGS=--crates make cargobloat`
 .PHONY: cargobloat
 cargobloat:
 	$(Q) $(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 # To pass additional flags to `cargo bloat`, populate the
 # CARGO_BLOAT_FLAGS environment variable, e.g. call
@@ -346,7 +320,7 @@ cargobloat:
 .PHONY: cargobloatnoinline
 cargobloatnoinline:
 	$(Q) $(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 .PHONY: stack-analysis
 #stack_analysis: RUSTC_FLAGS_TOCK += -Z emit-stack-sizes
@@ -389,10 +363,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
