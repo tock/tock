@@ -18,8 +18,8 @@ pub const DRIVER_NUM: usize = 0x10000;
 /// Ids for read-only allow buffers
 mod ro_allow {
     pub(super) const SEARCH: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
-    pub(super) const COUNT: usize = 1;
+    /// The number of allow buffers the kernel stores for this grant.
+    pub(super) const COUNT: u8 = 1;
 }
 
 /// Enum to mark which type of upcall is scheduled for the IPC mechanism.
@@ -38,7 +38,7 @@ pub enum IPCUpcallType {
 struct IPCData;
 
 /// The IPC mechanism struct.
-pub struct IPC<const NUM_PROCS: usize> {
+pub struct IPC<const NUM_PROCS: u8> {
     /// The grant regions for each process that holds the per-process IPC data.
     data: Grant<
         IPCData,
@@ -48,7 +48,7 @@ pub struct IPC<const NUM_PROCS: usize> {
     >,
 }
 
-impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
+impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
         driver_num: usize,
@@ -98,7 +98,7 @@ impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
     }
 }
 
-impl<const NUM_PROCS: usize> SyscallDriver for IPC<NUM_PROCS> {
+impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
     /// and notifying an IPC client is done by setting client_or_svc to 1.

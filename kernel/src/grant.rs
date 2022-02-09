@@ -141,38 +141,38 @@ use crate::ErrorCode;
 /// Tracks how many upcalls a grant instance supports automatically.
 pub trait UpcallSize {
     /// The number of upcalls the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many upcalls a grant instance supports automatically.
-pub struct UpcallCount<const NUM: usize>;
-impl<const NUM: usize> UpcallSize for UpcallCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct UpcallCount<const NUM: u8>;
+impl<const NUM: u8> UpcallSize for UpcallCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Tracks how many read-only allows a grant instance supports automatically.
 pub trait AllowRoSize {
     /// The number of read-only allows the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many read-only allows a grant instance supports automatically.
-pub struct AllowRoCount<const NUM: usize>;
-impl<const NUM: usize> AllowRoSize for AllowRoCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct AllowRoCount<const NUM: u8>;
+impl<const NUM: u8> AllowRoSize for AllowRoCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Tracks how many read-write allows a grant instance supports automatically.
 pub trait AllowRwSize {
     /// The number of read-write allows the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many read-write allows a grant instance supports
 /// automatically.
-pub struct AllowRwCount<const NUM: usize>;
-impl<const NUM: usize> AllowRwSize for AllowRwCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct AllowRwCount<const NUM: u8>;
+impl<const NUM: u8> AllowRwSize for AllowRwCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Helper that calculated offsets within the kernel owned memory (i.e. the
@@ -223,15 +223,15 @@ struct KernelManagedLayout {
 /// Represents the number of the upcall elements in the kernel owned section of
 /// the grant.
 #[derive(Copy, Clone)]
-struct UpcallItems(usize);
+struct UpcallItems(u8);
 /// Represents the number of the read-only allow elements in the kernel owned
 /// section of the grant.
 #[derive(Copy, Clone)]
-struct AllowRoItems(usize);
+struct AllowRoItems(u8);
 /// Represents the number of the read-write allow elements in the kernel owned
 /// section of the grant.
 #[derive(Copy, Clone)]
-struct AllowRwItems(usize);
+struct AllowRwItems(u8);
 /// Represents the size data (in bytes) T within the grant.
 #[derive(Copy, Clone)]
 struct GrantDataSize(usize);
@@ -291,18 +291,18 @@ impl KernelManagedLayout {
 
         // Create the counters usize value by correctly packing the various
         // counts into 8 bit fields.
-        let counter = (upcalls_num_val.0 & 0xFF)
-            | ((allow_ro_num_val.0 & 0xFF) << 8)
-            | ((allow_rw_num_val.0 & 0xFF) << 16);
+        let counter: usize = upcalls_num_val.0 as usize
+            | ((allow_ro_num_val.0 as usize) << 8)
+            | ((allow_rw_num_val.0 as usize) << 16);
 
         let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
-        let allow_ro_array = upcalls_array.add(upcalls_num_val.0) as *mut SavedAllowRo;
-        let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0) as *mut SavedAllowRw;
+        let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
+        let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()) as *mut SavedAllowRw;
 
-        counters_ptr.write(counter);
-        write_default_array(upcalls_array, upcalls_num_val.0);
-        write_default_array(allow_ro_array, allow_ro_num_val.0);
-        write_default_array(allow_rw_array, allow_rw_num_val.0);
+        counters_ptr.write(counter.into());
+        write_default_array(upcalls_array, upcalls_num_val.0.into());
+        write_default_array(allow_ro_array, allow_ro_num_val.0.into());
+        write_default_array(allow_rw_array, allow_rw_num_val.0.into());
 
         Self {
             counters_ptr,
@@ -322,10 +322,10 @@ impl KernelManagedLayout {
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
-        let kernel_managed_size = 1 * size_of::<usize>()
-            + upcalls_num.0 * size_of::<SavedUpcall>()
-            + allow_ro_num.0 * size_of::<SavedAllowRo>()
-            + allow_rw_num.0 * size_of::<SavedAllowRw>();
+        let kernel_managed_size = size_of::<usize>()
+            + (upcalls_num.0 as usize * size_of::<SavedUpcall>())
+            + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
+            + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
         // We know that grant_t_align is a power of 2, so we can make a mask
         // that will save only the remainder bits.
         let grant_t_align_mask = grant_t_align.0 - 1;
@@ -361,7 +361,8 @@ impl KernelManagedLayout {
         // The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
-        NonNull::new_unchecked(base_ptr.add(grant_size - grant_t_size.0))
+        let grant_t_size_usize: usize = grant_t_size.0;
+        NonNull::new_unchecked(base_ptr.add(grant_size - grant_t_size_usize))
     }
 
     /// Read an 8 bit value from the counter field offset by the specified
