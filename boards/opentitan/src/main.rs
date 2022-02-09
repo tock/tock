@@ -796,12 +796,7 @@ pub unsafe fn main() {
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-        board_kernel.kernel_loop(
-            earlgrey,
-            chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS>>,
-            &main_loop_cap,
-        );
+        board_kernel.kernel_loop(earlgrey, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
     }
 }
 
