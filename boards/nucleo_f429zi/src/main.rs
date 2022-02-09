@@ -127,11 +127,11 @@ impl
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
-    dma: &stm32f429zi::dma::dma1::Dma1,
-    dma_streams: &'static [stm32f429zi::dma::Stream<stm32f429zi::dma::dma1::Dma1>; 8],
-    usart3: &'static stm32f429zi::usart::Usart<stm32f429zi::dma::dma1::Dma1>,
+    dma: &stm32f429zi::dma::Dma1,
+    dma_streams: &'static [stm32f429zi::dma::Stream<stm32f429zi::dma::Dma1>; 8],
+    usart3: &'static stm32f429zi::usart::Usart<stm32f429zi::dma::Dma1>,
 ) {
-    use stm32f429zi::dma::dma1::Dma1Peripheral;
+    use stm32f429zi::dma::Dma1Peripheral;
     use stm32f429zi::usart;
 
     dma.enable_clock();
@@ -259,7 +259,7 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
 unsafe fn get_peripherals() -> (
     &'static mut Stm32f429ziDefaultPeripherals<'static>,
     &'static stm32f429zi::syscfg::Syscfg<'static>,
-    &'static stm32f429zi::dma::dma1::Dma1<'static>,
+    &'static stm32f429zi::dma::Dma1<'static>,
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
@@ -271,14 +271,8 @@ unsafe fn get_peripherals() -> (
         stm32f429zi::exti::Exti,
         stm32f429zi::exti::Exti::new(syscfg)
     );
-    let dma1 = static_init!(
-        stm32f429zi::dma::dma1::Dma1,
-        stm32f429zi::dma::dma1::Dma1::new(rcc)
-    );
-    let dma2 = static_init!(
-        stm32f429zi::dma::dma2::Dma2,
-        stm32f429zi::dma::dma2::Dma2::new(rcc)
-    );
+    let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
+    let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,

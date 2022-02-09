@@ -8,7 +8,6 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::dma;
-use crate::dma::{dma1, dma2};
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -197,7 +196,7 @@ pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
 pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
-impl<'a> Usart<'a, dma1::Dma1<'a>> {
+impl<'a> Usart<'a, dma::Dma1<'a>> {
     pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
@@ -205,8 +204,8 @@ impl<'a> Usart<'a, dma1::Dma1<'a>> {
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
                 rcc,
             )),
-            dma1::Dma1Peripheral::USART2_TX,
-            dma1::Dma1Peripheral::USART2_RX,
+            dma::Dma1Peripheral::USART2_TX,
+            dma::Dma1Peripheral::USART2_RX,
         )
     }
 
@@ -217,13 +216,13 @@ impl<'a> Usart<'a, dma1::Dma1<'a>> {
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
                 rcc,
             )),
-            dma1::Dma1Peripheral::USART3_TX,
-            dma1::Dma1Peripheral::USART3_RX,
+            dma::Dma1Peripheral::USART3_TX,
+            dma::Dma1Peripheral::USART3_RX,
         )
     }
 }
 
-impl<'a> Usart<'a, dma2::Dma2<'a>> {
+impl<'a> Usart<'a, dma::Dma2<'a>> {
     pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART1_BASE,
@@ -231,8 +230,8 @@ impl<'a> Usart<'a, dma2::Dma2<'a>> {
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
                 rcc,
             )),
-            dma2::Dma2Peripheral::USART1_TX,
-            dma2::Dma2Peripheral::USART1_RX,
+            dma::Dma2Peripheral::USART1_TX,
+            dma::Dma2Peripheral::USART1_RX,
         )
     }
 }
@@ -551,14 +550,14 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
     }
 }
 
-impl<'a> dma::StreamClient<'a, dma1::Dma1<'a>> for Usart<'a, dma1::Dma1<'a>> {
-    fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
+impl<'a> dma::StreamClient<'a, dma::Dma1<'a>> for Usart<'a, dma::Dma1<'a>> {
+    fn transfer_done(&self, pid: dma::Dma1Peripheral) {
         self.transfer_done(pid);
     }
 }
 
-impl<'a> dma::StreamClient<'a, dma2::Dma2<'a>> for Usart<'a, dma2::Dma2<'a>> {
-    fn transfer_done(&self, pid: dma2::Dma2Peripheral) {
+impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
+    fn transfer_done(&self, pid: dma::Dma2Peripheral) {
         self.transfer_done(pid);
     }
 }

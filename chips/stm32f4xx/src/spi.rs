@@ -12,7 +12,7 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::dma;
-use crate::dma::dma1::{Dma1, Dma1Peripheral};
+use crate::dma::{Dma1, Dma1Peripheral};
 use crate::rcc;
 
 /// Serial peripheral interface

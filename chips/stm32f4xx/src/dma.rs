@@ -4,11 +4,12 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
 
+use crate::nvic;
 use crate::rcc;
-
-pub mod dma1;
-pub mod dma2;
+use crate::spi;
+use crate::usart;
 
 /// DMA controller
 #[repr(C)]
@@ -769,6 +770,11 @@ pub enum TransferMode {
     Fifo(FifoSize),
 }
 
+/// This struct refers to a DMA Stream
+///
+/// What other microcontrollers refer to as "channel", STM32F4XX refers to as "streams".
+/// STM32F4XX has eight streams per DMA.
+/// A stream transfers data between memory and peripheral.
 pub struct Stream<'a, DMA: StreamServer<'a>> {
     streamid: StreamId,
     client: OptionalCell<&'a dyn StreamClient<'a, DMA>>,
@@ -1334,6 +1340,13 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
     }
 }
 
+/// Interface required for each Peripheral by the DMA Stream.
+///
+/// The data defined here may vary by Peripheral. It is used by the DMA Stream
+/// to correctly configure the DMA.
+///
+/// To implement a new Peripheral, add it to the corresponding enum (Dma1-/Dma2Peripheral)
+/// and add its data to the impl of this trait.
 pub trait StreamPeripheral {
     fn transfer_mode(&self) -> TransferMode;
 
@@ -1369,5 +1382,310 @@ impl ClockInterface for DmaClock<'_> {
 
     fn disable(&self) {
         self.0.disable();
+    }
+}
+
+// ########################## DMA 1 ######################################
+
+/// List of peripherals managed by DMA1
+#[allow(non_camel_case_types, non_snake_case)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Dma1Peripheral {
+    USART2_TX,
+    USART2_RX,
+    USART3_TX,
+    USART3_RX,
+    SPI3_TX,
+    SPI3_RX,
+}
+
+impl Dma1Peripheral {
+    // Returns the IRQ number of the stream associated with the peripheral. Used
+    // to enable interrupt on the NVIC.
+    pub fn get_stream_irqn(&self) -> u32 {
+        match self {
+            Dma1Peripheral::SPI3_TX => nvic::DMA1_Stream7,
+            Dma1Peripheral::USART2_TX => nvic::DMA1_Stream6,
+            Dma1Peripheral::USART2_RX => nvic::DMA1_Stream5,
+            Dma1Peripheral::USART3_TX => nvic::DMA1_Stream3,
+            Dma1Peripheral::SPI3_RX => nvic::DMA1_Stream2,
+            Dma1Peripheral::USART3_RX => nvic::DMA1_Stream1,
+        }
+    }
+
+    pub fn get_stream_idx<'a>(&self) -> usize {
+        usize::from(StreamId::from(*self) as u8)
+    }
+}
+
+impl From<Dma1Peripheral> for StreamId {
+    fn from(pid: Dma1Peripheral) -> StreamId {
+        match pid {
+            Dma1Peripheral::SPI3_TX => StreamId::Stream7,
+            Dma1Peripheral::USART2_TX => StreamId::Stream6,
+            Dma1Peripheral::USART2_RX => StreamId::Stream5,
+            Dma1Peripheral::USART3_TX => StreamId::Stream3,
+            Dma1Peripheral::SPI3_RX => StreamId::Stream2,
+            Dma1Peripheral::USART3_RX => StreamId::Stream1,
+        }
+    }
+}
+
+impl StreamPeripheral for Dma1Peripheral {
+    fn transfer_mode(&self) -> TransferMode {
+        TransferMode::Fifo(FifoSize::Full)
+    }
+
+    fn data_width(&self) -> (Msize, Psize) {
+        (Msize(Size::Byte), Psize(Size::Byte))
+    }
+
+    fn channel_id(&self) -> ChannelId {
+        match self {
+            Dma1Peripheral::SPI3_TX => {
+                // SPI3_RX Stream 7, Channel 0
+                ChannelId::Channel0
+            }
+            Dma1Peripheral::USART2_TX => {
+                // USART2_TX Stream 6, Channel 4
+                ChannelId::Channel4
+            }
+            Dma1Peripheral::USART2_RX => {
+                // USART2_RX Stream 5, Channel 4
+                ChannelId::Channel4
+            }
+            Dma1Peripheral::USART3_TX => {
+                // USART3_TX Stream 3, Channel 4
+                ChannelId::Channel4
+            }
+            Dma1Peripheral::SPI3_RX => {
+                // SPI3_RX Stream 2, Channel 0
+                ChannelId::Channel0
+            }
+            Dma1Peripheral::USART3_RX => {
+                // USART3_RX Stream 1, Channel 4
+                ChannelId::Channel4
+            }
+        }
+    }
+
+    fn direction(&self) -> Direction {
+        match self {
+            Dma1Peripheral::SPI3_TX => Direction::MemoryToPeripheral,
+            Dma1Peripheral::USART2_TX => Direction::MemoryToPeripheral,
+            Dma1Peripheral::USART2_RX => Direction::PeripheralToMemory,
+            Dma1Peripheral::USART3_TX => Direction::MemoryToPeripheral,
+            Dma1Peripheral::SPI3_RX => Direction::PeripheralToMemory,
+            Dma1Peripheral::USART3_RX => Direction::PeripheralToMemory,
+        }
+    }
+
+    fn address(&self) -> u32 {
+        match self {
+            Dma1Peripheral::SPI3_TX => spi::get_address_dr(spi::SPI3_BASE),
+            Dma1Peripheral::USART2_TX => usart::get_address_dr(usart::USART2_BASE),
+            Dma1Peripheral::USART2_RX => usart::get_address_dr(usart::USART2_BASE),
+            Dma1Peripheral::USART3_TX => usart::get_address_dr(usart::USART3_BASE),
+            Dma1Peripheral::SPI3_RX => spi::get_address_dr(spi::SPI3_BASE),
+            Dma1Peripheral::USART3_RX => usart::get_address_dr(usart::USART3_BASE),
+        }
+    }
+}
+
+pub fn new_dma1_stream<'a>(dma: &'a Dma1) -> [Stream<'a, Dma1<'a>>; 8] {
+    [
+        Stream::new(StreamId::Stream0, dma),
+        Stream::new(StreamId::Stream1, dma),
+        Stream::new(StreamId::Stream2, dma),
+        Stream::new(StreamId::Stream3, dma),
+        Stream::new(StreamId::Stream4, dma),
+        Stream::new(StreamId::Stream5, dma),
+        Stream::new(StreamId::Stream6, dma),
+        Stream::new(StreamId::Stream7, dma),
+    ]
+}
+
+const DMA1_BASE: StaticRef<DmaRegisters> =
+    unsafe { StaticRef::new(0x40026000 as *const DmaRegisters) };
+
+/// Dma1 is kept as a separate type from Dma2 in order to allow for more compile-time checks.
+///
+/// Excerpt from the discussion on this decision:
+///
+/// > It's definitely a tradeoff between having code duplication vs. more checks at compile time.
+/// > With the current implementation the Dma is propagated to the types of Usart & SPI, so usart1 is a Usart\<Dma2\>.
+/// > In theory, we could simply have a single DmaPeripheral enum, that contains all peripherals, with a single, non-generic Stream struct implementation.
+/// > This way we wouldn't have any code duplication and both Usart and Spi would no longer have to be generic over the Dma or its peripheral.
+/// > The disadvantage then would be, that one could create a Usart instance for usart1 and accidentally pass it a stream of dma1, instead of dma2. Currently, this is impossible, as they are of different types.
+/// >
+/// > We could have these checks at runtime, with the Peripheral reporting which Dma it belongs to and the system panicking if it's set up incorrectly, like I have added for checking whether the peripheral is added to the right stream.
+/// >
+/// > So we basically have three options here:
+/// > 1. Keep Stream\<DmaX\>
+/// > 2. Change to Stream\<DmaXPeripheral\>
+/// > 3. Remove Generics from Stream & add runtime checks
+/// >
+/// > In order of most code duplication & compile-time safety to least.
+///
+/// The decision to stick with separate types for DMA 1 and DMA 2 was made because:
+///
+/// > Static checks are good, and the code duplication here looks manageable (i.e. it's pretty formulaic and unlikely to need to change much if at all).
+///
+/// For details, see [the full discussion](https://github.com/tock/tock/pull/2936#discussion_r792908212).
+pub struct Dma1<'a> {
+    registers: StaticRef<DmaRegisters>,
+    clock: DmaClock<'a>,
+}
+
+impl<'a> Dma1<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
+        Dma1 {
+            registers: DMA1_BASE,
+            clock: DmaClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
+                rcc,
+            )),
+        }
+    }
+
+    pub fn is_enabled_clock(&self) -> bool {
+        self.clock.is_enabled()
+    }
+
+    pub fn enable_clock(&self) {
+        self.clock.enable();
+    }
+
+    pub fn disable_clock(&self) {
+        self.clock.disable();
+    }
+}
+
+impl<'a> StreamServer<'a> for Dma1<'a> {
+    type Peripheral = Dma1Peripheral;
+
+    fn registers(&self) -> &DmaRegisters {
+        &*self.registers
+    }
+}
+
+// ########################## DMA 2 ######################################
+
+/// List of peripherals managed by DMA2
+#[allow(non_camel_case_types, non_snake_case)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Dma2Peripheral {
+    USART1_TX,
+    USART1_RX,
+}
+
+impl Dma2Peripheral {
+    // Returns the IRQ number of the stream associated with the peripheral. Used
+    // to enable interrupt on the NVIC.
+    pub fn get_stream_irqn(&self) -> u32 {
+        match self {
+            Dma2Peripheral::USART1_TX => nvic::DMA2_Stream7,
+            Dma2Peripheral::USART1_RX => nvic::DMA2_Stream5, // could also be Stream 2, chosen arbitrarily
+        }
+    }
+
+    pub fn get_stream_idx<'a>(&self) -> usize {
+        usize::from(StreamId::from(*self) as u8)
+    }
+}
+
+impl From<Dma2Peripheral> for StreamId {
+    fn from(pid: Dma2Peripheral) -> StreamId {
+        match pid {
+            Dma2Peripheral::USART1_TX => StreamId::Stream7,
+            Dma2Peripheral::USART1_RX => StreamId::Stream5,
+        }
+    }
+}
+
+impl StreamPeripheral for Dma2Peripheral {
+    fn transfer_mode(&self) -> TransferMode {
+        TransferMode::Fifo(FifoSize::Full)
+    }
+
+    fn data_width(&self) -> (Msize, Psize) {
+        (Msize(Size::Byte), Psize(Size::Byte))
+    }
+
+    fn channel_id(&self) -> ChannelId {
+        match self {
+            // USART1_TX Stream 7, Channel 4
+            Dma2Peripheral::USART1_TX => ChannelId::Channel4,
+            // USART1_RX Stream 5, Channel 4
+            Dma2Peripheral::USART1_RX => ChannelId::Channel4,
+        }
+    }
+
+    fn direction(&self) -> Direction {
+        match self {
+            Dma2Peripheral::USART1_TX => Direction::MemoryToPeripheral,
+            Dma2Peripheral::USART1_RX => Direction::PeripheralToMemory,
+        }
+    }
+
+    fn address(&self) -> u32 {
+        match self {
+            Dma2Peripheral::USART1_TX => usart::get_address_dr(usart::USART1_BASE),
+            Dma2Peripheral::USART1_RX => usart::get_address_dr(usart::USART1_BASE),
+        }
+    }
+}
+
+pub fn new_dma2_stream<'a>(dma: &'a Dma2) -> [Stream<'a, Dma2<'a>>; 8] {
+    [
+        Stream::new(StreamId::Stream0, dma),
+        Stream::new(StreamId::Stream1, dma),
+        Stream::new(StreamId::Stream2, dma),
+        Stream::new(StreamId::Stream3, dma),
+        Stream::new(StreamId::Stream4, dma),
+        Stream::new(StreamId::Stream5, dma),
+        Stream::new(StreamId::Stream6, dma),
+        Stream::new(StreamId::Stream7, dma),
+    ]
+}
+
+const DMA2_BASE: StaticRef<DmaRegisters> =
+    unsafe { StaticRef::new(0x40026400 as *const DmaRegisters) };
+
+/// For an explanation of why this is its own type, see the docs for the Dma1 struct.
+pub struct Dma2<'a> {
+    registers: StaticRef<DmaRegisters>,
+    clock: DmaClock<'a>,
+}
+
+impl<'a> Dma2<'a> {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
+        Dma2 {
+            registers: DMA2_BASE,
+            clock: DmaClock(rcc::PeripheralClock::new(
+                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
+                rcc,
+            )),
+        }
+    }
+
+    pub fn is_enabled_clock(&self) -> bool {
+        self.clock.is_enabled()
+    }
+
+    pub fn enable_clock(&self) {
+        self.clock.enable();
+    }
+
+    pub fn disable_clock(&self) {
+        self.clock.disable();
+    }
+}
+
+impl<'a> StreamServer<'a> for Dma2<'a> {
+    type Peripheral = Dma2Peripheral;
+
+    fn registers(&self) -> &DmaRegisters {
+        &*self.registers
     }
 }
