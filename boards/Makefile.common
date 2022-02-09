@@ -27,19 +27,26 @@ RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 TOOLCHAIN ?= llvm-tools-preview
 CARGO     ?= cargo
 
+# Not all platforms support the rustup tool. Those that do not can pass
+# `NO_RUSTUP=1` to make and then all of the rustup commands will be ignored.
 ifeq ($(NO_RUSTUP),)
-RUSTUP    ?= rustup
+  RUSTUP ?= rustup
 else
-RUSTUP    ?= true
+  RUSTUP ?= true
 endif
 
-# Default location of target directory (relative to board makefile)
-# passed to cargo --target_dir
+# Default location of target directory (relative to board makefile) passed to
+# cargo `--target_dir`.
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
 # RUSTC_FLAGS allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 #
+# - `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
+# - `linker=rust-lld`: Tell rustc to use the LLVM linker. This avoids needing
+#   GCC as a dependency to build the kernel.
+# - `linker-flavor=ld.lld`: Use the LLVM lld executable with the `-flavor gnu`
+#   flag.
 # - `relocation-model=static`: See https://github.com/tock/tock/pull/2853
 # - `-nmagic`: lld by default uses a default page size to align program
 #   sections. Tock expects that program sections are set back-to-back. `-nmagic`
@@ -59,27 +66,28 @@ RUSTC_FLAGS ?= \
 
 # RISC-V-specific flags.
 ifneq ($(findstring riscv32i, $(TARGET)),)
-  # NOTE: This flag causes kernel panics on some ARM cores. Since the
-  # size benefit is almost exclusively for RISC-V, we only apply it for
-  # those targets.
+  # NOTE: This flag causes kernel panics on some ARM cores. Since the size
+  # benefit is almost exclusively for RISC-V, we only apply it for those
+  # targets.
   RUSTC_FLAGS += -C force-frame-pointers=no
 endif
 
-# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options
-# that are global to all Tock boards.
+# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
+# to all Tock boards.
 #
 # We use `remap-path-prefix` to remove user-specific filepath strings for error
 # reporting from appearing in the generated binary. The first line is used for
-# remapping the tock directory, and the second line is for remapping paths to the
-# source code of the core library, which end up in the binary as a result of our use
-# of -Zbuild-std=core.
+# remapping the tock directory, and the second line is for remapping paths to
+# the source code of the core library, which end up in the binary as a result of
+# our use of `-Zbuild-std=core`.
 RUSTC_FLAGS_TOCK ?= \
   $(RUSTC_FLAGS) \
   --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
   --remap-path-prefix=$(RUSTC_SYSROOT)/lib/rustlib/src/rust/library/core=/core/
 
-# Disallow warnings for continuous integration builds. Disallowing them here
-# ensures that warnings during testing won't prevent compilation from succeeding.
+# Disallow warnings only for continuous integration builds. Disallowing them
+# here using the `RUSTC_FLAGS_TOCK` variable ensures that warnings during
+# testing won't prevent compilation from succeeding.
 ifeq ($(CI),true)
   RUSTC_FLAGS_TOCK += -D warnings
 endif
@@ -111,12 +119,12 @@ RUSTC_FLAGS_FOR_BIN ?= \
 check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined variable "$1"))))
 
 # Check that we know the basics of what we are compiling for.
-# `PLATFORM`: The name of the board that the kernel is being compiled for.
-# `TARGET`  : The Rust target architecture the kernel is being compiled for.
+# - `PLATFORM`: The name of the board that the kernel is being compiled for.
+# - `TARGET`  : The Rust target architecture the kernel is being compiled for.
 $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
-# Location of target-specific build
+# Location of target-specific build.
 TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
 
 # If environment variable V is non-empty, be verbose.
@@ -135,16 +143,16 @@ endif
 # a set string which should be updated with every release.
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "1.4+")
 
-# Allow users to opt out of using rustup
+# Allow users to opt out of using rustup.
 ifeq ($(NO_RUSTUP),)
 # Validate that rustup exists.
 RUSTUP_ERROR := $(shell $(RUSTUP) --version > /dev/null 2>&1; echo $$?)
 ifneq ($(RUSTUP_ERROR),0)
-    $(info Error! rustup not found.)
-    $(info Please follow the instructions at https://rustup.rs/ to install rustup.)
-    $(info Alternatively, install all required tools and Rust targets and set NO_RUSTUP to disable this check.)
-    $(info )
-    $(error Rustup required to build Tock.)
+  $(info Error! rustup not found.)
+  $(info Please follow the instructions at https://rustup.rs/ to install rustup.)
+  $(info Alternatively, install all required tools and Rust targets and set NO_RUSTUP=1 to disable this check.)
+  $(info )
+  $(error Rustup required to build Tock.)
 endif
 
 # Validate that rustup is new enough.
@@ -170,7 +178,7 @@ endif
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(shell $(RUSTUP) target add $(TARGET))
 endif
-endif # $(NO_RUSTUP) ?
+endif # $(NO_RUSTUP)
 
 # If the user is using the standard toolchain provided as part of the
 # llvm-tools-preview rustup component we need to get the full path. rustup
@@ -180,37 +188,46 @@ ifeq ($(TOOLCHAIN),llvm-tools-preview)
   TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
 endif
 
-# Set variables of the key tools we need to compile a Tock kernel.
-SIZE      ?= $(TOOLCHAIN)-size
-OBJCOPY   ?= $(TOOLCHAIN)-objcopy
-OBJDUMP   ?= $(TOOLCHAIN)-objdump
+# Set variables of the key tools we need to compile a Tock kernel. Need to do
+# this after we handle if we are using the LLVM tools or not.
+SIZE    ?= $(TOOLCHAIN)-size
+OBJCOPY ?= $(TOOLCHAIN)-objcopy
+OBJDUMP ?= $(TOOLCHAIN)-objdump
 
 # Set additional flags to produce binary from .elf.
-# * --strip-sections prevents enormous binaries when SRAM is below flash.
-# * --remove-section .apps prevents the .apps section from being included in the
-#   kernel binary file. This section is a placeholder for optionally including
-#   application binaries, and only needs to exist in the .elf. By removing it,
-#   we prevent the kernel binary from overwriting applications.
+#
+# - `--strip-sections`: Prevents enormous binaries when SRAM is below flash.
+# - `--remove-section .apps`: Prevents the .apps section from being included in
+#   the kernel binary file. This section is a placeholder for optionally
+#   including application binaries, and only needs to exist in the .elf. By
+#   removing it, we prevent the kernel binary from overwriting applications.
 OBJCOPY_FLAGS ?= --strip-sections -S --remove-section .apps
+
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
 # `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
 # Cargo.toml.
 CARGO_FLAGS ?=
-# Add default flags to cargo. Boards can add additional options in CARGO_FLAGS
-# We use build-std=core,compiler_builtins to build the std library from source using
-# our optimization settings. This leads to significantly smaller binary sizes, and
-# makes debugging easier since debug information for the core library is included in
-# the resulting .elf file. See https://github.com/tock/tock/pull/2847 for more details.
+
+# Add default flags to cargo. Boards can add additional options in
+# `CARGO_FLAGS`.
+#
+# - `-Z build-std=core,compiler_builtins`: Build the std library from source
+#   using our optimization settings. This leads to significantly smaller binary
+#   sizes, and makes debugging easier since debug information for the core
+#   library is included in the resulting .elf file. See
+#   https://github.com/tock/tock/pull/2847 for more details.
 CARGO_FLAGS_TOCK ?= \
   $(VERBOSE) \
   -Z build-std=core,compiler_builtins \
   --target=$(TARGET) \
   --package $(PLATFORM) \
   --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
+
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
-# Set default flags for size
+
+# Set default flags for size.
 SIZE_FLAGS ?=
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
@@ -218,29 +235,26 @@ ifneq (,$(findstring thumb,$(TARGET)))
   OBJDUMP_FLAGS += --arch-name=thumb
 endif
 
-# Additional flags that can be passed to cargo bloat via an
-# environment variable. Allows users to pass arbitrary flags
-# supported by cargo bloat to customize the output. By default,
-# pass an empty string.
+# Additional flags that can be passed to cargo bloat via an environment
+# variable. Allows users to pass arbitrary flags supported by cargo bloat to
+# customize the output. By default, pass an empty string.
 CARGO_BLOAT_FLAGS ?=
 
-# Additional flags that can be passed to print_tock_memory_usage.py
-# via an environment variable. By default, pass an empty string
+# Additional flags that can be passed to print_tock_memory_usage.py via an
+# environment variable. By default, pass an empty string.
 PTMU_ARGS ?=
 
-
-# cargo bloat does not support -Z build-std, so we must remove it from cargo flags
-# see https://github.com/RazrFalcon/cargo-bloat/issues/62
+# `cargo bloat` does not support `-Z build-std`, so we must remove it from cargo
+# flags. See https://github.com/RazrFalcon/cargo-bloat/issues/62.
 CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
 
-
-# Check whether the system already has a sha256sum application
-# present, if not use the custom shipped one
+# Check whether the system already has a sha256sum application present. If not,
+# use the custom shipped one.
 ifeq (, $(shell sha256sum --version 2>/dev/null))
-  # No system sha256sum available
+  # No system sha256sum available.
   SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
 else
-  # Use system sha256sum
+  # Use system sha256sum.
   SHA256SUM := sha256sum
 endif
 
@@ -326,26 +340,25 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 show-target:
 	$(info $(TARGET))
 
-# This rule is a copy of the rule used to build the release target, but
-# `cargo rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
+# This rule is a copy of the rule used to build the release target, but `cargo
+# rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
 # interface of `cargo build`, rather than `cargo rustc`, so we need to move
-# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only means
-# that cargo cannot reuse built dependencies built using `cargo bloat`.
-# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details.
-# To pass additional flags to `cargo bloat`, populate the
-# CARGO_BLOAT_FLAGS environment variable, e.g. call
-# `CARGO_BLOAT_FLAGS=--crates make cargobloat`
+# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only
+# means that cargo cannot reuse built dependencies built using `cargo bloat`.
+# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details. To
+# pass additional flags to `cargo bloat`, populate the CARGO_BLOAT_FLAGS
+# environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates make cargobloat`
 .PHONY: cargobloat
 cargobloat:
-	$(Q) $(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
+	$(Q)$(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
-# To pass additional flags to `cargo bloat`, populate the
-# CARGO_BLOAT_FLAGS environment variable, e.g. call
-# `CARGO_BLOAT_FLAGS=--crates make cargobloatnoinline`
+# To pass additional flags to `cargo cargobloatnoinline`, populate the
+# CARGO_BLOAT_FLAGS environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates
+# make cargobloatnoinline`
 .PHONY: cargobloatnoinline
 cargobloatnoinline:
-	$(Q) $(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
+	$(Q)$(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 .PHONY: stack-analysis
