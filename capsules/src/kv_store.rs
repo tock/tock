@@ -34,6 +34,7 @@
 use core::cell::Cell;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::kv_system::{self, KVSystem};
+use kernel::process::{ReadPermissions, WritePermissions};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -130,9 +131,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         &self,
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
-        read_ids: &[u32; 8],
-        num_read_ids: usize,
+        perms: ReadPermissions,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
+        let (num_read_ids, read_ids) = perms.unwrap_or((0, [0; 8]));
+
         if num_read_ids > 8 {
             return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
         }
@@ -188,8 +190,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
         length: usize,
-        write_id: u32,
+        perms: WritePermissions,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
+        let (write_id, (_, _)) = perms.unwrap_or((0, (0, [0; 8])));
+
         // Create the Tock header and ensure we have space to fit it
         let header = KeyHeader {
             version: HEADER_VERSION,
@@ -244,9 +248,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     pub fn delete(
         &self,
         unhashed_key: &'static mut [u8],
-        acces_ids: &[u32; 8],
-        num_access_ids: usize,
+        perms: WritePermissions,
     ) -> Result<(), (&'static mut [u8], Result<(), ErrorCode>)> {
+        let (_, (num_access_ids, acces_ids)) = perms.unwrap_or((0, (0, [0; 8])));
+
         if num_access_ids > 8 {
             return Err((unhashed_key, Err(ErrorCode::SIZE)));
         }

@@ -3,6 +3,7 @@
 //! `ProcessStandard` is an implementation for a userspace process running on
 //! the Tock kernel.
 
+use crate::process::{ReadPermissions, WritePermissions};
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Write;
@@ -409,34 +410,24 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_command_permissions(driver_num, offset)
     }
 
-    /// Get the process `write_id`.
-    /// Returns `None` if a `write_id` is not included.
-    fn get_write_id(&self) -> Option<u32> {
-        self.header.get_write_id()
+    fn get_read_permissions(&self) -> ReadPermissions {
+        if let Some(num_ids) = self.header.num_read_ids() {
+            if let Some(ids) = self.header.get_read_ids() {
+                return Some((num_ids, ids));
+            }
+        }
+        None
     }
 
-    /// Get the `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    fn get_read_ids(&self) -> Option<[u32; 8]> {
-        self.header.get_read_ids()
-    }
+    fn get_write_permissions(&self) -> WritePermissions {
+        let write_id = self.header.get_write_id().unwrap_or(0);
 
-    /// Get the number of `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    fn num_read_ids(&self) -> Option<usize> {
-        self.header.num_read_ids()
-    }
-
-    /// Get the `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    fn get_access_ids(&self) -> Option<[u32; 8]> {
-        self.header.get_access_ids()
-    }
-
-    /// Get the number of `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    fn num_access_ids(&self) -> Option<usize> {
-        self.header.num_access_ids()
+        if let Some(num_ids) = self.header.num_access_ids() {
+            if let Some(ids) = self.header.get_access_ids() {
+                return Some((write_id, (num_ids, ids)));
+            }
+        }
+        None
     }
 
     fn number_writeable_flash_regions(&self) -> usize {

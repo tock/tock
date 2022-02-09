@@ -96,6 +96,19 @@ impl fmt::Debug for ProcessId {
     }
 }
 
+/// The read permissions the process has
+/// If the permissions exist this will be: `Some((num_ids, ids))`
+/// Where num_ids is the number of `read_ids` and `ids` is an array of the
+/// `read_ids`.
+pub type ReadPermissions = Option<(usize, [u32; 8])>;
+
+/// The write permissions the process has
+/// If the permissions exist this will be: `Some((write_id, (num_ids, ids)))`
+/// Where `write_id` is the ID all new data should be stored with and
+/// num_ids is the number of `access_ids` and `ids` is an array of the
+/// `access_ids`.
+pub type WritePermissions = Option<(u32, (usize, [u32; 8]))>;
+
 impl ProcessId {
     /// Create a new `ProcessId` object based on the app identifier and its
     /// index in the processes array.
@@ -168,39 +181,20 @@ impl ProcessId {
         })
     }
 
-    /// Get the process `write_id`.
-    /// Returns `None` if a `write_id` is not included.
-    pub fn get_write_id(&self) -> Option<u32> {
+    /// Get the storage read permissions for the process
+    /// This describes what the process is allowed to read
+    /// Returns `None` if `read_ids` are not included.
+    pub fn get_read_permissions(&self) -> ReadPermissions {
         self.kernel
-            .process_map_or(None, *self, |process| process.get_write_id())
+            .process_map_or(None, *self, |process| process.get_read_permissions())
     }
 
-    /// Get the `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    pub fn get_read_ids(&self) -> Option<[u32; 8]> {
+    /// Get the storage write permissions for the process
+    /// This describes what the process is allowed to delete or modify
+    /// Returns `None` if `access_ids` are not included.
+    pub fn get_write_permissions(&self) -> WritePermissions {
         self.kernel
-            .process_map_or(None, *self, |process| process.get_read_ids())
-    }
-
-    /// Get the number of `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    pub fn num_read_ids(&self) -> Option<usize> {
-        self.kernel
-            .process_map_or(None, *self, |process| process.num_read_ids())
-    }
-
-    /// Get the `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    pub fn get_access_ids(&self) -> Option<[u32; 8]> {
-        self.kernel
-            .process_map_or(None, *self, |process| process.get_access_ids())
-    }
-
-    /// Get the number of `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    pub fn num_access_ids(&self) -> Option<usize> {
-        self.kernel
-            .process_map_or(None, *self, |process| process.num_access_ids())
+            .process_map_or(None, *self, |process| process.get_write_permissions())
     }
 }
 
@@ -435,25 +429,15 @@ pub trait Process {
     /// The offset indicates the multiple of 64 command numbers to get permissions for.
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
 
-    /// Get the process `write_id`.
-    /// Returns `None` if a `write_id` is not included.
-    fn get_write_id(&self) -> Option<u32>;
+    /// Get the storage read permissions for the process
+    /// This describes what the process is allowed to read
+    /// Returns `None` if `read_ids` are not included.
+    fn get_read_permissions(&self) -> ReadPermissions;
 
-    /// Get the `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    fn get_read_ids(&self) -> Option<[u32; 8]>;
-
-    /// Get the number of `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    fn num_read_ids(&self) -> Option<usize>;
-
-    /// Get the `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    fn get_access_ids(&self) -> Option<[u32; 8]>;
-
-    /// Get the number of `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    fn num_access_ids(&self) -> Option<usize>;
+    /// Get the storage write permissions for the process
+    /// This describes what the process is allowed to delete or modify
+    /// Returns `None` if `access_ids` are not included.
+    fn get_write_permissions(&self) -> WritePermissions;
 
     // mpu
 

@@ -114,8 +114,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                             if let Err((data, dest, e)) = self.kv.get(
                                                 data_buffer,
                                                 dest_buffer,
-                                                &appid.get_read_ids().unwrap_or([0; 8]),
-                                                appid.num_read_ids().unwrap_or(0),
+                                                appid.get_read_permissions(),
                                             ) {
                                                 self.data_buffer.replace(data);
                                                 self.dest_buffer.replace(dest);
@@ -175,7 +174,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 data_buffer,
                                                 dest_buffer,
                                                 static_buffer_len,
-                                                appid.get_write_id().unwrap_or(0),
+                                                appid.get_write_permissions(),
                                             ) {
                                                 self.data_buffer.replace(data);
                                                 self.dest_buffer.replace(dest);
@@ -209,11 +208,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                     .unwrap_or(Err(ErrorCode::RESERVE))?;
 
                                 if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
-                                    if let Err((data, e)) = self.kv.delete(
-                                        data_buffer,
-                                        &appid.get_access_ids().unwrap_or([0; 8]),
-                                        appid.num_access_ids().unwrap_or(0),
-                                    ) {
+                                    if let Err((data, e)) =
+                                        self.kv.delete(data_buffer, appid.get_write_permissions())
+                                    {
                                         self.data_buffer.replace(data);
                                         return Err(e);
                                     }
