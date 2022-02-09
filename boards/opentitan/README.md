@@ -230,13 +230,6 @@ usually located at `sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf` in the
 OpenTitan build output. Note that the `make ci-setup-qemu` target will also
 download a ROM file.
 
-**Note**: when **unit testing** is done using `make test`, to ensure the correct flash layout is used for applications, be sure to:
-
-```shell
-make clean
-```
-Prior to loading an application using the steps below.
-
 QEMU can be started with Tock and a userspace app with the `qemu-app` make
 target:
 
