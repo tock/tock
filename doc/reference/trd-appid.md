@@ -7,8 +7,8 @@ Application IDs (AppID) and Process Loading
 **Status:** Draft <br/>
 **Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
-**Draft-Modified:** 2022/01/27 <br/>
-**Draft-Version:** 5 <br/>
+**Draft-Modified:** 2022/02/10 <br/>
+**Draft-Version:** 6 <br/>
 **Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
@@ -120,11 +120,11 @@ to an loaded process. Application Credentials are usually stored in
 [Tock Binary Format][TBF] footers. A TBF object can have multiple
 ApplicationCcredentials.
 
-**Credentials Checker**: a component of the Tock kernel which is
+**Process Checker**: a component of the Tock kernel which is
 responsible for validating Application Credentials and assigning
 Application Identifiers based on them.
 
-**Identifier Policy**: the algorithm that the Credentials Checker uses
+**Identifier Policy**: the algorithm that the Process Checker uses
 to assign Application Identifiers to loaded processes.  An Identifier
 Policy defines an Application Identifier space. An Identifier Policy
 can derive Application Identifiers from Application Credentials, other
@@ -139,7 +139,7 @@ Checker then uses when the kernel loads processes.
 **Global Application Identifier**: an application identifier which,
 given an expected combination of Credentials Checking Policy and
 Identifier Policy, is both globally consistent across all TBF objects
-for a particular application and unique to that Application. All
+for a particular Application and unique to that Application. All
 instances of the Application loaded with this combination of policies
 have this Application Identifier. No instances of other Applications
 loaded with this Credentials Checking Policy have this Application
@@ -158,8 +158,9 @@ uniqueness (skipping values already in use if it loops around).
 **Short ID**: a 32-bit compressed representation of an Application
 Identifier.
 
-In normal use of Tock, TBF Objects are copied into an application
-flash region by a software tool. When the Tock kernel boots, it scans
+In normal use of Tock, a software tool running on a host copies
+TBF Objects into an application flash region. When the Tock kernel
+boots, it scans
 this application flash region for TBF Objects. After inspecting the
 Userspace Binary and TBF headers in a TBF Object, the kernel assigns
 it an Application Identifier and decides whether to run it.
@@ -170,9 +171,9 @@ it an Application Identifier and decides whether to run it.
 There is a relationship between Application Identifiers and
 Application Credentials, but they are not the same thing. An
 Application Identifier is a numerical representation of the
-Application's identity, while credentials are the data that, combined
-with an Identifier Policy, bind an Application Identifier to a
-process.
+Application's identity. Application Credentials are data that,
+combined with an Identifier Policy, can cryptographically bind an
+Application Identifier to a process.
 
 Suppose there are two versions (v1.1 and v1.2) of the same
 Application. They have different Userspace Binaries. Each version has
@@ -184,6 +185,8 @@ Application Credentials signed by this key.  The two versions have
 different Application Credentials, because their hashes differ, but
 they have the same Application Identifier.
 
+3 Application Identifiers
+===============================
 The kernel MUST NOT simultaneously run two processes that have the
 same Application Identifier. This restriction is because an
 Application Identifier provides an identity for a Userspace Binary.
@@ -202,6 +205,14 @@ applications to use a subset of available system calls. By defining
 the Application Identifier of a process to be the public key, the
 system can map this key to a Short IDs (described below) that gives
 access to retricted functionality.
+
+3.2 Application Credentials
+===============================
+
+Application Credentials are information stored in TBF Footers. The exact
+format and information of Application Credentials are described in the next
+section. They typically store cryptographic information that establishes
+the Application a Userspace Binary belongs to as well as provide integrity.
 
 Application Identifiers can, but do not have to be, be derived from
 Application Credentials. For example, a Tock system with a permissive
@@ -225,32 +236,42 @@ runs a second time, there is no binding between the process
 identifiers of those two invocations, while the Application Identifier
 will be the same.
 
-Consider these five use cases:
+3.3 Example Use Cases 
+===============================
+
+The following five use cases demonstrate different ways in which
+Application Policies can assign Application Identifiers, some of which
+use Application Credentials:
 
   1. A TBF Object with no Application Credentials: it only runs on
   kernels that are willing to load TBF Objects without credentials
-  (e.g., research systems). The Credentials Checking Policy defines
+  (e.g., research systems). The Identifier Policy defines
   that TBF Objects with no credentials have a Global Application
-  Identifier of a SHA256 hash of the Application Binary.
+  Identifier of a SHA256 hash of the Application Binary. This
+  means the system does not support versioning of Userspace Binaries:
+  two different versions of the same Application have different
+  Application Identifiers.
 
-  1. The Credentials Checking Policy defines that the Global
-  Application Identifier of a process is the public key used to
-  generate an Application Credentials for the TBF Object.  Before
-  verifiying a signature in a TBF footer, the Credentials Checking
-  Policy decides whether to it accepts the associated public key. The
-  Process Checking Policy assigns a Global Application Identifier as
-  the public key in the TBF footer.
+  1. The Credentials Checking Policy only accepts TBF Objects with an
+  Application Credentials containing an RSA signature. The Identifier
+  Policies defines that the Global Application Identifier of a process
+  is the public key used to generate the accepted Application
+  Credentials for the TBF Object.  Before verifiying a signature in a
+  TBF footer, the Process Checker decides whether to it accepts the
+  associated public key using the Credentials Checking Policy. The
+  Identifier Policy assigns a Global Application Identifier as the
+  public key in the TBF footer.
 
-  1. Multiple separate Userspace Binaries that run concurrently need
-  to be signed with a single public key. Each Userspace Binary is
-  identified by a unique identifier I. The Application Credentials for
-  these process binaries consist of a TBF footer containing an ECDSA
-  public key, the unique identifier I, and a signature over the
-  process binary and I signed with the private key corresponding to
-  the public key in the footer. The Credentials Checking Policy
-  decides whether to accept a particular public key for
-  verification. The Credentials Checking Policy assigns a Global
-  Application Identifier as the concatenation of the public key and I.
+  1. Multiple separate Applications that run concurrently need to be
+  signed with a single public key. Each Application is identified by
+  an identifier I. The Application Credentials for these Userspace
+  Binaries consist of a TBF footer containing an ECDSA public key, the
+  identifier I, and a signature over the TBF Headers, Userspace
+  Binary, I signed with the private key corresponding to the public
+  key in the footer. The Credentials Checking Policy decides whether
+  to accept a particular public key for verification. The Identifier
+  Policy assigns a Global Application Identifier as the concatenation
+  of the public key and I.
 
   1. A Tock system wants to load the same Userspace Binary in two
   different processes at the same time. The Userspace Binary is stored
@@ -273,20 +294,38 @@ these credentials can vary.  Finally, the cryptography used in
 credentials can vary, either due to security policies or certification
 requirements.
 
-Because the Process Checking Policy is responsible for assigning
+Because the Identifier Policy is responsible for assigning
 Application Identifiers to processes, it is possible for the same
 Userspace Binary to have different Application Identifiers on
-different Tock systems.  For example, suppose a process binary has two
+different Tock systems.  For example, suppose a TBF Object has two
 Application Credentials TBF footers: one signs with a key A, and the
 other with key B. Tock systems using a Credentials Checking Policy
-that accepts key A may assign A as the Global Application Identifier,
+that accepts key A may use A as the Global Application Identifier,
 while Tock systems using a different policy that accepts key B may
-assign B as the Global Application Identifier.
+use B as the Global Application Identifier.
 
 4 Process Loading 
 ===============================
 
-4 Credentials and Versions in Tock Binary Format Objects
+Tock defines its process loading algorithm in order to provide
+deterministic behavior in the presence of colliding Application
+Identifiers.  This algorithm is designed to protect agains downgrading
+attacks and misconfiguration. Processes have four possible states in
+the loading stage: Unloaded, Unchecked, Failed, and Running. Processes
+start in the Unloaded state.
+
+First, when it boots, the Tock kernel scans the TBF Objects stored in
+its application flash region. It checks that they are valid and
+can run on the system. It loads them in order from lowest to highest
+address. Each successfully loaded TBF Object is loaded into one of
+the process slots, that process is moved into the Unchecked state.
+
+Once the application flash has been scanned 
+
+
+
+
+5 Credentials and Versions in Tock Binary Format Objects
 ===============================
 
 Application Credentials are usually stored in a [Tock Binary
