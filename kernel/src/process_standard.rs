@@ -177,9 +177,6 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Credentials that were accepted to make this process runnable.
     credentials: OptionalCell<TbfFooterV2Credentials>,
 
-    /// Application identifier
-    application_identifier: OptionalCell<&[u8]>,
-    
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
     stored_state:
@@ -1697,7 +1694,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.grant_pointers = MapCell::new(grant_pointers);
 
         process.credentials = OptionalCell::empty();
-        process.application_identifier = OptionalCell::empty();
             
         process.footers = footer_region;
         process.flash = app_flash;
