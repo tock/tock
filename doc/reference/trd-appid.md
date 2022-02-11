@@ -1,4 +1,4 @@
-Application IDs (AppID) and Process Loading
+Application IDs (AppID), Credentials, and Process Loading
 ========================================
 
 **TRD:** <br/>
@@ -130,10 +130,10 @@ Policy defines an Application Identifier space. An Identifier Policy
 can derive Application Identifiers from Application Credentials, other
 process state, or local data.
 
-**Credentials Checking Policy**: the algorithm that the Credentials
+**Credentials Checking Policy**: the algorithm that the Process
 Checker uses to decide how Tock responds to particular Application
 Credentials. The boot sequence typically passes the Credentials
-Checking Policy to the kernel at startup, which the Credentials
+Checking Policy to the kernel at startup, which the Process
 Checker then uses when the kernel loads processes.
 
 **Global Application Identifier**: an application identifier which,
@@ -158,12 +158,12 @@ uniqueness (skipping values already in use if it loops around).
 **Short ID**: a 32-bit compressed representation of an Application
 Identifier.
 
-In normal use of Tock, a software tool running on a host copies
-TBF Objects into an application flash region. When the Tock kernel
-boots, it scans
-this application flash region for TBF Objects. After inspecting the
-Userspace Binary and TBF headers in a TBF Object, the kernel assigns
-it an Application Identifier and decides whether to run it.
+In normal use of Tock, a software tool running on a host copies TBF
+Objects into an application flash region. When the Tock kernel boots,
+it scans this application flash region for TBF Objects. After
+inspecting the Userspace Binary and TBF headers in a TBF Object, the
+kernel assigns it an Application Identifier and decides whether to run
+it.
 
 3 Application Identifiers and Application Credentials
 ===============================
@@ -185,8 +185,9 @@ Application Credentials signed by this key.  The two versions have
 different Application Credentials, because their hashes differ, but
 they have the same Application Identifier.
 
-3 Application Identifiers
-===============================
+3.1 Application Identifiers
+-------------------------------
+
 The kernel MUST NOT simultaneously run two processes that have the
 same Application Identifier. This restriction is because an
 Application Identifier provides an identity for a Userspace Binary.
@@ -207,7 +208,7 @@ system can map this key to a Short IDs (described below) that gives
 access to retricted functionality.
 
 3.2 Application Credentials
-===============================
+-------------------------------
 
 Application Credentials are information stored in TBF Footers. The exact
 format and information of Application Credentials are described in the next
@@ -237,7 +238,7 @@ identifiers of those two invocations, while the Application Identifier
 will be the same.
 
 3.3 Example Use Cases 
-===============================
+-------------------------------
 
 The following five use cases demonstrate different ways in which
 Application Policies can assign Application Identifiers, some of which
@@ -310,9 +311,9 @@ use B as the Global Application Identifier.
 Tock defines its process loading algorithm in order to provide
 deterministic behavior in the presence of colliding Application
 Identifiers.  This algorithm is designed to protect agains downgrading
-attacks and misconfiguration. Processes have four possible states in
-the loading stage: Unloaded, Unchecked, Failed, and Running. Processes
-start in the Unloaded state.
+attacks and misconfiguration. Processes have five possible states in
+the loading stage: Unloaded, Unchecked, Failed, Unstarted and
+Running. Processes start in the Unloaded state.
 
 First, when it boots, the Tock kernel scans the TBF Objects stored in
 its application flash region. It checks that they are valid and
@@ -320,29 +321,63 @@ can run on the system. It loads them in order from lowest to highest
 address. Each successfully loaded TBF Object is loaded into one of
 the process slots, that process is moved into the Unchecked state.
 
-Once the application flash has been scanned 
+Once the application flash has been scanned or the last process slot
+has been filled, the kernel checks the credentials of the processes.
+Using the provided Credentials Checking Policy, it decides whether
+each process can be run. Processes whose TBF Objects are allowed to
+run are moved into the Unstarted state. Processes whose TBF Objects
+are not allowed to run are moved into the Failed state.
+
+The kernel traverses the process one final time, checking whether the
+Application Identifier assigned to a process collides with a running
+process. If the Application Identifier collides, the kernel places the
+process into the Unstarted state. If the Application Identifier does
+not collide, the kernel places the process into the Running state, at
+which point that Application Identifier is in use by a Running
+process.
+
+This final traversal occurs in a specific order. The kernel MUST check
+processes in order of decreasing version numbers (the highest version
+number is checked first).  If more than one process has the same
+version number, they MUST be checked from lowest to highest
+address. For example, if two TBF Objects both have version number 0,
+one at address 0x20000 and one at address 0x21000, the one with
+address 0x20000 will be checked first and the one with address 0x21000
+will be checked second. The Version field of a Program Header of a
+process's TBF Object specifies the version number of the process. The
+kernel MUST give a version number of 0 to processes whose TBF Object
+does not have a TBF Program Header.
+
+The Unloaded, Unchecked, Failed, Unstarted and Running states describe
+the conceptual state machine of a process at loading; the values or
+names of state variables in the kernel implemementation might be
+different. The exact Tock process state machine and names of its
+states is outside the scope of this document.
 
 
-
-
-5 Credentials and Versions in Tock Binary Format Objects
+5 Credentials and Version in Tock Binary Format Objects
 ===============================
 
-Application Credentials are usually stored in a [Tock Binary
-Format][TBF] object, along with the Userspace Binary they are
-associated with. They are usually stored as footers (after the TBF
-header and Userspace Binary) to simplify computing integrity values
-such as checksums or hashes. This requires have a TBF header that
-specifies where the application binary ends and the footers begin,
-information which the `TbfHeaderV2Main` header (the Main Header) does
-not include.  Including Application Credentials in a TBF Object
-therefore requires using an alternative `TbfHeaderV2Program` header
-(the Program Header), which specifics where footers begin. This
-section describes the format and semantics of Program Headers and
+This section describes the format and semantics of Program Headers and
 Credentials Footers.
 
+Application Credentials are usually stored in a TBF Object, along with
+the Userspace Binary they are associated with. They are usually stored
+as footers (after the TBF header and Userspace Binary) to simplify
+computing integrity values such as checksums or hashes. This requires
+have a TBF header that specifies where the application binary ends and
+the footers begin, information which the `TbfHeaderV2Main` header (the
+Main Header) does not include.  Including Application Credentials in a
+TBF Object therefore requires using an alternative
+`TbfHeaderV2Program` header (the Program Header), which specifics
+where footers begin.
 
-4.1 Program Header
+The Tock process loading algorithm version numbers when deciding the
+order to load processes in. Version numbers are stored in a TBF Object
+in the Version field of a TBF Program Header.
+
+
+5.1 Program Header
 -------------------------------
 
 The Program Header is similar to the Main Header, in that it specifies
@@ -361,8 +396,8 @@ This is the format of a Program Header:
 +-------------+-------------+---------------------------+
 | protected_size            | min_ram_size              |
 +---------------------------+---------------------------+
-| binary_end_offset         |
-+---------------------------+
+| binary_end_offset         | version                   |
++---------------------------+---------------------------+
 ```
 
 It is represented in the Tock kernel with this Rust structure:
@@ -373,16 +408,20 @@ pub struct TbfHeaderV2Program {
     protected_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
+    version: u32,
 }
 ```
 
-A TBF object MUST NOT have both a Program Header and a Main Header and
-MUST NOT have more than one Program Header.
+A TBF object MUST NOT have more than one Program Header. If a TBF
+Object has both a Program Header and a Main Header, the kernel's
+policy decides which is used. For example, older kernels that do not
+understand a Program Header may use the Main Header, while newer
+kernels may choose the Program Header.
 
-4.2 Credentials Footer
+5.2 Credentials Footer
 -------------------------------
 
-To support credentials in Tock binaries, the Tock Binary Format has a
+To support credentials, the Tock Binary Format has a
 `TbfFooterV2Credentials` TLV. This TLV is variable length and has two
 fields, a 32-bit value specifying the `format` of the credentials and
 a variable length `data` field. The `format` field defines the format
@@ -473,7 +512,7 @@ of a process binary, the computation of this value MUST include the
 complete TBF Header and the compiled app binary.
 
 Integrity values MUST be computed over the TBF Header and Userspace
-Binary, i.e., from the start of the TBF object until
+Binary, from the start of the TBF object until
 `binary_end_offset`. Computing an integrity value in a Credentials
 Footer MUST NOT include the contents of Footers. If new metadata
 associated with an application binary needs to be covered by
@@ -481,13 +520,23 @@ integrity, it MUST be a Header. If new metadata associated with an
 application binary needs to not be covered by integrity, it MUST be a
 Footer.
 
-5 `AppCredentialsChecker` trait
+Which types of credentials a Credentials Checking Policy supports are
+kernel-specific. For example, an application that only accepts TBF
+Objects signed with a particular 4096-bit RSA key can support only
+`Rsa4096Key` credentials, while an open research system might support
+no credentials. Because the `length` field specifies the length of a
+given credentials, not understanding a particular credentials type
+does not prevent parsing others.
+
+
+6 Credentials Checking Policy: the `AppCredentialsChecker` trait
 ===============================
 
-The `AppCredentialsChecker` trait defines an interface to a module
-that accepts, passes on, or rejects Application Credentials. When a
-Tock board asks the kernel to load processes, it passes a reference to
-a `AppCredentialsChecker`, which the kernel uses to check credentials.
+The `AppCredentialsChecker` trait defines the interface that implements
+the Credentials Checking Policy of the Process Checker: it accepts,
+passes on, or rejects Application Credentials. When a Tock board asks
+the kernel to load processes, it passes a reference to a
+`AppCredentialsChecker`, which the kernel uses to check credentials.
 An implementer of `AppCredentialsChecker` sets the security policy of
 Userspace Binary loading by deciding which types of credentials, and
 which credentials, are acceptable and which are rejected.
@@ -518,23 +567,23 @@ pub trait AppCredentialsChecker<'a> {
 ```
 
 When the kernel successfully parses and loads a Userspace Binary into
-a `Process` structure, it places it into a state indicating that its
-integrity has not been checked. If the process loading function is
-provided an instance of `AppCredentialsChecker`, it uses this
-instances to check whether each of the loaded proceses is safe to run.
-If no `AppCredentialsChecker` is provided it skips this check and runs
-all successfully loaded processes.
+a `Process` structure, it places it into the Unchecked state,
+indicating that it has been loaded but that it may not be allowed or
+safe to run. If the kernel is provided an `AppCredentialsChecker`, it
+uses it to check whether each of the loaded proceses is safe to run.
+If no `AppCredentialsChecker` is provided, the kernel skips this check
+and transitions the process into the Unstarted state.
 
-To check the integrity of processes, the kernel scans the footers in
-in each process binary in order, from the beginning of that process's
-footer region. At each `TbfFooterV2Credentials` footer it encounters,
-it calls `check_credentials` on the provided
-`AppCredentialsChecker`. If the `AppCredentialsChecker` returns
-`Accept`, the kernel stops processing credentials and calls
-`mark_credentials_pass` on the process, which makes it runnable. If
-the `Verifier` returns `Reject`, the kernel stops processing
-credentials and calls `mark_credentials_fail` on the process, which
-makes it unrunnable. 
+To check the integrity of a process, the kernel scans the footers in
+in order, starting at the beginning of that process's footer
+region. At each `TbfFooterV2Credentials` footer it encounters, the
+kernel calls `check_credentials` on the provided
+`AppCredentialsChecker`. If `check_credentials` returns `Accept`, the
+kernel stops processing credentials and calls `mark_credentials_pass`
+on the process, which transitions it to the Unstarted state. If the
+`Verifier` returns `Reject`, the kernel stops processing credentials
+and calls `mark_credentials_fail` on the process, which transitions it
+to the Failed state.
 
 If the `AppCredentialsChecker` returns `Pass`, the kernel tries the
 next `TbfFooterV2Credentials`, if there is one. If the kernel reaches
@@ -542,12 +591,13 @@ the end of the TBF Footers (or if there is a Main Header and so no
 Footers) without encountering a `Reject` or `Accept` result, it calls
 `require_credentials` to ask the `AppCredentialsChecker` what the
 default behavior is.  If `require_credentials` returns `true`, the
-kernel calls `mark_credentials_fail` on the process, which makes it
-unrunnable. If `require_credentials` returns `false`, the kernel calls
-`mark_credentials_pass` on the process, which makes it runnable.  If a
-process binary has no `TbfFooterV2Credentials` footers then there will
-be no `Accept` or `Reject` results and `require_credentials` defines
-whether to load such a binary.
+kernel calls `mark_credentials_fail` on the process, transitioning it
+into the Failed state. If `require_credentials` returns `false`, the
+kernel calls `mark_credentials_pass` on the process, transitioning it
+to the Unstarted state. If a process binary has no
+`TbfFooterV2Credentials` footers then there will be no `Accept` or
+`Reject` results and `require_credentials` defines whether the
+Userspace Binary is runnable.
 
 The `binary` argument to `check_credentials` is a reference to slice
 covering the process binary, from the end of the TBF Header to the
@@ -555,17 +605,17 @@ location indicated by the `binary_end_offset` field in the Program
 Header. The size of this slice is therefore equal to
 `binary_end_offset`.
 
-6 Application Identifiers and the `ApplicationIdentification` trait
+7 Identifier Policy: the `ApplicationIdentification` trait
 ==============================
 
-The `ApplicationIdentification` trait defines an API for a module that
-decides whether two processes have the same application identifier.
-An implementer of `ApplicationIdentification` implements the
-`different_identifier` method, which performs a pairwise comparison of
-two processes. There is also a `has_unique_identifier` method, which
-compares a process against all of the processes in a process
-array. The trait has a default implementation of this method, but
-implementations may override it.
+The `ApplicationIdentification` trait defines the API the Process
+Checker provides to decides whether two processes have the same
+Application Identifier.  An implementer of `ApplicationIdentification`
+implements the `different_identifier` method, which performs a
+pairwise comparison of two processes. There is also a
+`has_unique_identifier` method, which compares a process against all
+of the processes in a process array. The trait has a default
+implementation of this method, but implementations may override it.
 
 ```rust
 trait AppIdentification {
@@ -611,32 +661,32 @@ calculates application identifers. The kernel uses this interfaces to
 determine if a process submitted to run will collide with a running
 process's application identifier.
 
-7 Short IDs and the `Compress` trait
+8 Short IDs and the `Compress` trait
 ===============================
 
 While `TbfFooterV2Credentials` typically define the identity and
 credentials of an application, they are typically large data
 structures that are too large to store in RAM. When parts of the
-kernel wish to apply application-based security or access policies,
-they need a concise way to represent these policies. Requiring
-policies to be encoded in terms of application credentials (or
-application identifiers) is extremely costly: a table, for example,
-that says that only applications signed with a particular 4096-bit RSA
-key can access certain system calls requires storing the whole
-4096-bit key. If there are multiple such security policies through the
-kernel, they must each store this information.
+kernel wish to apply security or access policies based on Application
+Identifiers, they need a concise way to represent these
+policies. Requiring policies to be encoded in terms of Application
+Identifiers is extremely costly: a table, for example, that says that
+only Applications signed with a particular 4096-bit RSA key can access
+certain system calls requires storing the whole 4096-bit key. If there
+are multiple such security policies through the kernel, they must each
+store this information.
 
-The `Compress` trait provides a mechanism to map the application
-identifier defined by application credentials to a small (32-bit)
-integer, which can be used throughout the kernel as an identifier
-for security policies. For example, suppose that a device wants to
-grant access to all application binaries signed by a certain 3072-bit
-RSA key. The `Compress` trait can map all such
-`TbfFooterV2Credentials` to a known identifier. This identifier is
-stored in the process structure. Access control systems within the
-kernel can define their policies in terms of these identifiers, such
-that they can check access by comparing 32-bit integers rather than
-384-byte keys.
+The `Compress` trait provides a mechanism to map an Application
+Identifier to a small (32-bit) integer called a Short ID. Short IDs
+can be used throughout the kernel as an identifier for security
+policies. For example, suppose that a device wants to grant access to
+all Userspace Binaries signed by a certain 3072-bit RSA key K and has
+no other security policies. The Credentials Checking Policy only
+accepts `Rsa3072KeyWithID` credentials with key K. The `Compress`
+trait implementation assigns a Short ID as the ID stored in the
+credentials. Access control systems within the kernel can define their
+policies in terms of these identifiers, such that they can check
+access by comparing 32-bit integers rather than 384-byte keys.
 
 ```rust
 #[derive(Clone, Copy, Eq)]
@@ -650,49 +700,28 @@ pub trait Compress {
 ```
 
 The `to_short_id` method returns an `Option` so that it has a clear
-default action if it does not recognize or give any special meaning to
-the credentials passed. A return value of `None` semantically means
-that these credentials do not map to any known security group or set
-of privileges, while a `Some` result denotes the credentials map to
-a known security group or set of privileges.
+default action if the Process Checker does not wish to assign it any
+meaningful identifier that might allow additional access.  A return
+value of `None` semantically means that the process's Application
+Credentials or other state do not map to any known security group or
+set of privileges. A`Some` result denotes the credentials map to a
+known security group or set of privileges.
 
-Generally, the same structure that implements `Verifier` also
-implements `Compress`. This allows it to share copies of public keys
-or other credentials that it uses to make decisions, reducing flash
-space dedicated to these constants. Doing so also makes it less likely
-that the two are inconsistent, e.g., that credentials are correctly
-mapped to security policies via `Compress`.
+Generally, the Process Checker that implements `AppCredentialsChecker`
+and `AppIdentification` also implements `Compress`. This allows it to
+share copies of public keys or other credentials that it uses to make
+decisions, reducing flash space dedicated to these constants. Doing so
+also makes it less likely that the two are inconsistent, e.g., that
+Application Credentials are correctly mapped to security policies via
+`Compress`.
  
-Application Identifiers MUST be unique across running processes in a
-Tock system. Application Identifiers are unique among running
-processes because Short IDs are, for security and mangement
-reasons. Because Short IDs used for security settings are often
-computed from Application Identifiers and need to be persistent across
-reboots of a Userspace Binary, this implies that Application
-Identifiers must be unique as well. For futher details, see the Short
-ID section below.
-
-If the Credentials Checking Policy assigns the same Application
-Identifier to multiple processes, then the Tock kernel MUST NOT run
-more than one of them at any given time. Following the above example,
-the Tock kernel can run v1.1 or v1.2 of the Application, but will not
-run both simultaneously. 
-
-
-
-
-
-Identifiers using the `Compress` trait. Kernels using Short IDs to
-test collisions between Application Identifiers 
-
 `ShortID` values MUST be locally unique among running processes.  The
-mapping between global application identifiers and `ShortID` values
+mapping between Global Application Identifiers and `ShortID` values
 MUST be deterministic.  Kernels SHOULD implement `Compress` in a
 manner that minimizes the chance that two different Application
 Identifiers compress to the same Short ID (e.g., taking the low-order
 bits of a strong cryptographic hash function, or using a known,
 deterministic mapping).
-
 
 Short IDs are locally unique for three reasons. First, it simplifies
 process management and naming: a particular application identifier
@@ -703,24 +732,19 @@ processes. Finally, generally one does not want two copies of the same
 Application running: they can create conflicting responses and
 behaviors.
 
-The mechanism by which kernel modules gain access to
-`TbfFooterV2Credentials` with which to construct `ShortID`s for access
-tables is outside of scope for this document and is system-specific.
-The structure implementing `Verifier` and `Compress` typically has
-additional traits or methods that expose these.
-
 For example, suppose there is a system that wants to grant extra
 permissions to Tock binaries with a `TbfFooterV2Credentials` of
-`Rsa4096Key` with a certain public key. The public key is the global
-application identifier of the process binary. Note this means only one
-process signed with that key can run at any time. 
+`Rsa4096Key` with a certain public key. The public key is the Global
+Application Identifier of the process binary. Note this means only one
+process signed with that key can run at any time.
 
-A structure implementing `Verifier` and `Compress` stores a copy of
-this key, and returns `Accept` to calls to `check_credentials` with
-valid `TbfFooterV2Credentials` using this key. Calls to `Compress`
-return `None` for all credentials except a `Rsa4096Key` with this key,
-for which it returns `ShortID {id: 1}`. The structure also has a
-method `privileged_id`, which returns `ShortID {id: 1}`.
+The Process Checker implementing `AppCredentialsChecker` and
+`Compress` stores a copy of this key. It returns `Accept` to calls to
+`check_credentials` with valid `TbfFooterV2Credentials` using this
+key. Calls to `Compress` return `None` for all credentials except a
+`Rsa4096Key` with this key, for which it returns `ShortID {id:
+1}`. The Process Checker also has a method `privileged_id`, which
+returns `ShortID {id: 1}`.
 
 Kernel modules which want to give these processes extra permissions
 can check whether the `ShortID` associated with a process matches the
@@ -739,23 +763,22 @@ implementer of `Compress`. Doing so more cleanly decouples modules
 through APIs and does not leak internal state.
 
 `ShortID` values MAY persist across boots and restarts of a process
-binary. If `ShortID` is derived from a global application identifier,
+binary. If `ShortID` is derived from a Global Application Identifier,
 then it is by definition persistent, since it is a determinstic
 mapping from the identifier. `ShortID` values derived from local
 application identifiers, however, MAY be transient and not persist.
 
-
-8 Capsules
+9 Capsules
 ===============================
 
-9 Implementation Considerations
+10 Implementation Considerations
 ===============================
 
-10 Authors' Addresses
+11 Authors' Addresses
 ===============================
 ```
 Philip Levis
-414 Gates Hall
+409 Gates Hall
 Stanford University
 Stanford, CA 94305
 USA

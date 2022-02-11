@@ -130,8 +130,8 @@ pub enum TbfHeaderTypes {
     TbfHeaderPermissions = 6,
     TbfHeaderPersistentAcl = 7,
     TbfHeaderKernelVersion = 8,
-
     TbfHeaderProgram = 9,
+    
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
@@ -176,6 +176,7 @@ pub struct TbfHeaderV2Program {
     protected_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
+    version: u32,
 }
 
 /// Writeable flash regions only need an offset and size.
@@ -392,6 +393,11 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
             ),
             binary_end_offset: u32::from_le_bytes(
                 b.get(12..16)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            ),
+            version: u32::from_le_bytes(
+                b.get(16..20)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
