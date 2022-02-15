@@ -126,6 +126,10 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    spi_controller: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, lowrisc::spi_host::SpiHost>,
+    >,
     rng: &'static capsules::rng::RngDriver<'static>,
     aes: &'static capsules::symmetric_encryption::aes::AesDriver<
         'static,
@@ -152,6 +156,7 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
@@ -210,7 +215,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 5], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -405,6 +410,23 @@ unsafe fn setup() -> (
 
     peripherals.i2c0.set_master_client(i2c_master);
 
+    //SPI
+    let mux_spi =
+        components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(
+                lowrisc::spi_host::SpiHost
+            ));
+
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        0,
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        lowrisc::spi_host::SpiHost
+    ));
+
     peripherals.aes.initialise(
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
@@ -592,6 +614,7 @@ unsafe fn setup() -> (
             rng,
             lldb: lldb,
             i2c_master,
+            spi_controller,
             aes,
             syscall_filter,
             scheduler,
