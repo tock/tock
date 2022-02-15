@@ -31,6 +31,8 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub otbn: lowrisc::otbn::Otbn<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub i2c0: lowrisc::i2c::I2c<'a>,
+    pub spi_host0: lowrisc::spi_host::SpiHost,
+    pub spi_host1: lowrisc::spi_host::SpiHost,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
     pub rng: lowrisc::csrng::CsRng<'a>,
 }
@@ -48,10 +50,19 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
                 crate::i2c::I2C0_BASE,
                 (1 / CONFIG.cpu_freq) * 1000 * 1000,
             ),
+            spi_host0: lowrisc::spi_host::SpiHost::new(
+                crate::spi_host::SPIHOST0_BASE,
+                CONFIG.cpu_freq,
+            ),
+            spi_host1: lowrisc::spi_host::SpiHost::new(
+                crate::spi_host::SPIHOST1_BASE,
+                CONFIG.cpu_freq,
+            ),
             flash_ctrl: lowrisc::flash_ctrl::FlashCtrl::new(
                 crate::flash_ctrl::FLASH_CTRL_BASE,
                 lowrisc::flash_ctrl::FlashRegion::REGION0,
             ),
+
             rng: lowrisc::csrng::CsRng::new(crate::csrng::CSRNG_BASE),
         }
     }
@@ -82,6 +93,12 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
             interrupts::OTBN_DONE => self.otbn.handle_interrupt(),
             interrupts::CSRNG_CSCMDREQDONE..=interrupts::CSRNG_CSFATALERR => {
                 self.rng.handle_interrupt()
+            }
+            interrupts::SPIHOST0ERROR..=interrupts::SPIHOST0SPIEVENT => {
+                self.spi_host0.handle_interrupt()
+            }
+            interrupts::SPIHOST1ERROR..=interrupts::SPIHOST1SPIEVENT => {
+                self.spi_host1.handle_interrupt()
             }
             _ => return false,
         }
