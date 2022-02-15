@@ -52,4 +52,5 @@ mod hmac;
 mod multi_alarm;
 mod otbn;
 mod sip_hash;
+mod spi_host;
 mod tickv_test;
