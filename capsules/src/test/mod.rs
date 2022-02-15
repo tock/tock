@@ -1,5 +1,6 @@
 pub mod aes;
 pub mod aes_ccm;
+pub mod aes_gcm;
 pub mod alarm;
 pub mod alarm_edge_cases;
 pub mod crc;
