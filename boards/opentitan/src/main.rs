@@ -16,6 +16,7 @@
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
+use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
@@ -79,9 +80,13 @@ static mut TICKV: Option<
         capsules_extra::sip_hash::SipHasher24<'static>,
     >,
 > = None;
-// Test access to AES CCM
-static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>> =
-    None;
+// Test access to AES
+static mut AES: Option<
+    &aes_gcm::Aes128Gcm<
+        'static,
+        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+    >,
+> = None;
 // Test access to SipHash
 static mut SIPHASH: Option<&capsules_extra::sip_hash::SipHasher24<'static>> = None;
 // Test access to RSA
@@ -158,7 +163,10 @@ struct EarlGrey {
     rng: &'static capsules_core::rng::RngDriver<'static>,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
-        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        aes_gcm::Aes128Gcm<
+            'static,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        >,
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVSystemDriver<
         'static,
@@ -632,9 +640,6 @@ unsafe fn setup() -> (
 
     const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 
-    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
-    let aes_dest_buffer = static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
-
     let ccm_mux = static_init!(
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes)
@@ -643,20 +648,35 @@ unsafe fn setup() -> (
     peripherals.aes.set_client(ccm_mux);
 
     let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
-    let ccm_client1 = static_init!(
+    let ccm_client = static_init!(
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf1)
     );
-    ccm_client1.setup();
-    // ccm_mux.set_client(ccm_client1);
+    ccm_client.setup();
+
+    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
+    let aes_dest_buffer = static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
+
+    let crypt_buf2 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
+    let gcm_client = static_init!(
+        aes_gcm::Aes128Gcm<
+            'static,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        >,
+        aes_gcm::Aes128Gcm::new(ccm_client, crypt_buf2)
+    );
+    ccm_client.set_client(gcm_client);
 
     let aes = static_init!(
         capsules_extra::symmetric_encryption::aes::AesDriver<
             'static,
-            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+            aes_gcm::Aes128Gcm<
+                'static,
+                virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+            >,
         >,
         capsules_extra::symmetric_encryption::aes::AesDriver::new(
-            ccm_client1,
+            gcm_client,
             aes_source_buffer,
             aes_dest_buffer,
             board_kernel.create_grant(
@@ -666,7 +686,7 @@ unsafe fn setup() -> (
         )
     );
 
-    AES = Some(ccm_client1);
+    AES = Some(gcm_client);
 
     #[cfg(test)]
     {
@@ -678,8 +698,8 @@ unsafe fn setup() -> (
         SHA256SOFT = Some(sha_soft);
     }
 
-    hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
-    hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
+    hil::symmetric_encryption::AES128GCM::set_client(gcm_client, aes);
+    hil::symmetric_encryption::AES128::set_client(gcm_client, ccm_client);
 
     // These symbols are defined in the linker script.
     extern "C" {
