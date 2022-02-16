@@ -19,7 +19,7 @@ for more details.
 Programming
 -----------
 
-Tock on OpenTitan requires
+Tock on OpenTitan requires using OpenTitan_SHA
 lowRISC/opentitan@199d45626f8a7ae2aef5d9ff73793bf9a4233711 or newer. In
 general it is recommended that users start with the latest OpenTitan bitstream
 and if that results in issues try the one mentioned above.
@@ -127,7 +127,7 @@ A quick summary on how to do this is included below though
 ```shell
 git clone https://github.com/lowRISC/opentitan.git
 cd opentitan
-git checkout <OpenTitan_SHA>
+git checkout <OpenTitan_SHA>  # Changes, see current SHA at top of this README
 pip3 install --user -r python-requirements.txt
 
 LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
