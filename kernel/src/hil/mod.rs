@@ -18,6 +18,7 @@ pub mod kv_system;
 pub mod led;
 pub mod log;
 pub mod nonvolatile_storage;
+pub mod public_key_crypto;
 pub mod pwm;
 pub mod radio;
 pub mod rng;
