@@ -185,12 +185,12 @@ enum State {
     InitiateReading(CalibrationData),
     CheckStatus(CalibrationData),
     Read(CalibrationData),
-    Idle(CalibrationData, usize, usize),
+    Idle(CalibrationData, i32, usize),
 }
 
 impl<'a> I2CClient for Hts221<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
-        if status.is_err() {
+        if let Err(i2c_err) = status {
             self.state.set(State::Idle(
                 CalibrationData {
                     temp_slope: 0.0,
@@ -202,7 +202,8 @@ impl<'a> I2CClient for Hts221<'a> {
                 0,
             ));
             self.buffer.replace(buffer);
-            self.temperature_client.map(|client| client.callback(0));
+            self.temperature_client
+                .map(|client| client.callback(Err(i2c_err.into())));
             self.humidity_client.map(|client| client.callback(0));
             return;
         }
@@ -230,7 +231,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 buffer[1] = 1 << 2 | 1 << 7; // BDU + PD
                 buffer[2] = 1; // ONE SHOT
 
-                if let Err((_error, buffer)) = self.i2c.write(buffer, 3) {
+                if let Err((error, buffer)) = self.i2c.write(buffer, 3) {
                     self.state.set(State::Idle(
                         CalibrationData {
                             temp_slope: 0.0,
@@ -242,7 +243,8 @@ impl<'a> I2CClient for Hts221<'a> {
                         0,
                     ));
                     self.buffer.replace(buffer);
-                    self.temperature_client.map(|client| client.callback(0));
+                    self.temperature_client
+                        .map(|client| client.callback(Err(error.into())));
                     self.humidity_client.map(|client| client.callback(0));
                 } else {
                     self.state.set(State::InitiateReading(CalibrationData {
@@ -256,7 +258,7 @@ impl<'a> I2CClient for Hts221<'a> {
             State::InitiateReading(calibration_data) => {
                 buffer[0] = STATUS_REG;
 
-                if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 1) {
+                if let Err((error, buffer)) = self.i2c.write_read(buffer, 1, 1) {
                     self.state.set(State::Idle(
                         CalibrationData {
                             temp_slope: 0.0,
@@ -268,7 +270,8 @@ impl<'a> I2CClient for Hts221<'a> {
                         0,
                     ));
                     self.buffer.replace(buffer);
-                    self.temperature_client.map(|client| client.callback(0));
+                    self.temperature_client
+                        .map(|client| client.callback(Err(error.into())));
                     self.humidity_client.map(|client| client.callback(0));
                 } else {
                     self.state.set(State::CheckStatus(calibration_data));
@@ -278,7 +281,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 if buffer[0] & 0b11 == 0b11 {
                     buffer[0] = REG_AUTO_INCREMENT | HUMID0_REG;
 
-                    if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 4) {
+                    if let Err((error, buffer)) = self.i2c.write_read(buffer, 1, 4) {
                         self.state.set(State::Idle(
                             CalibrationData {
                                 temp_slope: 0.0,
@@ -290,7 +293,8 @@ impl<'a> I2CClient for Hts221<'a> {
                             0,
                         ));
                         self.buffer.replace(buffer);
-                        self.temperature_client.map(|client| client.callback(0));
+                        self.temperature_client
+                            .map(|client| client.callback(Err(error.into())));
                         self.humidity_client.map(|client| client.callback(0));
                     } else {
                         self.state.set(State::Read(calibration_data));
@@ -298,7 +302,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 } else {
                     buffer[0] = STATUS_REG;
 
-                    if let Err((_error, buffer)) = self.i2c.write_read(buffer, 1, 1) {
+                    if let Err((error, buffer)) = self.i2c.write_read(buffer, 1, 1) {
                         self.state.set(State::Idle(
                             CalibrationData {
                                 temp_slope: 0.0,
@@ -310,7 +314,8 @@ impl<'a> I2CClient for Hts221<'a> {
                             0,
                         ));
                         self.buffer.replace(buffer);
-                        self.temperature_client.map(|client| client.callback(0));
+                        self.temperature_client
+                            .map(|client| client.callback(Err(error.into())));
                         self.humidity_client.map(|client| client.callback(0));
                     }
                 }
@@ -324,7 +329,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 let temperature_raw = ((buffer[2] as i16) | ((buffer[3] as i16) << 8)) as f32;
                 let temperature = ((temperature_raw * calibration_data.temp_slope
                     + calibration_data.temp_intercept)
-                    * 100.0) as usize;
+                    * 100.0) as i32;
                 buffer[0] = CTRL_REG1;
                 // TODO(alevy): this is a workaround for a bug. We should be able to turn
                 // off the the sensor between transactions, and turn it back on (as is done
@@ -333,7 +338,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 // now, leave it on and waste 2uA.
                 buffer[1] = 1 << 7; // Leave PD bit on
 
-                if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
                     self.state.set(State::Idle(
                         CalibrationData {
                             temp_slope: 0.0,
@@ -345,7 +350,8 @@ impl<'a> I2CClient for Hts221<'a> {
                         0,
                     ));
                     self.buffer.replace(buffer);
-                    self.temperature_client.map(|client| client.callback(0));
+                    self.temperature_client
+                        .map(|client| client.callback(Err(error.into())));
                     self.humidity_client.map(|client| client.callback(0));
                 } else {
                     self.state
@@ -358,7 +364,7 @@ impl<'a> I2CClient for Hts221<'a> {
                 if self.pending_temperature.get() {
                     self.pending_temperature.set(false);
                     self.temperature_client
-                        .map(|client| client.callback(temperature));
+                        .map(|client| client.callback(Ok(temperature)));
                 }
                 if self.pending_humidity.get() {
                     self.pending_humidity.set(false);
