@@ -71,7 +71,10 @@ impl<T> OptionalCell<T> {
         T: PartialEq,
     {
         let value = self.value.take();
-        let out = value.contains(x);
+        let out = match &value {
+            Some(y) => y == x,
+            None => false,
+        };
         self.value.set(value);
         out
     }
