@@ -277,8 +277,9 @@ impl KernelManagedLayout {
     ///
     /// # Safety
     ///
-    /// The incoming base pointer must be well aligned but cannot point to
-    /// initialized data. There must not be any other `KernelManagedLayout` for
+    /// The incoming base pointer must be well aligned and reference enough
+    /// memory to hold the entire kernel managed grant structure. There must
+    /// not be any other `KernelManagedLayout` for
     /// the given `base_ptr` at the same time, otherwise multiple mutable
     /// references to the same upcall/allow slices could be created.
     unsafe fn initialize_from_counts(
@@ -323,7 +324,7 @@ impl KernelManagedLayout {
         grant_t_align: GrantDataAlign,
     ) -> usize {
         let kernel_managed_size = size_of::<usize>()
-            + (upcalls_num.0 as usize * size_of::<SavedUpcall>())
+            + upcalls_num.0 as usize * size_of::<SavedUpcall>()
             + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
             + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
         // We know that grant_t_align is a power of 2, so we can make a mask
