@@ -427,11 +427,11 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
@@ -462,11 +462,11 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         Ok(())
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
