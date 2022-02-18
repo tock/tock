@@ -132,9 +132,56 @@ pip3 install --user -r python-requirements.txt
 
 LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
 ```
+
+<details>
+  <summary>Modifications to build on OS X</summary>
+
+  OpenTitan doesn't have a configuration to set elf header path correctly, so you have to fix the path:
+  ```diff
+  diff --git a/hw/dv/verilator/cpp/dpi_memutil.cc b/hw/dv/verilator/cpp/dpi_memutil.cc
+  index ab14462d9..69117cf5e 100644
+  --- a/hw/dv/verilator/cpp/dpi_memutil.cc
+  +++ b/hw/dv/verilator/cpp/dpi_memutil.cc
+  @@ -8,7 +8,7 @@
+   #include <cstring>
+   #include <fcntl.h>
+   #include <iostream>
+  -#include <libelf.h>
+  +#include <libelf/libelf.h>
+   #include <sstream>
+   #include <sys/stat.h>
+   #include <unistd.h>
+  diff --git a/hw/ip/otbn/dv/memutil/otbn_memutil.cc b/hw/ip/otbn/dv/memutil/otbn_memutil.cc
+  index 176d628c5..435c71577 100644
+  --- a/hw/ip/otbn/dv/memutil/otbn_memutil.cc
+  +++ b/hw/ip/otbn/dv/memutil/otbn_memutil.cc
+  @@ -6,9 +6,9 @@
+   
+   #include <cassert>
+   #include <cstring>
+  -#include <gelf.h>
+  +#include <libelf/gelf.h>
+   #include <iostream>
+  -#include <libelf.h>
+  +#include <libelf/libelf.h>
+   #include <limits>
+   #include <regex>
+   #include <sstream>
+   ```
+
+   You need a (very) recent version of Verilator.
+   If you see errors about `verilator_deplist.tmp`, you've hit this old bug where
+   [Verilator didn't support BSD `ar`](https://github.com/verilator/verilator/issues/2999).
+   Unfortunately, modern OS X doesn't work with GNU `ar`, so you need a version of
+   verilator which includes [this fix](https://github.com/verilator/verilator/pull/3256).
+   Upgrading to at least `Verilator 4.218 2022-01-17` worked as of Feb 16, 2022.
+
+</details>
+
 ### Build Boot Rom/OTP Image
 Build only the targets we care about.
 ```shell
+./meson_init.sh
 ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
 ninja -C build-out sw/device/otp_img/otp_img_sim_verilator.vmem
 ```
