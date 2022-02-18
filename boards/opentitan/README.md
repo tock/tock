@@ -179,7 +179,21 @@ LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --
 </details>
 
 ### Build Boot Rom/OTP Image
+
+<details>
+  <summary>Modifications to build on OS X</summary>
+
+  OT build assumes old toolchains (i.e. `riscv32-*`), but homebrew only installs
+  binaries of `riscv64-*`. They're all multilib, so they work fine, just need to
+  add symlinks:
+
+  > `cd /usr/local/Cellar/riscv-gnu-toolchain/main/bin`
+  > `for f in $(ls); do ln -s $f riscv32-$(echo $f | cut -d'-' -f2-10); done`
+
+</details>
+
 Build only the targets we care about.
+
 ```shell
 ./meson_init.sh
 ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
