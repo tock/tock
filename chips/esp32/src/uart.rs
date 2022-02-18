@@ -436,7 +436,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 }
 
-/* UART receive is not implemented yet, mostly due to a lack of tests avaliable */
+/* UART receive is not implemented yet, mostly due to a lack of tests available */
 impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
