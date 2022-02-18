@@ -119,14 +119,22 @@ $(call check_defined, TARGET)
 # Location of target-specific build
 TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
 
-# If environment variable V is non-empty, be verbose.
+# If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
+  VERBOSE_MODE = 1
+else ifneq ($(VERBOSE),)
+  VERBOSE_MODE = 1
+else
+  VERBOSE_MODE =
+endif
+
+ifeq ($(VERBOSE_MODE),1)
   Q =
-  VERBOSE = --verbose
+  VERBOSE_FLAGS = --verbose
   DEVNULL =
 else
   Q = @
-  VERBOSE =
+  VERBOSE_FLAGS =
   DEVNULL = > /dev/null
 endif
 
@@ -203,7 +211,7 @@ CARGO_FLAGS ?=
 # makes debugging easier since debug information for the core library is included in
 # the resulting .elf file. See https://github.com/tock/tock/pull/2847 for more details.
 CARGO_FLAGS_TOCK ?= \
-  $(VERBOSE) \
+  $(VERBOSE_FLAGS) \
   -Z build-std=core,compiler_builtins \
   --target=$(TARGET) \
   --package $(PLATFORM) \
@@ -245,7 +253,7 @@ else
 endif
 
 # Dump configuration for verbose builds
-ifneq ($(V),)
+ifeq ($(VERBOSE_MODE),1)
   $(info )
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
@@ -294,12 +302,12 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE) $(CARGO_FLAGS_TOCK)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS_TOCK)
 
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE) --target-dir=$(TARGET_DIRECTORY)
+	$(Q)$(CARGO) clean $(VERBOSE_FLAGS) --target-dir=$(TARGET_DIRECTORY)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
@@ -314,7 +322,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 doc: | target
 	@# This mess is all to work around rustdoc giving no way to return an
 	@# error if there are warnings. This effectively simulates that.
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | grep -C 9999 warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | grep -C 9999 warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
 
 
 .PHONY: lst
@@ -380,7 +388,7 @@ target:
 
 
 $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
-	$(Q)$(CARGO) build $(VERBOSE) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
