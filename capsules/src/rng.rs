@@ -27,7 +27,7 @@ use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::processbuffer::WriteableProcessBuffer;
+use kernel::processbuffer::{ProcessSliceIndex, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::{ErrorCode, ProcessId};
@@ -103,7 +103,7 @@ impl rng::Client for RngDriver<'_> {
                                 // Add all available and requested randomness to the app buffer.
 
                                 // 1. Slice buffer to start from current idx
-                                let buf = &buffer[idx..(idx + remaining)];
+                                let buf = &buffer.get(idx..(idx + remaining)).unwrap();
                                 // 2. Take at most as many random samples as needed to fill the buffer
                                 //    (if app.remaining is not word-sized, take an extra one).
                                 let remaining_ints = if remaining % 4 == 0 {

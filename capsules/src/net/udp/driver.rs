@@ -25,7 +25,7 @@ use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
 use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
@@ -218,7 +218,9 @@ impl<'a> UDPDriver<'a> {
                                     self.kernel_buffer.replace(kernel_buffer);
                                     return Err(ErrorCode::SIZE);
                                 }
-                                payload.copy_to_slice(&mut kernel_buffer[0..payload.len()]);
+                                payload
+                                    .copy_to_slice(&mut kernel_buffer[0..payload.len()])
+                                    .unwrap();
                                 kernel_buffer.slice(0..payload.len());
                                 match self.sender.driver_send_to(
                                     dst_addr,
@@ -405,8 +407,10 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                         cmp::min(arg1, self.interface_list.len());
                                     let iface_size = size_of::<IPAddr>();
                                     for i in 0..n_ifaces_to_copy {
-                                        cfg[i * iface_size..(i + 1) * iface_size]
-                                            .copy_from_slice(&self.interface_list[i].0);
+                                        cfg.get(i * iface_size..(i + 1) * iface_size)
+                                            .unwrap()
+                                            .copy_from_slice(&self.interface_list[i].0)
+                                            .unwrap();
                                     }
                                     // Returns total number of interfaces
                                     CommandReturn::success_u32(self.interface_list.len() as u32)
@@ -440,7 +444,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
 
                                     let mut tmp_cfg_buffer: [u8; size_of::<UDPEndpoint>() * 2] =
                                         [0; size_of::<UDPEndpoint>() * 2];
-                                    cfg.copy_to_slice(&mut tmp_cfg_buffer);
+                                    cfg.copy_to_slice(&mut tmp_cfg_buffer).unwrap();
 
                                     if let (Some(dst), Some(src)) = (
                                         self.parse_ip_port_pair(
@@ -490,8 +494,10 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                     } else {
                                         let mut tmp_endpoint: [u8; mem::size_of::<UDPEndpoint>()] =
                                             [0; mem::size_of::<UDPEndpoint>()];
-                                        cfg[mem::size_of::<UDPEndpoint>()..]
-                                            .copy_to_slice(&mut tmp_endpoint);
+                                        cfg.get(mem::size_of::<UDPEndpoint>()..)
+                                            .unwrap()
+                                            .copy_to_slice(&mut tmp_endpoint)
+                                            .unwrap();
 
                                         if let Some(local_iface) =
                                             self.parse_ip_port_pair(&tmp_endpoint)
@@ -606,7 +612,10 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                         .and_then(|read| {
                             read.mut_enter(|rbuf| {
                                 if rbuf.len() >= len {
-                                    rbuf[..len].copy_from_slice(&payload[..len]);
+                                    rbuf.get(..len)
+                                        .unwrap()
+                                        .copy_from_slice(&payload[..len])
+                                        .unwrap();
                                     Ok(())
                                 } else {
                                     Err(ErrorCode::SIZE) //packet does not fit
@@ -631,7 +640,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                                     }
                                     let mut tmp_cfg_buffer: [u8; CFG_LEN] = [0; CFG_LEN];
                                     sender_addr.encode(&mut tmp_cfg_buffer, 0);
-                                    cfg.copy_from_slice(&tmp_cfg_buffer);
+                                    cfg.copy_from_slice(&tmp_cfg_buffer).unwrap();
                                     Ok(())
                                 })
                             })

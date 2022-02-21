@@ -8,7 +8,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCo
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -106,7 +106,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
                         let end = cmp::min(start + len, src.len());
                         start = cmp::min(start, end);
 
-                        for (i, c) in src[start..end].iter().enumerate() {
+                        for (i, c) in src.get(start..end).unwrap().iter().enumerate() {
                             kwbuf[i] = c.get();
                         }
                         end - start
@@ -309,9 +309,9 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                                 // The amount to copy can't be longer than the size of the
                                 // read buffer. -pal 6/8/21
                                 let real_len = cmp::min(end - start, src.len());
-                                let dest_area = &dest[start..end];
+                                let dest_area = &dest.get(start..end).unwrap();
                                 for (i, c) in src[0..real_len].iter().enumerate() {
-                                    dest_area[i].set(*c);
+                                    dest_area.get(i).unwrap().set(*c);
                                 }
                             })
                         });

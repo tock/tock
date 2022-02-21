@@ -79,7 +79,7 @@ use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
-use kernel::processbuffer::{ReadableProcessBuffer, ReadableProcessSlice};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, ReadableProcessSlice};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -145,11 +145,11 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
         }
     }
 
-    fn do_next_input(&self, data: &ReadableProcessSlice, len: usize) -> usize {
+    fn do_next_input<'b>(&self, data: ReadableProcessSlice<'b>, len: usize) -> usize {
         let count = self.crc_buffer.take().map_or(0, |kbuffer| {
             let copy_len = cmp::min(len, kbuffer.len());
             for i in 0..copy_len {
-                kbuffer[i] = data[i].get();
+                kbuffer[i] = data.get(i).unwrap().get();
             }
             if copy_len > 0 {
                 let mut leasable = LeasableMutableBuffer::new(kbuffer);
@@ -467,7 +467,9 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                     .and_then(|buffer| {
                                         buffer.enter(|app_slice| {
                                             self.do_next_input(
-                                                &app_slice[self.app_buffer_written.get()..],
+                                                app_slice
+                                                    .get(self.app_buffer_written.get()..)
+                                                    .unwrap(),
                                                 remaining,
                                             )
                                         })

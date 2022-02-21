@@ -59,7 +59,7 @@ use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -272,12 +272,12 @@ impl<'a> NonvolatileStorage<'a> {
                                                     let write_len =
                                                         cmp::min(active_len, kernel_buffer.len());
 
-                                                    let d = &app_buffer[0..write_len];
+                                                    let d = &app_buffer.get(0..write_len).unwrap();
                                                     for (i, c) in kernel_buffer[0..write_len]
                                                         .iter_mut()
                                                         .enumerate()
                                                     {
-                                                        *c = d[i].get();
+                                                        *c = d.get(i).unwrap().get();
                                                     }
                                                 });
                                             })
@@ -440,9 +440,9 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                                 read.mut_enter(|app_buffer| {
                                     let read_len = cmp::min(app_buffer.len(), length);
 
-                                    let d = &app_buffer[0..(read_len as usize)];
+                                    let d = &app_buffer.get(0..(read_len as usize)).unwrap();
                                     for (i, c) in buffer[0..read_len].iter().enumerate() {
-                                        d[i].set(*c);
+                                        d.get(i).unwrap().set(*c);
                                     }
                                 })
                             });

@@ -4,7 +4,7 @@ use enum_primitive::enum_from_primitive;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::i2c;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -68,7 +68,11 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
             .and_then(|buffer| {
                 buffer.enter(|app_buffer| {
                     self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-                        app_buffer[..(wlen as usize)].copy_to_slice(&mut buffer[..(wlen as usize)]);
+                        app_buffer
+                            .get(..(wlen as usize))
+                            .unwrap()
+                            .copy_to_slice(&mut buffer[..(wlen as usize)])
+                            .unwrap();
 
                         let read_len: OptionalCell<usize>;
                         if rlen == 0 {
@@ -187,7 +191,11 @@ impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, 
                         .get_readwrite_processbuffer(rw_allow::BUFFER)
                         .and_then(|app_buffer| {
                             app_buffer.mut_enter(|app_buffer| {
-                                app_buffer[..read_len].copy_from_slice(&buffer[..read_len]);
+                                app_buffer
+                                    .get(..read_len)
+                                    .unwrap()
+                                    .copy_from_slice(&buffer[..read_len])
+                                    .unwrap();
                             })
                         });
                 }

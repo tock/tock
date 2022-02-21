@@ -10,7 +10,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, CCMClient, Client, AES128, AES128CBC, AES128CCM, AES128ECB, AES128_BLOCK_SIZE,
 };
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -113,8 +113,10 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                     }
 
                                     // Copy the data into the static buffer
-                                    key[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                    key.get(..static_buffer_len)
+                                        .unwrap()
+                                        .copy_to_slice(&mut buf[..static_buffer_len])
+                                        .unwrap();
 
                                     if let Some(op) = app.aes_operation.as_ref() {
                                         match op {
@@ -155,8 +157,10 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                     }
 
                                     // Copy the data into the static buffer
-                                    iv[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                    iv.get(..static_buffer_len)
+                                        .unwrap()
+                                        .copy_to_slice(&mut buf[..static_buffer_len])
+                                        .unwrap();
 
                                     if let Some(op) = app.aes_operation.as_ref() {
                                         match op {
@@ -205,9 +209,13 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                                     }
 
                                                     // Copy the data into the static buffer
-                                                    source[..static_buffer_len].copy_to_slice(
-                                                        &mut buf[..static_buffer_len],
-                                                    );
+                                                    source
+                                                        .get(..static_buffer_len)
+                                                        .unwrap()
+                                                        .copy_to_slice(
+                                                            &mut buf[..static_buffer_len],
+                                                        )
+                                                        .unwrap();
 
                                                     self.data_copied.set(static_buffer_len);
 
@@ -227,9 +235,13 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                                     }
 
                                                     // Copy the data into the static buffer
-                                                    source[..static_buffer_len].copy_to_slice(
-                                                        &mut buf[..static_buffer_len],
-                                                    );
+                                                    source
+                                                        .get(..static_buffer_len)
+                                                        .unwrap()
+                                                        .copy_to_slice(
+                                                            &mut buf[..static_buffer_len],
+                                                        )
+                                                        .unwrap();
 
                                                     self.data_copied.set(static_buffer_len);
 
@@ -386,13 +398,17 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
                                     if app_len < static_len {
                                         if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
+                                            dest.get(offset..app_len)
+                                                .unwrap()
+                                                .copy_from_slice(&buf[0..(app_len - offset)])
+                                                .unwrap();
                                         }
                                     } else {
                                         if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
+                                            dest.get(offset..(offset + static_len))
+                                                .unwrap()
+                                                .copy_from_slice(&buf[0..static_len])
+                                                .unwrap();
                                         }
                                     }
                                 })
@@ -424,13 +440,19 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                     data_len = source.len();
 
                                     if data_len > copied_data {
-                                        let remaining_data = &source[copied_data..];
+                                        let remaining_data = &source.get(copied_data..).unwrap();
                                         let remaining_len = data_len - copied_data;
 
                                         if remaining_len < static_buffer_len {
-                                            remaining_data.copy_to_slice(&mut buf[..remaining_len]);
+                                            remaining_data
+                                                .copy_to_slice(&mut buf[..remaining_len])
+                                                .unwrap();
                                         } else {
-                                            remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                            remaining_data
+                                                .get(..static_buffer_len)
+                                                .unwrap()
+                                                .copy_to_slice(buf)
+                                                .unwrap();
                                         }
                                     }
                                     Ok(())
@@ -528,13 +550,17 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
                                     if app_len < static_len {
                                         if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
+                                            dest.get(offset..app_len)
+                                                .unwrap()
+                                                .copy_from_slice(&buf[0..(app_len - offset)])
+                                                .unwrap();
                                         }
                                     } else {
                                         if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
+                                            dest.get(offset..(offset + static_len))
+                                                .unwrap()
+                                                .copy_from_slice(&buf[0..static_len])
+                                                .unwrap();
                                         }
                                     }
                                 })
@@ -711,8 +737,11 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                                 }
 
                                                 // Copy the data into the static buffer
-                                                source[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                source
+                                                    .get(..static_buffer_len)
+                                                    .unwrap()
+                                                    .copy_to_slice(&mut buf[..static_buffer_len])
+                                                    .unwrap();
 
                                                 self.data_copied.set(static_buffer_len);
 

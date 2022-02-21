@@ -15,7 +15,7 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::hil;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -136,7 +136,7 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                                     let len = cmp::min(app_buffer.len(), read_len as usize);
 
                                     for (i, c) in buffer[0..len].iter().enumerate() {
-                                        app_buffer[i].set(*c);
+                                        app_buffer.get(i).unwrap().set(*c);
                                     }
 
                                     self.master_buffer.replace(buffer);
@@ -164,7 +164,11 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
                             .and_then(|master_rx| {
                                 master_rx.mut_enter(move |app_buffer| {
                                     let len = cmp::min(app_buffer.len(), read_len as usize);
-                                    app_buffer[..len].copy_from_slice(&buffer[..len]);
+                                    app_buffer
+                                        .get(..len)
+                                        .unwrap()
+                                        .copy_from_slice(&buffer[..len])
+                                        .unwrap();
                                     self.master_buffer.replace(buffer);
                                     0
                                 })
@@ -217,7 +221,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
                                     let read_len = cmp::min(buf_len, length as usize);
 
                                     for (i, c) in buffer[0..read_len].iter_mut().enumerate() {
-                                        app_rx[i].set(*c);
+                                        app_rx.get(i).unwrap().set(*c);
                                     }
 
                                     self.slave_buffer1.replace(buffer);
@@ -322,7 +326,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     let write_len = cmp::min(buf_len, len);
 
                                     for (i, c) in kernel_tx[0..write_len].iter_mut().enumerate() {
-                                        *c = app_tx[i].get();
+                                        *c = app_tx.get(i).unwrap().get();
                                     }
 
                                     self.master_action.set(MasterAction::Write);
@@ -367,7 +371,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     let read_len = cmp::min(buf_len, len);
 
                                     for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                        *c = app_rx[i].get();
+                                        *c = app_rx.get(i).unwrap().get();
                                     }
 
                                     self.master_action.set(MasterAction::Read(read_len as u8));
@@ -430,7 +434,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     let read_len = cmp::min(buf_len, len);
 
                                     for (i, c) in kernel_tx[0..read_len].iter_mut().enumerate() {
-                                        *c = app_tx[i].get();
+                                        *c = app_tx.get(i).unwrap().get();
                                     }
 
                                     // TODO verify errors
@@ -494,7 +498,11 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
                                     let write_len = cmp::min(buf_len, write_len);
                                     let read_len = cmp::min(buf_len, read_len);
-                                    app_tx[..write_len].copy_to_slice(&mut kernel_tx[..write_len]);
+                                    app_tx
+                                        .get(..write_len)
+                                        .unwrap()
+                                        .copy_to_slice(&mut kernel_tx[..write_len])
+                                        .unwrap();
                                     self.master_action
                                         .set(MasterAction::WriteRead(read_len as u8));
                                     hil::i2c::I2CMaster::enable(self.i2c);

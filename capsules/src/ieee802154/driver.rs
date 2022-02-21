@@ -15,7 +15,7 @@ use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -629,7 +629,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                     return CommandReturn::failure(ErrorCode::SIZE);
                                 }
                                 let mut addr_long = [0u8; 8];
-                                cfg.copy_to_slice(&mut addr_long);
+                                cfg.copy_to_slice(&mut addr_long).unwrap();
                                 self.mac.set_address_long(addr_long);
                                 CommandReturn::success()
                             })
@@ -664,7 +664,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                 if cfg.len() != 8 {
                                     return CommandReturn::failure(ErrorCode::SIZE);
                                 }
-                                cfg.copy_from_slice(&self.mac.get_address_long());
+                                cfg.copy_from_slice(&self.mac.get_address_long()).unwrap();
                                 CommandReturn::success()
                             })
                         })
@@ -706,7 +706,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                 self.get_neighbor(arg1).map_or(
                                     CommandReturn::failure(ErrorCode::INVAL),
                                     |neighbor| {
-                                        cfg.copy_from_slice(&neighbor.long_addr);
+                                        cfg.copy_from_slice(&neighbor.long_addr).unwrap();
                                         CommandReturn::success()
                                     },
                                 )
@@ -728,7 +728,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                 let mut new_neighbor: DeviceDescriptor =
                                     DeviceDescriptor::default();
                                 new_neighbor.short_addr = arg1 as u16;
-                                cfg.copy_to_slice(&mut new_neighbor.long_addr);
+                                cfg.copy_to_slice(&mut new_neighbor.long_addr).unwrap();
                                 self.add_neighbor(new_neighbor)
                                     .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
                                         CommandReturn::success_u32(index as u32 + 1)
@@ -774,7 +774,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                     .map_or(CommandReturn::failure(ErrorCode::INVAL), |_| {
                                         CommandReturn::success()
                                     });
-                                cfg.copy_from_slice(&tmp_cfg);
+                                cfg.copy_from_slice(&tmp_cfg).unwrap();
 
                                 res
                             })
@@ -795,7 +795,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                 self.get_key(arg1).map_or(
                                     CommandReturn::failure(ErrorCode::INVAL),
                                     |key| {
-                                        cfg.copy_from_slice(&key.key);
+                                        cfg.copy_from_slice(&key.key).unwrap();
                                         CommandReturn::success()
                                     },
                                 )
@@ -819,7 +819,7 @@ impl SyscallDriver for RadioDriver<'_> {
                                 // bytes long, copy it into a proper slice
                                 // for decoding
                                 let mut tmp_cfg: [u8; 27] = [0; 27];
-                                cfg.copy_to_slice(&mut tmp_cfg);
+                                cfg.copy_to_slice(&mut tmp_cfg).unwrap();
 
                                 KeyDescriptor::decode(&tmp_cfg)
                                     .done()
@@ -849,17 +849,21 @@ impl SyscallDriver for RadioDriver<'_> {
                                         return None;
                                     }
                                     let dst_addr = arg1 as u16;
-                                    let level = match SecurityLevel::from_scf(cfg[0].get()) {
-                                        Some(level) => level,
-                                        None => {
-                                            return None;
-                                        }
-                                    };
+                                    let level =
+                                        match SecurityLevel::from_scf(cfg.get(0).unwrap().get()) {
+                                            Some(level) => level,
+                                            None => {
+                                                return None;
+                                            }
+                                        };
                                     if level == SecurityLevel::None {
                                         Some((dst_addr, None))
                                     } else {
                                         let mut tmp_key_id_buffer: [u8; 10] = [0; 10];
-                                        cfg[1..].copy_to_slice(&mut tmp_key_id_buffer);
+                                        cfg.get(1..)
+                                            .unwrap()
+                                            .copy_to_slice(&mut tmp_key_id_buffer)
+                                            .unwrap();
                                         let key_id = match decode_key_id(&tmp_key_id_buffer).done()
                                         {
                                             Some((_, key_id)) => key_id,
@@ -942,9 +946,12 @@ impl device::RxClient for RadioDriver<'_> {
                         let len = min(rbuf.len(), data_offset + data_len);
                         // Copy the entire frame over to userland, preceded by two
                         // bytes: the data offset and the data length.
-                        rbuf[..len].copy_from_slice(&buf[..len]);
-                        rbuf[0].set(data_offset as u8);
-                        rbuf[1].set(data_len as u8);
+                        rbuf.get(..len)
+                            .unwrap()
+                            .copy_from_slice(&buf[..len])
+                            .unwrap();
+                        rbuf.get(0).unwrap().set(data_offset as u8);
+                        rbuf.get(1).unwrap().set(data_len as u8);
                         true
                     })
                 })

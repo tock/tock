@@ -33,7 +33,9 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{Ticks, Time};
 use kernel::platform::ContextSwitchCallback;
 use kernel::process::{self, ProcessId};
-use kernel::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{
+    ProcessSliceIndex, UserspaceReadableProcessBuffer, WriteableProcessBuffer,
+};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 
@@ -67,14 +69,23 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
 
                 let _ = app.mem_region.mut_enter(|buf| {
                     if buf.len() >= 4 {
-                        buf[0..4].copy_from_slice(&count.to_le_bytes());
+                        buf.get(0..4)
+                            .unwrap()
+                            .copy_from_slice(&count.to_le_bytes())
+                            .unwrap();
                     }
                     if buf.len() >= 8 {
-                        buf[4..8].copy_from_slice(&(pending_tasks as u32).to_le_bytes());
+                        buf.get(4..8)
+                            .unwrap()
+                            .copy_from_slice(&(pending_tasks as u32).to_le_bytes())
+                            .unwrap();
                     }
                     if buf.len() >= 16 {
                         let now = self.timer.now().into_usize() as u64;
-                        buf[8..16].copy_from_slice(&now.to_le_bytes());
+                        buf.get(8..16)
+                            .unwrap()
+                            .copy_from_slice(&now.to_le_bytes())
+                            .unwrap();
                     }
                 });
 

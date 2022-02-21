@@ -16,7 +16,7 @@ use core::convert::From;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -171,7 +171,7 @@ impl<'a> TextScreen<'a> {
                                         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
                                             let len = cmp::min(app.write_len, buffer.len());
                                             for n in 0..len {
-                                                buffer[n] = to_write_buffer[n].get();
+                                                buffer[n] = to_write_buffer.get(n).unwrap().get();
                                             }
                                             match self.text_screen.print(buffer, len) {
                                                 Ok(()) => Ok(()),

@@ -146,15 +146,17 @@ impl Frame {
 
     /// Appends payload bytes from a process slice into the frame if
     /// possible
-    pub fn append_payload_process(
+    pub fn append_payload_process<'a>(
         &mut self,
-        payload_buf: &ReadableProcessSlice,
+        payload_buf: ReadableProcessSlice<'a>,
     ) -> Result<(), ErrorCode> {
         if payload_buf.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
-        payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
+        payload_buf
+            .copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()])
+            .unwrap();
         self.info.data_len += payload_buf.len();
 
         Ok(())

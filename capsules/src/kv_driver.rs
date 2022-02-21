@@ -10,7 +10,7 @@ use core::cell::Cell;
 use kernel::grant::Grant;
 use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
 use kernel::hil::kv_system;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -99,8 +99,11 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                     buf.len().min(unhashed_key.len());
 
                                                 // Copy the data into the static buffer
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                unhashed_key
+                                                    .get(..static_buffer_len)
+                                                    .unwrap()
+                                                    .copy_to_slice(&mut buf[..static_buffer_len])
+                                                    .unwrap();
 
                                                 Ok(())
                                             })
@@ -139,8 +142,11 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                     buf.len().min(unhashed_key.len());
 
                                                 // Copy the data into the static buffer
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                unhashed_key
+                                                    .get(..static_buffer_len)
+                                                    .unwrap()
+                                                    .copy_to_slice(&mut buf[..static_buffer_len])
+                                                    .unwrap();
 
                                                 Ok(())
                                             })
@@ -159,8 +165,11 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 static_buffer_len = buf.len().min(value.len());
 
                                                 // Copy the data into the static buffer
-                                                value[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                value
+                                                    .get(..static_buffer_len)
+                                                    .unwrap()
+                                                    .copy_to_slice(&mut buf[..static_buffer_len])
+                                                    .unwrap();
 
                                                 Ok(())
                                             })
@@ -202,8 +211,11 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                     buf.len().min(unhashed_key.len());
 
                                                 // Copy the data into the static buffer
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                                unhashed_key
+                                                    .get(..static_buffer_len)
+                                                    .unwrap()
+                                                    .copy_to_slice(&mut buf[..static_buffer_len])
+                                                    .unwrap();
 
                                                 Ok(())
                                             })
@@ -288,9 +300,12 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
                                         let data_len = data.len();
 
                                         if data_len < static_buffer_len {
-                                            data.copy_from_slice(&buf[..data_len]);
+                                            data.copy_from_slice(&buf[..data_len]).unwrap();
                                         } else {
-                                            data[..static_buffer_len].copy_from_slice(&buf);
+                                            data.get(..static_buffer_len)
+                                                .unwrap()
+                                                .copy_from_slice(&buf)
+                                                .unwrap();
                                         }
                                         Ok(())
                                     })

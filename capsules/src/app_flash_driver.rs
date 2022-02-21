@@ -26,7 +26,7 @@ use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -99,11 +99,11 @@ impl<'a> AppFlash<'a> {
                                     .take()
                                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                                         let length = cmp::min(buffer.len(), app_buffer.len());
-                                        let d = &app_buffer[0..length];
+                                        let d = &app_buffer.get(0..length).unwrap();
                                         for (i, c) in
                                             buffer.as_mut()[0..length].iter_mut().enumerate()
                                         {
-                                            *c = d[i].get();
+                                            *c = d.get(i).unwrap().get();
                                         }
 
                                         self.driver.write(buffer, flash_address, length)
@@ -159,11 +159,11 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
                                     } else {
                                         // Copy contents to internal buffer and write it.
                                         let length = cmp::min(buffer.len(), app_buffer.len());
-                                        let d = &app_buffer[0..length];
+                                        let d = &app_buffer.get(0..length).unwrap();
                                         for (i, c) in
                                             buffer.as_mut()[0..length].iter_mut().enumerate()
                                         {
-                                            *c = d[i].get();
+                                            *c = d.get(i).unwrap().get();
                                         }
 
                                         if let Ok(()) =

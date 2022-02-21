@@ -109,7 +109,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCo
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::{Frequency, Ticks};
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::copy_slice::CopyOrErr;
@@ -268,7 +268,7 @@ impl App {
                             let adv_data_len =
                                 cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
                             let adv_data_corrected =
-                                adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
+                                adv_data.get(..adv_data_len).ok_or(ErrorCode::SIZE)?;
                             let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
                             {
                                 let (header, payload) = kernel_tx.split_at_mut(2);
@@ -286,7 +286,9 @@ impl App {
 
                                 let (adva, data) = payload.split_at_mut(6);
                                 adva.copy_from_slice_or_err(&self.address)?;
-                                adv_data_corrected.copy_to_slice(&mut data[..adv_data_len]);
+                                adv_data_corrected
+                                    .copy_to_slice(&mut data[..adv_data_len])
+                                    .unwrap();
                             }
                             let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
                             ble.radio
@@ -496,8 +498,10 @@ where
                         .get_readwrite_processbuffer(rw_allow::SCAN_BUFFER)
                         .and_then(|scan_buffer| {
                             scan_buffer.mut_enter(|userland| {
-                                userland[0..len as usize]
-                                    .copy_from_slice_or_err(&buf[0..len as usize])
+                                userland
+                                    .get(0..len as usize)
+                                    .unwrap()
+                                    .copy_from_slice(&buf[0..len as usize])
                                     .is_ok()
                             })
                         })

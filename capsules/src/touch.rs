@@ -18,7 +18,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
-use kernel::processbuffer::WriteableProcessBuffer;
+use kernel::processbuffer::{ProcessSliceIndex, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -261,20 +261,32 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                         // one touch entry is 8 bytes long
                                         let offset = event_index * 8;
                                         if buffer.len() > event_index + 8 {
-                                            buffer[offset].set(event.id as u8);
-                                            buffer[offset + 1].set(event_status as u8);
-                                            buffer[offset + 2].set((event.x & 0xFF) as u8);
-                                            buffer[offset + 3].set(((event.x & 0xFFFF) >> 8) as u8);
-                                            buffer[offset + 4].set((event.y & 0xFF) as u8);
-                                            buffer[offset + 5].set(((event.y & 0xFFFF) >> 8) as u8);
-                                            buffer[offset + 6].set(
+                                            buffer.get(offset).unwrap().set(event.id as u8);
+                                            buffer.get(offset + 1).unwrap().set(event_status as u8);
+                                            buffer
+                                                .get(offset + 2)
+                                                .unwrap()
+                                                .set((event.x & 0xFF) as u8);
+                                            buffer
+                                                .get(offset + 3)
+                                                .unwrap()
+                                                .set(((event.x & 0xFFFF) >> 8) as u8);
+                                            buffer
+                                                .get(offset + 4)
+                                                .unwrap()
+                                                .set((event.y & 0xFF) as u8);
+                                            buffer
+                                                .get(offset + 5)
+                                                .unwrap()
+                                                .set(((event.y & 0xFFFF) >> 8) as u8);
+                                            buffer.get(offset + 6).unwrap().set(
                                                 if let Some(size) = event.size {
                                                     size as u8
                                                 } else {
                                                     0
                                                 },
                                             );
-                                            buffer[offset + 7].set(
+                                            buffer.get(offset + 7).unwrap().set(
                                                 if let Some(pressure) = event.pressure {
                                                     pressure as u8
                                                 } else {

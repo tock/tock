@@ -144,7 +144,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
                         .get_readwrite_processbuffer(rw_allow::RECV)
                         .and_then(|recv| {
                             recv.mut_enter(|dest| {
-                                dest.copy_from_slice(buffer);
+                                dest.copy_from_slice(buffer).unwrap();
                             })
                         });
 
@@ -239,7 +239,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                                         CommandReturn::failure(ErrorCode::RESERVE),
                                         |buf| {
                                             // Copy the data into the static buffer
-                                            data.copy_to_slice(buf);
+                                            data.copy_to_slice(buf).unwrap();
 
                                             let _ = usb.send_buffer(buf);
                                             CommandReturn::success()
@@ -359,7 +359,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                                                 CommandReturn::failure(ErrorCode::RESERVE),
                                                 |buf| {
                                                     // Copy the data into the static buffer
-                                                    data.copy_to_slice(buf);
+                                                    data.copy_to_slice(buf).unwrap();
 
                                                     let _ = usb.send_buffer(buf);
                                                     CommandReturn::success()

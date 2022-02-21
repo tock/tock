@@ -25,7 +25,7 @@ use core::cmp;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -308,7 +308,7 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                             // Copy over data to app buffer.
                             self.rx_buffer.map_or(0, |buffer| {
                                 for idx in 0..max_len {
-                                    rb[idx].set(buffer[idx]);
+                                    rb.get(idx).unwrap().set(buffer[idx]);
                                 }
                                 max_len
                             })
