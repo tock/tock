@@ -920,7 +920,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
                             }
-                        } else if read_buf[0] == ('\x08' as u8) {
+                        } else if read_buf[0] == ('\x08' as u8) || read_buf[0] == ('\x7F' as u8) {
                             if index > 0 {
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
