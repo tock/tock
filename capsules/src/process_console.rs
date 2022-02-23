@@ -326,9 +326,10 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         );
         let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
-        let _ = self.write_bytes(b"Welcome to the process console.\n");
-        let _ = self
-            .write_bytes(b"Valid commands are: help status list stop start fault process kernel\n");
+        let _ = self.write_bytes(b"Welcome to the process console.\r\n");
+        let _ = self.write_bytes(
+            b"Valid commands are: help status list stop start fault process kernel\r\n",
+        );
         self.prompt();
     }
 
@@ -511,7 +512,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "  {:?}\t{:<20}{:6}{:10}{:17}{:10}  {:?}{:5}/{}\n",
+                                    "  {:?}\t{:<20}{:6}{:10}{:17}{:10}  {:?}{:5}/{}\r\n",
                                     process_id,
                                     pname,
                                     process.debug_timeslice_expiration_count(),
@@ -558,10 +559,11 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         let clean_str = s.trim();
 
                         if clean_str.starts_with("help") {
-                            let _ = self.write_bytes(b"Welcome to the process console.\n");
+                            let _ = self.write_bytes(b"Welcome to the process console.\r\n");
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self
-                                .write_bytes(b"help status list stop start fault process kernel\n");
+                            let _ = self.write_bytes(
+                                b"help status list stop start fault process kernel\r\n",
+                            );
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -573,7 +575,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} resumed.\n", name),
+                                                format_args!("Process {} resumed.\r\n", name),
                                             );
 
                                             let _ = self.write_bytes(
@@ -593,7 +595,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} stopped\n", proc_name),
+                                                format_args!("Process {} stopped\r\n", proc_name),
                                             );
 
                                             let _ = self.write_bytes(
@@ -613,7 +615,10 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} now faulted\n", proc_name),
+                                                format_args!(
+                                                    "Process {} now faulted\r\n",
+                                                    proc_name
+                                                ),
                                             );
 
                                             let _ = self.write_bytes(
@@ -625,7 +630,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         } else if clean_str.starts_with("list") {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Dropped Upcalls  ");
-                            let _ = self.write_bytes(b"Restarts    State  Grants\n");
+                            let _ = self.write_bytes(b"Restarts    State  Grants\r\n");
 
                             // Count the number of current processes.
                             let mut count = 0;
@@ -646,7 +651,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "Total processes: {}\n",
+                                    "Total processes: {}\r\n",
                                     info.number_loaded_processes(&self.capability)
                                 ),
                             );
@@ -655,7 +660,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "Active processes: {}\n",
+                                    "Active processes: {}\r\n",
                                     info.number_active_processes(&self.capability)
                                 ),
                             );
@@ -664,7 +669,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "Timeslice expirations: {}\n",
+                                    "Timeslice expirations: {}\r\n",
                                     info.timeslice_expirations(&self.capability)
                                 ),
                             );
@@ -726,8 +731,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             self.writer_state.replace(WriterState::KernelStart);
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self
-                                .write_bytes(b"help status list stop start fault process kernel\n");
+                            let _ = self.write_bytes(
+                                b"help status list stop start fault process kernel\r\n",
+                            );
                         }
                     }
                     Err(_e) => {
