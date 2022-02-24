@@ -319,7 +319,7 @@ Attendees:
    think it should be in at least a separate crate or separate repository that
    takes much more freedom than `libtock-rs` should about implementing
    heavyweight abstractions.
- * Johnathan: I don't think it should be a separate crate, as there are some
+ * Johnathan: I don't think it should be a separate repository, as there are some
    blurred things between there, like does dynamic memory allocation belong in
    `libtock-rs` or does it belong in that crate? That has much more tie-in with
    the runtime than it is optional in `libtock-rs`. I'm not sure if a separate
