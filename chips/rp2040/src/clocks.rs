@@ -1038,11 +1038,11 @@ impl Clocks {
         (((source_freq as u64) << 8) / freq as u64) as u32
     }
 
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn loop_3_cycles(&self, clock: Clock) {
         if self.get_frequency(clock) > 0 {
             let _delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
-            #[cfg(target_arch = "arm")]
             unsafe {
                 asm! (
                     "1:",
@@ -1052,6 +1052,11 @@ impl Clocks {
                 );
             }
         }
+    }
+
+    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    fn loop_3_cycles(&self, _clock: Clock) {
+        unimplemented!()
     }
 
     pub fn configure_gpio_out(
