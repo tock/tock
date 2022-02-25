@@ -18,8 +18,6 @@ pub mod pwrctrl;
 pub mod stimer;
 pub mod uart;
 
-use core::arch::asm;
-
 use cortexm4::{
     generic_isr, hard_fault_handler, initialize_ram_jump_to_main, scb, svc_handler,
     systick_handler, unhandled_interrupt,
@@ -78,6 +76,7 @@ pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn init() {
+    use core::arch::asm;
     let cache_ctrl = crate::cachectrl::CacheCtrl::new();
     cache_ctrl.enable_cache();
 

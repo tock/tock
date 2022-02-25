@@ -25,8 +25,6 @@ pub use cortexm0::generic_isr;
 pub use cortexm0::hard_fault_handler;
 pub use cortexm0::systick_handler;
 
-use core::arch::asm;
-
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user(
@@ -45,6 +43,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
+    use core::arch::asm;
     asm!(
         "
   ldr r0, 100f // EXC_RETURN_MSP

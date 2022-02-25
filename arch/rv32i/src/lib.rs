@@ -5,7 +5,6 @@
 #![feature(asm_sym, const_fn_trait_bound, naked_functions)]
 #![no_std]
 
-use core::arch::asm;
 use core::fmt::Write;
 
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -56,6 +55,7 @@ extern "C" {
 #[export_name = "_start"]
 #[naked]
 pub extern "C" fn _start() {
+    use core::arch::asm;
     unsafe {
         asm! ("
             // Set the global pointer register using the variable defined in the
@@ -192,6 +192,7 @@ pub extern "C" fn _start_trap() {
 #[export_name = "_start_trap"]
 #[naked]
 pub extern "C" fn _start_trap() {
+    use core::arch::asm;
     unsafe {
         asm!(
             "
@@ -439,6 +440,7 @@ pub extern "C" fn _start_trap() {
 /// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
+    use core::arch::asm;
     let res;
     asm!(
     "

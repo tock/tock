@@ -1,6 +1,5 @@
 //! High-level setup and interrupt mapping for the chip.
 
-use core::arch::asm;
 use core::fmt::Write;
 use kernel;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -385,6 +384,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
+    use core::arch::asm;
     unsafe {
         // According to the Ibex user manual:
         // [NMI] has interrupt ID 31, i.e., it has the highest priority of all

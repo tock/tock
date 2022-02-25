@@ -1,5 +1,4 @@
 use crate::rcc;
-use core::arch::asm;
 use core::cell::Cell;
 use kernel::deferred_call::DeferredCall;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
@@ -264,6 +263,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map(|bank| bank.reg.set(addr));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
+            use core::arch::asm;
             asm!("dsb 0xf");
         }
     }
@@ -273,6 +273,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map(|bank| bank.ram.set(data));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
+            use core::arch::asm;
             asm!("dsb 0xf");
         }
     }

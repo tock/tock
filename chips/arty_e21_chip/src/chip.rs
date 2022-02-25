@@ -1,4 +1,3 @@
-use core::arch::asm;
 use core::fmt::Write;
 use kernel;
 use kernel::debug;
@@ -110,6 +109,7 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     /// valid for platforms with a CLIC.
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn configure_trap_handler(&self) {
+        use core::arch::asm;
         asm!(
             "
             // The csrw instruction writes a Control and Status Register (CSR)

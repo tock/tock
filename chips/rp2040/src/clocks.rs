@@ -1,4 +1,3 @@
-use core::arch::asm;
 use core::cell::Cell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
@@ -1045,6 +1044,7 @@ impl Clocks {
             let _delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
             #[cfg(target_arch = "arm")]
             unsafe {
+                use core::arch::asm;
                 asm! (
                     "1:",
                     "subs {0}, #1",

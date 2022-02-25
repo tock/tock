@@ -1,6 +1,5 @@
 //! High-level setup and interrupt mapping for the chip.
 
-use core::arch::asm;
 use core::fmt::Write;
 
 use kernel;
@@ -300,6 +299,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
+    use core::arch::asm;
     unsafe {
         // Below are 32 (non-compressed) jumps to cover the entire possible
         // range of vectored traps.
