@@ -59,7 +59,14 @@ allows a process to do something else if needed (e.g. for compatibility
 with some other standard of exit codes).
 
 Accordingly, the core kernel MUST NOT assume any semantic meaning for completion
-codes or take actions based on their values besides printing error messages.
+codes or take actions based on their values besides printing error messages
+unless
+
+- there is a specification of a particular application's completion code space
+  written in a TRD, and
+
+- the kernel can reliably identify that application and associate it with this
+  specification.
 While there are common and conventional uses of certain values, applications
 are not required to follow these and may assign their own semantic meanings
 to values.
