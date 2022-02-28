@@ -54,4 +54,5 @@ mod otbn;
 mod rsa;
 mod rsa_4096;
 mod sip_hash;
+mod spi_host;
 mod tickv_test;
