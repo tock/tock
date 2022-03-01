@@ -27,20 +27,26 @@ use crate::{RegisterLongName, UIntLike};
 /// implementing [`Readable`](crate::interfaces::Readable),
 /// [`Writeable`](crate::interfaces::Writeable) and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable).
+///
+/// `T` should be a `UIntLike` and `R` should be a `RegisterLongName`. Because
+/// `new` is a `const` function, we cannot add type constraints for `T` and `R`
+/// until `feature(const_fn_trait_bound)` is stabilized.
 #[derive(Copy, Clone)]
-pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = ()> {
+pub struct LocalRegisterCopy<T, R = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
-impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
+impl<T, R> LocalRegisterCopy<T, R> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
             value: value,
             associated_register: PhantomData,
         }
     }
+}
 
+impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     /// Get the raw register value
     #[inline]
     pub fn get(&self) -> T {

@@ -145,15 +145,19 @@ impl<T: UIntLike, R: RegisterLongName, W: RegisterLongName> Writeable for Aliase
 /// [`Readable`], [`Writeable`] and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable) traits are
 /// implemented.
+///
+/// `T` should be a `UIntLike` and `R` should be a `RegisterLongName`. Because
+/// `new` is a `const` function, we cannot add type constraints for `T` and `R`
+/// until `feature(const_fn_trait_bound)` is stabilized.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
 #[repr(transparent)]
-pub struct InMemoryRegister<T: UIntLike, R: RegisterLongName = ()> {
+pub struct InMemoryRegister<T, R = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
 }
 
-impl<T: UIntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+impl<T, R> InMemoryRegister<T, R> {
     pub const fn new(value: T) -> Self {
         InMemoryRegister {
             value: UnsafeCell::new(value),

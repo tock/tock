@@ -73,13 +73,17 @@ use crate::{RegisterLongName, UIntLike};
 /// Specific section of a register.
 ///
 /// For the Field, the mask is unshifted, ie. the LSB should always be set.
-pub struct Field<T: UIntLike, R: RegisterLongName> {
+///
+/// `T` should be a `UIntLike` and `R` should be a `RegisterLongName`. Because
+/// `new` is a `const` function, we cannot add type constraints for `T` and `R`
+/// until `feature(const_fn_trait_bound)` is stabilized.
+pub struct Field<T, R> {
     pub mask: T,
     pub shift: usize,
     associated_register: PhantomData<R>,
 }
 
-impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
+impl<T, R> Field<T, R> {
     pub const fn new(mask: T, shift: usize) -> Field<T, R> {
         Field {
             mask: mask,
@@ -87,7 +91,9 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
             associated_register: PhantomData,
         }
     }
+}
 
+impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     #[inline]
     pub fn read(self, val: T) -> T {
         (val & (self.mask << self.shift)) >> self.shift
@@ -190,8 +196,12 @@ Field_impl_for!(usize);
 ///
 /// For the FieldValue, the masks and values are shifted into their actual
 /// location in the register.
+///
+/// `T` should be a `UIntLike` and `R` should be a `RegisterLongName`. Because
+/// `new` is a `const` function, we cannot add type constraints for `T` and `R`
+/// until `feature(const_fn_trait_bound)` is stabilized.
 #[derive(Copy, Clone)]
-pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
+pub struct FieldValue<T, R> {
     mask: T,
     pub value: T,
     associated_register: PhantomData<R>,
@@ -202,7 +212,7 @@ macro_rules! FieldValue_impl_for {
         // Necessary to split the implementation of new() out because the bitwise
         // math isn't treated as const when the type is generic.
         // Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
-        impl<R: RegisterLongName> FieldValue<$type, R> {
+        impl<R> FieldValue<$type, R> {
             pub const fn new(mask: $type, shift: usize, value: $type) -> Self {
                 FieldValue {
                     mask: mask << shift,
