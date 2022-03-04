@@ -1044,6 +1044,7 @@ impl Clocks {
             let _delay_cyc: u32 = self.get_frequency(Clock::System) / self.get_frequency(clock) + 1;
             #[cfg(target_arch = "arm")]
             unsafe {
+                use core::arch::asm;
                 asm! (
                     "1:",
                     "subs {0}, #1",

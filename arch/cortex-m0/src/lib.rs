@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(asm, asm_sym, naked_functions)]
+#![feature(asm_sym, naked_functions)]
 #![no_std]
 
 // Re-export the base generic cortex-m functions here as they are
@@ -35,6 +35,7 @@ pub unsafe extern "C" fn generic_isr() {
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
+    use core::arch::asm;
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
@@ -130,6 +131,7 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
+    use core::arch::asm;
     asm!(
         "
     // Set thread mode to privileged to switch back to kernel mode.
@@ -161,6 +163,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
+    use core::arch::asm;
     asm!(
         "
   ldr r0, 200f // EXC_RETURN_MSP
@@ -201,6 +204,7 @@ pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const u8,
     process_regs: &mut [usize; 8],
 ) -> *mut u8 {
+    use core::arch::asm;
     asm!("
     // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
     // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
@@ -323,6 +327,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
 /// can mix `asm!()` and Rust. We separate this logic to not have to write the
 /// entire fault handler entirely in assembly.
 unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kernel_stack: u32) {
+    use core::arch::asm;
     if kernel_stack != 0 {
         kernel_hardfault(faulting_stack);
     } else {
@@ -385,6 +390,7 @@ unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kern
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
+    use core::arch::asm;
     // If `kernel_stack` is non-zero, then hard-fault occurred in
     // kernel, otherwise the hard-fault occurred in user.
     asm!("

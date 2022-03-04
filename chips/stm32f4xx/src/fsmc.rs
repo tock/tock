@@ -263,6 +263,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map(|bank| bank.reg.set(addr));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
+            use core::arch::asm;
             asm!("dsb 0xf");
         }
     }
@@ -272,6 +273,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map(|bank| bank.ram.set(data));
         #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
+            use core::arch::asm;
             asm!("dsb 0xf");
         }
     }

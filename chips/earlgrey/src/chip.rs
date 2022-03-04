@@ -401,6 +401,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
+    use core::arch::asm;
     unsafe {
         // According to the Ibex user manual:
         // [NMI] has interrupt ID 31, i.e., it has the highest priority of all

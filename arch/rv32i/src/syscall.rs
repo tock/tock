@@ -230,6 +230,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
+        use core::arch::asm;
         // We need to ensure that the compiler does not reorder
         // kernel memory writes to after the userspace context switch
         // to ensure we provide a consistent memory view of
