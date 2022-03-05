@@ -22,11 +22,9 @@
 //!         board_kernel.create_grant(&grant_cap), &mut APP_FLASH_BUFFER));
 //! ```
 
-use core::cmp;
-
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::processbuffer::{ProcessSliceIndex, ReadableProcessBuffer};
+use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -98,15 +96,9 @@ impl<'a> AppFlash<'a> {
                                 self.buffer
                                     .take()
                                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                        let length = cmp::min(buffer.len(), app_buffer.len());
-                                        let d = &app_buffer.get(0..length).unwrap();
-                                        for (i, c) in
-                                            buffer.as_mut()[0..length].iter_mut().enumerate()
-                                        {
-                                            *c = d.get(i).unwrap().get();
-                                        }
+                                        let copied_length = app_buffer.copy_to_slice_min(buffer);
 
-                                        self.driver.write(buffer, flash_address, length)
+                                        self.driver.write(buffer, flash_address, copied_length)
                                     })
                             })
                         })
@@ -158,16 +150,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
                                         false
                                     } else {
                                         // Copy contents to internal buffer and write it.
-                                        let length = cmp::min(buffer.len(), app_buffer.len());
-                                        let d = &app_buffer.get(0..length).unwrap();
-                                        for (i, c) in
-                                            buffer.as_mut()[0..length].iter_mut().enumerate()
-                                        {
-                                            *c = d.get(i).unwrap().get();
-                                        }
+                                        let copied_length = app_buffer.copy_to_slice_min(buffer);
 
                                         if let Ok(()) =
-                                            self.driver.write(buffer, flash_address, length)
+                                            self.driver.write(buffer, flash_address, copied_length)
                                         {
                                             true
                                         } else {
