@@ -485,23 +485,20 @@ impl hil::spi::SpiMaster for SpiHost {
         // upto-date base addresses of spi_host. Otherwise, a store-access
         // will occur in qemu-ci at board init.
         // This should be removed when qemu is patched.
-        #[cfg(feature = "skip")]
-        {
-            let regs = self.registers;
-            self.event_enable();
-            self.err_enable();
+        let regs = self.registers;
+        self.event_enable();
+        self.err_enable();
 
-            self.enable_interrupts();
+        self.enable_interrupts();
 
-            self.enable_spi_host();
+        self.enable_spi_host();
 
-            //TODO: I think this is bug in OT, where the `first` word written
-            // (while TXEMPTY) to TX_DATA is dropped/ignored and not added to TX_FIFO (TXQD = 0).
-            // The following write (0x00), works around this `bug`.
-            // Could be Verilator specific
-            regs.tx_data.write(tx_data::DATA.val(0x00));
-            assert_eq!(regs.status.read(status::TXQD), 0);
-        }
+        //TODO: I think this is bug in OT, where the `first` word written
+        // (while TXEMPTY) to TX_DATA is dropped/ignored and not added to TX_FIFO (TXQD = 0).
+        // The following write (0x00), works around this `bug`.
+        // Could be Verilator specific
+        regs.tx_data.write(tx_data::DATA.val(0x00));
+        assert_eq!(regs.status.read(status::TXQD), 0);
         Ok(())
     }
 
