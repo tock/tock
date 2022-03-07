@@ -358,8 +358,11 @@ impl SpiHost {
 
     /// Enable both event/err IRQ
     fn enable_interrupts(&self) {
-        let regs = self.registers;
-        regs.intr_enable
+        self.registers
+            .intr_state
+            .write(intr::ERROR::SET + intr::SPI_EVENT::SET);
+        self.registers
+            .intr_enable
             .modify(intr::ERROR::SET + intr::SPI_EVENT::SET);
     }
 
