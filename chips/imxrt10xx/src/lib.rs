@@ -4,7 +4,6 @@
 
 #![crate_name = "imxrt10xx"]
 #![crate_type = "rlib"]
-#![feature(const_fn_trait_bound)]
 #![no_std]
 
 pub mod chip;

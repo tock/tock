@@ -85,7 +85,7 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
-#![feature(core_intrinsics, const_fn_trait_bound)]
+#![feature(core_intrinsics)]
 #![warn(unreachable_pub)]
 #![no_std]
 
