@@ -12,6 +12,7 @@ use crate::ipc;
 use crate::kernel::Kernel;
 use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 use tock_tbf::types::CommandPermissions;
@@ -96,19 +97,6 @@ impl fmt::Debug for ProcessId {
     }
 }
 
-/// The read permissions the process has
-/// If the permissions exist this will be: `Some((num_ids, ids))`
-/// Where num_ids is the number of `read_ids` and `ids` is an array of the
-/// `read_ids`.
-pub type ReadPermissions = Option<(usize, [u32; 8])>;
-
-/// The write permissions the process has
-/// If the permissions exist this will be: `Some((write_id, (num_ids, ids)))`
-/// Where `write_id` is the ID all new data should be stored with and
-/// num_ids is the number of `access_ids` and `ids` is an array of the
-/// `access_ids`.
-pub type WritePermissions = Option<(u32, (usize, [u32; 8]))>;
-
 impl ProcessId {
     /// Create a new `ProcessId` object based on the app identifier and its
     /// index in the processes array.
@@ -181,20 +169,12 @@ impl ProcessId {
         })
     }
 
-    /// Get the storage read permissions for the process
-    /// This describes what the process is allowed to read
-    /// Returns `None` if `read_ids` are not included.
-    pub fn get_read_permissions(&self) -> ReadPermissions {
+    /// Get the storage permissions for the process. These permissions indicate
+    /// what the process is allowed to read and write. Returns `None` if the
+    /// process has no storage permissions.
+    pub fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
         self.kernel
-            .process_map_or(None, *self, |process| process.get_read_permissions())
-    }
-
-    /// Get the storage write permissions for the process
-    /// This describes what the process is allowed to delete or modify
-    /// Returns `None` if `access_ids` are not included.
-    pub fn get_write_permissions(&self) -> WritePermissions {
-        self.kernel
-            .process_map_or(None, *self, |process| process.get_write_permissions())
+            .process_map_or(None, *self, |process| process.get_storage_permissions())
     }
 }
 
@@ -429,15 +409,8 @@ pub trait Process {
     /// The offset indicates the multiple of 64 command numbers to get permissions for.
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
 
-    /// Get the storage read permissions for the process
-    /// This describes what the process is allowed to read
-    /// Returns `None` if `read_ids` are not included.
-    fn get_read_permissions(&self) -> ReadPermissions;
-
-    /// Get the storage write permissions for the process
-    /// This describes what the process is allowed to delete or modify
-    /// Returns `None` if `access_ids` are not included.
-    fn get_write_permissions(&self) -> WritePermissions;
+    /// Get the storage permissions for the process.
+    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions>;
 
     // mpu
 

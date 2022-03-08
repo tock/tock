@@ -706,7 +706,7 @@ impl TbfHeader {
 
     /// Get the process `write_id`.
     /// Returns `None` if a `write_id` is not included.
-    pub fn get_write_id(&self) -> Option<u32> {
+    pub fn get_persistent_acl_write_id(&self) -> Option<u32> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
                 Some(persistent_acls) => Some(persistent_acls.write_id),
@@ -716,48 +716,29 @@ impl TbfHeader {
         }
     }
 
-    /// Get the number of `read_ids`.
+    /// Get the number of valid `read_ids` and the `read_ids`.
     /// Returns `None` if a `read_ids` is not included.
-    pub fn num_read_ids(&self) -> Option<usize> {
+    pub fn get_persistent_acl_read_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.read_length.into()),
+                Some(persistent_acls) => {
+                    Some((persistent_acls.read_length.into(), persistent_acls.read_ids))
+                }
                 _ => None,
             },
             _ => None,
         }
     }
 
-    /// Get the `read_ids`.
-    /// Returns `None` if a `read_ids` is not included.
-    pub fn get_read_ids(&self) -> Option<[u32; NUM_PERSISTENT_ACLS]> {
-        match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.read_ids),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// Get the number of `access_ids`.
+    /// Get the number of valid `access_ids` and the `access_ids`.
     /// Returns `None` if a `access_ids` is not included.
-    pub fn num_access_ids(&self) -> Option<usize> {
+    pub fn get_persistent_acl_access_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.access_length.into()),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// Get the `access_ids`.
-    /// Returns `None` if a `access_ids` is not included.
-    pub fn get_access_ids(&self) -> Option<[u32; NUM_PERSISTENT_ACLS]> {
-        match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.access_ids),
+                Some(persistent_acls) => Some((
+                    persistent_acls.access_length.into(),
+                    persistent_acls.access_ids,
+                )),
                 _ => None,
             },
             _ => None,
