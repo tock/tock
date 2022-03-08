@@ -840,6 +840,37 @@ impl<'a> ReadableProcessSlice<'a> {
         }
     }
 
+    /// Copy as much of the contents of a [`ReadableProcessSlice`] into a
+    /// mutable slice reference as possible.
+    ///
+    /// This will copy up to `self.len()` or `dest.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_to_slice_min(&self, dest: &mut [u8]) -> usize {
+        self.iter().zip(dest.iter_mut()).fold(0, |i, (src, dst)| {
+            *dst = src.get();
+            i + 1
+        })
+    }
+
+    /// Copy the contents of a [`ReadableProcessSlice`] into a mutable slice
+    /// reference, up to `max_len` bytes.
+    ///
+    /// This will copy up to `self.len()` or `dest.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_to_slice_upto(&self, dest: &mut [u8], max_len: usize) -> usize {
+        self.iter()
+            .take(max_len)
+            .zip(dest.iter_mut())
+            .fold(0, |i, (src, dst)| {
+                *dst = src.get();
+                i + 1
+            })
+    }
+
     /// Length of the [`WriteableProcessSlice`] memory region, in bytes.
     pub fn len(&self) -> usize {
         self.len
@@ -1162,6 +1193,37 @@ impl<'a> WriteableProcessSlice<'a> {
         }
     }
 
+    /// Copy as much of the contents of a [`WriteableProcessSlice`] into a
+    /// mutable slice reference as possible.
+    ///
+    /// This will copy up to `self.len()` or `dest.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_to_slice_min(&self, dest: &mut [u8]) -> usize {
+        self.iter().zip(dest.iter_mut()).fold(0, |i, (src, dst)| {
+            *dst = src.get();
+            i + 1
+        })
+    }
+
+    /// Copy the contents of a [`WriteableProcessSlice`] into a mutable slice
+    /// reference, up to `max_len` bytes.
+    ///
+    /// This will copy up to `self.len()` or `dest.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_to_slice_upto(&self, dest: &mut [u8], max_len: usize) -> usize {
+        self.iter()
+            .take(max_len)
+            .zip(dest.iter_mut())
+            .fold(0, |i, (src, dst)| {
+                *dst = src.get();
+                i + 1
+            })
+    }
+
     /// Copy the contents of a slice of bytes into a [`WriteableProcessSlice`].
     ///
     /// The length of `src` must be the same as `self`, otherwise an error of
@@ -1185,6 +1247,37 @@ impl<'a> WriteableProcessSlice<'a> {
                 .for_each(|(src, dst)| dst.set(*src));
             Ok(())
         }
+    }
+
+    /// Copy as much of the contents of a passed slice reference into the
+    /// [`WriteableProcessSlice`].
+    ///
+    /// This will copy up to `self.len()` or `src.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_from_slice_min(&self, src: &[u8]) -> usize {
+        self.iter().zip(src.iter()).fold(0, |i, (dst, src)| {
+            dst.set(*src);
+            i + 1
+        })
+    }
+
+    /// Copy the contents of a passed slice reference into the
+    /// [`WriteableProcessSlice`], up to `max_len` bytes.
+    ///
+    /// This will copy up to `self.len()` or `src.len()` bytes, whichever is
+    /// smaller.
+    ///
+    /// This returns the number of bytes copied.
+    pub fn copy_from_slice_upto(&self, src: &[u8], max_len: usize) -> usize {
+        self.iter()
+            .take(max_len)
+            .zip(src.iter())
+            .fold(0, |i, (dst, src)| {
+                dst.set(*src);
+                i + 1
+            })
     }
 
     /// Length of the [`WriteableProcessSlice`] memory region, in bytes.
