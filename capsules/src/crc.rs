@@ -147,10 +147,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
 
     fn do_next_input<'b>(&self, data: ReadableProcessSlice<'b>, len: usize) -> usize {
         let count = self.crc_buffer.take().map_or(0, |kbuffer| {
-            let copy_len = cmp::min(len, kbuffer.len());
-            for i in 0..copy_len {
-                kbuffer[i] = data.get(i).unwrap().get();
-            }
+            let copy_len = data.copy_to_slice_upto(kbuffer, len);
             if copy_len > 0 {
                 let mut leasable = LeasableMutableBuffer::new(kbuffer);
                 leasable.slice(0..copy_len);
@@ -466,11 +463,11 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                     .get_readonly_processbuffer(ro_allow::BUFFER)
                                     .and_then(|buffer| {
                                         buffer.enter(|app_slice| {
-                                            self.do_next_input(
-                                                app_slice
-                                                    .get(self.app_buffer_written.get()..)
-                                                    .unwrap(),
-                                                remaining,
+                                            app_slice.get(self.app_buffer_written.get()..).map_or(
+                                                0,
+                                                |app_slice| {
+                                                    self.do_next_input(app_slice, remaining)
+                                                },
                                             )
                                         })
                                     })
