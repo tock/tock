@@ -416,7 +416,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             .get_persistent_acl_read_ids()
             .unwrap_or((0, [0; 8]));
 
-        let (write_count, write_storage_ids) = self
+        let (access_count, access_storage_ids) = self
             .header
             .get_persistent_acl_access_ids()
             .unwrap_or((0, [0; 8]));
@@ -426,8 +426,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         Some(storage_permissions::StoragePermissions::new(
             read_count,
             read_storage_ids,
-            write_count,
-            write_storage_ids,
+            access_count,
+            access_storage_ids,
             write_id,
         ))
     }

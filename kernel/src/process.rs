@@ -410,6 +410,8 @@ pub trait Process {
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
 
     /// Get the storage permissions for the process.
+    ///
+    /// Returns `None` if the process has no storage permissions.
     fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions>;
 
     // mpu
