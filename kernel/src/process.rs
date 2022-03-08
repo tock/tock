@@ -12,6 +12,7 @@ use crate::ipc;
 use crate::kernel::Kernel;
 use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 use tock_tbf::types::CommandPermissions;
@@ -166,6 +167,14 @@ impl ProcessId {
             let addresses = process.get_addresses();
             (addresses.flash_non_protected_start, addresses.flash_end)
         })
+    }
+
+    /// Get the storage permissions for the process. These permissions indicate
+    /// what the process is allowed to read and write. Returns `None` if the
+    /// process has no storage permissions.
+    pub fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
+        self.kernel
+            .process_map_or(None, *self, |process| process.get_storage_permissions())
     }
 }
 
@@ -399,6 +408,11 @@ pub trait Process {
     /// they are returned as a 64 bit bitmask for sequential command numbers.
     /// The offset indicates the multiple of 64 command numbers to get permissions for.
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
+
+    /// Get the storage permissions for the process.
+    ///
+    /// Returns `None` if the process has no storage permissions.
+    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions>;
 
     // mpu
 

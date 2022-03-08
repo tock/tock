@@ -114,7 +114,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        value: &'static [u8],
+        value: &'static mut [u8],
     ) {
         match result {
             Ok(()) => {
