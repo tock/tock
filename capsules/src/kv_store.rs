@@ -34,7 +34,7 @@
 use core::cell::Cell;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::kv_system::{self, KVSystem};
-use kernel::process::{ReadPermissions, WritePermissions};
+use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -91,8 +91,8 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     value: TakeCell<'static, [u8]>,
     header_value: TakeCell<'static, [u8]>,
 
-    valid_ids: Cell<(usize, [u32; 8])>,
-    next_valid_ids: Cell<(usize, [u32; 8])>,
+    valid_ids: OptionalCell<StoragePermissions>,
+    next_valid_ids: OptionalCell<StoragePermissions>,
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a, KVStore<'a, K, T>>
@@ -118,8 +118,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             unhashed_key: TakeCell::empty(),
             value: TakeCell::empty(),
             header_value: TakeCell::new(header_value),
-            valid_ids: Cell::new((0, [0; 8])),
-            next_valid_ids: Cell::new((0, [0; 8])),
+            valid_ids: OptionalCell::empty(),
+            next_valid_ids: OptionalCell::empty(),
         }
     }
 
@@ -131,24 +131,15 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         &self,
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
-        perms: ReadPermissions,
+        perms: StoragePermissions,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
-        let (num_read_ids, read_ids) = perms.unwrap_or((0, [0; 8]));
-
-        if num_read_ids > 8 {
-            return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
-        }
-
         if self.mux_kv.operation.is_none() {
             if self.hashed_key.is_none() {
                 return Err((unhashed_key, value, Err(ErrorCode::NOMEM)));
             }
 
             self.mux_kv.operation.set(Operation::Get);
-
-            let (_num, mut buf) = self.valid_ids.get();
-            buf[0..num_read_ids].copy_from_slice(&read_ids[0..num_read_ids]);
-            self.valid_ids.set((num_read_ids, buf));
+            self.valid_ids.set(perms);
 
             if let Some(Err((unhashed_key, e))) = self.hashed_key.take().map(|buf| {
                 if let Err((unhashed_key, hashed_key, e)) =
@@ -173,10 +164,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
                 self.next_operation.set(Operation::Get);
                 self.unhashed_key.replace(unhashed_key);
                 self.value.replace(value);
-
-                let (_num, mut buf) = self.next_valid_ids.get();
-                buf[0..num_read_ids].copy_from_slice(&read_ids[0..num_read_ids]);
-                self.next_valid_ids.set((num_read_ids, buf));
+                self.next_valid_ids.set(perms);
 
                 Ok(())
             } else {
@@ -190,9 +178,12 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         unhashed_key: &'static mut [u8],
         value: &'static mut [u8],
         length: usize,
-        perms: WritePermissions,
+        perms: StoragePermissions,
     ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
-        let (write_id, (_, _)) = perms.unwrap_or((0, (0, [0; 8])));
+        let write_id = match perms.get_write_id() {
+            Some(write_id) => write_id,
+            None => return Err((unhashed_key, value, Err(ErrorCode::INVAL))),
+        };
 
         // Create the Tock header and ensure we have space to fit it
         let header = KeyHeader {
@@ -248,22 +239,14 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     pub fn delete(
         &self,
         unhashed_key: &'static mut [u8],
-        perms: WritePermissions,
+        perms: StoragePermissions,
     ) -> Result<(), (&'static mut [u8], Result<(), ErrorCode>)> {
-        let (_, (num_access_ids, acces_ids)) = perms.unwrap_or((0, (0, [0; 8])));
-
-        if num_access_ids > 8 {
-            return Err((unhashed_key, Err(ErrorCode::SIZE)));
-        }
-
         if self.mux_kv.operation.is_none() {
             if self.hashed_key.is_none() {
                 return Err((unhashed_key, Err(ErrorCode::NOMEM)));
             }
 
-            let (_num, mut buf) = self.valid_ids.get();
-            buf[0..num_access_ids].copy_from_slice(&acces_ids[0..num_access_ids]);
-            self.valid_ids.set((num_access_ids, buf));
+            self.valid_ids.set(perms);
 
             self.mux_kv.operation.set(Operation::Delete);
 
@@ -287,10 +270,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             if self.next_operation.is_none() {
                 self.next_operation.set(Operation::Delete);
                 self.unhashed_key.replace(unhashed_key);
-
-                let (_num, mut buf) = self.next_valid_ids.get();
-                buf[0..num_access_ids].copy_from_slice(&acces_ids[0..num_access_ids]);
-                self.next_valid_ids.set((num_access_ids, buf));
+                self.next_valid_ids.set(perms);
 
                 Ok(())
             } else {
@@ -429,15 +409,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType + core::fmt::Debug> kv_sy
                 let header = KeyHeader::new_from_buf(ret_buf);
 
                 if header.version == HEADER_VERSION {
-                    let (num, access_ids) = self.valid_ids.get();
-
-                    for i in 0..num {
-                        // If we have permission to read an ID that the data was written with
-                        if access_ids[i] == header.write_id {
-                            access_allowed = true;
-                            break;
-                        }
-                    }
+                    self.valid_ids.map(|perms| {
+                        access_allowed = perms.check_write_permission(header.write_id);
+                    });
                 }
 
                 self.header_value.replace(ret_buf);
@@ -468,15 +442,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType + core::fmt::Debug> kv_sy
                     let header = KeyHeader::new_from_buf(ret_buf);
 
                     if header.version == HEADER_VERSION {
-                        let (num, read_ids) = self.valid_ids.get();
-
-                        for i in 0..num {
-                            // If we have permission to read an ID that the data was written with
-                            if read_ids[i] == header.write_id {
-                                read_allowed = true;
-                                break;
-                            }
-                        }
+                        self.valid_ids.map(|perms| {
+                            read_allowed = perms.check_read_permission(header.write_id);
+                        });
 
                         if read_allowed {
                             ret_buf.copy_within(
@@ -569,11 +537,8 @@ impl<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType>
                     node.hashed_key.take().map(|hashed_key| {
                         match op {
                             Operation::Get => {
-                                let (_num, mut buf) = node.valid_ids.get();
-                                let (next_num, next_buf) = node.next_valid_ids.get();
-                                buf.copy_from_slice(&next_buf);
-                                node.valid_ids.set((next_num, buf));
-                                node.next_valid_ids.set((0, next_buf));
+                                node.valid_ids.insert(node.next_valid_ids.take());
+                                node.next_valid_ids.clear();
 
                                 if let Err((unhashed_key, hashed_key, e)) =
                                     self.kv.generate_key(unhashed_key, hashed_key)

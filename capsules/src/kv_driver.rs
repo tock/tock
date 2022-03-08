@@ -111,11 +111,12 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 if let Some(Some(Err(e))) =
                                     self.data_buffer.take().map(|data_buffer| {
                                         self.dest_buffer.take().map(|dest_buffer| {
-                                            if let Err((data, dest, e)) = self.kv.get(
-                                                data_buffer,
-                                                dest_buffer,
-                                                appid.get_read_permissions(),
-                                            ) {
+                                            let perms = appid
+                                                .get_storage_permissions()
+                                                .ok_or(ErrorCode::INVAL)?;
+                                            if let Err((data, dest, e)) =
+                                                self.kv.get(data_buffer, dest_buffer, perms)
+                                            {
                                                 self.data_buffer.replace(data);
                                                 self.dest_buffer.replace(dest);
                                                 return Err(e);
@@ -170,11 +171,14 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 if let Some(Some(Err(e))) =
                                     self.data_buffer.take().map(|data_buffer| {
                                         self.dest_buffer.take().map(|dest_buffer| {
+                                            let perms = appid
+                                                .get_storage_permissions()
+                                                .ok_or(ErrorCode::INVAL)?;
                                             if let Err((data, dest, e)) = self.kv.set(
                                                 data_buffer,
                                                 dest_buffer,
                                                 static_buffer_len,
-                                                appid.get_write_permissions(),
+                                                perms,
                                             ) {
                                                 self.data_buffer.replace(data);
                                                 self.dest_buffer.replace(dest);
@@ -208,9 +212,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                     .unwrap_or(Err(ErrorCode::RESERVE))?;
 
                                 if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
-                                    if let Err((data, e)) =
-                                        self.kv.delete(data_buffer, appid.get_write_permissions())
-                                    {
+                                    let perms =
+                                        appid.get_storage_permissions().ok_or(ErrorCode::INVAL)?;
+                                    if let Err((data, e)) = self.kv.delete(data_buffer, perms) {
                                         self.data_buffer.replace(data);
                                         return Err(e);
                                     }
