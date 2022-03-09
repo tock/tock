@@ -4,7 +4,7 @@ use kernel::deferred_call::DeferredCall;
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
@@ -258,24 +258,36 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map_or(None, |bank| Some(bank.ram.get()))
     }
 
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_reg(&self, bank: FsmcBanks, addr: u16) {
+        use kernel::utilities::registers::interfaces::Writeable;
         self.bank[bank as usize].map(|bank| bank.reg.set(addr));
-        #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             use core::arch::asm;
             asm!("dsb 0xf");
         }
     }
 
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_data(&self, bank: FsmcBanks, data: u16) {
+        use kernel::utilities::registers::interfaces::Writeable;
         self.bank[bank as usize].map(|bank| bank.ram.set(data));
-        #[cfg(all(target_arch = "arm", target_os = "none"))]
         unsafe {
             use core::arch::asm;
             asm!("dsb 0xf");
         }
+    }
+
+    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    fn write_reg(&self, _bank: FsmcBanks, _addr: u16) {
+        unimplemented!()
+    }
+
+    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    fn write_data(&self, _bank: FsmcBanks, _data: u16) {
+        unimplemented!()
     }
 }
 
