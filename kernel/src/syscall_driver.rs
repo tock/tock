@@ -179,9 +179,10 @@ impl From<process::Error> for CommandReturn {
 /// and what they represents) are specific to the peripheral system call
 /// driver.
 ///
-/// Note about subscribe: upcall subscriptions are handled entirely by the core
-/// kernel, and therefore there is no subscribe function for capsules to
-/// implement.
+/// Note about **subscribe**, **read-only allow**, and *read-write allow**
+/// syscalls:
+/// those are handled entirely by the core kernel, and there is no
+/// corresponding function for capsules to implement.
 #[allow(unused_variables)]
 pub trait SyscallDriver {
     /// System call for a process to perform a short synchronous operation

@@ -96,7 +96,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-## Allow
+## Read-Only Allow
 
   * ### Allow number: `1`
 
@@ -110,7 +110,8 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-  * ### Allow number: `2`
+## Read-Write Allow
+  * ### Allow number: `1`
 
     **Description**: Sets a shared buffer to be read into by the next read
     transaction. A shared buffer is released in two cases: if it is replaced by

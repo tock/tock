@@ -50,6 +50,9 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 /// Ids for read-only allow buffers
 mod ro_allow {
+    /// Before the allow syscall was handled by the kernel,
+    /// console used allow number "1", so to preserve compatibility
+    /// we still use allow number 1 now.
     pub const WRITE: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: usize = 2;
@@ -57,6 +60,9 @@ mod ro_allow {
 
 /// Ids for read-write allow buffers
 mod rw_allow {
+    /// Before the allow syscall was handled by the kernel,
+    /// console used allow number "1", so to preserve compatibility
+    /// we still use allow number 1 now.
     pub const READ: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: usize = 2;
