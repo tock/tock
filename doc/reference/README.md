@@ -8,6 +8,6 @@ Tock Reference Documents
 
 - **[TRD 1](trd1-trds.md)**: Tock Reference Documents
 - **[TRD 102](trd102-adc.md)**: ADC
-- **[TRD 103](trd103-adc.md)**: GPIO
-- **[TRD 104](trd104-adc.md)**: Syscalls
-- **[TRD 105](trd105-adc.md)**: Time
+- **[TRD 103](trd103-gpio.md)**: GPIO
+- **[TRD 104](trd104-syscalls.md)**: Syscalls
+- **[TRD 105](trd105-time.md)**: Time
