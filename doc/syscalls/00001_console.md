@@ -47,7 +47,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     At the end of the transaction, a callback will be delivered if the process
     has `subscribed` to read events using `subscribe number` 2.
 
-    **Argument 1**: The maximum number of bytes to write.
+    **Argument 1**: The maximum number of bytes to read.
 
     **Argument 2**: unused
 
