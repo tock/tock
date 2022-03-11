@@ -25,7 +25,7 @@
  * (General digression about how English doesn't make sense)
 
 ### Tock publication
- * Hudson: An old writeup about Tock that we revived just got accepted at EuroSys. So I'll be presenting that there
+ * Hudson: An old writeup about Tock that we revived just got accepted at EuroSec, a workshop at Eurosys. So I'll be presenting that there
 
 ### General Tock PR State
  * Brad: Probably time to look at Pull Requests. We've been over two pages for a while now, which isn't good for a project of our size. No one ever looks at the second page and we don't want things to linger. We should either move forward or decline and maybe move to an issue.
