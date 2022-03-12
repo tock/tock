@@ -551,8 +551,8 @@ pub unsafe fn main() {
     );
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-        &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],
-        &gpio_port[SPI_MX25R6435F_HOLD_PIN],
+        Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
+        Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
         &gpio_port[SPI_MX25R6435F_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
         mux_alarm,
         mux_spi,
