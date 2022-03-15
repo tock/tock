@@ -161,7 +161,7 @@ impl<'a> Console<'a> {
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
                         write.enter(|data| {
-                            for (i, c) in data[data.len() - app.write_remaining..data.len()]
+                            for (i, c) in data[app.write_len - app.write_remaining..app.write_len]
                                 .iter()
                                 .enumerate()
                             {
