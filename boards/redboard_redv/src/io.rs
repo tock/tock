@@ -10,6 +10,7 @@ use rv32i;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use crate::PROCESS_PRINTER;
 
 struct Writer {}
 
@@ -69,5 +70,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &rv32i::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }
