@@ -24,6 +24,7 @@ use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::kv_system::KVSystem;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -126,10 +127,23 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    spi_controller: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, lowrisc::spi_host::SpiHost>,
+    >,
     rng: &'static capsules::rng::RngDriver<'static>,
     aes: &'static capsules::symmetric_encryption::aes::AesDriver<
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+    >,
+    kv_driver: &'static capsules::kv_driver::KVSystemDriver<
+        'static,
+        capsules::tickv::TicKVStore<
+            'static,
+            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        [u8; 8],
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
@@ -152,8 +166,10 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
+            capsules::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
@@ -210,7 +226,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 5], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -319,9 +335,9 @@ unsafe fn setup() -> (
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
     // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET + csr::mie::mie::mext::SET);
+    csr::CSR.mie.modify(
+        csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::CLEAR + csr::mie::mie::mext::SET,
+    );
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
@@ -405,6 +421,23 @@ unsafe fn setup() -> (
 
     peripherals.i2c0.set_master_client(i2c_master);
 
+    //SPI
+    let mux_spi =
+        components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(
+                lowrisc::spi_host::SpiHost
+            ));
+
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        0,
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        lowrisc::spi_host::SpiHost
+    ));
+
     peripherals.aes.initialise(
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
@@ -481,6 +514,48 @@ unsafe fn setup() -> (
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
+
+    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
+        components::kv_store_mux_component_helper!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
+
+    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
+    let header_buf = static_init!([u8; 9], [0; 9]);
+
+    let kv_store =
+        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
+            .finalize(components::kv_store_component_helper!(
+                capsules::tickv::TicKVStore<
+                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                    capsules::sip_hash::SipHasher24<'static>,
+                >,
+                capsules::tickv::TicKVKeyType,
+            ));
+    tickv.set_client(kv_store);
+
+    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
+    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
+
+    let kv_driver = components::kv_system::KVDriverComponent::new(
+        kv_store,
+        board_kernel,
+        capsules::kv_driver::DRIVER_NUM,
+        kv_driver_data_buf,
+        kv_driver_dest_buf,
+    )
+    .finalize(components::kv_driver_component_helper!(
+        capsules::tickv::TicKVStore<
+            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        capsules::tickv::TicKVKeyType,
+    ));
 
     // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
     // to the OTBN hardware will hang.
@@ -592,7 +667,9 @@ unsafe fn setup() -> (
             rng,
             lldb: lldb,
             i2c_master,
+            spi_controller,
             aes,
+            kv_driver,
             syscall_filter,
             scheduler,
             scheduler_timer,

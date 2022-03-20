@@ -98,10 +98,10 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type ContextSwitchCallback = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
     type WatchDog = ();
-    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         &self

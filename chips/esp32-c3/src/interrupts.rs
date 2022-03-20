@@ -1,4 +1,4 @@
-//! Named interrupts for the ESP32C3 chip.
+//! Named interrupts for the ESP32-C3 chip.
 //! This matches what the HAL uses
 
 #![allow(dead_code)]

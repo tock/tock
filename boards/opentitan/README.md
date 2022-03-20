@@ -20,7 +20,7 @@ Programming
 -----------
 
 Tock on OpenTitan requires
-lowRISC/opentitan@937d707e7b1a666bf2a06bbc2c774553d140497a or newer. In
+lowRISC/opentitan@199d45626f8a7ae2aef5d9ff73793bf9a4233711 or newer. In
 general it is recommended that users start with the latest OpenTitan bitstream
 and if that results in issues try the one mentioned above.
 
@@ -109,22 +109,85 @@ export OPENTITAN_TREE=/home/opentitan/
 
 then you can run `make flash` or `make test-hardware` to use the board.
 
-### Compiling the Kernel for FPGA or Verilator
+Verilator
+---------
 
 Opentitan is supported on both an FPGA and in Verilator. Slightly different
 versions of the EarlGrey chip implementation are required for the different
-platforms. By default the kernel is compiled for the FPGA. To compile for
-Verilator, run:
+platforms. By default the kernel is compiled for the FPGA.
+
+## Setting up Verilator
+
+For a full guide see the official OpenTitan documentation: https://docs.opentitan.org/doc/ug/getting_started_verilator/
+
+A quick summary on how to do this is included below though
+
+### Build FuseSoc
+
+```shell
+git clone https://github.com/lowRISC/opentitan.git
+cd opentitan
+git checkout <OpenTitan_SHA>
+pip3 install --user -r python-requirements.txt
+
+LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
+```
+### Build Boot Rom/OTP Image
+Build only the targets we care about.
+```shell
+ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
+ninja -C build-out sw/device/otp_img/otp_img_sim_verilator.vmem
+```
+
+### Test Verilator
+
+```shell
+build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
+    --meminit=rom,./build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
+    --meminit=otp,./build-out/sw/device/otp_img/otp_img_sim_verilator.vmem
+
+# Read the output, you want to attach screen to UART
+screen /dev/pts/4
+
+# Wait a few minutes
+# You should eventually see messages in screen
+# Once you see "waiting for SPI input..." you know it works
+```
+
+### Build and Run Tock
+
+To compile Tock for Verilator, run:
 
 ```shell
 make BOARD_CONFIGURATION=sim_verilator
 ```
 
-To explicitly specify the FPGA, run:
+You will then need to generate a vmem file:
 
 ```shell
-make BOARD_CONFIGURATION=fpga_nexysvideo
+srec_cat \
+    target/riscv32imc-unknown-none-elf/release/earlgrey-cw310.bin \
+    --binary --offset 0 --byte-swap 8 --fill 0xff \
+    -within target/riscv32imc-unknown-none-elf/release/earlgrey-cw310.bin\
+    -binary -range-pad 8 --output binary.64.vmem --vmem 64
 ```
+
+And Verilator can be run with:
+
+```shell
+${OPENTITAN_TREE}/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
+    --meminit=rom,${OPENTITAN_TREE}/build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
+    --meminit=flash,./binary.64.vmem \
+    --meminit=otp,${OPENTITAN_TREE}/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+````
+
+You can also use the Tock Make target to automatically build Tock and run it with Verilator
+
+```shell
+make BOARD_CONFIGURATION=sim_verilator verilator
+```
+
+In both cases expect Verilator to run for tens of minutes before you see anything.
 
 Programming Apps
 ----------------
@@ -183,6 +246,51 @@ $ make flash-opentitan
 $ tar xf target/riscv32imac-unknown-none-elf/tab/opentitan/hello_world.tab
 $ cd [TOCK_ROOT]/boards/opentitan
 $ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
+```
+
+QEMU GDB Debugging [**earlgrey-cw310**]
+------------------
+
+GDB can be used for debugging with QEMU. This can be useful when debugging a particular application/kernel. 
+
+Start by installing the respective version of gdb.
+
+**Arch**:
+```shell
+$ sudo pacman -S riscv32-elf-gdb    
+```
+**Ubuntu**:
+```shell
+$ sudo apt-get install gdb-multiarch
+```
+
+In the board directory, QEMU can be started in a suspended state with gdb ready to be connected. 
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> qemu-gdb
+```
+or with an app ready to be loaded.
+```shell
+$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app-gdb
+```
+In a seperate shell, start gdb
+
+**Arch**
+```shell
+$ riscv32-elf-gdb [/path/to/tock.elf]
+> target remote:1234            #1234 is the specified default port
+```
+
+**Ubuntu**
+```shell
+$ gdb-multiarch [/path/to/tock.elf]
+> set arch riscv
+> target remote:1234            #1234 is the specified default port
+```
+
+Once attached, standard gdb functionality is avaliable. Additional debug symbols can be added with.
+```
+add-symbol-file <tock.elf>
+add-symbol-file <app.elf>
 ```
 
 Unit tests
@@ -259,3 +367,11 @@ Finished garbage collection
 trivial assertion...
     [ok]
 ```
+
+The tests can also be run on Verilator with:
+
+```shell
+make BOARD_CONFIGURATION=sim_verilator test-verilator
+```
+
+Note that the Verilator tests can take hours to complete.

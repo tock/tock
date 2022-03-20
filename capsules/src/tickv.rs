@@ -123,7 +123,7 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>> {
     operation: Cell<Operation>,
     next_operation: Cell<Operation>,
 
-    value_buffer: Cell<Option<&'static [u8]>>,
+    value_buffer: Cell<Option<&'static mut [u8]>>,
     key_buffer: TakeCell<'static, [u8; 8]>,
     ret_buffer: TakeCell<'static, [u8]>,
     unhashed_key_buf: TakeCell<'static, [u8]>,
@@ -401,8 +401,15 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: &'static [u8],
-    ) -> Result<(), (&'static mut Self::K, &'static [u8], Result<(), ErrorCode>)> {
+        value: &'static mut [u8],
+    ) -> Result<
+        (),
+        (
+            &'static mut [u8; 8],
+            &'static mut [u8],
+            Result<(), kernel::ErrorCode>,
+        ),
+    > {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
@@ -412,13 +419,13 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err(e) => match e {
+                    Err((buf, e)) => match e {
                         tickv::error_codes::ErrorCode::ReadNotReady(_)
                         | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
                             self.key_buffer.replace(key);
                             Ok(())
                         }
-                        _ => Err((key, value, Err(ErrorCode::FAIL))),
+                        _ => Err((key, buf.unwrap(), Err(ErrorCode::FAIL))),
                     },
                 }
             }

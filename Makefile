@@ -516,7 +516,7 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=af531756d25541a1b3b3d9a14e72e7fedd941a2e
+QEMU_COMMIT_HASH=9d662a6b22a0838a85c5432385f35db2488a33a5
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support

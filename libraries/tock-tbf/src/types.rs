@@ -4,6 +4,8 @@ use core::convert::TryInto;
 use core::fmt;
 use core::mem::size_of;
 
+const NUM_PERSISTENT_ACLS: usize = 8;
+
 /// Error when parsing just the beginning of the TBF header. This is only used
 /// when establishing the linked list structure of apps installed in flash.
 pub enum InitialTbfParseError {
@@ -672,7 +674,7 @@ pub struct TbfHeaderV2 {
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
-    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<8>>,
+    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<NUM_PERSISTENT_ACLS>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
@@ -875,6 +877,47 @@ impl TbfHeader {
                 _ => CommandPermissions::NoPermsAtAll,
             },
             _ => CommandPermissions::NoPermsAtAll,
+        }
+    }
+
+    /// Get the process `write_id`.
+    /// Returns `None` if a `write_id` is not included.
+    pub fn get_persistent_acl_write_id(&self) -> Option<u32> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => Some(persistent_acls.write_id),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the number of valid `read_ids` and the `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    pub fn get_persistent_acl_read_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => {
+                    Some((persistent_acls.read_length.into(), persistent_acls.read_ids))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the number of valid `access_ids` and the `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    pub fn get_persistent_acl_access_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => Some((
+                    persistent_acls.access_length.into(),
+                    persistent_acls.access_ids,
+                )),
+                _ => None,
+            },
+            _ => None,
         }
     }
 

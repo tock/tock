@@ -109,6 +109,7 @@ pub mod process;
 pub mod process_checking;
 pub mod processbuffer;
 pub mod scheduler;
+pub mod storage_permissions;
 pub mod syscall;
 pub mod upcall;
 pub mod utilities;

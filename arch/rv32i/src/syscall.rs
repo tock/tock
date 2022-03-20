@@ -164,7 +164,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (_, r) = state.regs.split_at_mut(R_A0);
 
         // This comes with the assumption that the respective
-        // registers are stored at monotonically increasing indicies
+        // registers are stored at monotonically increasing indices
         // in the register slice
         let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
@@ -230,6 +230,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
+        use core::arch::asm;
         // We need to ensure that the compiler does not reorder
         // kernel memory writes to after the userspace context switch
         // to ensure we provide a consistent memory view of

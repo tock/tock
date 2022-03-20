@@ -62,6 +62,9 @@ to learn about the hardware platforms Tock supports. Also check out the
 [Tock Book](https://book.tockos.org) for a step-by-step introduction to getting
 Tock up and running.
 
+A book on how to use Tock with the [micro:bit v2](boards/microbit_v2) and
+[Raspberry Pi Pico](boards/raspberry_pi_pico) boards is [Getting Started with Secure Embedded Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8).
+
 Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
 [C](https://github.com/tock/libtock-c).

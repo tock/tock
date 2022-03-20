@@ -29,7 +29,8 @@ register_structs! {
         (0x1C => err_bits: ReadOnly<u32, ERR_BITS::Register>),
         (0x20 => fatal_alert_cause: ReadOnly<u32, FATAL_ALERT_CAUSE::Register>),
         (0x24 => insn_cnt: ReadWrite<u32>),
-        (0x28 => _reserved0),
+        (0x28 => load_checksum: ReadWrite<u32>),
+        (0x2C => _reserved0),
         (0x4000 => imem: [ReadWrite<u32>; 1024]),
         (0x5000 => _reserved1),
         (0x8000 => dmem: [ReadWrite<u32>; 1024]),
@@ -47,9 +48,9 @@ register_bitfields![u32,
     ],
     CMD [
         CMD OFFSET(0) NUMBITS(8) [
-            EXECUTE = 0x01,
-            SEC_WIPE_DMEM = 0x02,
-            SEC_WIPE_IMEM = 0x03,
+            EXECUTE = 0xD8,
+            SEC_WIPE_DMEM = 0xC3,
+            SEC_WIPE_IMEM = 0x1E,
         ],
     ],
     CTRL [
@@ -127,7 +128,7 @@ impl<'a> Otbn<'a> {
 
             for i in 0..(out_buf.len() / 4) {
                 let idx = i * 4;
-                let d = self.registers.dmem[self.copy_address.get() + i]
+                let d = self.registers.dmem[self.copy_address.get() / 4 + i]
                     .get()
                     .to_ne_bytes();
 
