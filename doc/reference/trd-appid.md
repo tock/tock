@@ -57,7 +57,6 @@ The Tock kernel ensures that each running process has a unique
 application identifier; if two userspace binaries have the same AppID,
 the kernel will only permit one of them to run at any time.
 
-
 Most of the complications in AppIDs stem from the fact that they are a
 general mechanism used for many different use cases. Therefore, the
 exact structure and semantics of application credentials can vary
@@ -679,7 +678,9 @@ store this information.
 The `Compress` trait provides a mechanism to map an Application
 Identifier to a small (32-bit) integer called a Short ID. Short IDs
 can be used throughout the kernel as an identifier for security
-policies. For example, suppose that a device wants to grant access to
+policies. 
+
+For example, suppose that a device wants to grant access to
 all Userspace Binaries signed by a certain 3072-bit RSA key K and has
 no other security policies. The Credentials Checking Policy only
 accepts `Rsa3072KeyWithID` credentials with key K. The `Compress`
@@ -688,10 +689,14 @@ credentials. Access control systems within the kernel can define their
 policies in terms of these identifiers, such that they can check
 access by comparing 32-bit integers rather than 384-byte keys.
 
+The 32-bit value MUST be non-zero. `ShortID` uses `core::num::NonZeroU32`
+so that an `Option<ShortID>` can be 32 bits in size, with 0 reserved
+for `None`.
+
 ```rust
 #[derive(Clone, Copy, Eq)]
 struct ShortID {
-    id: u32
+    id: core::num::NonZeroU32
 }
 
 pub trait Compress {
@@ -704,16 +709,14 @@ default action if the Process Checker does not wish to assign it any
 meaningful identifier that might allow additional access.  A return
 value of `None` semantically means that the process's Application
 Credentials or other state do not map to any known security group or
-set of privileges. A`Some` result denotes the credentials map to a
-known security group or set of privileges.
+set of privileges. A`Some` result means the credentials map to a known
+security group or set of privileges.
 
 Generally, the Process Checker that implements `AppCredentialsChecker`
 and `AppIdentification` also implements `Compress`. This allows it to
 share copies of public keys or other credentials that it uses to make
 decisions, reducing flash space dedicated to these constants. Doing so
-also makes it less likely that the two are inconsistent, e.g., that
-Application Credentials are correctly mapped to security policies via
-`Compress`.
+also makes it less likely that the two are inconsistent.
  
 `ShortID` values MUST be locally unique among running processes.  The
 mapping between Global Application Identifiers and `ShortID` values

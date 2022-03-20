@@ -72,7 +72,7 @@ pub trait AppIdentification {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ShortID {
-    id: u32,
+    id: core::num::NonZeroU32,
 }
 
 pub trait Compress {

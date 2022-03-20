@@ -21,6 +21,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
 use crate::process::{ProcessAddresses, ProcessSizes};
+use crate::process_checking;
 use crate::process_load::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -99,6 +100,10 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// table.
     process_id: Cell<ProcessId>,
 
+    /// An application ShortID, generated from process loading and
+    /// checking, which denotes the security identity of this process.
+    app_id: OptionalCell<process_checking::ShortID>,
+    
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -234,6 +239,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
+    fn short_app_id(&self) -> Option<process_checking::ShortID> {
+        self.app_id.extract()
+    }
+    
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -273,12 +282,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
+        short_app_id: Option<process_checking::ShortID>,
         _capability: &dyn capabilities::ProcessApprovalCapability,
     ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Unchecked {
             Err(ErrorCode::NODEVICE)
         } else {
             self.state.update(State::Unstarted);
+            self.app_id.insert(short_app_id);
             credentials.map(|c| self.credentials.replace(c));
             Ok(())
         }
@@ -1706,6 +1717,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process
             .process_id
             .set(ProcessId::new(kernel, unique_identifier, index));
+        process.app_id = OptionalCell::empty();
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);

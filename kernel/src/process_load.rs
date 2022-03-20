@@ -293,7 +293,7 @@ fn check_processes(
         }
         for proc in procs.iter() {
             let res = proc.map(|p| {
-                p.mark_credentials_pass(None, &capability)
+                p.mark_credentials_pass(None, None, &capability)
                     .or(Err(ProcessLoadError::InternalError))?;
                 kernel
                     .submit_process(p)
@@ -416,7 +416,7 @@ impl ProcessCheckerMachine {
                                         p.get_process_name()
                                     );
                                 }
-                                p.mark_credentials_pass(None, &capability)
+                                p.mark_credentials_pass(None, None, &capability)
                                     .or(Err(ProcessLoadError::InternalError))?;
                                 self.kernel
                                     .submit_process(p)
@@ -567,7 +567,10 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.mark_credentials_pass(Some(credentials), &capability);
+                    let short_id = self.verifier.map_or(None, |v| {
+                        v.to_short_id(&credentials)
+                    });
+                    let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
                     let _res = self.kernel.submit_process(p);
                 });
                 self.process.set(self.process.get() + 1);
