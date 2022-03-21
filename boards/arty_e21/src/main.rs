@@ -167,7 +167,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
