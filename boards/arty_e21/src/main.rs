@@ -263,7 +263,7 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
     .run();*/
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
