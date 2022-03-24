@@ -401,6 +401,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         &self,
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
+        app_memory_start: Option<*const u8>,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
@@ -444,7 +445,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         }
 
         // The region should start as close as possible to the start of the unallocated memory.
-        let region_start = unallocated_memory_start as usize;
+        let region_start = app_memory_start.unwrap_or(unallocated_memory_start) as usize;
 
         // Make sure the region fits in the unallocated memory.
         if region_start + region_size

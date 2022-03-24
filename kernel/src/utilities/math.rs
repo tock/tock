@@ -131,4 +131,33 @@ pub fn log10(x: f32) -> f32 {
     value_ln * fract_base_ln
 }
 
+/// Finds the smallest range where `start` and `end` lie within
+/// one power of 2 of each other.
+/// Returns the start of the region and the power.
+pub fn extend_to_pow2(start: usize, end: usize) -> (usize, usize) {
+    // The highest bit that differs is the smallest possible power of 2
+    // separating the numbers.
+    let diff = start ^ end;
+    let size = if diff.is_power_of_two() {
+        diff
+    } else {
+        closest_power_of_two(diff as u32) as usize
+    };
+    // Clearing lowest bits aligns with the power of 2
+    let start = start & !(size - 1);
+    (start, size)
+}
+
 //-----------------------------------------------------------
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn extend() {
+        assert_eq!(extend_to_pow2(0, 0x36), (0, 0x40));
+        assert_eq!(extend_to_pow2(0x1f, 0x36), (0, 0x40));
+        assert_eq!(extend_to_pow2(0x21, 0x36), (0x20, 0x20));
+        assert_eq!(extend_to_pow2(0xff, 0x101), (0x0, 0x200));
+    }
+}

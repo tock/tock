@@ -1402,56 +1402,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Minimum memory size for the process.
         let min_total_memory_size = min_process_ram_size + initial_kernel_memory_size;
 
-        // Check if this process requires a fixed memory start address. If so,
-        // try to adjust the memory region to work for this process.
-        //
-        // Right now, we only support skipping some RAM and leaving a chunk
-        // unused so that the memory region starts where the process needs it
-        // to.
-        let remaining_memory = if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram()
-        {
-            // The process does have a fixed address.
-            if fixed_memory_start == remaining_memory.as_ptr() as u32 {
-                // Address already matches.
-                remaining_memory
-            } else if fixed_memory_start > remaining_memory.as_ptr() as u32 {
-                // Process wants a memory address farther in memory. Try to
-                // advance the memory region to make the address match.
-                let diff = (fixed_memory_start - remaining_memory.as_ptr() as u32) as usize;
-                if diff > remaining_memory.len() {
-                    // We ran out of memory.
-                    let actual_address =
-                        remaining_memory.as_ptr() as u32 + remaining_memory.len() as u32 - 1;
-                    let expected_address = fixed_memory_start;
-                    return Err(ProcessLoadError::MemoryAddressMismatch {
-                        actual_address,
-                        expected_address,
-                    });
-                } else {
-                    // Change the memory range to start where the process
-                    // requested it.
-                    remaining_memory
-                        .get_mut(diff..)
-                        .ok_or(ProcessLoadError::InternalError)?
-                }
-            } else {
-                // Address is earlier in memory, nothing we can do.
-                let actual_address = remaining_memory.as_ptr() as u32;
-                let expected_address = fixed_memory_start;
-                return Err(ProcessLoadError::MemoryAddressMismatch {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        } else {
-            remaining_memory
-        };
-
         // Determine where process memory will go and allocate MPU region for
         // app-owned memory.
         let (app_memory_start, app_memory_size) = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr() as *const u8,
             remaining_memory.len(),
+            tbf_header.get_fixed_address_ram().map(|a| a as *const u8),
             min_total_memory_size,
             min_process_memory_size,
             initial_kernel_memory_size,
@@ -1497,7 +1453,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
             let actual_address = app_memory.as_ptr() as u32;
             let expected_address = fixed_memory_start;
-            if actual_address != expected_address {
+            if actual_address > expected_address {
                 return Err(ProcessLoadError::MemoryAddressMismatch {
                     actual_address,
                     expected_address,
@@ -1507,14 +1463,17 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Set the initial process-accessible memory to the amount specified by
         // the context switch implementation.
-        let initial_app_brk = app_memory.as_ptr().add(min_process_memory_size);
-
+        let process_start = match tbf_header.get_fixed_address_ram() {
+            Some(start) => start as *const u8,
+            None => app_memory.as_ptr(),
+        };
+        let initial_app_brk = process_start.add(min_process_memory_size);
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
         let initial_allow_high_water_mark = app_memory.as_ptr();
 
         // Set up initial grant region.
-        let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
+        let mut kernel_memory_break = app_memory.as_ptr().add(app_memory.len());
 
         // Now that we know we have the space we can setup the grant
         // pointers.
@@ -1745,6 +1704,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
             self.mem_start(),
             self.memory_len,
+            self.header.get_fixed_address_ram().map(|a| a as *const u8),
             self.memory_len, //we want exactly as much as we had before restart
             min_process_memory_size,
             initial_kernel_memory_size,
@@ -1767,7 +1727,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // app_brk is set based on minimum syscall size above the start of
         // memory.
-        let app_brk = app_mpu_mem_start.wrapping_add(min_process_memory_size);
+        let app_brk = self
+            .header
+            .get_fixed_address_ram()
+            .map_or(app_mpu_mem_start, |a| a as *const u8);
         self.app_break.set(app_brk);
         // kernel_brk is calculated backwards from the end of memory the size of
         // the initial kernel data structures.

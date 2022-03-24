@@ -201,7 +201,9 @@ pub trait MPU {
     ///
     /// - `unallocated_memory_start`:   start of unallocated memory
     /// - `unallocated_memory_size`:    size of unallocated memory
+    /// - `app_memory_start`: lowest address that must be covered by the region, if any
     /// - `min_memory_size`:            minimum total memory to allocate for process
+    /// If app_memory_start is given, the minimum total memory after it
     /// - `initial_app_memory_size`:    initial size of app-owned memory
     /// - `initial_kernel_memory_size`: initial size of kernel-owned memory
     /// - `permissions`:                permissions for the MPU region
@@ -218,6 +220,7 @@ pub trait MPU {
         &self,
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
+        app_memory_start: Option<*const u8>,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
@@ -228,10 +231,15 @@ pub trait MPU {
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
         );
-        if memory_size > unallocated_memory_size {
+        let start = app_memory_start.map_or(unallocated_memory_start, |start| {
+            cmp::max(start, unallocated_memory_start)
+        });
+        if start as usize + memory_size
+            > unallocated_memory_start as usize + unallocated_memory_size
+        {
             None
         } else {
-            Some((unallocated_memory_start, memory_size))
+            Some((start, memory_size))
         }
     }
 
