@@ -11,10 +11,6 @@ write a buffer, a process must share the buffer using `allow` then initiate the
 write using a `command` call. It may also using `subscribe` to receive a
 callback when the write has completed.
 
-Once the write has completed, the buffer shared with the driver is released, so
-can be deallocated by the process. This also means that it is necessary to
-share a buffer for every write transaction, even if it's the same buffer.
-
 ## Command
 
   * ### Command number: `0`
@@ -33,7 +29,10 @@ share a buffer for every write transaction, even if it's the same buffer.
     At the end of the transaction, a callback will be delivered if the process
     has `subscribed`.
 
-    **Argument 1**: The maximum number of bytes to write.
+    **Argument 1**: The maximum number of bytes to write. If this argument is
+    greater than or equal to the buffer's size, the entire buffer will be
+    written. Otherwise, the first N bytes of the buffer will be written, where N
+    is the value of this argument.
 
     **Argument 2**: unused
 
