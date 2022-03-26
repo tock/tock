@@ -118,11 +118,11 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
-    dma: &stm32f401cc::dma1::Dma1,
-    dma_streams: &'static [stm32f401cc::dma1::Stream; 8],
-    usart2: &'static stm32f401cc::usart::Usart,
+    dma: &stm32f401cc::dma::Dma1,
+    dma_streams: &'static [stm32f401cc::dma::Stream<stm32f401cc::dma::Dma1>; 8],
+    usart2: &'static stm32f401cc::usart::Usart<stm32f401cc::dma::Dma1>,
 ) {
-    use stm32f401cc::dma1::Dma1Peripheral;
+    use stm32f401cc::dma::Dma1Peripheral;
     use stm32f401cc::usart;
 
     dma.enable_clock();
@@ -213,7 +213,7 @@ unsafe fn setup_peripherals(tim2: &stm32f401cc::tim2::Tim2) {
 unsafe fn get_peripherals() -> (
     &'static mut Stm32f401ccDefaultPeripherals<'static>,
     &'static stm32f401cc::syscfg::Syscfg<'static>,
-    &'static stm32f401cc::dma1::Dma1<'static>,
+    &'static stm32f401cc::dma::Dma1<'static>,
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f401cc::rcc::Rcc, stm32f401cc::rcc::Rcc::new());
@@ -225,10 +225,12 @@ unsafe fn get_peripherals() -> (
         stm32f401cc::exti::Exti,
         stm32f401cc::exti::Exti::new(syscfg)
     );
-    let dma1 = static_init!(stm32f401cc::dma1::Dma1, stm32f401cc::dma1::Dma1::new(rcc));
+    let dma1 = static_init!(stm32f401cc::dma::Dma1, stm32f401cc::dma::Dma1::new(rcc));
+    let dma2 = static_init!(stm32f401cc::dma::Dma2, stm32f401cc::dma::Dma2::new(rcc));
+
     let peripherals = static_init!(
         Stm32f401ccDefaultPeripherals,
-        Stm32f401ccDefaultPeripherals::new(rcc, exti, dma1)
+        Stm32f401ccDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
     (peripherals, syscfg, dma1)
 }
@@ -250,7 +252,7 @@ pub unsafe fn main() {
 
     setup_dma(
         dma1,
-        &base_peripherals.dma_streams,
+        &base_peripherals.dma1_streams,
         &base_peripherals.usart2,
     );
 
