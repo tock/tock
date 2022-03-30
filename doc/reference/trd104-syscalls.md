@@ -5,10 +5,10 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why, Jett Rink <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** November 23, 2021<br/>
-**Draft-Version:** 6<br/>
+**Draft-Modified:** March 30, 2022<br/>
+**Draft-Version:** 7<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -153,6 +153,7 @@ for CortexM they are `r0`-`r3` and for RISC-V they are `a0`-`a3`.
 | Success with u64           | 131  | Return Value 0 LSB | Return Value 0 MSB |                    |
 | Success with 3 u32         | 132  | Return Value 0     | Return Value 1     | Return Value 2     |
 | Success with u32 and u64   | 133  | Return Value 0     | Return Value 1 LSB | Return Value 1 MSB |
+| Success with pointer       | 134  | Return Value 0     |                    |                    |
 
 There are many failure and success variants because
 different system calls need to pass different amounts of data. A
@@ -484,8 +485,12 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument 1        | r3       |
 
 Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
-never pass pointers: those are passed with Allow calls, as they can adjust
-memory protection to allow the kernel to access them.
+never pass pointers to the kernel: those are passed with Allow calls, as they can
+adjust memory protection to allow the kernel to access them. However, the kernel may
+return a pointer from a Command call if appropriate for that particular driver; there
+are no guarantees by the kernel about the state or accessibility of any pointers
+returned by the kernel from a Command call. Any guarantees on return values
+are the responsibility of the specific driver instance and syscall id.
 
 The return variants of Command are instance-specific. Each specific
 Command instance (combination of Driver and Command number) specifies
@@ -960,4 +965,6 @@ Amit Levy <aalevy@cs.princeton.edu>
 Leon Schuermann <leon@is.currently.online>
 
 Johnathan Van Why <jrvanwhy@google.com>
+
+Jett Rink <jettrink@google.com>
 ```
