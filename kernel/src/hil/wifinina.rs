@@ -59,6 +59,20 @@ pub struct Ssid {
     // the actual length of the SSID
     pub len: u8,
 }
+#[derive(Copy, Clone)]
+pub struct Psk {
+    // The max length of an SSID is 32
+    pub value: [u8; 63],
+
+    // the actual length of the SSID
+    pub len: u8,
+}
+
+impl Default for Psk {
+    fn default() -> Self {
+        Psk { value: [0; 63], len: 0 }
+    }
+}
 
 #[derive(Copy, Clone, Default)]
 pub struct Network {
@@ -69,14 +83,17 @@ pub struct Network {
 }
 
 /// Defines the function used for handling WiFi connections as a station
-pub trait Station {
+pub trait Station<'a> {
     // try to initiatie a connection to the `Network`
-    fn connect(&self, network: Network) -> Result<(), ErrorCode>;
+    fn connect(&self, ssid: Ssid, psk: Option<Psk>) -> Result<(), ErrorCode>;
     // try to disconnect from the network that it is currently connected to
     fn disconnect(&self) -> Result<(), ErrorCode>;
 
     // return the status
-    fn get_status(&self) -> StationStatus;
+    fn get_status(&self) -> Result<(), ErrorCode>;
+
+    fn set_client(&self, client: &'a dyn StationClient);
+    
 }
 
 /// Defines the functions used to get information about existing networks
@@ -124,7 +141,7 @@ pub trait AccessPoint {
 }
 
 pub trait StationClient {
-    fn command_complete(&self, network: Network, status: Result<StationStatus, ErrorCode>);
+    fn command_complete(&self, status: Result<StationStatus, ErrorCode>);
 }
 
 pub trait ScannerClient {

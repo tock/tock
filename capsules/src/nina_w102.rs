@@ -1,9 +1,10 @@
 use core::cell::Cell;
+use core::iter::Take;
 use kernel::debug;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{SpiMaster, SpiMasterClient};
 use kernel::hil::time::{Alarm, ConvertTicks};
-use kernel::hil::wifinina;
+use kernel::hil::wifinina::{self, Psk, Ssid, Station, StationClient};
 use kernel::hil::wifinina::{Network, Scanner, ScannerClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -26,6 +27,10 @@ enum Command {
     StartScanNetworksCmd = 0x36,
     ScanNetworksCmd = 0x27,
     GetConnStatusCmd = 0x20,
+    GetIdxRSSICmd = 0x32,
+    SetNetCmd = 0x10,
+    SetPassPhraseCmd = 0x11,
+    GetMacAddressCmd = 0x22,
 }
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum InitStatus {
@@ -41,6 +46,21 @@ enum Status {
     Receive(Command, usize, usize),
     StartScanNetworks,
     ScanNetworks,
+    GetConnStatus,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+
+pub enum ConnectionStatus {
+    Idle = 0,
+    NoSSIDAvail = 1,
+    ScanCompleted = 2,
+    Connected = 3,
+    ConnectFailed = 4,
+    ConnectionLost = 5,
+    Disconnected = 6,
+    NoShield = 255,
+    NoConnection,
 }
 
 pub struct NinaW102<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> {
@@ -55,7 +75,8 @@ pub struct NinaW102<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> {
     alarm: &'a A,
     status: Cell<Status>,
     networks: TakeCell<'static, [Network]>,
-    wifi_client: OptionalCell<&'a dyn wifinina::ScannerClient>,
+    scanner_client: OptionalCell<&'a dyn wifinina::ScannerClient>,
+    station_client: OptionalCell<&'a dyn wifinina::StationClient>,
 }
 
 impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
@@ -88,7 +109,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             alarm: alarm,
             status: Cell::new(Status::Idle),
             networks: TakeCell::new(networks),
-            wifi_client: OptionalCell::empty(),
+            scanner_client: OptionalCell::empty(),
+            station_client: OptionalCell::empty(),
         }
     }
 
@@ -103,9 +125,23 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         Ok(())
     }
 
+    pub fn number_to_connection_status(&self, status: usize) -> ConnectionStatus {
+        match status {
+            0 => ConnectionStatus::Idle,
+            1 => ConnectionStatus::NoSSIDAvail,
+            2 => ConnectionStatus::ScanCompleted,
+            3 => ConnectionStatus::Connected,
+            4 => ConnectionStatus::ConnectFailed,
+            5 => ConnectionStatus::ConnectionLost,
+            6 => ConnectionStatus::Disconnected,
+            255 => ConnectionStatus::NoShield,
+            _ => ConnectionStatus::NoConnection,
+        }
+    }
+
     pub fn get_firmware_version(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
-            self.send_command(Command::GetFwVersion, 0)
+            self.send_command(Command::GetFwVersion, &[])
         } else {
             Err(ErrorCode::BUSY)
         }
@@ -113,7 +149,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
 
     pub fn scan_networks(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle || self.status.get() == Status::ScanNetworks {
-            self.send_command(Command::ScanNetworksCmd, 0)
+            debug!("{:?}", self.status.get());
+            self.send_command(Command::ScanNetworksCmd, &[])
         } else {
             Err(ErrorCode::BUSY)
         }
@@ -121,15 +158,49 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
 
     pub fn start_scan_networks(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle || self.status.get() == Status::StartScanNetworks {
-            self.send_command(Command::StartScanNetworksCmd, 0)
+            self.send_command(Command::StartScanNetworksCmd, &[])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn get_networks_rssi(&self) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::GetIdxRSSICmd, &[])
         } else {
             Err(ErrorCode::BUSY)
         }
     }
 
     pub fn get_connection_status(&self) -> Result<(), ErrorCode> {
+        //debug!("Get conn status function");
         if self.status.get() == Status::Idle {
-            self.send_command(Command::GetConnStatusCmd, 0)
+            self.send_command(Command::GetConnStatusCmd, &[])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn get_mac_address(&self) -> Result<(), ErrorCode> {
+        //debug!("Get conn status function");
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::GetMacAddressCmd, &[&[0]])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn set_network(&self) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::SetNetCmd, &[])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn set_passphrase(&self, ssid: &[u8], psk: &[u8]) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::SetPassPhraseCmd, &[ssid, psk])
         } else {
             Err(ErrorCode::BUSY)
         }
@@ -155,7 +226,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         Err(ErrorCode::NOACK)
     }
 
-    fn send_command(&self, command: Command, num_params: u8) -> Result<(), ErrorCode> {
+    fn send_command<'b>(&self, command: Command, params: &'b [&'b [u8]]) -> Result<(), ErrorCode> {
+        debug!("Send command");
         self.wait_for_chip_ready()?;
 
         self.wait_for_chip_select()?;
@@ -165,13 +237,28 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             .map_or(Err(ErrorCode::NOMEM), |buffer| {
                 buffer[0] = START_CMD;
                 buffer[POS_CMD] = (command as u8) & !REPLY_FLAG;
-                buffer[POS_PARAM_LEN] = num_params;
-                buffer[3] = END_CMD;
+                buffer[POS_PARAM_LEN] = params.len() as u8;
+                let mut position = 3;
+                for param in params {
+                    //let mut param_bytes_pos = 0;
+                    buffer[position] = param.len() as u8;
+                    position = position + 1;
+                    for byte in *param {
+                        buffer[position] = *byte;
+                        position = position + 1;
+                    }
 
+                    //position = position + 1;
+                }
+                buffer[position] = END_CMD;
+
+                if (position % 4) != 0 {
+                    position = (position / 4) * position + 1;
+                }
                 self.spi.release_low();
 
                 self.spi
-                    .read_write_bytes(buffer, None, 4)
+                    .read_write_bytes(buffer, None, position as usize)
                     .map_err(|(err, write_buffer, _)| {
                         self.write_buffer.replace(write_buffer);
                         // read_buffer.map(|buffer| self.read_buffer.replace(buffer));
@@ -179,6 +266,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                     })?;
 
                 self.status.set(Status::Send(command));
+                debug!("command sent: {:?}", self.status.get());
 
                 Ok(())
             })
@@ -194,6 +282,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         position: usize,
         timeout: usize,
     ) -> Result<(), ErrorCode> {
+        //debug!("read byte {} {}", position, timeout);
         self.write_buffer
             .take()
             .map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -220,6 +309,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn receive_command(&self, command: Command) -> Result<(), ErrorCode> {
+        debug!("received command {:?}", command);
         self.wait_for_chip_ready()?;
 
         self.wait_for_chip_select()?;
@@ -228,6 +318,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn process_buffer(&self, command: Command) -> Result<(), ErrorCode> {
+       // debug!("Process buffer for command {:?}", command);
         self.read_buffer
             .map_or(Err(ErrorCode::NOMEM), |read_buffer| {
                 if read_buffer[0] == START_CMD {
@@ -254,8 +345,15 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                     debug!("{:?}", core::str::from_utf8(&read_buffer[4..10]));
                                     Ok(())
                                 }
-                                Command::GetConnStatusCmd => Ok(()),
+                                Command::GetConnStatusCmd => {
+                                    debug!(
+                                        "Connection status: {:?}",
+                                        (self.number_to_connection_status(read_buffer[4] as usize))
+                                    );
+                                    Ok(())
+                                }
                                 Command::StartScanNetworksCmd => {
+                                    debug!("Starts scanning");
                                     self.status.set(Status::ScanNetworks);
                                     self.alarm.set_alarm(
                                         self.alarm.now(),
@@ -265,6 +363,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                     Ok(())
                                 }
                                 Command::ScanNetworksCmd => {
+                                    debug!("Scan networks command");
                                     self.networks.map(|networks| {
                                         let mut current_position = 0;
                                         for parameter_index in 0..param_len {
@@ -298,13 +397,40 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                             }
                                             current_position = current_position + 1;
                                         }
-                                        self.wifi_client.map(|client| {
+                                        self.scanner_client.map(|client| {
                                             client.scan_done(Ok(&networks[0..param_len as usize]))
                                         });
                                     });
 
                                     Ok(())
                                 }
+
+                                Command::GetIdxRSSICmd => Ok(()),
+
+                                Command::SetNetCmd => Ok(()),
+
+                                Command::SetPassPhraseCmd => {
+                                    debug!(
+                                        "Set Phrase read buf{:?}",
+                                        core::str::from_utf8(&read_buffer)
+                                    );
+
+                                    Ok(())
+                                }
+
+                                Command::GetMacAddressCmd => {
+                                    debug!(
+                                        "MAC Address {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+                                        read_buffer[0],
+                                        read_buffer[1],
+                                        read_buffer[2],
+                                        read_buffer[3],
+                                        read_buffer[4],
+                                        read_buffer[5],
+                                    );
+                                    Ok(())
+                                }
+                                _ => Ok(()),
                             }
                         } else {
                             Err(ErrorCode::INVAL)
@@ -323,7 +449,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     fn schedule_callback_error(&self, command: Command, error: ErrorCode) {
         match command {
             Command::StartScanNetworksCmd | Command::ScanNetworksCmd => {
-                self.wifi_client.map(|client| client.scan_done(Err(error)));
+                self.scanner_client
+                    .map(|client| client.scan_done(Err(error)));
             }
             _ => {}
         }
@@ -364,6 +491,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                     self.write_buffer.replace(write_buffer);
                     read_buffer
                         .map_or(Err(ErrorCode::NOMEM), |buffer| {
+                            //debug!("byte {}", buffer[0]);
                             let byte = buffer[0];
 
                             self.one_byte_read_buffer.replace(buffer);
@@ -435,7 +563,11 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                 InitStatus::Initialized => {
                     self.gpio0.clear();
                     self.gpio0.make_input();
-                    self.status.set(Status::Idle)
+                    self.status.set(Status::Idle);
+                    let test_ssid = "Galaxy A70";
+                    let test_psk = "12345678";
+                    //self.get_mac_address();
+                     self.set_passphrase(test_ssid.as_bytes(), test_psk.as_bytes());
                 }
             },
 
@@ -443,7 +575,13 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                 let _ = self.start_scan_networks();
             }
             Status::ScanNetworks => {
+                debug!("ScanNetworks status from alarm");
                 let _ = self.scan_networks();
+            }
+
+            Status::GetConnStatus => {
+                debug!("Status get conn");
+                let _ = self.get_connection_status();
             }
 
             _ => {}
@@ -453,10 +591,36 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
 
 impl<'a, S: SpiMaster, P: Pin, A: Alarm<'static>> Scanner<'static> for NinaW102<'static, S, P, A> {
     fn scan(&self) -> Result<(), ErrorCode> {
+        debug!("Nina starts scanning");
         self.start_scan_networks()
     }
 
     fn set_client(&self, client: &'static dyn ScannerClient) {
-        self.wifi_client.set(client);
+        self.scanner_client.set(client);
+    }
+}
+
+impl<'a, S: SpiMaster, P: Pin, A: Alarm<'static>> Station<'static> for NinaW102<'static, S, P, A> {
+    // try to initiatie a connection to the `Network`
+    fn connect(&self, ssid: Ssid, psk: Option<Psk>) -> Result<(), ErrorCode> {
+        if let Some(psk) = psk.unwrap() {
+
+        }
+        self.set_passphrase(
+            &ssid.value[0..ssid.value.len()],
+            &psk.unwrap().value[0..psk.unwrap().value.len()],
+        )
+    }
+    // try to disconnect from the network that it is currently connected to
+    fn disconnect(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+
+    // return the status
+    fn get_status(&self) -> Result<(), ErrorCode> {
+        self.get_connection_status()
+    }
+    fn set_client(&self, client: &'static dyn StationClient) {
+        self.station_client.set(client);
     }
 }
