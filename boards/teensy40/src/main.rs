@@ -273,7 +273,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
 
     // LED
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(

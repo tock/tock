@@ -302,7 +302,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
