@@ -151,8 +151,10 @@ impl<'a> Sha256Software<'a> {
         let mut one_appended = false;
         let total_length = data.len();
         while data.len() >= 55 {
+            debug!("Computing SHA256 on data of length {}", data.len());
             one_appended = self.compute_block(&mut data);
         }
+        debug!("Completing last block of SHA256 on data of length {}", data.len());
         self.last_block(&mut data, one_appended, total_length);
         self.input_data.set(data);
     }
@@ -163,6 +165,8 @@ impl<'a> Sha256Software<'a> {
 
     // Returns true if the 1 was appended at the end of the data.
     fn compute_block(&self, buf: &mut LeasableBuffer<'static, u8>) -> bool {
+
+        debug!("Sha256Software: computing block");
         let mut one_appended = false;
         let mut message_schedule: [u32; 64] = [0; 64];
         let len = cmp::min(buf.len(), 64);
@@ -176,11 +180,11 @@ impl<'a> Sha256Software<'a> {
         // Append the 1 if needed
         if len < 64 {
             let shift = (3 - (len % 4)) * 8;
-            message_schedule[len / 4] |= 1 << shift;
+            message_schedule[len / 4] |= 0x80 << shift;
             one_appended = true;
         }
         self.perform_sha(&mut message_schedule);
-        buf.slice(0..len);
+        buf.slice(len..buf.len());
         one_appended
     }
 
@@ -191,6 +195,7 @@ impl<'a> Sha256Software<'a> {
                   total_length: usize) {
         let mut message_schedule: [u32; 64] = [0; 64];
         let len = cmp::min(buf.len(), 55);
+        debug!("Sha256Software: last block: {} bytes: 1 appended: {}", len, one_appended);
         for i in 0..len {
             let shift = (3 - (i % 4)) * 8;
             message_schedule[i / 4] |= (buf[i] as u32) << shift;            
@@ -203,7 +208,7 @@ impl<'a> Sha256Software<'a> {
         message_schedule[14] = (length64 >> 32) as u32;
         message_schedule[15] = (length64 & 0xffffffff) as u32;
         self.perform_sha(&mut message_schedule);
-        buf.slice(0..len);
+        buf.slice(len..len);
     }
     
     
@@ -365,7 +370,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                                       (output[4 * i + 2] as u32) << 8  |
                                       output[4 * i + 3] as u32;
                            debug!("Mismatched output {}: {:08x} not {:08x}",
-                                 i, oval, hashval);
+                                 i, hashval, oval);
                            break;
                        }
                 }
