@@ -149,14 +149,17 @@ impl<'a> Sha256Software<'a> {
         let mut data = self.input_data.take().unwrap();
         let mut one_appended = false;
         let total_length = data.len();
+        // The length is 55 because of the 9 bytes appended.
+        // Since this implementation operates on bytes, the
+        // 1 appended always consumes a byte. Bytes 1-8 are
+        // the 8 byte length value. Since a block is 64 bytes,
+        // this means the last block must have at most 55 bytes,
+        // or it will bleed into the next block. If the block
+        // has 56-63 bytes, then it is not the last block but
+        // the 1 is appended in this block.
         while data.len() >= 55 {
-            debug!("Computing SHA256 on data of length {}", data.len());
             one_appended = self.compute_block(&mut data);
         }
-        debug!(
-            "Completing last block of SHA256 on data of length {}",
-            data.len()
-        );
         self.last_block(&mut data, one_appended, total_length);
         self.input_data.set(data);
     }
