@@ -3,22 +3,22 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::debug;
-use kernel::ErrorCode;
-use kernel::hil::digest::{Client};
+use kernel::hil::digest::Client;
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum State {
     Idle,
     Data,
     Hash,
-    Verify
+    Verify,
 }
 
 pub struct Sha256Software<'a> {
@@ -28,7 +28,7 @@ pub struct Sha256Software<'a> {
     input_data: OptionalCell<LeasableBuffer<'static, u8>>,
     // Used to store the hash or the hash to compare against with verify
     output_data: Cell<Option<&'static mut [u8; 32]>>,
-    
+
     hash_values: Cell<[u32; 8]>,
     round_constants: MapCell<[u32; 64]>,
 
@@ -37,14 +37,13 @@ pub struct Sha256Software<'a> {
 }
 
 impl<'a> Sha256Software<'a> {
-
     pub fn new(call: &'a DynamicDeferredCall) -> Sha256Software<'a> {
         Sha256Software {
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             input_data: OptionalCell::empty(),
             output_data: Cell::new(None),
-            
+
             hash_values: Cell::new([0; 8]),
             round_constants: MapCell::new([0; 64]),
 
@@ -52,39 +51,35 @@ impl<'a> Sha256Software<'a> {
             handle: OptionalCell::empty(),
         }
     }
-    
+
     pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
         self.handle.replace(handle);
     }
-    
+
     pub fn busy(&self) -> bool {
         match self.state.get() {
             State::Idle => false,
-            _ => true
+            _ => true,
         }
     }
-    
+
     pub fn initialize(&self) -> Result<(), ErrorCode> {
         if !self.busy() {
-            self.hash_values.set([0x6a09e667,
-                                  0xbb67ae85,
-                                  0x3c6ef372,
-                                  0xa54ff53a,
-                                  0x510e527f,
-                                  0x9b05688c,
-                                  0x1f83d9ab,
-                                  0x5be0cd19]);
+            self.hash_values.set([
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+                0x5be0cd19,
+            ]);
             self.round_constants.map(|k| {
-                k[ 0] = 0x428a2f98;
-                k[ 1] = 0x71374491;
-                k[ 2] = 0xb5c0fbcf;
-                k[ 3] = 0xe9b5dba5;
-                k[ 4] = 0x3956c25b;
-                k[ 5] = 0x59f111f1;
-                k[ 6] = 0x923f82a4;
-                k[ 7] = 0xab1c5ed5;
-                k[ 8] = 0xd807aa98;
-                k[ 9] = 0x12835b01;
+                k[0] = 0x428a2f98;
+                k[1] = 0x71374491;
+                k[2] = 0xb5c0fbcf;
+                k[3] = 0xe9b5dba5;
+                k[4] = 0x3956c25b;
+                k[5] = 0x59f111f1;
+                k[6] = 0x923f82a4;
+                k[7] = 0xab1c5ed5;
+                k[8] = 0xd807aa98;
+                k[9] = 0x12835b01;
                 k[10] = 0x243185be;
                 k[11] = 0x550c7dc3;
                 k[12] = 0x72be5d74;
@@ -154,7 +149,10 @@ impl<'a> Sha256Software<'a> {
             debug!("Computing SHA256 on data of length {}", data.len());
             one_appended = self.compute_block(&mut data);
         }
-        debug!("Completing last block of SHA256 on data of length {}", data.len());
+        debug!(
+            "Completing last block of SHA256 on data of length {}",
+            data.len()
+        );
         self.last_block(&mut data, one_appended, total_length);
         self.input_data.set(data);
     }
@@ -165,7 +163,6 @@ impl<'a> Sha256Software<'a> {
 
     // Returns true if the 1 was appended at the end of the data.
     fn compute_block(&self, buf: &mut LeasableBuffer<'static, u8>) -> bool {
-
         debug!("Sha256Software: computing block");
         let mut one_appended = false;
         let mut message_schedule: [u32; 64] = [0; 64];
@@ -175,7 +172,7 @@ impl<'a> Sha256Software<'a> {
 
         for i in 0..len {
             let shift = (3 - (i % 4)) * 8;
-            message_schedule[i / 4] |= (buf[i] as u32) << shift;            
+            message_schedule[i / 4] |= (buf[i] as u32) << shift;
         }
         // Append the 1 if needed
         if len < 64 {
@@ -188,17 +185,21 @@ impl<'a> Sha256Software<'a> {
         one_appended
     }
 
-
-    fn last_block(&self,
-                  buf: &mut LeasableBuffer<'static, u8>,
-                  one_appended: bool,
-                  total_length: usize) {
+    fn last_block(
+        &self,
+        buf: &mut LeasableBuffer<'static, u8>,
+        one_appended: bool,
+        total_length: usize,
+    ) {
         let mut message_schedule: [u32; 64] = [0; 64];
         let len = cmp::min(buf.len(), 55);
-        debug!("Sha256Software: last block: {} bytes: 1 appended: {}", len, one_appended);
+        debug!(
+            "Sha256Software: last block: {} bytes: 1 appended: {}",
+            len, one_appended
+        );
         for i in 0..len {
             let shift = (3 - (i % 4)) * 8;
-            message_schedule[i / 4] |= (buf[i] as u32) << shift;            
+            message_schedule[i / 4] |= (buf[i] as u32) << shift;
         }
         if one_appended == false {
             let shift = (3 - (len % 4)) * 8;
@@ -210,10 +211,8 @@ impl<'a> Sha256Software<'a> {
         self.perform_sha(&mut message_schedule);
         buf.slice(len..len);
     }
-    
-    
-    fn perform_sha(&self,
-                   message_schedule: &mut [u32; 64]) {
+
+    fn perform_sha(&self, message_schedule: &mut [u32; 64]) {
         // Message schedule
         for i in 16..64 {
             let mut s0 = self.right_rotate(message_schedule[i - 15], 7);
@@ -222,25 +221,22 @@ impl<'a> Sha256Software<'a> {
             let mut s1 = self.right_rotate(message_schedule[i - 2], 17);
             s1 ^= self.right_rotate(message_schedule[i - 2], 19);
             s1 ^= message_schedule[i - 2] >> 10;
-            message_schedule[i] = message_schedule[i - 16] + s0 + message_schedule[i-7] + s1;
+            message_schedule[i] = message_schedule[i - 16] + s0 + message_schedule[i - 7] + s1;
         }
 
         // Compression
         let mut hashes = self.hash_values.get();
         for i in 0..64 {
-            let s1 = self.right_rotate(hashes[4], 6) ^
-                     self.right_rotate(hashes[4], 11) ^
-                     self.right_rotate(hashes[4], 25);
-            let ch = (hashes[4] & hashes [5]) ^
-                     ((!hashes[4]) & hashes[6]);
+            let s1 = self.right_rotate(hashes[4], 6)
+                ^ self.right_rotate(hashes[4], 11)
+                ^ self.right_rotate(hashes[4], 25);
+            let ch = (hashes[4] & hashes[5]) ^ ((!hashes[4]) & hashes[6]);
             let constant = self.round_constants.map_or(0, |k| k[i]);
             let temp1 = hashes[7] + s1 + ch + constant + message_schedule[i];
-            let s0 = self.right_rotate(hashes[0], 2) ^
-                     self.right_rotate(hashes[0], 13) ^
-                     self.right_rotate(hashes[0], 22);
-            let maj = (hashes[0] & hashes[1]) ^
-                      (hashes[0] & hashes[2]) ^
-                      (hashes[1] & hashes[2]);
+            let s0 = self.right_rotate(hashes[0], 2)
+                ^ self.right_rotate(hashes[0], 13)
+                ^ self.right_rotate(hashes[0], 22);
+            let maj = (hashes[0] & hashes[1]) ^ (hashes[0] & hashes[2]) ^ (hashes[1] & hashes[2]);
             let temp2 = s0 + maj;
 
             hashes[7] = hashes[6];
@@ -252,7 +248,7 @@ impl<'a> Sha256Software<'a> {
             hashes[1] = hashes[0];
             hashes[0] = temp1.wrapping_add(temp2);
         }
-        
+
         let mut new_hashes = self.hash_values.get();
         for i in 0..8 {
             new_hashes[i] = new_hashes[i].wrapping_add(hashes[i]);
@@ -290,8 +286,10 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
 }
 
 impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
-    fn run(&'a self, digest: &'static mut [u8; 32])
-           -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+    fn run(
+        &'a self,
+        digest: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         if self.busy() {
             Err((ErrorCode::BUSY, digest))
         } else {
@@ -302,8 +300,8 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
                 self.handle.map(|handle| {
                     for i in 0..8 {
                         let val = self.hash_values.get()[i];
-                        digest[4 * i + 3] = (val >>  0 & 0xff) as u8;
-                        digest[4 * i + 2] = (val >>  8 & 0xff) as u8;
+                        digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
+                        digest[4 * i + 2] = (val >> 8 & 0xff) as u8;
                         digest[4 * i + 1] = (val >> 16 & 0xff) as u8;
                         digest[4 * i + 0] = (val >> 24 & 0xff) as u8;
                     }
@@ -314,7 +312,6 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
             }
         }
     }
-    
 }
 
 impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
@@ -337,9 +334,7 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
             }
         }
     }
-
 }
-
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {
     fn set_client(&'a self, client: &'a dyn Client<'a, 32>) {
@@ -352,7 +347,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
         let prior = self.state.get();
         self.state.set(State::Idle);
         match prior {
-            State::Idle => {},
+            State::Idle => {}
             State::Verify => {
                 // Do the verification here so we don't have to store
                 // the result across the callback.
@@ -360,32 +355,32 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                 let mut pass = true;
                 for i in 0..8 {
                     let hashval = self.hash_values.get()[i];
-                    if output[4 * i + 3] != (hashval >>  0 & 0xff) as u8 ||
-                       output[4 * i + 2] != (hashval >>  8 & 0xff) as u8 ||
-                       output[4 * i + 1] != (hashval >> 16 & 0xff) as u8 ||
-                       output[4 * i + 0] != (hashval >> 24 & 0xff) as u8 {
-                           pass = false;
-                           let oval = (output[4 * i + 0] as u32) << 24 |
-                                      (output[4 * i + 1] as u32) << 16 |
-                                      (output[4 * i + 2] as u32) << 8  |
-                                      output[4 * i + 3] as u32;
-                           debug!("Mismatched output {}: {:08x} not {:08x}",
-                                 i, hashval, oval);
-                           break;
-                       }
+                    if output[4 * i + 3] != (hashval >> 0 & 0xff) as u8
+                        || output[4 * i + 2] != (hashval >> 8 & 0xff) as u8
+                        || output[4 * i + 1] != (hashval >> 16 & 0xff) as u8
+                        || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
+                    {
+                        pass = false;
+                        let oval = (output[4 * i + 0] as u32) << 24
+                            | (output[4 * i + 1] as u32) << 16
+                            | (output[4 * i + 2] as u32) << 8
+                            | output[4 * i + 3] as u32;
+                        debug!("Mismatched output {}: {:08x} not {:08x}", i, hashval, oval);
+                        break;
+                    }
                 }
-                
+
                 self.client.map(|c| {
                     c.verification_done(Ok(pass), output);
                 });
-            },
+            }
             State::Data => {
                 // Data already computed in method call
                 let data = self.input_data.take().unwrap();
                 self.client.map(|client| {
                     client.add_data_done(Ok(()), data.take());
                 });
-            },
+            }
             State::Hash => {
                 // Hash already copied in method call.
                 let output = self.output_data.replace(None).unwrap();
@@ -396,5 +391,3 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
         }
     }
 }
-
-
