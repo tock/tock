@@ -1,4 +1,8 @@
-//! Software implementation of SHA256.
+//! Software implementation of SHA-256. Implementation is based on the
+//! Wikipedia description of the algorithm. It performs the hash using
+//! 32-bit native values, translating the input data into the
+//! endianness of the processor and translating the output into
+//! big endian format.
 
 use core::cell::Cell;
 use core::cmp;
