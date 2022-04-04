@@ -7,6 +7,7 @@ pub mod bus8080;
 pub mod crc;
 pub mod dac;
 pub mod digest;
+pub mod display;
 pub mod eic;
 pub mod entropy;
 pub mod flash;
