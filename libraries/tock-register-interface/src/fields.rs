@@ -390,6 +390,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            #[derive(Copy, Clone, Eq, PartialEq)]
             #[repr($valtype)] // so that values larger than isize::MAX can be stored
             $(#[$outer])*
             pub enum Value {
