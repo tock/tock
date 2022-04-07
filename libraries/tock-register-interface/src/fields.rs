@@ -190,7 +190,7 @@ Field_impl_for!(usize);
 ///
 /// For the FieldValue, the masks and values are shifted into their actual
 /// location in the register.
-#[derive(Copy, Clone, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
     mask: T,
     pub value: T,
@@ -230,6 +230,15 @@ FieldValue_impl_for!(u128);
 FieldValue_impl_for!(usize);
 
 impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
+    #[inline]
+    pub fn none() -> Self {
+        Self {
+            mask: T::zero(),
+            value: T::zero(),
+            associated_register: PhantomData,
+        }
+    }
+
     /// Get the raw bitmask represented by this FieldValue.
     #[inline]
     pub fn mask(&self) -> T {
