@@ -190,7 +190,7 @@ Field_impl_for!(usize);
 ///
 /// For the FieldValue, the masks and values are shifted into their actual
 /// location in the register.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone)]
 pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
     mask: T,
     pub value: T,
