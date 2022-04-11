@@ -58,19 +58,40 @@ pub enum Error {
     Aborted,
 }
 
-pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
+pub enum AbortResult {
+    Callback(bool),
+    NoCallback,
+}
+
+pub trait Uart<'a>: Configure + Configuration + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
-pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
-pub trait Client: ReceiveClient + TransmitClient {}
+pub trait UartAdvanced<'a>: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a> {}
+pub trait Client: Configuration + ReceiveClient + TransmitClient {}
 
 // Provide blanket implementations for all trait groups
-impl<'a, T: Configure + Transmit<'a> + Receive<'a>> Uart<'a> for T {}
+impl<'a, T: Configure + Configuration + Transmit<'a> + Receive<'a>> Uart<'a> for T {}
 impl<'a, T: Transmit<'a> + Receive<'a>> UartData<'a> for T {}
-impl<'a, T: Configure + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
-impl<T: ReceiveClient + TransmitClient> Client for T {}
+impl<'a, T: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
+impl<T: Configuration + ReceiveClient + TransmitClient> Client for T {}
+
+/// Trait for querying UART configuration
+pub trait Configuration {
+    fn get_baud_rate(&self) -> u32;
+    fn get_width(&self) -> Width;
+    fn get_parity(&self) -> Parity;
+    fn get_stop_bits(&self) -> StopBits;
+    fn get_flow_control(&self) -> bool;
+    fn get_configuration(&self) -> Parameters; // TODO: TRD has this as Configuration, but this seems to make more sense
+}
 
 /// Trait for configuring a UART.
 pub trait Configure {
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode>;
+    fn set_width(&self, width: Width) -> Result<(), ErrorCode>;
+    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode>;
+    fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode>;
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
+
     /// Returns Ok(()), or
     /// - OFF: The underlying hardware is currently not available, perhaps
     ///         because it has not been initialized or in the case of a shared
@@ -104,10 +125,10 @@ pub trait Transmit<'a> {
     /// bits.  The word width is determined by the UART configuration,
     /// truncating any more significant bits. E.g., 0x18f transmitted in
     /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
-    /// that need to transfer 9-bit words should use `transmit_word`.
+    /// that need to transfer 9-bit words should use `transmit_character`.
     ///
     /// Calling `transmit_buffer` while there is an outstanding
-    /// `transmit_buffer` or `transmit_word` operation will return BUSY.
+    /// `transmit_buffer` or `transmit_character` operation will return BUSY.
     fn transmit_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -117,7 +138,7 @@ pub trait Transmit<'a> {
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
     /// If the `Result<(), ErrorCode>` is Ok(()), on completion,
-    /// `transmitted_word` will be called on the `TransmitClient`.
+    /// `transmitted_character` will be called on the `TransmitClient`.
     /// Other valid `Result<(), ErrorCode>` values are:
     ///  - OFF: The underlying hardware is not available, perhaps because
     ///          it has not been initialized or in the case of a shared
@@ -126,12 +147,12 @@ pub trait Transmit<'a> {
     ///           transmission callback yet.
     ///  - FAIL: not supported, or some other error.
     /// If the `Result<(), ErrorCode>` is not Ok(()), no callback will be made.
-    /// Calling `transmit_word` while there is an outstanding
-    /// `transmit_buffer` or `transmit_word` operation will return
+    /// Calling `transmit_character` while there is an outstanding
+    /// `transmit_buffer` or `transmit_character` operation will return
     /// BUSY.
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
+    fn transmit_character(&self, character: u32) -> Result<(), ErrorCode>;
 
-    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
+    /// Abort an outstanding call to `transmit_character` or `transmit_buffer`.
     /// The return code indicates whether the call has fully terminated or
     /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
     /// always make a callback, to return the passed buffer back to the caller.
@@ -140,7 +161,7 @@ pub trait Transmit<'a> {
     /// callback and the client may retransmit immediately. If
     /// abort_transmit returns any other `Result<(), ErrorCode>` there will be a
     /// callback. This means that if there is no outstanding call to
-    /// `transmit_word` or `transmit_buffer` then a call to
+    /// `transmit_character` or `transmit_buffer` then a call to
     /// `abort_transmit` returns Ok(()). If there was a `transmit`
     /// outstanding and is cancelled successfully then `BUSY` will
     /// be returned and there will be a callback with a `Result<(), ErrorCode>`
@@ -152,7 +173,7 @@ pub trait Transmit<'a> {
     ///  - FAIL if the outstanding call to either transmit operation could
     ///    not be synchronously cancelled. A callback will be made on the
     ///    client indicating whether the call was successfully cancelled.
-    fn transmit_abort(&self) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> AbortResult;
 }
 
 pub trait Receive<'a> {
@@ -174,8 +195,8 @@ pub trait Receive<'a> {
     /// Each byte in `rx_buffer` is a UART transfer word of 8 or fewer
     /// bits.  The width is determined by the UART
     /// configuration. Clients that need to transfer 9-bit words
-    /// should use `receive_word`.  Calling `receive_buffer` while
-    /// there is an outstanding `receive_buffer` or `receive_word`
+    /// should use `receive_character`.  Calling `receive_buffer` while
+    /// there is an outstanding `receive_buffer` or `receive_character`
     /// operation will return `Err(BUSY, rx_buffer)`.
     fn receive_buffer(
         &self,
@@ -186,7 +207,7 @@ pub trait Receive<'a> {
     /// Receive a single word of data. The word length is determined
     /// by the UART configuration: it can be 6, 7, 8, or 9 bits long.
     /// If the `Result<(), ErrorCode>` is Ok(()), on completion,
-    /// `received_word` will be called on the `ReceiveClient`.
+    /// `received_character` will be called on the `ReceiveClient`.
     /// Other valid `ErrorCode` values are:
     ///  - OFF: The underlying hardware is not available, perhaps because
     ///          it has not been initialized or in the case of a shared
@@ -194,10 +215,10 @@ pub trait Receive<'a> {
     ///  - BUSY: the UART is already receiving and has not made a
     ///           reception callback yet.
     ///  - FAIL: not supported or some other error.
-    /// Calling `receive_word` while there is an outstanding
-    /// `receive_buffer` or `receive_word` operation will return
+    /// Calling `receive_character` while there is an outstanding
+    /// `receive_buffer` or `receive_character` operation will return
     /// `Err(BUSY).
-    fn receive_word(&self) -> Result<(), ErrorCode>;
+    fn receive_character(&self) -> Result<(), ErrorCode>;
 
     /// Abort any ongoing receive transfers and return what is in the
     /// receive buffer with the `receive_complete` callback. If
@@ -208,27 +229,27 @@ pub trait Receive<'a> {
     /// of `CANCEL`.  If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
-    fn receive_abort(&self) -> Result<(), ErrorCode>;
+    fn receive_abort(&self) -> AbortResult;
 }
 
 /// Trait implemented by a UART transmitter to receive callbacks when
 /// operations complete.
 pub trait TransmitClient {
-    /// A call to `Transmit::transmit_word` completed. The `Result<(), ErrorCode>`
+    /// A call to `Transmit::transmit_character` completed. The `Result<(), ErrorCode>`
     /// indicates whether the word was successfully transmitted. A call
-    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// to `transmit_character` or `transmit_buffer` made within this callback
     /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
     /// `rval` is Ok(()) if the word was successfully transmitted, or
-    ///   - CANCEL if the call to `transmit_word` was cancelled and
+    ///   - CANCEL if the call to `transmit_character` was cancelled and
     ///     the word was not transmitted.
     ///   - FAIL if the transmission failed in some way.
-    fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
+    fn transmitted_character(&self, _rval: Result<(), ErrorCode>) {}
 
     /// A call to `Transmit::transmit_buffer` completed. The `Result<(), ErrorCode>`
     /// indicates whether the buffer was successfully transmitted. A call
-    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// to `transmit_character` or `transmit_buffer` made within this callback
     /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
@@ -253,23 +274,23 @@ pub trait TransmitClient {
 }
 
 pub trait ReceiveClient {
-    /// A call to `Receive::receive_word` completed. The `Result<(), ErrorCode>`
+    /// A call to `Receive::receive_character` completed. The `Result<(), ErrorCode>`
     /// indicates whether the word was successfully received. A call
-    /// to `receive_word` or `receive_buffer` made within this callback
+    /// to `receive_character` or `receive_buffer` made within this callback
     /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///
     /// `rval` Ok(()) if the word was successfully received, or
-    ///   - CANCEL if the call to `receive_word` was cancelled and
+    ///   - CANCEL if the call to `receive_character` was cancelled and
     ///     the word was not received: `word` should be ignored.
     ///   - FAIL if the reception failed in some way and `word`
     ///     should be ignored. `error` may contain further information
     ///     on the sort of error.
-    fn received_word(&self, _word: u32, _rval: Result<(), ErrorCode>, _error: Error) {}
+    fn received_character(&self, _character: u32, _rval: Result<(), ErrorCode>, _error: Error) {}
 
     /// A call to `Receive::receive_buffer` completed. The `Result<(), ErrorCode>`
     /// indicates whether the buffer was successfully received. A call
-    /// to `receive_word` or `receive_buffer` made within this callback
+    /// to `receive_character` or `receive_buffer` made within this callback
     /// SHOULD NOT return BUSY: when this callback is made the UART should
     /// be ready to receive another call.
     ///

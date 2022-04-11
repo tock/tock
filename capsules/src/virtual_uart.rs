@@ -48,7 +48,7 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::hil::uart;
+use kernel::hil::uart::{self, AbortResult};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -137,18 +137,11 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                     let state = device.state.get();
                     let position = device.rx_position.get();
                     let remaining = device.rx_len.get() - position;
-                    // If this finishes the read, signal to the caller,
+                    // If aborting, we have promised a CANCEL callback. Else,
+                    // if this finishes the read, signal to the caller,
                     // otherwise update state so next read will fill in
                     // more data.
-                    if remaining == 0 {
-                        device.state.set(UartDeviceReceiveState::Idle);
-                        device.received_buffer(rxbuf, position, rcode, error);
-                        // Need to check if receive was called in callback
-                        if device.state.get() == UartDeviceReceiveState::Receiving {
-                            read_pending = true;
-                            next_read_len = cmp::min(next_read_len, device.rx_len.get());
-                        }
-                    } else if state == UartDeviceReceiveState::Aborting {
+                    if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
                         device.received_buffer(
                             rxbuf,
@@ -156,6 +149,14 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                             Err(ErrorCode::CANCEL),
                             uart::Error::Aborted,
                         );
+                        // Need to check if receive was called in callback
+                        if device.state.get() == UartDeviceReceiveState::Receiving {
+                            read_pending = true;
+                            next_read_len = cmp::min(next_read_len, device.rx_len.get());
+                        }
+                    } else if remaining == 0 {
+                        device.state.set(UartDeviceReceiveState::Idle);
+                        device.received_buffer(rxbuf, position, rcode, error);
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
@@ -237,12 +238,12 @@ impl<'a> MuxUart<'a> {
                                 },
                             );
                         }
-                        Operation::TransmitWord { word } => {
-                            let rcode = self.uart.transmit_word(*word);
+                        Operation::TransmitCharacter { character } => {
+                            let rcode = self.uart.transmit_character(*character);
                             if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);
-                                    client.transmitted_word(rcode);
+                                    client.transmitted_character(rcode);
                                 });
                             }
                         }
@@ -312,7 +313,7 @@ impl<'a> DynamicDeferredCallClient for MuxUart<'a> {
 #[derive(Copy, Clone, PartialEq)]
 enum Operation {
     Transmit { len: usize },
-    TransmitWord { word: u32 },
+    TransmitCharacter { character: u32 },
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -374,10 +375,10 @@ impl<'a> uart::TransmitClient for UartDevice<'a> {
         });
     }
 
-    fn transmitted_word(&self, rcode: Result<(), ErrorCode>) {
+    fn transmitted_character(&self, rcode: Result<(), ErrorCode>) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
-            client.transmitted_word(rcode);
+            client.transmitted_character(rcode);
         });
     }
 }
@@ -407,8 +408,8 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         self.tx_client.set(client);
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_abort(&self) -> AbortResult {
+        AbortResult::Callback(false)
     }
 
     /// Transmit data.
@@ -428,12 +429,13 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         }
     }
 
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
+    fn transmit_character(&self, character: u32) -> Result<(), ErrorCode> {
         if self.transmitting.get() {
             Err(ErrorCode::BUSY)
         } else {
             self.transmitting.set(true);
-            self.operation.set(Operation::TransmitWord { word: word });
+            self.operation
+                .set(Operation::TransmitCharacter { character });
             self.mux.do_next_op_async();
             Ok(())
         }
@@ -468,13 +470,27 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
 
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
+    fn receive_abort(&self) -> AbortResult {
         self.state.set(UartDeviceReceiveState::Aborting);
-        let _ = self.mux.uart.receive_abort();
-        Err(ErrorCode::BUSY)
+        if self
+            .mux
+            .devices
+            .iter()
+            .find(|d| d.state.get() == UartDeviceReceiveState::Receiving)
+            .is_none()
+        {
+            let res = self.mux.uart.receive_abort();
+            match res {
+                AbortResult::Callback(false) => self.state.set(UartDeviceReceiveState::Receiving), // abort failed.
+                _ => {}
+            };
+            res
+        } else {
+            AbortResult::Callback(true)
+        }
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
+    fn receive_character(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

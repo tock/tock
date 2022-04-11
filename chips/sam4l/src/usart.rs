@@ -886,95 +886,8 @@ impl dma::DMAClient for USART<'_> {
     }
 }
 
-/// Implementation of kernel::uart
-impl<'a> uart::Receive<'a> for USART<'a> {
-    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
-        if let Some(UsartClient::Uart(_rx, Some(tx))) = self.client.take() {
-            self.client.set(UsartClient::Uart(Some(client), Some(tx)));
-        } else {
-            self.client.set(UsartClient::Uart(Some(client), None));
-        }
-    }
-
-    fn receive_buffer(
-        &self,
-        rx_buffer: &'static mut [u8],
-        rx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if rx_len > rx_buffer.len() {
-            return Err((ErrorCode::SIZE, rx_buffer));
-        }
-        let usart = &USARTRegManager::new(&self);
-
-        // enable RX
-        self.enable_rx(usart);
-        self.enable_rx_error_interrupts(usart);
-        self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
-        // set up dma transfer and start reception
-        if let Some(dma) = self.rx_dma.get() {
-            dma.enable();
-            self.rx_len.set(rx_len);
-            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
-            Ok(())
-        } else {
-            Err((ErrorCode::OFF, rx_buffer))
-        }
-    }
-
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        let usart = &USARTRegManager::new(&self);
-        self.disable_rx_timeout(usart);
-        self.abort_rx(usart, Err(ErrorCode::CANCEL), uart::Error::Aborted);
-        Err(ErrorCode::BUSY)
-    }
-
-    fn receive_word(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
-    }
-}
-
-impl<'a> uart::Transmit<'a> for USART<'a> {
-    fn transmit_buffer(
-        &self,
-        tx_buffer: &'static mut [u8],
-        tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.usart_tx_state.get() != USARTStateTX::Idle {
-            Err((ErrorCode::BUSY, tx_buffer))
-        } else {
-            if tx_len > tx_buffer.len() {
-                return Err((ErrorCode::SIZE, tx_buffer));
-            }
-            let usart = &USARTRegManager::new(&self);
-            // enable TX
-            self.enable_tx(usart);
-            self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
-
-            // set up dma transfer and start transmission
-            if self.tx_dma.get().is_some() {
-                self.tx_dma.get().map(move |dma| {
-                    dma.enable();
-                    self.tx_len.set(tx_len);
-                    dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
-                });
-                Ok(())
-            } else {
-                Err((ErrorCode::OFF, tx_buffer))
-            }
-        }
-    }
-
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        if self.usart_tx_state.get() != USARTStateTX::Idle {
-            let usart = &USARTRegManager::new(&self);
-            self.abort_tx(usart, Err(ErrorCode::CANCEL));
-            Err(ErrorCode::BUSY)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
+impl<'a> hil::uart::Transmit<'a> for USART<'a> {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         if let Some(UsartClient::Uart(Some(rx), _tx)) = self.client.take() {
             self.client.set(UsartClient::Uart(Some(rx), Some(client)));
         } else {
@@ -982,13 +895,84 @@ impl<'a> uart::Transmit<'a> for USART<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.usart_mode.get() != UsartMode::Uart {
+            Err((ErrorCode::OFF, tx_buffer))
+        } else if self.usart_tx_state.get() != USARTStateTX::Idle {
+            Err((ErrorCode::BUSY, tx_buffer))
+        } else if tx_len > tx_buffer.len() {
+            return Err((ErrorCode::SIZE, tx_buffer));
+        } else {
+            let usart = &USARTRegManager::new(&self);
+            // enable TX
+            self.enable_tx(usart);
+            self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+
+            // set up dma transfer and start transmission
+            match self.tx_dma.get() {
+                Some(dma) => {
+                    dma.enable();
+                    self.tx_len.set(tx_len);
+                    dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
+                    Ok(())
+                }
+                None => Err((ErrorCode::OFF, tx_buffer)),
+            }
+        }
+    }
+
+    fn transmit_character(&self, character: u32) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+
+    fn transmit_abort(&self) -> hil::uart::AbortResult {
+        unimplemented!()
     }
 }
 
-impl uart::Configure for USART<'_> {
-    fn configure(&self, parameters: uart::Parameters) -> Result<(), ErrorCode> {
+impl<'a> hil::uart::Receive<'a> for USART<'a> {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        unimplemented!()
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        unimplemented!()
+    }
+
+    fn receive_character(&self) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+
+    fn receive_abort(&self) -> hil::uart::AbortResult {
+        unimplemented!()
+    }
+}
+impl<'a> hil::uart::Configure for USART<'a> {
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        unimplemented!()
+    }
+    fn set_width(&self, width: hil::uart::Width) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_parity(&self, parity: hil::uart::Parity) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_stop_bits(&self, stop: hil::uart::StopBits) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if self.usart_mode.get() != UsartMode::Uart {
             return Err(ErrorCode::OFF);
         }
