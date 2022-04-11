@@ -78,7 +78,11 @@ pub trait Configure {
     /// - INVAL: Impossible parameters (e.g. a `baud_rate` of 0)
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
+
+    // TODO: Individual methods to set each parameter
 }
+
+// TODO: Configuration trait
 
 pub trait Transmit<'a> {
     /// Set the transmit client, which will be called when transmissions
@@ -129,7 +133,7 @@ pub trait Transmit<'a> {
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
     /// BUSY.
-    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>;
+    fn transmit_word(&self, word: u32) -> Result<(), ErrorCode>; // TODO: rename to transmit_character
 
     /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
     /// The return code indicates whether the call has fully terminated or
@@ -152,7 +156,7 @@ pub trait Transmit<'a> {
     ///  - FAIL if the outstanding call to either transmit operation could
     ///    not be synchronously cancelled. A callback will be made on the
     ///    client indicating whether the call was successfully cancelled.
-    fn transmit_abort(&self) -> Result<(), ErrorCode>;
+    fn transmit_abort(&self) -> Result<(), ErrorCode>; // TODO: Should return AbortResult
 }
 
 pub trait Receive<'a> {
@@ -197,7 +201,7 @@ pub trait Receive<'a> {
     /// Calling `receive_word` while there is an outstanding
     /// `receive_buffer` or `receive_word` operation will return
     /// `Err(BUSY).
-    fn receive_word(&self) -> Result<(), ErrorCode>;
+    fn receive_word(&self) -> Result<(), ErrorCode>; // TODO: Rename to receive_character
 
     /// Abort any ongoing receive transfers and return what is in the
     /// receive buffer with the `receive_complete` callback. If
@@ -208,7 +212,7 @@ pub trait Receive<'a> {
     /// of `CANCEL`.  If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
-    fn receive_abort(&self) -> Result<(), ErrorCode>;
+    fn receive_abort(&self) -> Result<(), ErrorCode>; // TODO: Should return AbortResult
 }
 
 /// Trait implemented by a UART transmitter to receive callbacks when
