@@ -480,7 +480,7 @@ impl hil::uart::TransmitClient for DebugWriter {
             self.publish_bytes();
         }
     }
-    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
+    fn transmitted_character(&self, _rval: core::result::Result<(), ErrorCode>) {}
 }
 
 /// Pass through functions.
