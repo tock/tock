@@ -19,7 +19,6 @@
 // Last modified: 11/07/2019
 
 //use capsules::virtual_uart::{MuxUart, UartDevice};
-use kernel::capabilities;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;

@@ -13,23 +13,9 @@ use crate::PROCESSES;
 
 enum Writer {
     WriterUart(/* initialized */ bool),
-    WriterRtt(&'static capsules::segger_rtt::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::WriterUart(false);
-
-fn wait() {
-    for _ in 0..100 {
-        cortexm4::support::nop();
-    }
-}
-
-/// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(
-    rtt_memory: &'static mut capsules::segger_rtt::SeggerRttMemory<'static>,
-) {
-    WRITER = Writer::WriterRtt(rtt_memory);
-}
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -61,25 +47,6 @@ impl IoWrite for Writer {
                         uart.send_byte(c);
                     }
                     while !uart.tx_ready() {}
-                }
-            }
-            Writer::WriterRtt(rtt_memory) => {
-                let up_buffer = unsafe { &*rtt_memory.get_up_buffer_ptr() };
-                let buffer_len = up_buffer.length.get();
-                let buffer = unsafe {
-                    core::slice::from_raw_parts_mut(
-                        up_buffer.buffer.get() as *mut u8,
-                        buffer_len as usize,
-                    )
-                };
-
-                let mut write_position = up_buffer.write_position.get();
-
-                for &c in buf {
-                    buffer[write_position as usize] = c;
-                    write_position = (write_position + 1) % buffer_len;
-                    up_buffer.write_position.set(write_position);
-                    wait();
                 }
             }
         };

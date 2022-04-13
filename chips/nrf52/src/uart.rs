@@ -9,6 +9,7 @@
 use core;
 use core::cell::Cell;
 use core::cmp::min;
+use kernel::hil;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -436,100 +437,187 @@ impl<'a> Uarte<'a> {
     }
 }
 
-impl<'a> uart::Transmit<'a> for Uarte<'a> {
-    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
-        self.tx_client.set(client);
+impl<'a> hil::uart::Transmit<'a> for Uarte<'a> {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        unimplemented!()
     }
 
     fn transmit_buffer(
         &self,
-        tx_data: &'static mut [u8],
+        tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if tx_len == 0 || tx_len > tx_data.len() {
-            Err((ErrorCode::SIZE, tx_data))
-        } else if self.tx_buffer.is_some() {
-            Err((ErrorCode::BUSY, tx_data))
-        } else {
-            self.setup_buffer_transmit(tx_data, tx_len);
-            Ok(())
-        }
+        unimplemented!()
     }
 
-    fn transmit_word(&self, _data: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_character(&self, character: u32) -> Result<(), ErrorCode> {
+        unimplemented!()
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_abort(&self) -> hil::uart::AbortResult {
+        unimplemented!()
     }
 }
 
-impl<'a> uart::Configure for Uarte<'a> {
-    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
-        // These could probably be implemented, but are currently ignored, so
-        // throw an error.
-        if params.stop_bits != uart::StopBits::One {
-            return Err(ErrorCode::NOSUPPORT);
-        }
-        if params.parity != uart::Parity::None {
-            return Err(ErrorCode::NOSUPPORT);
-        }
-        if params.hw_flow_control != false {
-            return Err(ErrorCode::NOSUPPORT);
-        }
-
-        self.set_baud_rate(params.baud_rate);
-
-        Ok(())
-    }
-}
-
-impl<'a> uart::Receive<'a> for Uarte<'a> {
-    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
-        self.rx_client.set(client);
+impl<'a> hil::uart::Receive<'a> for Uarte<'a> {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        unimplemented!()
     }
 
     fn receive_buffer(
         &self,
-        rx_buf: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.rx_buffer.is_some() {
-            return Err((ErrorCode::BUSY, rx_buf));
-        }
-        // truncate rx_len if necessary
-        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
-
-        self.rx_remaining_bytes.set(truncated_length);
-        self.offset.set(0);
-        self.rx_buffer.replace(rx_buf);
-        self.set_rx_dma_pointer_to_buffer();
-
-        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
-
-        self.registers
-            .rxd_maxcnt
-            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
-        self.registers.task_stoprx.write(Task::ENABLE::SET);
-        self.registers.task_startrx.write(Task::ENABLE::SET);
-
-        self.enable_rx_interrupts();
-        Ok(())
+        unimplemented!()
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn receive_character(&self) -> Result<(), ErrorCode> {
+        unimplemented!()
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        // Trigger the STOPRX event to cancel the current receive call.
-        if self.rx_buffer.is_none() {
-            Ok(())
-        } else {
-            self.rx_abort_in_progress.set(true);
-            self.registers.task_stoprx.write(Task::ENABLE::SET);
-            Err(ErrorCode::BUSY)
-        }
+    fn receive_abort(&self) -> hil::uart::AbortResult {
+        unimplemented!()
     }
 }
+impl<'a> hil::uart::Configure for Uarte<'a> {
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        unimplemented!()
+    }
+    fn set_width(&self, width: hil::uart::Width) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_parity(&self, parity: hil::uart::Parity) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_stop_bits(&self, stop: hil::uart::StopBits) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
+        unimplemented!()
+    }
+}
+
+impl<'a> hil::uart::Configuration for Uarte<'a> {
+    fn get_baud_rate(&self) -> u32 {
+        unimplemented!()
+    }
+    fn get_width(&self) -> hil::uart::Width {
+        unimplemented!()
+    }
+    fn get_parity(&self) -> hil::uart::Parity {
+        unimplemented!()
+    }
+    fn get_stop_bits(&self) -> hil::uart::StopBits {
+        unimplemented!()
+    }
+    fn get_flow_control(&self) -> bool {
+        unimplemented!()
+    }
+    fn get_configuration(&self) -> hil::uart::Parameters {
+        unimplemented!()
+    }
+}
+
+// OLD UART HIL CODE
+//impl<'a> uart::Transmit<'a> for Uarte<'a> {
+//    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
+//        self.tx_client.set(client);
+//    }
+//
+//    fn transmit_buffer(
+//        &self,
+//        tx_data: &'static mut [u8],
+//        tx_len: usize,
+//    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+//        if tx_len == 0 || tx_len > tx_data.len() {
+//            Err((ErrorCode::SIZE, tx_data))
+//        } else if self.tx_buffer.is_some() {
+//            Err((ErrorCode::BUSY, tx_data))
+//        } else {
+//            self.setup_buffer_transmit(tx_data, tx_len);
+//            Ok(())
+//        }
+//    }
+//
+//    fn transmit_word(&self, _data: u32) -> Result<(), ErrorCode> {
+//        Err(ErrorCode::FAIL)
+//    }
+//
+//    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+//        Err(ErrorCode::FAIL)
+//    }
+//}
+//
+//impl<'a> uart::Configure for Uarte<'a> {
+//    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
+//        // These could probably be implemented, but are currently ignored, so
+//        // throw an error.
+//        if params.stop_bits != uart::StopBits::One {
+//            return Err(ErrorCode::NOSUPPORT);
+//        }
+//        if params.parity != uart::Parity::None {
+//            return Err(ErrorCode::NOSUPPORT);
+//        }
+//        if params.hw_flow_control != false {
+//            return Err(ErrorCode::NOSUPPORT);
+//        }
+//
+//        self.set_baud_rate(params.baud_rate);
+//
+//        Ok(())
+//    }
+//}
+//
+//impl<'a> uart::Receive<'a> for Uarte<'a> {
+//    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
+//        self.rx_client.set(client);
+//    }
+//
+//    fn receive_buffer(
+//        &self,
+//        rx_buf: &'static mut [u8],
+//        rx_len: usize,
+//    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+//        if self.rx_buffer.is_some() {
+//            return Err((ErrorCode::BUSY, rx_buf));
+//        }
+//        // truncate rx_len if necessary
+//        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
+//
+//        self.rx_remaining_bytes.set(truncated_length);
+//        self.offset.set(0);
+//        self.rx_buffer.replace(rx_buf);
+//        self.set_rx_dma_pointer_to_buffer();
+//
+//        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
+//
+//        self.registers
+//            .rxd_maxcnt
+//            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
+//        self.registers.task_stoprx.write(Task::ENABLE::SET);
+//        self.registers.task_startrx.write(Task::ENABLE::SET);
+//
+//        self.enable_rx_interrupts();
+//        Ok(())
+//    }
+//
+//    fn receive_word(&self) -> Result<(), ErrorCode> {
+//        Err(ErrorCode::FAIL)
+//    }
+//
+//    fn receive_abort(&self) -> Result<(), ErrorCode> {
+//        // Trigger the STOPRX event to cancel the current receive call.
+//        if self.rx_buffer.is_none() {
+//            Ok(())
+//        } else {
+//            self.rx_abort_in_progress.set(true);
+//            self.registers.task_stoprx.write(Task::ENABLE::SET);
+//            Err(ErrorCode::BUSY)
+//        }
+//    }
+//}
