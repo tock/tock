@@ -423,6 +423,12 @@ macro_rules! register_bitmasks {
                     }
                 }
             }
+
+            impl From<Value> for FieldValue<$valtype, $reg_desc> {
+                fn from(v: Value) -> Self {
+                    Self::new($crate::bitmask!($numbits), $offset, v as $valtype)
+                }
+            }
         }
     };
     {
