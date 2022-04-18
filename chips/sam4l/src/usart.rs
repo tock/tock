@@ -839,7 +839,11 @@ impl dma::DMAClient for USART<'_> {
 
 impl<'a> hil::uart::Transmit<'a> for USART<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
-        unimplemented!()
+        if let Some(UsartClient::Uart(Some(rx), _tx)) = self.client.take() {
+            self.client.set(UsartClient::Uart(Some(rx), Some(client)));
+        } else {
+            self.client.set(UsartClient::Uart(None, Some(client)));
+        }
     }
 
     fn transmit_buffer(
@@ -847,7 +851,27 @@ impl<'a> hil::uart::Transmit<'a> for USART<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        unimplemented!()
+        if self.usart_tx_state.get() != USARTStateTX::Idle {
+            Err((ErrorCode::BUSY, tx_buffer))
+        } else if tx_len > tx_buffer.len() {
+            return Err((ErrorCode::SIZE, tx_buffer));
+        } else {
+            let usart = &USARTRegManager::new(&self);
+            // enable TX
+            self.enable_tx(usart);
+            self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+
+            // set up dma transfer and start transmission
+            match self.tx_dma.get() {
+                Some(dma) => {
+                    dma.enable();
+                    self.tx_len.set(tx_len);
+                    dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
+                    Ok(())
+                }
+                None => Err((ErrorCode::OFF, tx_buffer)),
+            }
+        }
     }
 
     fn transmit_character(&self, character: u32) -> Result<(), ErrorCode> {
@@ -898,7 +922,38 @@ impl<'a> hil::uart::Configure for USART<'a> {
     }
 
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        unimplemented!()
+        if self.usart_mode.get() != UsartMode::Uart {
+            return Err(ErrorCode::OFF);
+        }
+
+        let usart = &USARTRegManager::new(&self);
+
+        // set USART mode register
+        let mut mode = Mode::OVER::SET; // OVER: oversample at 8x
+
+        mode += Mode::CHRL::BITS8; // CHRL: 8-bit characters
+        mode += Mode::USCLKS::CLK_USART; // USCLKS: select CLK_USART
+
+        mode += match params.stop_bits {
+            uart::StopBits::One => Mode::NBSTOP::BITS_1_1,
+            uart::StopBits::Two => Mode::NBSTOP::BITS_2_2,
+        };
+
+        mode += match params.parity {
+            uart::Parity::None => Mode::PAR::NONE, // no parity
+            uart::Parity::Odd => Mode::PAR::ODD,   // odd parity
+            uart::Parity::Even => Mode::PAR::EVEN, // even parity
+        };
+
+        mode += match params.hw_flow_control {
+            true => Mode::MODE::HARD_HAND,
+            false => Mode::MODE::NORMAL,
+        };
+        usart.registers.mr.write(mode);
+        // Set baud rate
+        self.set_baud_rate(usart, params.baud_rate);
+
+        Ok(())
     }
 }
 
