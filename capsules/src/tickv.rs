@@ -161,8 +161,8 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
         }
     }
 
-    pub fn initalise(&self) {
-        let _ret = self.tickv.initalise(0x7bc9f7ff4f76f244);
+    pub fn initialise(&self) {
+        let _ret = self.tickv.initialise(0x7bc9f7ff4f76f244);
         self.operation.set(Operation::Init);
     }
 
