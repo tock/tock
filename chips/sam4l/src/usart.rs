@@ -851,7 +851,9 @@ impl<'a> hil::uart::Transmit<'a> for USART<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.usart_tx_state.get() != USARTStateTX::Idle {
+        if self.usart_mode.get() != UsartMode::Uart {
+            Err((ErrorCode::OFF, tx_buffer))
+        } else if self.usart_tx_state.get() != USARTStateTX::Idle {
             Err((ErrorCode::BUSY, tx_buffer))
         } else if tx_len > tx_buffer.len() {
             return Err((ErrorCode::SIZE, tx_buffer));
