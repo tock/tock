@@ -21,11 +21,12 @@
   thought the challenge of having to trust liveness is interesting. Also got
   some questions after the talk about how we compare to Redleaf and whether
   Redleaf's fault-recovery mechanisms could work for our purposes. Some
-  questions about whether there is interest in developing a public collection of
-  safe-Rust-only crates with other systems like Redleaf and [several
-  unintelligible words] safe-Rust-only app code, which is an interesting idea.
-- Amit: Are people familiar with Redleaf and [unintelligible]? These are two
-  research operating systems for not-microcontrollers also requiring Rust.
+  questions about whether there is interest in developing some public collection
+  of safe-Rust-only crates with other systems like Redleaf and Theseus and
+  working with them on requiring safe-Rust-only app code, which is an
+  interesting idea.
+- Amit: Are people familiar with Redleaf and Theseus? These are two research
+  operating systems for not-microcontrollers also requiring Rust.
 - Alyssa: I have not heard of them.
 - Branden: [Linked https://mars-research.github.io/projects/redleaf/ in chat.]
 - Amit: Expect to hear from Hudson next week. I think generally the topic of an
