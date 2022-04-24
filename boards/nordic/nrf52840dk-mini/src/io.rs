@@ -10,6 +10,7 @@ use nrf52840::gpio::Pin;
 
 use crate::CHIP;
 use crate::PROCESSES;
+use crate::PROCESS_PRINTER;
 
 enum Writer {
     WriterUart(/* initialized */ bool),
@@ -69,5 +70,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &cortexm4::support::nop,
         &PROCESSES,
         &CHIP,
+        &PROCESS_PRINTER,
     )
 }

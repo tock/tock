@@ -47,6 +47,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -55,10 +56,10 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    console: &'static capsules::console::Console<'static>,
     led: &'static capsules::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
+        4,
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -74,7 +75,6 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
@@ -143,15 +143,12 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>
     ));
 
     let chip = static_init!(
@@ -193,6 +190,10 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // Create a shared UART channel for the console and for kernel debug.
     /*   let uart_mux =
         components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
@@ -224,19 +225,6 @@ pub unsafe fn main() {
         hw_flow_control: false,
     });
     components::debug_writer::DebugWriterNoMuxComponent::new(&base_peripherals.uarte0).finalize(());
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            &base_peripherals.uarte0,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(capsules::console::DRIVER_NUM, &grant_cap)
-        )
-    );
-    use kernel::hil;
-    hil::uart::Transmit::set_transmit_client(&base_peripherals.uarte0, console);
-    // NOTE: no receive client set
 
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
@@ -244,7 +232,6 @@ pub unsafe fn main() {
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
     let platform = Platform {
-        console,
         led,
         alarm,
         scheduler,
@@ -286,5 +273,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop::<_, _, NUM_PROCS, 0>(&platform, chip, None, &main_loop_capability);
+    board_kernel.kernel_loop::<_, _, NUM_PROCS>(&platform, chip, None, &main_loop_capability);
 }

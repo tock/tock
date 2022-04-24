@@ -46,6 +46,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -53,10 +54,12 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
-    console: &'static capsules::console::Console<'static>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    led:
-        &'static capsules::led::LedDriver<'static, LedHigh<'static, sam4l::gpio::GPIOPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
+        1,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -67,7 +70,6 @@ impl SyscallDriverLookup for Imix {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
@@ -242,6 +244,9 @@ pub unsafe fn main() {
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     // # CONSOLE
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -262,20 +267,6 @@ pub unsafe fn main() {
     //    ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux).finalize(());
     //DebugWriterComponent::new(uart_mux).finalize(());
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            &peripherals.usart3,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(capsules::console::DRIVER_NUM, &grant_cap)
-        )
-    );
-    use kernel::hil;
-    hil::uart::Transmit::set_transmit_client(&peripherals.usart3, console);
-    // NOTE: no receive client set
-
     // # TIMER
     let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
         .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
@@ -283,19 +274,14 @@ pub unsafe fn main() {
     let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
-    let led = LedsComponent::new(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, sam4l::gpio::GPIOPin>,
         LedHigh::new(&peripherals.pc[10]),
-    ))
-    .finalize(components::led_component_buf!(
-        LedHigh<'static, sam4l::gpio::GPIOPin>
     ));
-
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
     let imix = Imix {
-        console,
         alarm,
         led,
         scheduler,
@@ -344,5 +330,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop::<_, _, NUM_PROCS, 0>(&imix, chip, None, &main_cap);
+    board_kernel.kernel_loop::<_, _, NUM_PROCS>(&imix, chip, None, &main_cap);
 }
