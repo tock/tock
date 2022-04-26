@@ -103,8 +103,7 @@ callback when the write has completed.
     the next write transaction. A shared buffer is released if it is replaced
     by a subsequent call and after a write transaction is completed. Replacing
     the buffer after beginning a write transaction but before receiving a
-    completion callback is undefined (most likely either the original buffer or
-    new buffer will be written in its entirety but not both).
+    completion callback is undefined.
 
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
@@ -115,8 +114,7 @@ callback when the write has completed.
     transaction. A shared buffer is released in two cases: if it is replaced by
     a subsequent call or after a read transaction is completed. Replacing the
     buffer after beginning a read transaction but before receiving a completion
-    callback is undefined (most likely either the original buffer or new buffer
-    will be sent in its entirety but not both).
+    callback is undefined.
 
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
