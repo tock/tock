@@ -80,7 +80,7 @@
 //! let tickv = AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(),
 //!                   &mut read_buf, 0x1000);
 //!
-//! let mut ret = tickv.initalise(hash_function.finish());
+//! let mut ret = tickv.initialise(hash_function.finish());
 //! while ret.is_err() {
 //!     // There is no actual delay here, in a real implementation wait on some event
 //!     ret = tickv.continue_operation().0;
@@ -163,7 +163,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     }
 
     /// This function setups the flash region to be used as a key-value store.
-    /// If the region is already initalised this won't make any changes.
+    /// If the region is already initialised this won't make any changes.
     ///
     /// `hashed_main_key`: The u64 hash of the const string `MAIN_KEY`.
     ///
@@ -172,9 +172,9 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     ///
     /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn initalise(&self, hashed_main_key: u64) -> Result<SuccessCode, ErrorCode> {
+    pub fn initialise(&self, hashed_main_key: u64) -> Result<SuccessCode, ErrorCode> {
         self.key.replace(Some(hashed_main_key));
-        self.tickv.initalise(hashed_main_key)
+        self.tickv.initialise(hashed_main_key)
     }
 
     /// Appends the key/value pair to flash storage.
@@ -302,7 +302,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     /// The buffers will only be returned on a non async error or on success.
     pub fn continue_operation(&self) -> ContinueReturn {
         let ret = match self.tickv.state.get() {
-            State::Init(_) => self.tickv.initalise(self.key.get().unwrap()),
+            State::Init(_) => self.tickv.initialise(self.key.get().unwrap()),
             State::AppendKey(_) => {
                 let value = self.value.take().unwrap();
                 let ret = self.tickv.append_key(self.key.get().unwrap(), value);
@@ -550,7 +550,7 @@ mod tests {
 
             let tickv = AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x1000);
 
-            let mut ret = tickv.initalise(hash_function.finish());
+            let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
                 let (r, _buf) = tickv.continue_operation();
@@ -591,7 +591,7 @@ mod tests {
             let tickv =
                 AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
-            let mut ret = tickv.initalise(hash_function.finish());
+            let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
                 let (r, _buf) = tickv.continue_operation();
@@ -711,7 +711,7 @@ mod tests {
             let tickv =
                 AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
-            let mut ret = tickv.initalise(hash_function.finish());
+            let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
                 let (r, _buf) = tickv.continue_operation();
@@ -767,7 +767,7 @@ mod tests {
             let tickv =
                 AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
 
-            let mut ret = tickv.initalise(hash_function.finish());
+            let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
                 let (r, _buf) = tickv.continue_operation();
