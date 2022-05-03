@@ -150,22 +150,29 @@ impl<'a> Console<'a> {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
-                let len = kernel_data
-                    .get_readonly_processbuffer(ro_allow::WRITE)
-                    .map_or(0, |write| write.len());
-                if app.write_remaining > len {
-                    // A slice has changed under us and is now smaller than
-                    // what we need to write -- just write what we can.
-                    app.write_remaining = len;
-                }
                 let transaction_len = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
                         write.enter(|data| {
-                            for (i, c) in data[app.write_len - app.write_remaining..app.write_len]
-                                .iter()
-                                .enumerate()
+                            let remaining_data = match data
+                                .get(app.write_len - app.write_remaining..app.write_len)
                             {
+                                Some(remaining_data) => remaining_data,
+                                None => {
+                                    // A slice has changed under us and is now
+                                    // smaller than what we need to write. Our
+                                    // behavior in this case is documented as
+                                    // undefined; the simplest thing we can do
+                                    // that doesn't panic is to abort the write.
+                                    // We update app.write_len so that the
+                                    // number of bytes written (which is passed
+                                    // to the write done upcall) is correct.
+                                    app.write_len -= app.write_remaining;
+                                    app.write_remaining = 0;
+                                    return 0;
+                                }
+                            };
+                            for (i, c) in remaining_data.iter().enumerate() {
                                 if buffer.len() <= i {
                                     return i; // Short circuit on partial send
                                 }
