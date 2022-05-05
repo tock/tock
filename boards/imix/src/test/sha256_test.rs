@@ -54,7 +54,10 @@ unsafe fn static_init_test_sha256(call: &'static DynamicDeferredCall) -> &'stati
         }
     }
     // We expect LSTRING to hash to LHASH, so final argument is true
-    let test = static_init!(TestSha256, TestSha256::new(sha, &mut LSTRING, &mut LHASH, true));
+    let test = static_init!(
+        TestSha256,
+        TestSha256::new(sha, &mut LSTRING, &mut LHASH, true)
+    );
 
     test
 }

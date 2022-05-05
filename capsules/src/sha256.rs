@@ -27,22 +27,16 @@ const SHA_BLOCK_LEN_BYTES: usize = 64;
 const SHA_256_OUTPUT_LEN_BYTES: usize = 32;
 const NUM_ROUND_CONSTANTS: usize = 64;
 
-const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-                                                     0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-                                                     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-                                                     0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-                                                     0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-                                                     0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-                                                     0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-                                                     0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-                                                     0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-                                                     0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-                                                     0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-                                                     0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-                                                     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-                                                     0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-                                                     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-                                                     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
 
 pub struct Sha256Software<'a> {
     state: Cell<State>,
@@ -52,8 +46,7 @@ pub struct Sha256Software<'a> {
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
     total_length: Cell<usize>,
-        
-    
+
     // Used to store the hash or the hash to compare against with verify
     output_data: Cell<Option<&'static mut [u8; SHA_256_OUTPUT_LEN_BYTES]>>,
 
@@ -71,7 +64,7 @@ impl<'a> Sha256Software<'a> {
             data_buffer: MapCell::new([0; SHA_BLOCK_LEN_BYTES]),
             buffered_length: Cell::new(0),
             total_length: Cell::new(0),
-            
+
             output_data: Cell::new(None),
             hash_values: Cell::new([0; 8]),
 
@@ -109,9 +102,8 @@ impl<'a> Sha256Software<'a> {
         }
     }
 
-
     // Complete the hash and produce a final hash result.
-   fn complete_sha256(&self) {        
+    fn complete_sha256(&self) {
         let mut buffered_length = self.buffered_length.get();
         // This shouldn't be necessary, as temp buffer should never be
         // full. But if it is fill, appending the 1 will be an
@@ -158,16 +150,16 @@ impl<'a> Sha256Software<'a> {
             let len_low: u32 = (length64 & 0xffffffff) as u32;
             b[56] = (len_high >> 24 & 0xff) as u8;
             b[57] = (len_high >> 16 & 0xff) as u8;
-            b[58] = (len_high >>  8 & 0xff) as u8;
-            b[59] = (len_high >>  0 & 0xff) as u8;
-            b[60] = (len_low  >> 24 & 0xff) as u8;
-            b[61] = (len_low  >> 16 & 0xff) as u8;
-            b[62] = (len_low  >>  8 & 0xff) as u8;
-            b[63] = (len_low  >>  0 & 0xff) as u8;
-            self.compute_block(b); 
+            b[58] = (len_high >> 8 & 0xff) as u8;
+            b[59] = (len_high >> 0 & 0xff) as u8;
+            b[60] = (len_low >> 24 & 0xff) as u8;
+            b[61] = (len_low >> 16 & 0xff) as u8;
+            b[62] = (len_low >> 8 & 0xff) as u8;
+            b[63] = (len_low >> 0 & 0xff) as u8;
+            self.compute_block(b);
         });
     }
-    
+
     // This method computes SHA256 on data in input_data,
     // updating the internal hash state. `data_buffer`
     // contains input data that did or does not fill a block:
@@ -232,10 +224,10 @@ impl<'a> Sha256Software<'a> {
         // implementation is not intended to be high performance.
         let mut message_schedule: [u32; 64] = [0; 64];
         for i in 0..16 {
-            let val: u32 = (buffer[i * 4 + 0] as u32) << 24 |
-                           (buffer[i * 4 + 1] as u32) << 16 |
-                           (buffer[i * 4 + 2] as u32) << 8 |
-                           (buffer[i * 4 + 3] as u32);
+            let val: u32 = (buffer[i * 4 + 0] as u32) << 24
+                | (buffer[i * 4 + 1] as u32) << 16
+                | (buffer[i * 4 + 2] as u32) << 8
+                | (buffer[i * 4 + 3] as u32);
             message_schedule[i] = val;
         }
         self.perform_sha(&mut message_schedule);
@@ -244,7 +236,7 @@ impl<'a> Sha256Software<'a> {
     fn compute_block(&self, data: &mut [u8; 64]) {
         self.compute_buffer(data);
     }
-    
+
     fn perform_sha(&self, message_schedule: &mut [u32; 64]) {
         // Message schedule
         for i in 16..64 {

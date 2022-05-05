@@ -16,10 +16,10 @@ use kernel::ErrorCode;
 
 pub struct TestSha256 {
     sha: &'static Sha256Software<'static>,
-    data: TakeCell<'static, [u8]>,      // The data to hash
-    hash: TakeCell<'static, [u8; 32]>,  // The supplied hash
-    position: Cell<usize>,              // Keep track of position in data
-    correct: Cell<bool>,                // Whether supplied hash is correct
+    data: TakeCell<'static, [u8]>,     // The data to hash
+    hash: TakeCell<'static, [u8; 32]>, // The supplied hash
+    position: Cell<usize>,             // Keep track of position in data
+    correct: Cell<bool>,               // Whether supplied hash is correct
 }
 
 // We add data in chunks of 12 bytes to ensure that the underlying
@@ -39,7 +39,7 @@ impl TestSha256 {
             data: TakeCell::new(data),
             hash: TakeCell::new(hash),
             position: Cell::new(0),
-            correct: Cell::new(correct)
+            correct: Cell::new(correct),
         }
     }
 
@@ -53,27 +53,23 @@ impl TestSha256 {
         self.position.set(chunk_size);
         let mut buffer = LeasableBuffer::new(data);
         buffer.slice(0..chunk_size);
-        let r = self
-            .sha
-            .add_data(buffer);
+        let r = self.sha.add_data(buffer);
         if r.is_err() {
             panic!("Sha256Test: failed to add data: {:?}", r);
         }
     }
 }
 
-
 impl digest::ClientData<'static, 32> for TestSha256 {
     fn add_data_done(&'static self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         let position = self.position.get();
-        if position != data.len() { // More to input
+        if position != data.len() {
+            // More to input
             let next_position = cmp::min(position + CHUNK_SIZE, data.len());
             self.position.set(next_position);
             let mut buffer = LeasableBuffer::new(data);
             buffer.slice(position..next_position);
-            let r = self
-                .sha
-                .add_data(buffer);
+            let r = self.sha.add_data(buffer);
             if r.is_err() {
                 debug!("Sha256Test: failed to add data: {:?}", r);
             }
@@ -105,9 +101,14 @@ impl digest::ClientVerify<'static, 32> for TestSha256 {
         match result {
             Ok(success) => {
                 if success != self.correct.get() {
-                    panic!("Sha256Test: Verification should have been {}, was {}", self.correct.get(), success);
+                    panic!(
+                        "Sha256Test: Verification should have been {}, was {}",
+                        self.correct.get(),
+                        success
+                    );
                 }
-            } Err(e) => {
+            }
+            Err(e) => {
                 panic!("Sha256Test: Error in verification: {:?}", e);
             }
         }
