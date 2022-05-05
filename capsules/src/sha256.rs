@@ -5,8 +5,6 @@
 //! big endian format.
 
 use core::cell::Cell;
-use core::cmp;
-
 use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
@@ -25,16 +23,24 @@ pub enum State {
     Verify,
 }
 
+const SHA_BLOCK_LEN_BYTES: usize = 64;
+const SHA_256_OUTPUT_LEN_BYTES: usize = 32;
+
 pub struct Sha256Software<'a> {
     state: Cell<State>,
 
-    client: OptionalCell<&'a dyn Client<'a, 32>>,
+    client: OptionalCell<&'a dyn Client<'a, SHA_256_OUTPUT_LEN_BYTES>>,
     input_data: OptionalCell<LeasableBuffer<'static, u8>>,
+    data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
+    buffered_length: Cell<usize>,
+    total_length: Cell<usize>,
+        
+    
     // Used to store the hash or the hash to compare against with verify
-    output_data: Cell<Option<&'static mut [u8; 32]>>,
+    output_data: Cell<Option<&'static mut [u8; SHA_256_OUTPUT_LEN_BYTES]>>,
 
     hash_values: Cell<[u32; 8]>,
-    round_constants: MapCell<[u32; 64]>,
+    round_constants: MapCell<[u32; SHA_BLOCK_LEN_BYTES]>,
 
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -46,6 +52,10 @@ impl<'a> Sha256Software<'a> {
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             input_data: OptionalCell::empty(),
+            data_buffer: MapCell::new([0; SHA_BLOCK_LEN_BYTES]),
+            buffered_length: Cell::new(0),
+            total_length: Cell::new(0),
+            
             output_data: Cell::new(None),
 
             hash_values: Cell::new([0; 8]),
@@ -69,6 +79,12 @@ impl<'a> Sha256Software<'a> {
 
     pub fn initialize(&self) -> Result<(), ErrorCode> {
         if !self.busy() {
+            self.buffered_length.set(0);
+            self.data_buffer.map(|b| {
+                for i in 0..SHA_BLOCK_LEN_BYTES {
+                    b[i] = 0;
+                }
+            });
             self.hash_values.set([
                 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
                 0x5be0cd19,
@@ -145,80 +161,157 @@ impl<'a> Sha256Software<'a> {
         }
     }
 
+
+    // Complete the hash and produce a final hash result.
+    fn complete_sha256(&self) {        
+        let mut buffered_length = self.buffered_length.get();
+        // This shouldn't be necessary, as temp buffer should never be
+        // full. But if it is fill, appending the 1 will be an
+        // out-of-bounds access and panic, so check and clear
+        // the buffered block just in case.
+        if buffered_length == 64 {
+            self.data_buffer.map(|b| {
+                self.compute_block(b);
+                for i in 0..SHA_BLOCK_LEN_BYTES {
+                    b[i] = 0;
+                }
+            });
+            buffered_length = buffered_length - 64;
+        }
+        if buffered_length < 64 {
+            self.data_buffer.map(|b| {
+                for i in buffered_length..SHA_BLOCK_LEN_BYTES {
+                    b[i] = 0;
+                }
+            });
+        }
+
+        self.data_buffer.map(|b| {
+            // Append the 1
+            b[buffered_length] = 0x80;
+            buffered_length = buffered_length + 1;
+            // The length is 56 because of the 8 bytes appended.
+            // Since a block is 64 bytes, this means the last block
+            // must have at most 56 bytes including the appended 1, or
+            // it will bleed into the next block.
+            if buffered_length > 56 {
+                for i in buffered_length..SHA_BLOCK_LEN_BYTES {
+                    b[i] = 0;
+                }
+                self.compute_block(b);
+                for i in 0..SHA_BLOCK_LEN_BYTES {
+                    b[i] = 0;
+                }
+                buffered_length = 0;
+            }
+            let total_length = self.total_length.get();
+            let length64 = (total_length * 8) as u64;
+            let len_high: u32 = (length64 >> 32) as u32;
+            let len_low: u32 = (length64 & 0xffffffff) as u32;
+            b[56] = (len_high >> 24 & 0xff) as u8;
+            b[57] = (len_high >> 16 & 0xff) as u8;
+            b[58] = (len_high >>  8 & 0xff) as u8;
+            b[59] = (len_high >>  0 & 0xff) as u8;
+            b[60] = (len_low  >> 24 & 0xff) as u8;
+            b[61] = (len_low  >> 16 & 0xff) as u8;
+            b[62] = (len_low  >>  8 & 0xff) as u8;
+            b[63] = (len_low  >>  0 & 0xff) as u8;
+            self.compute_block(b); 
+        });
+    }
+    
+    // This method computes SHA256 on data in input_data,
+    // updating the internal hash state. `data_buffer`
+    // contains input data that did or does not fill a block:
+    // the implementation first fills temp_buffer and computes
+    // on it, then operates on input_data. If the end of
+    // input_data does not complete a block then the remainder
+    // is stored in data_buffer.
     fn compute_sha256(&self) {
         let mut data = self.input_data.take().unwrap();
-        let mut one_appended = false;
-        let total_length = data.len();
-        // The length is 55 because of the 9 bytes appended.
-        // Since this implementation operates on bytes, the
-        // 1 appended always consumes a byte. Bytes 1-8 are
-        // the 8 byte length value. Since a block is 64 bytes,
-        // this means the last block must have at most 55 bytes,
-        // or it will bleed into the next block. If the block
-        // has 56-63 bytes, then it is not the last block but
-        // the 1 is appended in this block.
-        while data.len() >= 55 {
-            one_appended = self.compute_block(&mut data);
+        let data_length = data.len();
+        self.total_length.set(self.total_length.get() + data_length);
+        let mut buffered_length = self.buffered_length.get();
+        if buffered_length != 0 {
+            // Copy bytes into the front of the temp buffer and
+            // compute if it fills.
+            self.data_buffer.map(|b| {
+                let copy_len = if data_length + buffered_length >= SHA_BLOCK_LEN_BYTES {
+                    SHA_BLOCK_LEN_BYTES - buffered_length
+                } else {
+                    data_length
+                };
+
+                for i in 0..copy_len {
+                    b[i + buffered_length] = data[i];
+                }
+                data.slice(copy_len..data.len());
+                buffered_length += copy_len;
+                //debug!("SHA256: Copying {} bytes into SHA buffer, {} bytes remain", copy_len, data.len());
+                
+                if buffered_length == SHA_BLOCK_LEN_BYTES {
+                    self.compute_block(b);
+                }
+            });
         }
-        self.last_block(&mut data, one_appended, total_length);
+        // Process blocks
+        while data.len() >= 64 {
+            self.compute_buffer(&data[0..64]);
+            data.slice(64..data.len());
+        }
+        // Process tail end of block
+        if data.len() != 0 {
+            self.data_buffer.map(|b| {
+                for i in 0..data.len() {
+                    b[i] = data[i];
+                }
+                buffered_length = data.len();
+                // Go to end of data.
+                data.slice(data.len()..data.len());
+            });
+        }
         self.input_data.set(data);
+        self.buffered_length.set(buffered_length);
     }
 
     fn right_rotate(&self, x: u32, rotate: u32) -> u32 {
         (x >> rotate) | (x << (32 - rotate))
     }
 
-    // Returns true if the 1 was appended at the end of the data.
-    fn compute_block(&self, buf: &mut LeasableBuffer<'static, u8>) -> bool {
-        debug!("Sha256Software: computing block");
-        let mut one_appended = false;
+    // Note: slice MUST be >= 64 bytes long
+    fn compute_buffer(&self, buffer: &[u8]) {
+        debug!("SHA256: Computing buffer.");
+        // This is clearly inefficient (copy a u8 array into a u32
+        // array), but it's better than using unsafe.  This
+        // implementation is not intended to be high performance.
         let mut message_schedule: [u32; 64] = [0; 64];
-        let len = cmp::min(buf.len(), 64);
-        // Len is >= 55, which means there is always another block;
-        // this block is always zero-padded. Blocks which contain
-
-        for i in 0..len {
-            let shift = (3 - (i % 4)) * 8;
-            message_schedule[i / 4] |= (buf[i] as u32) << shift;
-        }
-        // Append the 1 if needed
-        if len < 64 {
-            let shift = (3 - (len % 4)) * 8;
-            message_schedule[len / 4] |= 0x80 << shift;
-            one_appended = true;
+        for i in 0..16 {
+            let val: u32 = (buffer[i * 4 + 0] as u32) << 24 |
+                           (buffer[i * 4 + 1] as u32) << 16 |
+                           (buffer[i * 4 + 2] as u32) << 8 |
+                           (buffer[i * 4 + 3] as u32);
+            message_schedule[i] = val;
         }
         self.perform_sha(&mut message_schedule);
-        buf.slice(len..buf.len());
-        one_appended
     }
 
-    fn last_block(
-        &self,
-        buf: &mut LeasableBuffer<'static, u8>,
-        one_appended: bool,
-        total_length: usize,
-    ) {
+    fn compute_block(&self, data: &mut [u8; 64]) {
+        self.compute_buffer(data);
+            
+/*        // This is clearly inefficient (copy a u8 array into a u32
+        // array), but it's better than using unsafe.  This
+        // implementation is not intended to be high performance.
         let mut message_schedule: [u32; 64] = [0; 64];
-        let len = cmp::min(buf.len(), 55);
-        debug!(
-            "Sha256Software: last block: {} bytes: 1 appended: {}",
-            len, one_appended
-        );
-        for i in 0..len {
-            let shift = (3 - (i % 4)) * 8;
-            message_schedule[i / 4] |= (buf[i] as u32) << shift;
+        for i in 0..16 {
+            let val: u32 = (data[i * 4 + 0] as u32) << 24 |
+            (data[i * 4 + 1] as u32) << 16 |
+            (data[i * 4 + 2] as u32) << 8 |
+            (data[i * 4 + 3] as u32);
+            message_schedule[i] = val;
         }
-        if one_appended == false {
-            let shift = (3 - (len % 4)) * 8;
-            message_schedule[len / 4] |= 0x80 << shift;
-        }
-        let length64 = (total_length * 8) as u64;
-        message_schedule[14] = (length64 >> 32) as u32;
-        message_schedule[15] = (length64 & 0xffffffff) as u32;
-        self.perform_sha(&mut message_schedule);
-        buf.slice(len..len);
+        self.perform_sha(&mut message_schedule);*/
     }
-
+    
     fn perform_sha(&self, message_schedule: &mut [u32; 64]) {
         // Message schedule
         for i in 16..64 {
@@ -305,6 +398,7 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
                 Err((ErrorCode::FAIL, digest))
             } else {
                 self.handle.map(|handle| {
+                    self.complete_sha256();
                     for i in 0..8 {
                         let val = self.hash_values.get()[i];
                         digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
@@ -334,6 +428,7 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
                 Err((ErrorCode::FAIL, compare))
             } else {
                 self.handle.map(|handle| {
+                    self.complete_sha256();
                     self.output_data.set(Some(compare));
                     self.deferred_caller.set(*handle);
                 });

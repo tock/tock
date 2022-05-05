@@ -702,7 +702,7 @@ pub unsafe fn main() {
     );*/
     //virtual_alarm_timer.set_alarm_client(mux_timer);
 
-    //test::sha256_test::run_sha256(dynamic_deferred_caller);
+    test::sha256_test::run_sha256(dynamic_deferred_caller);
 
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(sam4l::ast::Ast))
