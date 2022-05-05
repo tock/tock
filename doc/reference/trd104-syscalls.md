@@ -568,7 +568,7 @@ a buffer by calling allow with the same pointer and a longer length
 and such a call is not required to return an error code of `INVALID`.
 Similarly, it is possible for userspace to allow the same buffer
 multiple times to the kernel. This means, in practice, that the kernel
-may have multiple writeable references to the same memory and MUST take
+may have multiple writeable references to the same memory and MUST 
 take precautions to ensure this does not violate safety within the
 kernel.
 
