@@ -1,13 +1,11 @@
 //! Software implementation of SHA-256.
 //!
-//! Implementation is based on the
-//! Wikipedia description of the algorithm. It performs the hash using
-//! 32-bit native values, translating the input data into the
-//! endianness of the processor and translating the output into
-//! big endian format.
+//! Implementation is based on the Wikipedia description of the
+//! algorithm. It performs the hash using 32-bit native values,
+//! translating the input data into the endianness of the processor
+//! and translating the output into big endian format.
 
 use core::cell::Cell;
-use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -27,6 +25,24 @@ pub enum State {
 
 const SHA_BLOCK_LEN_BYTES: usize = 64;
 const SHA_256_OUTPUT_LEN_BYTES: usize = 32;
+const NUM_ROUND_CONSTANTS: usize = 64;
+
+const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+                                                     0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+                                                     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+                                                     0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+                                                     0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+                                                     0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+                                                     0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+                                                     0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+                                                     0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+                                                     0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+                                                     0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+                                                     0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+                                                     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+                                                     0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+                                                     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+                                                     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
 
 pub struct Sha256Software<'a> {
     state: Cell<State>,
@@ -42,8 +58,6 @@ pub struct Sha256Software<'a> {
     output_data: Cell<Option<&'static mut [u8; SHA_256_OUTPUT_LEN_BYTES]>>,
 
     hash_values: Cell<[u32; 8]>,
-    round_constants: MapCell<[u32; SHA_BLOCK_LEN_BYTES]>,
-
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
 }
@@ -59,9 +73,7 @@ impl<'a> Sha256Software<'a> {
             total_length: Cell::new(0),
             
             output_data: Cell::new(None),
-
             hash_values: Cell::new([0; 8]),
-            round_constants: MapCell::new([0; 64]),
 
             deferred_caller: call,
             handle: OptionalCell::empty(),
@@ -91,72 +103,6 @@ impl<'a> Sha256Software<'a> {
                 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
                 0x5be0cd19,
             ]);
-            self.round_constants.map(|k| {
-                k[0] = 0x428a2f98;
-                k[1] = 0x71374491;
-                k[2] = 0xb5c0fbcf;
-                k[3] = 0xe9b5dba5;
-                k[4] = 0x3956c25b;
-                k[5] = 0x59f111f1;
-                k[6] = 0x923f82a4;
-                k[7] = 0xab1c5ed5;
-                k[8] = 0xd807aa98;
-                k[9] = 0x12835b01;
-                k[10] = 0x243185be;
-                k[11] = 0x550c7dc3;
-                k[12] = 0x72be5d74;
-                k[13] = 0x80deb1fe;
-                k[14] = 0x9bdc06a7;
-                k[15] = 0xc19bf174;
-                k[16] = 0xe49b69c1;
-                k[17] = 0xefbe4786;
-                k[18] = 0x0fc19dc6;
-                k[19] = 0x240ca1cc;
-                k[20] = 0x2de92c6f;
-                k[21] = 0x4a7484aa;
-                k[22] = 0x5cb0a9dc;
-                k[23] = 0x76f988da;
-                k[24] = 0x983e5152;
-                k[25] = 0xa831c66d;
-                k[26] = 0xb00327c8;
-                k[27] = 0xbf597fc7;
-                k[28] = 0xc6e00bf3;
-                k[29] = 0xd5a79147;
-                k[30] = 0x06ca6351;
-                k[31] = 0x14292967;
-                k[32] = 0x27b70a85;
-                k[33] = 0x2e1b2138;
-                k[34] = 0x4d2c6dfc;
-                k[35] = 0x53380d13;
-                k[36] = 0x650a7354;
-                k[37] = 0x766a0abb;
-                k[38] = 0x81c2c92e;
-                k[39] = 0x92722c85;
-                k[40] = 0xa2bfe8a1;
-                k[41] = 0xa81a664b;
-                k[42] = 0xc24b8b70;
-                k[43] = 0xc76c51a3;
-                k[44] = 0xd192e819;
-                k[45] = 0xd6990624;
-                k[46] = 0xf40e3585;
-                k[47] = 0x106aa070;
-                k[48] = 0x19a4c116;
-                k[49] = 0x1e376c08;
-                k[50] = 0x2748774c;
-                k[51] = 0x34b0bcb5;
-                k[52] = 0x391c0cb3;
-                k[53] = 0x4ed8aa4a;
-                k[54] = 0x5b9cca4f;
-                k[55] = 0x682e6ff3;
-                k[56] = 0x748f82ee;
-                k[57] = 0x78a5636f;
-                k[58] = 0x84c87814;
-                k[59] = 0x8cc70208;
-                k[60] = 0x90befffa;
-                k[61] = 0xa4506ceb;
-                k[62] = 0xbef9a3f7;
-                k[63] = 0xc67178f2;
-            });
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -165,7 +111,7 @@ impl<'a> Sha256Software<'a> {
 
 
     // Complete the hash and produce a final hash result.
-    fn complete_sha256(&self) {        
+   fn complete_sha256(&self) {        
         let mut buffered_length = self.buffered_length.get();
         // This shouldn't be necessary, as temp buffer should never be
         // full. But if it is fill, appending the 1 will be an
@@ -249,8 +195,7 @@ impl<'a> Sha256Software<'a> {
                 }
                 data.slice(copy_len..data.len());
                 buffered_length += copy_len;
-                //debug!("SHA256: Copying {} bytes into SHA buffer, {} bytes remain", copy_len, data.len());
-                
+
                 if buffered_length == SHA_BLOCK_LEN_BYTES {
                     self.compute_block(b);
                 }
@@ -282,7 +227,6 @@ impl<'a> Sha256Software<'a> {
 
     // Note: slice MUST be >= 64 bytes long
     fn compute_buffer(&self, buffer: &[u8]) {
-        debug!("SHA256: Computing buffer.");
         // This is clearly inefficient (copy a u8 array into a u32
         // array), but it's better than using unsafe.  This
         // implementation is not intended to be high performance.
@@ -299,19 +243,6 @@ impl<'a> Sha256Software<'a> {
 
     fn compute_block(&self, data: &mut [u8; 64]) {
         self.compute_buffer(data);
-            
-/*        // This is clearly inefficient (copy a u8 array into a u32
-        // array), but it's better than using unsafe.  This
-        // implementation is not intended to be high performance.
-        let mut message_schedule: [u32; 64] = [0; 64];
-        for i in 0..16 {
-            let val: u32 = (data[i * 4 + 0] as u32) << 24 |
-            (data[i * 4 + 1] as u32) << 16 |
-            (data[i * 4 + 2] as u32) << 8 |
-            (data[i * 4 + 3] as u32);
-            message_schedule[i] = val;
-        }
-        self.perform_sha(&mut message_schedule);*/
     }
     
     fn perform_sha(&self, message_schedule: &mut [u32; 64]) {
@@ -333,7 +264,7 @@ impl<'a> Sha256Software<'a> {
                 ^ self.right_rotate(hashes[4], 11)
                 ^ self.right_rotate(hashes[4], 25);
             let ch = (hashes[4] & hashes[5]) ^ ((!hashes[4]) & hashes[6]);
-            let constant = self.round_constants.map_or(0, |k| k[i]);
+            let constant = ROUND_CONSTANTS[i];
             let temp1 = hashes[7] + s1 + ch + constant + message_schedule[i];
             let s0 = self.right_rotate(hashes[0], 2)
                 ^ self.right_rotate(hashes[0], 13)
@@ -465,15 +396,11 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
                     {
                         pass = false;
-                        let oval = (output[4 * i + 0] as u32) << 24
-                            | (output[4 * i + 1] as u32) << 16
-                            | (output[4 * i + 2] as u32) << 8
-                            | output[4 * i + 3] as u32;
-                        debug!("Mismatched output {}: {:08x} not {:08x}", i, hashval, oval);
                         break;
                     }
                 }
 
+                self.clear_data();
                 self.client.map(|c| {
                     c.verification_done(Ok(pass), output);
                 });
@@ -488,6 +415,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
             State::Hash => {
                 // Hash already copied in method call.
                 let output = self.output_data.replace(None).unwrap();
+                self.clear_data();
                 self.client.map(|c| {
                     c.hash_done(Ok(()), output);
                 });

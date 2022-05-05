@@ -1,7 +1,7 @@
 //! This tests a software SHA256 implementation. To run this test,
 //! add this line to the imix boot sequence:
 //! ```
-//!     test::sha256_test::run_sha256();
+//!     test::sha256_test::run_sha256(dynamic_deferred_caller);
 //! ```
 //! This test takes a dynamic deferred call (for callbacks). It tries to
 //! hash 'hello world' and uses Digest::validate to check that the hash
@@ -53,7 +53,8 @@ unsafe fn static_init_test_sha256(call: &'static DynamicDeferredCall) -> &'stati
             LSTRING[i * 6 + j] = bytes[j];
         }
     }
-    let test = static_init!(TestSha256, TestSha256::new(sha, &mut LSTRING, &mut LHASH));
+    // We expect LSTRING to hash to LHASH, so final argument is true
+    let test = static_init!(TestSha256, TestSha256::new(sha, &mut LSTRING, &mut LHASH, true));
 
     test
 }
