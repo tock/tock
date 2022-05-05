@@ -142,7 +142,7 @@ mod simple_flash_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf, 0x20000);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
     }
 }
 
@@ -197,11 +197,11 @@ mod single_erase_flash_ctrl {
         let hash = hash_function.finish();
 
         let tickv1 = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf1, 0x20000);
-        tickv1.initalise(hash).unwrap();
+        tickv1.initialise(hash).unwrap();
 
         let mut read_buf2: [u8; 2048] = [0; 2048];
         let tickv2 = TicKV::<FlashCtrl, 2048>::new(FlashCtrl::new(), &mut read_buf2, 0x20000);
-        tickv2.initalise(hash).unwrap();
+        tickv2.initialise(hash).unwrap();
     }
 }
 
@@ -289,7 +289,7 @@ mod store_flast_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
 
@@ -305,7 +305,7 @@ mod store_flast_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -350,7 +350,7 @@ mod store_flast_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -385,7 +385,7 @@ mod store_flast_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
 
         let value: [u8; 32] = [0x23; 32];
         let mut buf: [u8; 32] = [0; 32];
@@ -480,7 +480,7 @@ mod no_check_store_flast_ctrl {
         let hash = hash_function.finish();
 
         let tickv = TicKV::<FlashCtrl, 256>::new(FlashCtrl::new(), &mut read_buf, 0x200);
-        tickv.initalise(hash).unwrap();
+        tickv.initialise(hash).unwrap();
 
         let value: [u8; 64] = [0x23; 64];
         let mut buf: [u8; 64] = [0; 64];

@@ -330,7 +330,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         lpuart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(lpuart_mux).finalize(());
 

@@ -92,7 +92,7 @@ pub(crate) const HEADER_LENGTH: usize = HASH_OFFSET + 8;
 pub(crate) const CHECK_SUM_LEN: usize = 4;
 
 /// The main key. A hashed version of this should be passed to
-/// `initalise()`.
+/// `initialise()`.
 pub const MAIN_KEY: &[u8; 15] = b"tickv-super-key";
 
 /// This is the main TicKV struct.
@@ -113,7 +113,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     }
 
     /// This function setups the flash region to be used as a key-value store.
-    /// If the region is already initalised this won't make any changes.
+    /// If the region is already initialised this won't make any changes.
     ///
     /// `hashed_main_key`: The u64 hash of the const string `MAIN_KEY`.
     ///
@@ -122,7 +122,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     ///
     /// On success nothing will be returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn initalise(&self, hashed_main_key: u64) -> Result<SuccessCode, ErrorCode> {
+    pub fn initialise(&self, hashed_main_key: u64) -> Result<SuccessCode, ErrorCode> {
         let mut buf: [u8; 0] = [0; 0];
 
         let key_ret = match self.state.get() {

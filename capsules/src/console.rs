@@ -48,6 +48,10 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
+/// Default size for the read and write buffers used by the console.
+/// Boards may pass different-size buffers if needed.
+pub const DEFAULT_BUF_SIZE: usize = 64;
+
 /// Ids for read-only allow buffers
 mod ro_allow {
     pub const WRITE: usize = 1;
@@ -69,9 +73,6 @@ pub struct App {
     pending_write: bool,
     read_len: usize,
 }
-
-pub static mut WRITE_BUF: [u8; 64] = [0; 64];
-pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
     uart: &'a dyn uart::UartData<'a>,
@@ -149,22 +150,29 @@ impl<'a> Console<'a> {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
-                let len = kernel_data
-                    .get_readonly_processbuffer(ro_allow::WRITE)
-                    .map_or(0, |write| write.len());
-                if app.write_remaining > len {
-                    // A slice has changed under us and is now smaller than
-                    // what we need to write -- just write what we can.
-                    app.write_remaining = len;
-                }
                 let transaction_len = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
                         write.enter(|data| {
-                            for (i, c) in data[data.len() - app.write_remaining..data.len()]
-                                .iter()
-                                .enumerate()
+                            let remaining_data = match data
+                                .get(app.write_len - app.write_remaining..app.write_len)
                             {
+                                Some(remaining_data) => remaining_data,
+                                None => {
+                                    // A slice has changed under us and is now
+                                    // smaller than what we need to write. Our
+                                    // behavior in this case is documented as
+                                    // undefined; the simplest thing we can do
+                                    // that doesn't panic is to abort the write.
+                                    // We update app.write_len so that the
+                                    // number of bytes written (which is passed
+                                    // to the write done upcall) is correct.
+                                    app.write_len -= app.write_remaining;
+                                    app.write_remaining = 0;
+                                    return 0;
+                                }
+                            };
+                            for (i, c) in remaining_data.iter().enumerate() {
                                 if buffer.len() <= i {
                                     return i; // Short circuit on partial send
                                 }

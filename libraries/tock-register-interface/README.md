@@ -294,6 +294,9 @@ registers.cr.modify(Control::RANGE.val(2)); // Leaves EN, INT unchanged
 // Named constants can be used instead of the raw values:
 registers.cr.modify(Control::RANGE::VeryHigh);
 
+// Enum values can also be used:
+registers.cr.modify(Control::RANGE::Value::VeryHigh.into())
+
 // Another example of writing a field with a raw value:
 registers.cr.modify(Control::EN.val(0)); // Leaves RANGE, INT unchanged
 

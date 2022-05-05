@@ -391,8 +391,8 @@ pub unsafe fn main() {
         .finalize(components::process_console_component_helper!(
             sam4l::ast::Ast
         ));
-    let console =
-        ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux).finalize(());
+    let console = ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux)
+        .finalize(components::console_component_helper!());
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822

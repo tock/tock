@@ -230,6 +230,15 @@ FieldValue_impl_for!(u128);
 FieldValue_impl_for!(usize);
 
 impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
+    #[inline]
+    pub fn none() -> Self {
+        Self {
+            mask: T::zero(),
+            value: T::zero(),
+            associated_register: PhantomData,
+        }
+    }
+
     /// Get the raw bitmask represented by this FieldValue.
     #[inline]
     pub fn mask(&self) -> T {
@@ -390,6 +399,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            #[derive(Copy, Clone, Eq, PartialEq)]
             #[repr($valtype)] // so that values larger than isize::MAX can be stored
             $(#[$outer])*
             pub enum Value {
@@ -411,6 +421,12 @@ macro_rules! register_bitmasks {
 
                         _ => Option::None
                     }
+                }
+            }
+
+            impl From<Value> for FieldValue<$valtype, $reg_desc> {
+                fn from(v: Value) -> Self {
+                    Self::new($crate::bitmask!($numbits), $offset, v as $valtype)
                 }
             }
         }

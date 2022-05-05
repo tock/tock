@@ -1,6 +1,6 @@
-//! Board file for Nucleo-F429ZI development board
+//! Board file for STM32F429I Discovery development board
 //!
-//! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
+//! - <https://www.st.com/en/evaluation-tools/32f429idiscovery.html>
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -45,13 +45,13 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
-struct NucleoF429ZI {
+struct STM32F429IDiscovery {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
-        3,
+        4,
     >,
     button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
@@ -67,7 +67,7 @@ struct NucleoF429ZI {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for NucleoF429ZI {
+impl SyscallDriverLookup for STM32F429IDiscovery {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -92,7 +92,7 @@ impl
             'static,
             stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals<'static>,
         >,
-    > for NucleoF429ZI
+    > for STM32F429IDiscovery
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -127,31 +127,31 @@ impl
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
-    dma: &stm32f429zi::dma::Dma1,
-    dma_streams: &'static [stm32f429zi::dma::Stream<stm32f429zi::dma::Dma1>; 8],
-    usart3: &'static stm32f429zi::usart::Usart<stm32f429zi::dma::Dma1>,
+    dma: &stm32f429zi::dma::Dma2,
+    dma_streams: &'static [stm32f429zi::dma::Stream<'static, stm32f429zi::dma::Dma2>; 8],
+    usart1: &'static stm32f429zi::usart::Usart<stm32f429zi::dma::Dma2>,
 ) {
-    use stm32f429zi::dma::Dma1Peripheral;
+    use stm32f429zi::dma::Dma2Peripheral;
     use stm32f429zi::usart;
 
     dma.enable_clock();
 
-    let usart3_tx_stream = &dma_streams[Dma1Peripheral::USART3_TX.get_stream_idx()];
-    let usart3_rx_stream = &dma_streams[Dma1Peripheral::USART3_RX.get_stream_idx()];
+    let usart1_tx_stream = &dma_streams[Dma2Peripheral::USART1_TX.get_stream_idx()];
+    let usart1_rx_stream = &dma_streams[Dma2Peripheral::USART1_RX.get_stream_idx()];
 
-    usart3.set_dma(
-        usart::TxDMA(usart3_tx_stream),
-        usart::RxDMA(usart3_rx_stream),
+    usart1.set_dma(
+        usart::TxDMA(&usart1_tx_stream),
+        usart::RxDMA(&usart1_rx_stream),
     );
 
-    usart3_tx_stream.set_client(usart3);
-    usart3_rx_stream.set_client(usart3);
+    usart1_tx_stream.set_client(usart1);
+    usart1_rx_stream.set_client(usart1);
 
-    usart3_tx_stream.setup(Dma1Peripheral::USART3_TX);
-    usart3_rx_stream.setup(Dma1Peripheral::USART3_RX);
+    usart1_tx_stream.setup(Dma2Peripheral::USART1_TX);
+    usart1_rx_stream.setup(Dma2Peripheral::USART1_RX);
 
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_TX.get_stream_irqn()).enable();
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_RX.get_stream_irqn()).enable();
+    cortexm4::nvic::Nvic::new(Dma2Peripheral::USART1_TX.get_stream_irqn()).enable();
+    cortexm4::nvic::Nvic::new(Dma2Peripheral::USART1_RX.get_stream_irqn()).enable();
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
@@ -163,49 +163,53 @@ unsafe fn set_pin_primary_functions(
 
     syscfg.enable_clock();
 
-    gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::G).enable_clock();
 
-    // User LD2 is connected to PB07. Configure PB07 as `debug_gpio!(0, ...)`
-    gpio_ports.get_pin(PinId::PB07).map(|pin| {
+    // User LD4 (red) is connected to PG14. Configure PG14 as `debug_gpio!(0, ...)`
+    gpio_ports.get_pin(PinId::PG14).map(|pin| {
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
 
-    gpio_ports.get_port_from_port_id(PortId::D).enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::A).enable_clock();
 
-    // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
-    gpio_ports.get_pin(PinId::PD08).map(|pin| {
+    // Configure USART1 on Pins PA09 and PA10.
+    // USART1 is connected to ST-LINK virtual COM port on Rev.1 of the Stm32f429i Discovery board
+    gpio_ports.get_pin(PinId::PA09).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
-        // AF7 is USART2_TX
+        // AF7 is USART1_TX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
-    gpio_ports.get_pin(PinId::PD09).map(|pin| {
+    gpio_ports.get_pin(PinId::PA10).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
-        // AF7 is USART2_RX
+        // AF7 is USART1_RX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
 
-    gpio_ports.get_port_from_port_id(PortId::C).enable_clock();
-
-    // button is connected on pc13
-    gpio_ports.get_pin(PinId::PC13).map(|pin| {
+    // User button B1 is connected on pa00
+    gpio_ports.get_pin(PinId::PA00).map(|pin| {
+        // By default, upon reset, the pin is in input mode, with no internal
+        // pull-up, no internal pull-down (i.e., floating).
+        //
+        // Only set the mapping between EXTI line and the Pin and let capsule do
+        // the rest.
         pin.enable_interrupt();
     });
-
-    // set interrupt for pin D0
-    gpio_ports.get_pin(PinId::PG09).map(|pin| {
-        pin.enable_interrupt();
-    });
+    // EXTI0 interrupts is delivered at IRQn 6 (EXTI0)
+    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::EXTI0).enable(); // TODO check if this is still necessary!
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
-    gpio_ports.get_port_from_port_id(PortId::A).enable_clock();
-    // Ports B, C and D are already enabled
+    // Ports A, and B are already enabled
+    //           A: already enabled
+    gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::C).enable_clock();
+    gpio_ports.get_port_from_port_id(PortId::D).enable_clock();
     gpio_ports.get_port_from_port_id(PortId::E).enable_clock();
     gpio_ports.get_port_from_port_id(PortId::F).enable_clock();
-    gpio_ports.get_port_from_port_id(PortId::G).enable_clock();
+    //           G: already enabled
     gpio_ports.get_port_from_port_id(PortId::H).enable_clock();
 
     // Arduino A0
@@ -241,8 +245,8 @@ unsafe fn set_pin_primary_functions(
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
-    // USART3 IRQn is 39
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
+    // USART1 IRQn is 37
+    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART1).enable();
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
@@ -259,7 +263,7 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
 unsafe fn get_peripherals() -> (
     &'static mut Stm32f429ziDefaultPeripherals<'static>,
     &'static stm32f429zi::syscfg::Syscfg<'static>,
-    &'static stm32f429zi::dma::Dma1<'static>,
+    &'static stm32f429zi::dma::Dma2<'static>,
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
@@ -273,22 +277,21 @@ unsafe fn get_peripherals() -> (
     );
     let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
-
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
+    (peripherals, syscfg, dma2)
 }
 
-/// Main function.
+/// Main function
 ///
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
     stm32f429zi::init();
 
-    let (peripherals, syscfg, dma1) = get_peripherals();
+    let (peripherals, syscfg, dma2) = get_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -297,12 +300,12 @@ pub unsafe fn main() {
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
     setup_dma(
-        dma1,
-        &base_peripherals.dma1_streams,
-        &base_peripherals.usart3,
+        dma2,
+        &base_peripherals.dma2_streams,
+        &base_peripherals.usart1,
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -321,9 +324,12 @@ pub unsafe fn main() {
     // UART
 
     // Create a shared UART channel for kernel debug.
-    base_peripherals.usart3.enable_clock();
+    // USART1 is only connected to the ST-LINK port in the DISC1 revision of
+    // the STM32F429I boards, DISC0 does not have this connection and will
+    // not have USART output available!
+    base_peripherals.usart1.enable_clock();
     let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.usart3,
+        &base_peripherals.usart1,
         115200,
         dynamic_deferred_caller,
     )
@@ -350,14 +356,15 @@ pub unsafe fn main() {
 
     // LEDs
 
-    // Clock to Port A is enabled in `set_pin_primary_functions()`
+    // Clock to all GPIO Ports is enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, stm32f429zi::gpio::Pin>,
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PG13).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PG14).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB13).unwrap()),
+        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PC05).unwrap()),
     ));
 
     // BUTTONs
@@ -367,7 +374,7 @@ pub unsafe fn main() {
         components::button_component_helper!(
             stm32f429zi::gpio::Pin,
             (
-                gpio_ports.get_pin(stm32f429zi::gpio::PinId::PC13).unwrap(),
+                gpio_ports.get_pin(stm32f429zi::gpio::PinId::PA00).unwrap(),
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullNone
             )
@@ -433,7 +440,10 @@ pub unsafe fn main() {
             30 => gpio_ports.pins[3][11].as_ref().unwrap(), //D30
             31 => gpio_ports.pins[4][2].as_ref().unwrap(), //D31
             // Timer Pins
-            32 => gpio_ports.pins[0][0].as_ref().unwrap(), //D32
+            // PA00 (or PIN[0][0]) is used for the button component so cannot
+            // be used for this component as well, otherwise interrupts will
+            // not reach the button component.
+            // 32 => stm32f429zi::gpio::PIN[0][0].as_ref().unwrap(), //D32
             33 => gpio_ports.pins[1][0].as_ref().unwrap(), //D33
             34 => gpio_ports.pins[4][0].as_ref().unwrap(), //D34
             35 => gpio_ports.pins[1][11].as_ref().unwrap(), //D35
@@ -480,13 +490,13 @@ pub unsafe fn main() {
             // Enable the to use the ADC pins as GPIO
             // 72 => gpio_ports.pins[0][3].as_ref().unwrap(), //A0
             // 73 => gpio_ports.pins[2][0].as_ref().unwrap(), //A1
-            // 74 => gpio_ports.pins[2][3].as_ref().unwrap(), //A2
-            // 75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
-            // 76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
-            // 77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
-            // 78 => gpio_ports.pins[1][1].as_ref().unwrap(), //A6
-            // 79 => gpio_ports.pins[2][2].as_ref().unwrap(), //A7
-            // 80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
+            // 74 gpio_ports.pins::PIN[2][3].as_ref().unwrap(), //A2
+            // 75 gpio_ports.pins::PIN[5][3].as_ref().unwrap(), //A3
+            // 76 gpio_ports.pins::PIN[5][5].as_ref().unwrap(), //A4
+            // 77 gpio_ports.pins::PIN[5][10].as_ref().unwrap(), //A5
+            // 78 gpio_ports.pins::PIN[1][1].as_ref().unwrap(), //A6
+            // 79 gpio_ports.pins::PIN[2][2].as_ref().unwrap(), //A7
+            // 80 gpio_ports.pins::PIN[5][4].as_ref().unwrap()  //A8
         ),
     )
     .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
@@ -568,7 +578,7 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    let nucleo_f429zi = NucleoF429ZI {
+    let stm32f429i_discovery = STM32F429IDiscovery {
         console: console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
@@ -605,7 +615,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_and_check_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -631,9 +641,9 @@ pub unsafe fn main() {
     .run();*/
 
     board_kernel.kernel_loop(
-        &nucleo_f429zi,
+        &stm32f429i_discovery,
         chip,
-        Some(&nucleo_f429zi.ipc),
+        Some(&stm32f429i_discovery.ipc),
         &main_loop_capability,
     );
 }
