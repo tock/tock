@@ -415,9 +415,8 @@ pub unsafe fn main() {
 
     use kernel::hil::time::Alarm;
     use kernel::hil::wifinina::Network;
-    use kernel::hil::wifinina::Ssid;
     use kernel::hil::wifinina::Psk;
-
+    use kernel::hil::wifinina::Ssid;
 
     let virtual_alarm_nina = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
@@ -427,7 +426,6 @@ pub unsafe fn main() {
     virtual_alarm_nina.setup();
 
     let networks_buffer = static_init!([Network; 10], [Network::default(); 10]);
-    
 
     let nina = static_init!(
         capsules::nina_w102::NinaW102<
@@ -447,14 +445,11 @@ pub unsafe fn main() {
             peripherals.pins.get_pin(RPGpio::GPIO2),
             virtual_alarm_nina,
             networks_buffer,
-           
-            
-    ));
+        )
+    );
     virtual_alarm_nina.set_alarm_client(nina);
     nina_spi.set_client(nina);
     let _ = nina.init();
-
-    
 
     let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
@@ -510,7 +505,7 @@ pub unsafe fn main() {
     );
 
     kernel::hil::wifinina::Scanner::set_client(nina, wifi_driver);
-    
+
     let _ = lsm6dsoxtr
         .configure(
             capsules::lsm6dsoxtr::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,

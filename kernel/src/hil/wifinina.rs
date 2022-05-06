@@ -70,7 +70,10 @@ pub struct Psk {
 
 impl Default for Psk {
     fn default() -> Self {
-        Psk { value: [0; 63], len: 0 }
+        Psk {
+            value: [0; 63],
+            len: 0,
+        }
     }
 }
 
@@ -93,7 +96,6 @@ pub trait Station<'a> {
     fn get_status(&self) -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn StationClient);
-    
 }
 
 /// Defines the functions used to get information about existing networks

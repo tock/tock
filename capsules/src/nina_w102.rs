@@ -318,7 +318,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn process_buffer(&self, command: Command) -> Result<(), ErrorCode> {
-       // debug!("Process buffer for command {:?}", command);
+        // debug!("Process buffer for command {:?}", command);
         self.read_buffer
             .map_or(Err(ErrorCode::NOMEM), |read_buffer| {
                 if read_buffer[0] == START_CMD {
@@ -567,7 +567,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                     let test_ssid = "Galaxy A70";
                     let test_psk = "12345678";
                     //self.get_mac_address();
-                     self.set_passphrase(test_ssid.as_bytes(), test_psk.as_bytes());
+                    self.set_passphrase(test_ssid.as_bytes(), test_psk.as_bytes());
                 }
             },
 
@@ -603,9 +603,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'static>> Scanner<'static> for NinaW102<
 impl<'a, S: SpiMaster, P: Pin, A: Alarm<'static>> Station<'static> for NinaW102<'static, S, P, A> {
     // try to initiatie a connection to the `Network`
     fn connect(&self, ssid: Ssid, psk: Option<Psk>) -> Result<(), ErrorCode> {
-        if let Some(psk) = psk.unwrap() {
-
-        }
+        //if let Some(psk) = psk.unwrap() {}
         self.set_passphrase(
             &ssid.value[0..ssid.value.len()],
             &psk.unwrap().value[0..psk.unwrap().value.len()],

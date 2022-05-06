@@ -2,11 +2,11 @@ use core::mem;
 
 use kernel::errorcode::into_statuscode;
 use kernel::grant::Grant;
-use kernel::{hil, debug};
+use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{debug, hil};
 use kernel::{ErrorCode, ProcessId};
-use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
 
 use crate::driver;
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
@@ -30,9 +30,7 @@ mod rw_allow {
 }
 
 #[derive(Default)]
-pub struct App {
-    
-}
+pub struct App {}
 
 pub struct WiFiChip<'a> {
     driver: &'a dyn hil::wifinina::Scanner<'a>,
@@ -41,7 +39,10 @@ pub struct WiFiChip<'a> {
 }
 
 impl<'a> WiFiChip<'a> {
-    pub fn new(driver: &'a dyn hil::wifinina::Scanner<'a>, grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>) -> WiFiChip<'a> {
+    pub fn new(
+        driver: &'a dyn hil::wifinina::Scanner<'a>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
+    ) -> WiFiChip<'a> {
         WiFiChip {
             driver: driver,
             apps: grant,
@@ -58,30 +59,37 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
             match status {
                 Ok(networks) => {
                     let _ = self.apps.enter(*process_id, |app, kernel_data| {
-                        let _ = kernel_data.get_readwrite_processbuffer(rw_allow::NETWORKS).and_then(|wifi_networks_buffer|{
-                            wifi_networks_buffer.mut_enter(|buffer| {
-                            let mut position = 0;
-                            let mut len = 0;
-                            for network in networks {
-                                if position + 35 > buffer.len() {
-                                    break;
-                                }
+                        let _ = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::NETWORKS)
+                            .and_then(|wifi_networks_buffer| {
+                                wifi_networks_buffer.mut_enter(|buffer| {
+                                    let mut position = 0;
+                                    let mut len = 0;
+                                    for network in networks {
+                                        if position + 35 > buffer.len() {
+                                            break;
+                                        }
 
-                                for (s, d) in
-                                    network.ssid.value.iter().zip(buffer.iter().skip(position))
-                                {
-                                    d.set(*s);
-                                }
-                                buffer[position + network.ssid.len as usize].set(0);
-                                buffer[position + network.ssid.len as usize + 1].set(0);
-                                buffer[position + network.ssid.len as usize + 2].set(0);
-                                position = position + 35;
-                                len = len + 1;
-                            }
-                            kernel_data.schedule_upcall(0, (0, len, networks.len())).ok()
-                        })
-                    }).unwrap();
-                    
+                                        for (s, d) in network
+                                            .ssid
+                                            .value
+                                            .iter()
+                                            .zip(buffer.iter().skip(position))
+                                        {
+                                            d.set(*s);
+                                        }
+                                        buffer[position + network.ssid.len as usize].set(0);
+                                        buffer[position + network.ssid.len as usize + 1].set(0);
+                                        buffer[position + network.ssid.len as usize + 2].set(0);
+                                        position = position + 35;
+                                        len = len + 1;
+                                    }
+                                    kernel_data
+                                        .schedule_upcall(0, (0, len, networks.len()))
+                                        .ok()
+                                })
+                            })
+                            .unwrap();
                     });
                 }
                 Err(error) => {
@@ -102,7 +110,7 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
 // impl hil::wifinina::StationClient for WiFiChip<'_> {
 
 //     fn command_complete(&self, status: Result<StationStatus, ErrorCode>) {
-        
+
 //     }
 // }
 
