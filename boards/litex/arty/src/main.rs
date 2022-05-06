@@ -487,7 +487,7 @@ pub unsafe fn main() {
 
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

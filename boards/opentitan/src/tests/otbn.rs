@@ -74,7 +74,7 @@ impl<'a> Client<'a> for OtbnTestCallback {
     }
 }
 
-/// These symbols are defined in the linker script.
+// These symbols are defined in the linker script.
 extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;

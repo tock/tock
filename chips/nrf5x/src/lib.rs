@@ -1,4 +1,3 @@
-#![feature(const_fn_trait_bound)]
 #![no_std]
 
 pub mod aes;
