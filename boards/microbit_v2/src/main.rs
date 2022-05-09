@@ -632,7 +632,7 @@ pub unsafe fn main() {
     // PROCESSES AND MAIN LOOP
     //--------------------------------------------------------------------------
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

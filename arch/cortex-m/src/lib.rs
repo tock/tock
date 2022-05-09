@@ -15,7 +15,7 @@ pub mod support;
 pub mod syscall;
 pub mod systick;
 
-/// These constants are defined in the linker script.
+// These constants are defined in the linker script.
 extern "C" {
     static _estack: u32;
     static mut _sstack: u32;

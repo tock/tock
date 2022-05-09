@@ -1,6 +1,6 @@
 //! Drivers and chip support for SweRVolf.
 
-#![feature(const_fn_trait_bound, naked_functions)]
+#![feature(naked_functions)]
 #![no_std]
 #![crate_name = "swervolf_eh1"]
 #![crate_type = "rlib"]

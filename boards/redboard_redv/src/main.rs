@@ -252,7 +252,7 @@ pub unsafe fn main() {
     debug!("Red-V initialization complete.");
     debug!("Entering main loop.");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

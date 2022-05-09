@@ -4,7 +4,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_fn_trait_bound)]
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -264,7 +263,7 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
     .run();*/
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
