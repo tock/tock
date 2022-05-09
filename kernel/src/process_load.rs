@@ -502,6 +502,7 @@ fn check_footer(
                 }
                 Ok((footer, len)) => {
                     let slice_result = footer_slice.get(len as usize + 4..);
+                    debug!("ProcessLoad: @{:x} found a len {} footer: {:?}", footers_position, len, footer);
                     footers_position = footers_position + len as usize + 4;
                     match slice_result {
                         None => {

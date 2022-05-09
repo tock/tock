@@ -1361,7 +1361,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             Ok(h) => h,
             Err(err) => return Err((err.into(), remaining_memory)),
         };
-
+        debug!("ProcessStandard::create: found a {:?}", tbf_header);
+        
         let process_name = tbf_header.get_package_name();
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
@@ -1427,19 +1428,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
-        // Check the credentials. This code should be cleaned up, I formatted it this
-        // way to try to keep it very self contained in the diff.
         let binary_end = tbf_header.get_binary_end() as usize;
         let total_size = app_flash.len();
+            
+        // The portion of the application binary covered by integrity.
         let footer_region = match app_flash.get(binary_end..total_size) {
             Some(f) => f,
             None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory)),
         };
 
-        //        let mut remaining_flash = app_flash
-        //                .get(total_size..)
-        //                .ok_or(ProcessLoadError::NotEnoughFlash)?;
-        // The portion of the application binary covered by integrity.
 
         // Check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a

@@ -204,14 +204,12 @@ impl Compress for AppCheckerSimulated<'_> {
     }
 }
 
-trait AppCheckerHMAC: DigestDataVerify<'static, 64_usize> + Sha512 {}
-
-pub struct AppCheckerSha512<'a> {
-    _hmac: &'a dyn AppCheckerHMAC,
-    client: OptionalCell<&'a dyn Client<'a>>,
+pub struct AppCheckerSha256 {
+    hasher: &'static dyn DigestDataVerify<'static, 64_usize> + Sha256 {}
+    client: OptionalCell<&'static dyn Client<'static>>,
 }
 
-impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
+impl AppCredentialsChecker for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
         true
     }
@@ -219,8 +217,8 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
     fn check_credentials(
         &self,
         credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        binary: &'static [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'static [u8])> {
         match credentials.format() {
             TbfFooterV2CredentialsType::Padding | TbfFooterV2CredentialsType::CleartextID => {
                 Err((ErrorCode::ALREADY, credentials, binary))
@@ -229,11 +227,15 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
             | TbfFooterV2CredentialsType::Rsa4096Key
             | TbfFooterV2CredentialsType::Rsa3072KeyWithID
             | TbfFooterV2CredentialsType::Rsa4096KeyWithID
-            | TbfFooterV2CredentialsType::SHA256
             | TbfFooterV2CredentialsType::SHA384
             | TbfFooterV2CredentialsType::SHA512 => {
                 Err((ErrorCode::NOSUPPORT, credentials, binary))
+            },
+            TbfFooterV2CredentialsType::SHA256 => {
+                hasher.clear_data();
+                hasher.add_data(binary);
             }
+
         }
     }
 
@@ -242,7 +244,7 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSha512<'a> {
     }
 }
 
-impl AppIdentification for AppCheckerSha512<'_> {
+impl AppIdentification for AppCheckerSha256<'_> {
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let credentials_a = process_a.get_credentials();
         let credentials_b = process_b.get_credentials();
@@ -265,10 +267,13 @@ impl AppIdentification for AppCheckerSha512<'_> {
     }
 }
 
-impl<'a> ClientData<'a, 64_usize> for AppCheckerSha512<'a> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static mut [u8]) {}
+impl<'a> ClientData<'a, 64_usize> for AppCheckerSha256<'a> {
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
+
+    }
 }
-impl<'a> ClientVerify<'a, 64_usize> for AppCheckerSha512<'a> {
+
+impl<'a> ClientVerify<'a, 64_usize> for AppCheckerSha256<'a> {
     fn verification_done(
         &'a self,
         _result: Result<bool, ErrorCode>,
