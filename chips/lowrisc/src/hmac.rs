@@ -71,7 +71,7 @@ register_bitfields![u32,
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
 
-    client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
+    client: OptionalCell<&'a dyn hil::digest::ClientMut<'a, 32>>,
 
     data: Cell<Option<LeasableMutableBuffer<'static, u8>>>,
     data_len: Cell<usize>,
