@@ -220,7 +220,7 @@ impl Hmac<'_> {
     }
 }
 
-impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
+impl<'a> hil::digest::DigestDataMut<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
@@ -291,8 +291,8 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
     }
 }
 
-impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
+impl<'a> hil::digest::DigestMut<'a, 32> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::ClientMut<'a, 32>) {
         self.client.set(client);
     }
 }
